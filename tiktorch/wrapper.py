@@ -80,7 +80,7 @@ class TikTorch(object):
         outputs = list(output_batch)
         return outputs
 
-    def configure(self, *, window_size=None, num_input_channels=None, serialize_to_path=None):
+    def configure(self, window_size=None, num_input_channels=None, serialize_to_path=None):
         """
         Configure the object.
 
