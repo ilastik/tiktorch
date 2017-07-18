@@ -29,6 +29,35 @@ class TikTorch(object):
         return self
 
     @property
+    def is_cuda(self):
+        return next(self.model.parameters()).is_cuda
+
+    def cuda(self):
+        """Transfers model to the GPU."""
+        self.model.cuda()
+        return self
+
+    def wrap_input_batch(self, input_batch):
+        # TODO: Convert np array to torch tensor to torch variable with
+        #       volatile=True and requires_grad = False and,
+        # TODO: Transfer to device with SIGINT lock
+        pass
+    
+    def unwrap_output_batch(self, output_batch):
+        # TODO: Convert from torch variable to torch tensor
+        # TODO: Transfer back to the CPU
+        # TODO: Convert to numpy array
+        pass
+
+    def forward_through_model(self, *inputs):
+        """
+        Wrapper around the model's forward method. We might need this later for
+        data-parallelism over multiple GPUs.
+        """
+        # TODO
+        pass
+
+    @property
     def expected_input_shape(self):
         return (self.get('num_input_channels'),) + tuple(self.get('window_size'))
 
@@ -38,7 +67,6 @@ class TikTorch(object):
 
     def forward(self, inputs):
         """
-
         Parameters
         ----------
         inputs : list
