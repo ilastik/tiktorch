@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from .utils import delayed_keyboard_interrupt
 
 
 class TikTorch(object):
@@ -38,11 +39,21 @@ class TikTorch(object):
         return self
 
     def wrap_input_batch(self, input_batch):
-        # TODO: Convert np array to torch tensor to torch variable with
-        #       volatile=True and requires_grad = False and,
-        # TODO: Transfer to device with SIGINT lock
-        pass
-    
+        """Wraps numpy array as a torch variable on the right device."""
+        # Convert to tensor
+        assert isinstance(input_batch, np.ndarray)
+        input_batch_tensor = torch.from_numpy(input_batch)
+        # Transfer to device
+        if self.is_cuda:
+            with delayed_keyboard_interrupt():
+                input_batch_tensor.cuda()
+        # Make variable
+        input_batch_variable = torch.autograd.Variable(input_batch_tensor,
+                                                       volatile=True,
+                                                       requires_grad=False)
+        # Done
+        return input_batch_variable
+
     def unwrap_output_batch(self, output_batch):
         # TODO: Convert from torch variable to torch tensor
         # TODO: Transfer back to the CPU
