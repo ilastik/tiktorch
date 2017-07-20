@@ -11,7 +11,8 @@ class CoreTest(TestCase):
         # Build model and object
         model = TinyConvNet3D()
         tiktorch = TikTorch(model=model).configure(window_size=[3, 512, 512],
-                                                   num_input_channels=1)
+                                                   num_input_channels=1, 
+                                                   num_output_channels=1)
         self.tiktorch = tiktorch
         self.input_array = np.zeros(shape=(1, 3, 512, 512))
 
