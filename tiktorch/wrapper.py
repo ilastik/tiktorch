@@ -102,7 +102,7 @@ class TikTorch(object):
     @property
     def expected_output_shape(self):
         """Gets the output shape to be expected by Lazyflow."""
-        return self.expected_input_shape
+        return (self.get('num_output_channels'),) + tuple(self.get('window_size'))
 
     def forward(self, inputs):
         """
@@ -147,7 +147,7 @@ class TikTorch(object):
         outputs = list(output_batch)
         return outputs
 
-    def configure(self, *, window_size=None, num_input_channels=None, serialize_to_path=None):
+    def configure(self, *, window_size=None, num_input_channels=None, num_output_channels=None, serialize_to_path=None):
         """
         Configure the object.
 
@@ -160,6 +160,9 @@ class TikTorch(object):
         num_input_channels : int
             Number of input channels. Must be an int >= 1.
 
+        num_output_channels : int
+            Number of output channels (the num classes the net predicts). Must be an int >= 1.
+
         serialize_to_path : str
             Where to serialize to. Must be a valid path.
 
@@ -171,6 +174,7 @@ class TikTorch(object):
         """
         self.set('window_size', window_size)
         self.set('num_input_channels', num_input_channels)
+        self.set('num_output_channels', num_output_channels)
         self.set('serialize_to_path', serialize_to_path)
         # TODO What else do we need?
         return self
