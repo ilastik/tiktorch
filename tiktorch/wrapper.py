@@ -14,13 +14,24 @@ class TikTorch(object):
         """
         assert isinstance(model, torch.nn.Module), \
             "Object must be a subclass of torch.nn.module."
-        self._model = model
+        self._model = None
         self._configuration = {}
+        # Setter does the validation
+        self.model = model
 
     @property
     def model(self):
         assert self._model is not None
         return self._model
+
+    @model.setter
+    def model(self, value):
+        assert isinstance(value, torch.nn.Module)
+        self._model = value
+
+    def bind_model(self, model):
+        self.model = model
+        return self
 
     def get(self, key, default=None):
         return self._configuration.get(key, default)
@@ -36,6 +47,11 @@ class TikTorch(object):
     def cuda(self):
         """Transfers model to the GPU."""
         self.model.cuda()
+        return self
+
+    def cpu(self):
+        """Transfers model to the CPU."""
+        self.model.cpu()
         return self
 
     def wrap_input_batch(self, input_batch):
@@ -55,25 +71,37 @@ class TikTorch(object):
         return input_batch_variable
 
     def unwrap_output_batch(self, output_batch):
-        # TODO: Convert from torch variable to torch tensor
-        # TODO: Transfer back to the CPU
-        # TODO: Convert to numpy array
-        pass
+        """Unwraps torch variables to a numpy array."""
+        assert isinstance(output_batch, torch.autograd.Variable)
+        output_batch_tensor = output_batch.data
+        # Transfer to CPU and convert to numpy array
+        if self.is_cuda:
+            with delayed_keyboard_interrupt():
+                output_batch_array = output_batch_tensor.cpu().numpy()
+        else:
+            output_batch_array = output_batch_tensor.numpy()
+        return output_batch_array
 
     def forward_through_model(self, *inputs):
         """
         Wrapper around the model's forward method. We might need this later for
         data-parallelism over multiple GPUs.
         """
-        # TODO
-        pass
+        input_batch = inputs[0]
+        input_variable = self.wrap_input_batch(input_batch)
+        # TODO Multi-GPU stuff goes here:
+        output_variable = self.model(input_variable)
+        output_batch = self.unwrap_output_batch(output_variable)
+        return output_batch
 
     @property
     def expected_input_shape(self):
+        """Gets the input shape as expected from Lazyflow."""
         return (self.get('num_input_channels'),) + tuple(self.get('window_size'))
 
     @property
     def expected_output_shape(self):
+        """Gets the output shape to be expected by Lazyflow."""
         return self.expected_input_shape
 
     def forward(self, inputs):

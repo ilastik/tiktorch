@@ -33,3 +33,13 @@ class WannabeConvNet3D(torch.nn.Module):
         # Expecting 5 dimensional inputs as (NCDHW).
         assert input_.dim() == 5
         return input_
+
+
+class TinyConvNet3D(torch.nn.Module):
+    """Tiny ConvNet with actual parameters."""
+    def __init__(self):
+        super(TinyConvNet3D, self).__init__()
+        self.conv3d = torch.nn.Conv3d(1, 1, 3, padding=1)
+
+    def forward(self, *input):
+        return self.conv3d(input[0])
