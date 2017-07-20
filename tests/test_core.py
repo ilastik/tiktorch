@@ -32,8 +32,10 @@ class CoreTest(TestCase):
             # No GPU, no test
             return
         self.setUp()
+        self.assertTrue(not self.tiktorch.is_cuda)
         # Transfer to GPU
         self.tiktorch.cuda()
+        self.assertTrue(self.tiktorch.is_cuda)
         # Forward and check
         output = self.tiktorch.forward([self.input_array])
         # noinspection PyTypeChecker
