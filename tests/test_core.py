@@ -45,3 +45,38 @@ class CoreTest(TestCase):
         self.assertIsInstance(output[0], np.ndarray)
         # noinspection PyUnresolvedReferences
         self.assertEqual(output[0].shape, (1, 3, 512, 512))
+
+class ForwardTest(TestCase):
+    def test_more_output_channels(self):
+        model = TinyConvNet3D()
+        tiktorch = TikTorch(model=model).configure(window_size=[3, 512, 512],
+                                                   num_input_channels=1, 
+                                                   num_output_channels=2)
+        self.tiktorch = tiktorch
+        self.input_array = np.zeros(shape=(1, 3, 512, 512))
+
+        # Forward and check
+        output = self.tiktorch.forward([self.input_array])
+        # noinspection PyTypeChecker
+        self.assertEqual(len(output), 1)
+        # noinspection PyUnresolvedReferences
+        self.assertIsInstance(output[0], np.ndarray)
+        # noinspection PyUnresolvedReferences
+        self.assertEqual(output[0].shape, (2, 3, 512, 512))
+
+    def test_less_output_channels(self):
+        model = TinyConvNet3D()
+        tiktorch = TikTorch(model=model).configure(window_size=[3, 512, 512],
+                                                   num_input_channels=3, 
+                                                   num_output_channels=2)
+        self.tiktorch = tiktorch
+        self.input_array = np.zeros(shape=(3, 3, 512, 512))
+
+        # Forward and check
+        output = self.tiktorch.forward([self.input_array])
+        # noinspection PyTypeChecker
+        self.assertEqual(len(output), 1)
+        # noinspection PyUnresolvedReferences
+        self.assertIsInstance(output[0], np.ndarray)
+        # noinspection PyUnresolvedReferences
+        self.assertEqual(output[0].shape, (2, 3, 512, 512))
