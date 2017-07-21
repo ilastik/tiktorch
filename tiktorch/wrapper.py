@@ -149,7 +149,11 @@ class TikTorch(object):
         if channel_difference < 0:
             output_batch = output_batch[:,:self.expected_output_shape[0],...]
         elif channel_difference > 0:
-            output_batch = np.reshape(np.repeat(input_batch[:,0,...], self.expected_output_shape[0]), [1] + list(self.expected_output_shape))
+            num_channels = self.expected_output_shape[0]
+            output_batch = np.zeros([1, num_channels] + list(input_batch.shape[2:]))
+            
+            for c in range(num_channels):
+                output_batch[0, c, ...] = input_batch[:, 0, ...]
         # DUMMY END
         # ----------------------------------------------------------------------------------------
 
