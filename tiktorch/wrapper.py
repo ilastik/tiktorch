@@ -27,7 +27,7 @@ class TikTorch(object):
     @model.setter
     def model(self, value):
         assert isinstance(value, torch.nn.Module)
-        self._model = value
+        self._model = value.float()
 
     def bind_model(self, model):
         self.model = model
@@ -58,11 +58,11 @@ class TikTorch(object):
         """Wraps numpy array as a torch variable on the right device."""
         # Convert to tensor
         assert isinstance(input_batch, np.ndarray)
-        input_batch_tensor = torch.from_numpy(input_batch)
+        input_batch_tensor = torch.from_numpy(input_batch).float()
         # Transfer to device
         if self.is_cuda:
             with delayed_keyboard_interrupt():
-                input_batch_tensor.cuda()
+                input_batch_tensor = input_batch_tensor.cuda()
         # Make variable
         input_batch_variable = torch.autograd.Variable(input_batch_tensor,
                                                        volatile=True,
@@ -134,29 +134,11 @@ class TikTorch(object):
         input_batch = np.array(inputs)
         assert input_batch.shape[1:] == self.expected_input_shape, \
             "Was expecting an input of shape {}, got one of shape {} instead."\
-                .format(self.expected_input_shape, input_batch.shape[1:])
-        # TODO: Torch magic goes here:
-        # ...
+                .format(self.expected_input_shape, input_batch.shape[1:])  
+        # Torch magic goes here:
+        output_batch = self.forward_through_model(input_batch)
         # We expect an output of the same shape (which can be cropped
         # according to halo downstream). We still leave it flexible enough.
-        
-        # ----------------------------------------------------------------------------------------
-        # DUMMY BEGIN
-        output_batch = input_batch.copy()
-
-        channel_difference = self.expected_output_shape[0] - input_batch.shape[1]
-
-        if channel_difference < 0:
-            output_batch = output_batch[:,:self.expected_output_shape[0],...]
-        elif channel_difference > 0:
-            num_channels = self.expected_output_shape[0]
-            output_batch = np.zeros([1, num_channels] + list(input_batch.shape[2:]))
-            
-            for c in range(num_channels):
-                output_batch[0, c, ...] = input_batch[:, 0, ...]
-        # DUMMY END
-        # ----------------------------------------------------------------------------------------
-
         assert output_batch.shape[1:] == self.expected_output_shape, \
             "Was expecting an output of shape {}, got one of shape {} instead." \
                 .format(self.expected_output_shape, output_batch.shape[1:])
