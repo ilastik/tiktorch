@@ -135,14 +135,27 @@ class TikTorch(object):
         assert input_batch.shape[1:] == self.expected_input_shape, \
             "Was expecting an input of shape {}, got one of shape {} instead."\
                 .format(self.expected_input_shape, input_batch.shape[1:])
-        # Torch magic goes here:
+        # TODO: Torch magic goes here:
         # ...
         # We expect an output of the same shape (which can be cropped
         # according to halo downstream). We still leave it flexible enough.
+        
+        # ----------------------------------------------------------------------------------------
+        # DUMMY BEGIN
         output_batch = input_batch.copy()
+
+        channel_difference = self.expected_output_shape[0] - input_batch.shape[1]
+
+        if channel_difference < 0:
+            output_batch = output_batch[:,:self.expected_output_shape[0],...]
+        elif channel_difference > 0:
+            output_batch = np.reshape(np.repeat(input_batch[:,0,...], self.expected_output_shape[0]), [1] + list(self.expected_output_shape))
+        # DUMMY END
+        # ----------------------------------------------------------------------------------------
+
         assert output_batch.shape[1:] == self.expected_output_shape, \
             "Was expecting an output of shape {}, got one of shape {} instead." \
-                .format(self.expected_output_shape, output_batch.shape)
+                .format(self.expected_output_shape, output_batch.shape[1:])
         # Separate outputs to list of batches
         outputs = list(output_batch)
         return outputs
