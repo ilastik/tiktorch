@@ -57,7 +57,7 @@ class Output(Conv2D):
 
 
 class DUNetSkeleton(nn.Module):
-    def __init__(self, encoders, decoders, base, output):
+    def __init__(self, encoders, decoders, base, output, final_activation=None):
         super(DUNetSkeleton, self).__init__()
         assert isinstance(encoders, list)
         assert isinstance(decoders, list)
@@ -73,6 +73,7 @@ class DUNetSkeleton(nn.Module):
         self.upx8 = nn.UpsamplingNearest2d(scale_factor=8)
         self.base = base
         self.output = output
+        self.final_activation = final_activation
 
     def forward(self, input_):
         # Say input_ spatial size is 512, i.e. input_.ssize = 512
@@ -147,6 +148,9 @@ class DUNetSkeleton(nn.Module):
                                      d2_4us,
                                      d1_2us,
                                      d0), 1))
+
+        if self.final_activation is not None:
+            out = self.final_activation(out)
         return out
 
 
@@ -168,8 +172,26 @@ class DUNet(DUNetSkeleton):
         ]
         # Build output
         output = Output([in_channels, N, 2 * N, 4 * N, 4 * N, 2 * N, N, N], out_channels, 3)
+        # Parse final activation
+        final_activation = nn.Sigmoid() if out_channels == 1 else nn.Softmax2d()
         # dundundun
         super(DUNet, self).__init__(encoders=encoders,
                                     decoders=decoders,
                                     base=base,
-                                    output=output)
+                                    output=output,
+                                    final_activation=final_activation)
+
+    def forward(self, input_):
+        # CREMI loaders are usually 3D, so we reshape if necessary
+        if input_.dim() == 5:
+            reshape_to_3d = True
+            b, c, _0, _1, _2 = list(input_.size())
+            assert _0 == 1
+            input_ = input_.view(b, c * _0, _1, _2)
+        else:
+            reshape_to_3d = False
+        output = super(DUNet, self).forward(input_)
+        if reshape_to_3d:
+            b, c, _0, _1 = list(output.size())
+            output = output.view(b, c, 1, _0, _1)
+        return output
