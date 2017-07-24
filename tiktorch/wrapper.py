@@ -21,11 +21,11 @@ class TikTorch(object):
         self._model = None
         self._configuration = {}
         # Setter does the validation
+        self.model = model
         if model is not None:
-            logger.debug("Initialized with model")
+            logger.debug("Initialized with model. On GPU?: {}.".format(self.is_cuda))
         else:
             logger.debug("Initialized without model")
-        self.model = model
 
     @property
     def model(self):
@@ -47,6 +47,13 @@ class TikTorch(object):
     def set(self, key, value):
         self._configuration.update({key: value})
         return self
+
+    def increment(self, key):
+        try:
+            if key in self._configuration and isinstance(self._configuration[key], int):
+                self._configuration[key] += 1
+        except TypeError:
+            pass
 
     @property
     def is_cuda(self):
@@ -104,11 +111,14 @@ class TikTorch(object):
         # FIXME: Unhack
         # Normalize input batch
         logger.debug("Normalizing input batch.")
-        logger.debug("Statistics before normalization: mean = {}, min = {}, max = {}"
+        logger.debug("Statistics before input normalization: mean = {}, min = {}, max = {}"
                      .format(input_batch.mean(), input_batch.min(), input_batch.max()))
         input_batch = (input_batch - input_batch.mean()) / (input_batch.std() + 0.000001)
-        logger.debug("Statistics after normalization: mean = {}, min = {}, max = {}"
-                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
+        logger.debug("Statistics after input normalization: mean = {}, min = {}, max = {}, std = {}"
+                     .format(input_batch.mean(),
+                             input_batch.min(),
+                             input_batch.max(),
+                             input_batch.std()))
         logger.debug("Wrapping input_batch.")
         input_variable = self.wrap_input_batch(input_batch)
         # TODO Multi-GPU stuff goes here:
