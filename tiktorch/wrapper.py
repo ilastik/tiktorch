@@ -1,6 +1,10 @@
 import torch
 import numpy as np
-from .utils import delayed_keyboard_interrupt
+
+import logging
+
+
+logger = logging.getLogger('TikTorch')
 
 
 class TikTorch(object):
@@ -17,6 +21,10 @@ class TikTorch(object):
         self._model = None
         self._configuration = {}
         # Setter does the validation
+        if model is not None:
+            logger.debug("Initialized with model")
+        else:
+            logger.debug("Initialized without model")
         self.model = model
 
     @property
@@ -58,11 +66,15 @@ class TikTorch(object):
         """Wraps numpy array as a torch variable on the right device."""
         # Convert to tensor
         assert isinstance(input_batch, np.ndarray)
+        logger.debug("Converting input_batch to torch tensor.")
         input_batch_tensor = torch.from_numpy(input_batch).float()
         # Transfer to device
         if self.is_cuda:
-            with delayed_keyboard_interrupt():
-                input_batch_tensor = input_batch_tensor.cuda()
+            logger.debug("Transfering input_batch to GPU.")
+            input_batch_tensor = input_batch_tensor.cuda()
+        else:
+            logger.debug("Using CPU.")
+        logger.debug("Making variable from tensor.")
         # Make variable
         input_batch_variable = torch.autograd.Variable(input_batch_tensor,
                                                        volatile=True,
@@ -76,9 +88,10 @@ class TikTorch(object):
         output_batch_tensor = output_batch.data
         # Transfer to CPU and convert to numpy array
         if self.is_cuda:
-            with delayed_keyboard_interrupt():
-                output_batch_array = output_batch_tensor.cpu().numpy()
+            logger.debug("Transferring output back to CPU from GPU.")
+            output_batch_array = output_batch_tensor.cpu().numpy()
         else:
+            logger.debug("Output is already on the CPU..")
             output_batch_array = output_batch_tensor.numpy()
         return output_batch_array
 
@@ -90,11 +103,22 @@ class TikTorch(object):
         input_batch = inputs[0]
         # FIXME: Unhack
         # Normalize input batch
+        logger.debug("Normalizing input batch.")
+        logger.debug("Statistics before normalization: mean = {}, min = {}, max = {}"
+                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
         input_batch = (input_batch - input_batch.mean()) / (input_batch.std() + 0.000001)
+        logger.debug("Statistics after normalization: mean = {}, min = {}, max = {}"
+                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
+        logger.debug("Wrapping input_batch.")
         input_variable = self.wrap_input_batch(input_batch)
         # TODO Multi-GPU stuff goes here:
+        logger.debug("Forward through model.")
         output_variable = self.model(input_variable)
+        logger.debug("Unwrapping output_variable.")
         output_batch = self.unwrap_output_batch(output_variable)
+        logger.debug("Unwrapped output_variable.")
+        logger.debug("Statistics of output array: mean = {}, min = {}, max = {}"
+                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
         return output_batch
 
     @property
@@ -133,23 +157,29 @@ class TikTorch(object):
         assert isinstance(inputs, (list, tuple)), \
             "Was expecting a list or tuple as `inputs`, got {} instead."\
                 .format(inputs.__class__.__name__)
+        logger.debug("Received input list of length {}.".format(len(inputs)))
         # Convert to a single numpy array
         input_batch = np.array(inputs)
+        logger.debug("Shape of the input batch: {}.".format(input_batch.shape))
         assert input_batch.shape[1:] == self.expected_input_shape, \
             "Was expecting an input of shape {}, got one of shape {} instead."\
                 .format(self.expected_input_shape, input_batch.shape[1:])  
+        logger.debug("Feeding through model.")
         # Torch magic goes here:
         output_batch = self.forward_through_model(input_batch)
         # We expect an output of the same shape (which can be cropped
         # according to halo downstream). We still leave it flexible enough.
+        logger.debug("Received output batch of shape {} from model.".format(output_batch.shape))
         assert output_batch.shape[1:] == self.expected_output_shape, \
             "Was expecting an output of shape {}, got one of shape {} instead." \
                 .format(self.expected_output_shape, output_batch.shape[1:])
         # Separate outputs to list of batches
         outputs = list(output_batch)
+        logger.debug("Returning list of {} array(s).".format(len(outputs)))
         return outputs
 
-    def configure(self, *, window_size=None, num_input_channels=None, num_output_channels=None, serialize_to_path=None):
+    def configure(self, *, window_size=None, num_input_channels=None, num_output_channels=None,
+                  serialize_to_path=None):
         """
         Configure the object.
 
