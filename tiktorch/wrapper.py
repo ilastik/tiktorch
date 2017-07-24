@@ -88,6 +88,9 @@ class TikTorch(object):
         data-parallelism over multiple GPUs.
         """
         input_batch = inputs[0]
+        # FIXME: Unhack
+        # Normalize input batch
+        input_batch = (input_batch - input_batch.mean()) / (input_batch.std() + 0.000001)
         input_variable = self.wrap_input_batch(input_batch)
         # TODO Multi-GPU stuff goes here:
         output_variable = self.model(input_variable)
