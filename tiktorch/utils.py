@@ -37,9 +37,9 @@ class WannabeConvNet3D(torch.nn.Module):
 
 class TinyConvNet3D(torch.nn.Module):
     """Tiny ConvNet with actual parameters."""
-    def __init__(self):
+    def __init__(self, num_input_channels=1, num_output_channels=1):
         super(TinyConvNet3D, self).__init__()
-        self.conv3d = torch.nn.Conv3d(1, 1, 3, padding=1)
+        self.conv3d = torch.nn.Conv3d(num_input_channels, num_output_channels, 3, padding=1)
 
     def forward(self, *input):
         return self.conv3d(input[0])
