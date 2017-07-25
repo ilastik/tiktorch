@@ -20,6 +20,7 @@ class TikTorch(object):
             "Object must be a subclass of torch.nn.module."
         self._model = None
         self._configuration = {}
+        self._preprocessors = None
         # Setter does the validation
         self.model = model
         if model is not None:
@@ -55,13 +56,24 @@ class TikTorch(object):
         except TypeError:
             pass
 
+    def assert_defined(self, key, allow_none=False):
+        key_in_configuration = key in self._configuration
+        key_not_none = key_in_configuration and self._configuration[key] is not None
+        assert key_in_configuration, \
+            "Key {} not found in configuration.".format(key)
+        if not allow_none:
+            assert key_not_none, \
+                "Key {} is defined in configuration, but maps to a None.".format(key)
+
     @property
     def is_cuda(self):
         return next(self.model.parameters()).is_cuda
 
-    def cuda(self):
-        """Transfers model to the GPU."""
+    def cuda(self, *args):
+        """Transfers model to the GPU. Arguments specify the ids of the GPU devices to use."""
         self.model.cuda()
+        if len(args) > 0:
+            self.set('devices', list(args))
         return self
 
     def cpu(self):
@@ -123,7 +135,14 @@ class TikTorch(object):
         input_variable = self.wrap_input_batch(input_batch)
         # TODO Multi-GPU stuff goes here:
         logger.debug("Forward through model.")
-        output_variable = self.model(input_variable)
+        if self.get('devices') is None or not self.is_cuda:
+            logger.debug("No devices specified or model is on the CPU.")
+            output_variable = self.model(input_variable)
+        else:
+            logger.debug("Using devices: {}.".format(self.get('devices')))
+            output_variable = torch.nn.parallel.data_parallel(self.model,
+                                                              inputs=input_variable,
+                                                              device_ids=self.get('devices'))
         logger.debug("Unwrapping output_variable.")
         output_batch = self.unwrap_output_batch(output_variable)
         logger.debug("Unwrapped output_variable.")
@@ -189,7 +208,7 @@ class TikTorch(object):
         return outputs
 
     def configure(self, *, window_size=None, num_input_channels=None, num_output_channels=None,
-                  serialize_to_path=None):
+                  serialize_to_path=None, devices=None):
         """
         Configure the object.
 
@@ -208,6 +227,9 @@ class TikTorch(object):
         serialize_to_path : str
             Where to serialize to. Must be a valid path.
 
+        devices : list
+            List of devices to use. By default, TikTorch will only use GPU0 if CUDA is available.
+
         Returns
         -------
         TikTorch
@@ -218,6 +240,7 @@ class TikTorch(object):
         self.set('num_input_channels', num_input_channels)
         self.set('num_output_channels', num_output_channels)
         self.set('serialize_to_path', serialize_to_path)
+        self.set('devices', devices)
         # TODO What else do we need?
         return self
 

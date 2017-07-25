@@ -46,6 +46,25 @@ class CoreTest(TestCase):
         # noinspection PyUnresolvedReferences
         self.assertEqual(output[0].shape, (1, 3, 512, 512))
 
+    def test_multi_gpu(self):
+        # Specifies the devices to test on
+        devices = [0, 1, 2, 3]
+        # Do nothing if cuda is not available
+        if not torch.cuda.is_available():
+            return
+        self.setUp()
+        # Assuming 4 GPUs
+        self.tiktorch.cuda(*devices)
+        self.assertEqual(self.tiktorch.get('devices'), devices)
+        # Forward
+        output = self.tiktorch.forward([self.input_array.copy() for _ in devices])
+        # noinspection PyTypeChecker
+        self.assertEqual(len(output), len(devices))
+        # noinspection PyUnresolvedReferences
+        self.assertIsInstance(output[0], np.ndarray)
+        self.assertTrue(all([output_.shape == (1, 3, 512, 512) for output_ in output]))
+
+
 class ForwardTest(TestCase):
     def test_more_output_channels(self):
         model = TinyConvNet3D()
