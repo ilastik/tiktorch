@@ -67,7 +67,11 @@ class TikTorch(object):
 
     @property
     def is_cuda(self):
-        return next(self.model.parameters()).is_cuda
+        try:
+            return next(self.model.parameters()).is_cuda
+        except StopIteration:
+            # FIXME: Assuming that if a network has no parameters, it doesn't use CUDA
+            return False
 
     def cuda(self, *args):
         """Transfers model to the GPU. Arguments specify the ids of the GPU devices to use."""
