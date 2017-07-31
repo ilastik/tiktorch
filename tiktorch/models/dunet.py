@@ -57,7 +57,8 @@ class Output(Conv2D):
 
 
 class DUNetSkeleton(nn.Module):
-    def __init__(self, encoders, decoders, base, output, final_activation=None):
+    def __init__(self, encoders, decoders, base, output, final_activation=None,
+                 return_hypercolumns=False):
         super(DUNetSkeleton, self).__init__()
         assert isinstance(encoders, list)
         assert isinstance(decoders, list)
@@ -74,6 +75,7 @@ class DUNetSkeleton(nn.Module):
         self.base = base
         self.output = output
         self.final_activation = final_activation
+        self.return_hypercolumns = return_hypercolumns
 
     def forward(self, input_):
         # Say input_ spatial size is 512, i.e. input_.ssize = 512
@@ -151,11 +153,24 @@ class DUNetSkeleton(nn.Module):
 
         if self.final_activation is not None:
             out = self.final_activation(out)
-        return out
+
+        if not self.return_hypercolumns:
+            return out
+        else:
+            out = torch.cat((input_,
+                             e0_2us,
+                             e1_4us,
+                             e2_8us,
+                             b_8us,
+                             d2_4us,
+                             d1_2us,
+                             d0,
+                             out), 1)
+            return out
 
 
 class DUNet(DUNetSkeleton):
-    def __init__(self, in_channels, out_channels, N=16):
+    def __init__(self, in_channels, out_channels, N=16, return_hypercolumns=False):
         # Build encoders
         encoders = [
             Encoder([in_channels], N, 3),
@@ -179,7 +194,8 @@ class DUNet(DUNetSkeleton):
                                     decoders=decoders,
                                     base=base,
                                     output=output,
-                                    final_activation=final_activation)
+                                    final_activation=final_activation,
+                                    return_hypercolumns=return_hypercolumns)
 
     def forward(self, input_):
         # CREMI loaders are usually 3D, so we reshape if necessary
