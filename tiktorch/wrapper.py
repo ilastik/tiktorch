@@ -164,6 +164,14 @@ class TikTorch(object):
         """Gets the output shape to be expected by Lazyflow."""
         return (self.get('num_output_channels'),) + tuple(self.get('window_size'))
 
+    def change_shape(self, batch):
+        """Changes the shape when it gets smaller than the expected output shape."""
+        print(batch.shape,"batch")
+        zero_arr = np.zeros((batch.shape[0],) + self.expected_output_shape)
+        border = int((self.expected_output_shape[1] - batch.shape[2])/2)
+        zero_arr[:, :, border:(border+batch.shape[2]), border:(border+batch.shape[3])] = batch
+        return zero_arr
+
     def forward(self, inputs):
         """
         Parameters
@@ -202,6 +210,9 @@ class TikTorch(object):
         output_batch = self.forward_through_model(input_batch)
         # We expect an output of the same shape (which can be cropped
         # according to halo downstream). We still leave it flexible enough.
+        if output_batch.shape[1:] != self.expected_output_shape:
+            output_batch = self.change_shape(output_batch)
+
         logger.debug("Received output batch of shape {} from model.".format(output_batch.shape))
         assert output_batch.shape[1:] == self.expected_output_shape, \
             "Was expecting an output of shape {}, got one of shape {} instead." \
