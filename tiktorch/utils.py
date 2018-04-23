@@ -49,7 +49,7 @@ class TinyConvNet2D(torch.nn.Module):
     """Tiny ConvNet with actual parameters."""
     def __init__(self, num_input_channels=1, num_output_channels=1):
         super(TinyConvNet2D, self).__init__()
-        self.conv2xd = torch.nn.Conv2d(num_input_channels, num_output_channels, 3, padding=1)
+        self.conv2d = torch.nn.Conv2d(num_input_channels, num_output_channels, 3, padding=1)
 
     def forward(self, *input):
         return self.conv2d(input[0])
