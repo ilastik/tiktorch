@@ -222,7 +222,7 @@ class TikTorch(object):
         logger.debug("Returning list of {} array(s).".format(len(outputs)))
         return outputs
 
-    def configure(self, *, window_size=None, num_input_channels=None, num_output_channels=None,
+    def configure(self, *, window_size=None, output_size=None, num_input_channels=None, num_output_channels=None,
                   serialize_to_path=None, devices=None):
         """
         Configure the object.
@@ -231,6 +231,10 @@ class TikTorch(object):
         ----------
         window_size : list
             A length specifying the spatial shape of the input. Must be a list of
+            length 2 for 2D images, or one of length 3 for 3D volumes.
+
+        output_size : list
+            A length specifying the spatial shape of the ouput. Must be a list of
             length 2 for 2D images, or one of length 3 for 3D volumes.
 
         num_input_channels : int
@@ -252,6 +256,7 @@ class TikTorch(object):
 
         """
         self.set('window_size', window_size)
+        self.set('output_size', output_size)
         self.set('num_input_channels', num_input_channels)
         self.set('num_output_channels', num_output_channels)
         self.set('serialize_to_path', serialize_to_path)
