@@ -64,11 +64,33 @@ class BuildyMcBuildface(object):
         with open(dump_file_name, 'w') as f:
             yaml.dump(config_dict, dump_file_name)
 
-    def build(self, code_path, model_class_name, state_path,
-              input_shape, output_shape, **model_init_kwargs):
+    def build(self, spec):
         """
         Build tiktorch configuration.
 
+        Parameters
+        ----------
+        spec: TikTorchSpec
+            Specification Object
+        """
+        # Validate and copy code path
+        self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path, 'model.py')
+        # ... and weights path
+        self.validate_path(spec.state_path, 'nn').copy_to_build_directory(spec.state_path, 'state.nn')
+        # Build and dump configuration dict
+        tiktorch_config = spec.__dict__
+        tiktorch_config.update({'build_directory': self.build_directory})
+        self.dump_config(tiktorch_config)
+        # Done
+        return self
+
+
+class TikTorchSpec(object):
+    def __init__(self, code_path=None, model_class_name=None, state_path=None,
+                 input_shape=None, output_shape=None,
+                 cuda=False, devices=None,
+                 model_init_kwargs=None):
+        """
         Parameters
         ----------
         code_path: str
@@ -81,21 +103,22 @@ class BuildyMcBuildface(object):
             Input shape of the model. Must be `CHW` (for 2D models) or `CDHW` (for 3D models).
         output_shape: tuple or list
             Shape of the model output. Must be `CHW` (for 2D models) or `CDHW` (for 3D models)
+        cuda: bool
+            Whether to use CUDA
+        devices: list
+            List of devices to use
         model_init_kwargs: dict
             Kwargs to the model constructor (if any).
         """
-        # Validate and copy code path
-        self.validate_path(code_path, 'py').copy_to_build_directory(code_path, 'model.py')
-        # ... and weights path
-        self.validate_path(state_path, 'nn').copy_to_build_directory(state_path, 'state.nn')
-        # Build and dump configuration dict
-        tiktorch_config = {'build_directory': self.build_directory,
-                           'model_class_name': model_class_name,
-                           'input_shape': input_shape,
-                           'output_shape': output_shape,
-                           'model_init_kwargs': model_init_kwargs}
-        self.dump_config(tiktorch_config)
-        # Done
+        self.code_path = code_path
+        self.model_class_name = model_class_name
+        self.state_path = state_path
+        self.input_shape = input_shape
+        self.output_shape = output_shape
+        self.cuda = cuda
+        self.devices = devices
+        self.model_init_kwargs = model_init_kwargs or {}
+
+    def validate(self):
+        # TODO Validate arguments
         return self
-
-
