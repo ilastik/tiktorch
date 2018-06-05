@@ -25,6 +25,11 @@ class delayed_keyboard_interrupt(object):
             self.old_handler(*self.signal_received)
 
 
+def assert_(condition, message='', exception_type=Exception):
+    if not condition:
+        raise exception_type(message)
+
+
 class WannabeConvNet3D(torch.nn.Module):
     """A torch model that pretends to be a 2D convolutional network.
     This exists to just test the pickling machinery."""

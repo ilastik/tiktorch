@@ -1,6 +1,7 @@
 import os
 import shutil
 import yaml
+import click
 
 
 class FileExtensionError(Exception):
@@ -74,9 +75,11 @@ class BuildyMcBuildface(object):
             Specification Object
         """
         # Validate and copy code path
-        self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path, 'model.py')
+        self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path,
+                                                                         'model.py')
         # ... and weights path
-        self.validate_path(spec.state_path, 'nn').copy_to_build_directory(spec.state_path, 'state.nn')
+        self.validate_path(spec.state_path, 'nn').copy_to_build_directory(spec.state_path,
+                                                                          'state.nn')
         # Build and dump configuration dict
         tiktorch_config = spec.__dict__
         tiktorch_config.update({'build_directory': self.build_directory})
@@ -87,8 +90,7 @@ class BuildyMcBuildface(object):
 
 class TikTorchSpec(object):
     def __init__(self, code_path=None, model_class_name=None, state_path=None,
-                 input_shape=None, output_shape=None,
-                 cuda=False, devices=None,
+                 input_shape=None, output_shape=None, devices=None,
                  model_init_kwargs=None):
         """
         Parameters
@@ -103,10 +105,8 @@ class TikTorchSpec(object):
             Input shape of the model. Must be `CHW` (for 2D models) or `CDHW` (for 3D models).
         output_shape: tuple or list
             Shape of the model output. Must be `CHW` (for 2D models) or `CDHW` (for 3D models)
-        cuda: bool
-            Whether to use CUDA
         devices: list
-            List of devices to use
+            List of devices to use (e.g. 'cpu:0' or ['cuda:0', 'cuda:1']).
         model_init_kwargs: dict
             Kwargs to the model constructor (if any).
         """
@@ -115,7 +115,6 @@ class TikTorchSpec(object):
         self.state_path = state_path
         self.input_shape = input_shape
         self.output_shape = output_shape
-        self.cuda = cuda
         self.devices = devices
         self.model_init_kwargs = model_init_kwargs or {}
 
