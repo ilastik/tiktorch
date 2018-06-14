@@ -1,7 +1,6 @@
 import os
 import shutil
 import yaml
-import click
 
 
 class FileExtensionError(Exception):

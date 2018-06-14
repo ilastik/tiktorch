@@ -81,7 +81,7 @@ class DynamicShape(object):
 
     @staticmethod
     def strip_to_components(code):
-        components = code.strip('()').replace(', ', ',').split(',')
+        components = code[1:-1].replace(', ', ',').split(',')
         # Replace components with lambdas
         fmt_strings = [component.replace('nH', '{}').replace('nW', '{}').replace('nD', '{}')
                        for component in components]
@@ -90,3 +90,5 @@ class DynamicShape(object):
     def evaluate(self, *integers):
         return [eval(formatter.format(integer), {}, {})
                 for integer, formatter in zip(integers, self.formatters)]
+
+    __call__ = evaluate

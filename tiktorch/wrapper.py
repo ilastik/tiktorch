@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import yaml
 
-from tiktorch.io import TikIn, TikOut
+from tiktorch.tio import TikIn, TikOut
 from . import utils
 
 logger = logging.getLogger('TikTorch')
