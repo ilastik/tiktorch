@@ -90,8 +90,8 @@ class BuildyMcBuildface(object):
 
 class TikTorchSpec(object):
     def __init__(self, code_path=None, model_class_name=None, state_path=None,
-                 input_shape=None, output_shape=None, devices=None,
-                 model_init_kwargs=None):
+                 input_shape=None, output_shape=None, dynamic_input_shape=None,
+                 devices=None, model_init_kwargs=None):
         """
         Parameters
         ----------
@@ -105,6 +105,17 @@ class TikTorchSpec(object):
             Input shape of the model. Must be `CHW` (for 2D models) or `CDHW` (for 3D models).
         output_shape: tuple or list
             Shape of the model output. Must be `CHW` (for 2D models) or `CDHW` (for 3D models)
+        dynamic_input_shape: str
+            String specifying how to select dynamic values for (D,) H, W in C(D)HW shapes.
+            The string must have a "n{H, W, D}" in it somewhere, which will be interpreted as
+            integers starting at 0.
+            For instance, "(64 * 2 ** nD, 32 * 2 ** nH, 32 * 2 ** nW)" would mean the following
+            possible DHW shapes:
+                (nD=0, nH = 0, nW = 0) --> (64, 32, 32),
+                (nD=1, nH = 0, nW = 0) --> (128, 32, 32),
+                (nD=0, nH = 1, nW = 2) --> (64, 64, 128),
+                (nD=1, nH = 3, nW = 4) --> (128, 256, 512),
+                ...
         devices: list
             List of devices to use (e.g. 'cpu:0' or ['cuda:0', 'cuda:1']).
         model_init_kwargs: dict
@@ -115,6 +126,7 @@ class TikTorchSpec(object):
         self.state_path = state_path
         self.input_shape = input_shape
         self.output_shape = output_shape
+        self.dynamic_input_shape = dynamic_input_shape
         self.devices = devices
         self.model_init_kwargs = model_init_kwargs or {}
 

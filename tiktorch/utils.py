@@ -30,6 +30,13 @@ def assert_(condition, message='', exception_type=Exception):
         raise exception_type(message)
 
 
+def to_list(x):
+    if isinstance(x, (list, tuple)):
+        return list(x)
+    else:
+        return [x]
+
+
 class WannabeConvNet3D(torch.nn.Module):
     """A torch model that pretends to be a 2D convolutional network.
     This exists to just test the pickling machinery."""
@@ -58,3 +65,28 @@ class TinyConvNet2D(torch.nn.Module):
 
     def forward(self, *input):
         return self.conv2d(input[0])
+
+
+class DynamicShape(object):
+    def __init__(self, code):
+        self.code = code
+        self.formatters = self.strip_to_components(code)
+
+    @property
+    def dimension(self):
+        return len(self)
+
+    def __len__(self):
+        return len(self.formatters)
+
+    @staticmethod
+    def strip_to_components(code):
+        components = code.strip('()').replace(', ', ',').split(',')
+        # Replace components with lambdas
+        fmt_strings = [component.replace('nH', '{}').replace('nW', '{}').replace('nD', '{}')
+                       for component in components]
+        return fmt_strings
+
+    def evaluate(self, *integers):
+        return [eval(formatter.format(integer), {}, {})
+                for integer, formatter in zip(integers, self.formatters)]
