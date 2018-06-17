@@ -91,4 +91,8 @@ class DynamicShape(object):
         return [eval(formatter.format(integer), {}, {})
                 for integer, formatter in zip(integers, self.formatters)]
 
+    @property
+    def base_shape(self):
+        return self.evaluate(*([0]*len(self)))
+
     __call__ = evaluate
