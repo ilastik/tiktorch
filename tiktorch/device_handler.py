@@ -24,17 +24,41 @@ class DeviceMemoryCapacity(object):
         return f"DeviceMemoryCapacity(max_shape={self.shape}, num_blocks={self.num_blocks})"
 
 
-class ModelHandler(object):
+class Processor(object):
+    def __init__(self, num_parallel_jobs=0):
+        self._num_parallel_jobs = num_parallel_jobs
+
+    @property
+    def num_parallel_jobs(self):
+        return self._num_parallel_jobs
+
+
+class ModelHandler(Processor):
     def __init__(self, *, model, device_names, in_channels, out_channels=1,
                  dynamic_shape_code):
         # Privates
         self._max_batch_limit = 500
+        self._halo = None
+        self._model = model
+        self._in_channels = in_channels
+        self._out_channels = out_channels
         # Publics
-        self.model = model
         self.device_names = to_list(device_names)
-        self.in_channels = in_channels
-        self.out_channels = out_channels
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
+        # Init superclass
+        super(ModelHandler, self).__init__(num_parallel_jobs=len(self.devices))
+
+    @property
+    def model(self):
+        return self._model
+
+    @property
+    def in_channels(self):
+        return self._in_channels
+
+    @property
+    def out_channels(self):
+        return self._out_channels
 
     @property
     def device(self):
@@ -43,6 +67,23 @@ class ModelHandler(object):
     @property
     def devices(self):
         return [torch.device(name) for name in self.device_names]
+
+    @property
+    def halo(self):
+        if self._halo is None:
+            self._halo = self.compute_halo()
+        return self._halo
+
+    @halo.setter
+    def halo(self, value):
+        if isinstance(value, int):
+            self._halo = [value] * len(self.dynamic_shape)
+        else:
+            assert_(len(value) == len(self.dynamic_shape),
+                    f"Halo of a {len(self.dynamic_shape)}-D network cannot "
+                    f"be {len(value)}-D.",
+                    ValueError)
+            self._halo = value
 
     def _trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:
@@ -129,7 +170,26 @@ class ModelHandler(object):
         # Done
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
 
+    def compute_halo(self, device_id=0):
+        device = self.devices[device_id]
+        # Evaluate model on the smallest possible image to keep it quick
+        input_tensor = torch.zeros(1, self.in_channels, *self.dynamic_shape.base_shape).to(device)
+        model = self.model.to(device)
+        output_tensor = model(input_tensor)
+        # Assuming NCHW or NCDHW, the first two axes are not relevant for computing halo
+        input_spatial_shape = input_tensor.shape[2:]
+        output_spatial_shape = output_tensor.shape[2:]
+        shape_difference = [_ishape - _oshape
+                            for _ishape, _oshape in zip(input_spatial_shape, output_spatial_shape)]
+        # Support for only symmetric halos for now
+        assert_(all(_shape_diff % 2 == 0 for _shape_diff in shape_difference),
+                "Only symmetric halos are supported.", RuntimeError)
+        # Compute halo
+        halo = [_shape_diff // 2 for _shape_diff in shape_difference]
+        return halo
+
     def forward(self, input_tensor):
+
         pass
 
 
@@ -148,5 +208,19 @@ def test_dry_run():
     print(f"GPU Specs: {spec}")
 
 
+def test_halo_computer():
+    import torch.nn as nn
+    model = nn.Sequential(nn.Conv2d(3, 10, 3),
+                          nn.Conv2d(10, 10, 3),
+                          nn.Conv2d(10, 10, 3),
+                          nn.Conv2d(10, 3, 3))
+    handler = ModelHandler(model=model,
+                           device_names='cuda:0',
+                           in_channels=3, out_channels=3,
+                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
+    print(f"Halo: {handler.halo}")
+
+
 if __name__ == '__main__':
-    pass
+    # test_dry_run()
+    test_halo_computer()
