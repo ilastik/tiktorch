@@ -73,7 +73,6 @@ class Blockinator(object):
         self._processor = None
         # Publics
         self.data = data
-        # TODO Validate num_channel_axes against dynamic_shape
         self.num_channel_axes = num_channel_axes
         self.dynamic_shape = dynamic_shape
         self.pad_fn = pad_fn
@@ -170,6 +169,10 @@ class Blockinator(object):
 
     def __getitem__(self, item):
         return self.fetch(item)
+
+    def process(self):
+        # TODO Scheduling
+        pass
 
     @contextmanager
     def attach(self, processor):
