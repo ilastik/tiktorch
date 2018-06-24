@@ -170,7 +170,7 @@ class ModelHandler(Processor):
         # Done
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
 
-    def compute_halo(self, device_id=0):
+    def compute_halo(self, device_id=0, set_=True):
         device = self.devices[device_id]
         # Evaluate model on the smallest possible image to keep it quick
         input_tensor = torch.zeros(1, self.in_channels, *self.dynamic_shape.base_shape).to(device)
@@ -186,6 +186,8 @@ class ModelHandler(Processor):
                 "Only symmetric halos are supported.", RuntimeError)
         # Compute halo
         halo = [_shape_diff // 2 for _shape_diff in shape_difference]
+        if set_:
+            self.halo = halo
         return halo
 
     def forward(self, input_tensor):
