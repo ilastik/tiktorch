@@ -130,5 +130,6 @@ class TikTorchSpec(object):
         self.model_init_kwargs = model_init_kwargs or {}
 
     def validate(self):
-        # TODO Validate arguments
+        # TODO (@beinabih) Validate arguments
+        # Use assert_ in tiktorch.utils
         return self
