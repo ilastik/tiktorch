@@ -82,6 +82,7 @@ class TikTorch(object):
         model_file_name = os.path.join(self.build_directory, 'model.py')
         module_spec = imputils.spec_from_file_location('model', model_file_name)
         module = imputils.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
         # Build model from file
         model: torch.nn.Module = \
             getattr(module, self.get('model_class_name'))(**self.get('model_init_kwargs'))
