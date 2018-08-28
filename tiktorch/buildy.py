@@ -62,7 +62,7 @@ class BuildyMcBuildface(object):
         file_name = 'tiktorch_config.yml'
         dump_file_name = os.path.join(self.build_directory, file_name)
         with open(dump_file_name, 'w') as f:
-            yaml.dump(config_dict, dump_file_name)
+            yaml.dump(config_dict, f)
 
     def build(self, spec):
         """
