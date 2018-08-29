@@ -129,6 +129,52 @@ class TikTorchSpec(object):
         self.devices = devices
         self.model_init_kwargs = model_init_kwargs or {}
 
+        self.validate()
+
+    @classmethod
+    def assert_(cls, condition, message='', exception_type=Exception):
+        if not condition:
+            raise exception_type(message)
+        return cls
+
     def validate(self):
-        # TODO Validate arguments
+        self.assert_(os.path.exists(self.code_path), f'Path not found: {self.code_path}', FileExistsError)
+
+        self.assert_(isinstance(self.model_class_name, str), "Model Class Name must be a string", ValueError)
+
+        self.assert_(os.path.exists(self.state_path), f'Path not found: {self.state_path}', FileExistsError)
+
+        self.assert_(isinstance(self.input_shape, list), "input_shape must be a list", ValueError)
+
+        self.assert_(len(self.input_shape) == 3 or len(self.input_shape) == 4,
+         f"input_shape has length {len(self.input_shape)} but should have lenght 3 or 4", ValueError)
+
+        self.assert_(isinstance(self.output_shape, list), "output_shape must be a list", ValueError)
+        
+        self.assert_(len(self.output_shape) == 3 or len(self.output_shape) == 4,
+         f"output_shape has length {len(self.output_shape)} but should have lenght 3 or 4", ValueError)
+
+        self.assert_(isinstance(self.dynamic_input_shape, str), "dynamic_input_shape must be a string", ValueError)
+
+        self.assert_(isinstance(self.devices, list), "devices must be a list", ValueError)
+
+        self.assert_(isinstance(self.model_init_kwargs, dict), "model_init_kwargs must be a dictionary", ValueError)
+
         return self
+
+def test_TikTorchSpec():
+    code_path = '/Users'
+    model_class_name = "DUNet2D"
+    state_path = "/Users"
+    input_shape = [1, 512, 512]
+    output_shape = [1, 512, 512]
+    dynamic_input_shape = '(32 * (nH + 1), 32 * (nW + 1))'
+    devices = ['cpu:0']
+    model_init_kwargs = {}
+
+    spec = TikTorchSpec(code_path, model_class_name, state_path, input_shape,
+                        output_shape, dynamic_input_shape, devices, model_init_kwargs)
+
+
+if __name__ == '__main__':
+    test_TikTorchSpec()
