@@ -138,7 +138,7 @@ class TikTorchSpec(object):
         return cls
 
     def validate(self):
-<<<<<<< HEAD
+
         self.assert_(os.path.exists(self.code_path), f'Path not found: {self.code_path}', FileExistsError)
 
         self.assert_(isinstance(self.model_class_name, str), "Model Class Name must be a string", ValueError)
@@ -161,10 +161,6 @@ class TikTorchSpec(object):
 
         self.assert_(isinstance(self.model_init_kwargs, dict), "model_init_kwargs must be a dictionary", ValueError)
 
-=======
-        # TODO (@beinabih) Validate arguments
-        # Use assert_ in tiktorch.utils
->>>>>>> d1c79f5ea8a4e316e5d45c675c64d699d420d009
         return self
 
 def test_TikTorchSpec():
