@@ -176,6 +176,18 @@ def test_TikTorchSpec():
     spec = TikTorchSpec(code_path, model_class_name, state_path, input_shape,
                         output_shape, dynamic_input_shape, devices, model_init_kwargs)
 
+def test_BuildyMcBuildface():
+    spec = TikTorchSpec(code_path='/export/home/jhugger/sfb1129/test_configs_tiktorch/dunet2D.py',
+                        model_class_name='DUNet2D',
+                        state_path='/export/home/jhugger/sfb1129/test_configs_tiktorch/dunet2D_weights.nn',
+                        input_shape=[3, 256, 256],
+                        output_shape=[3, 256, 256],
+                        dynamic_input_shape='(1 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))',
+                        devices=['cuda:0', 'cuda:1'],
+                        model_init_kwargs={'in_channels': 1, 'out_channels': 1})
+    build = BuildyMcBuildface(build_directory='/export/home/jhugger/sfb1129/test_configs_tiktorch/config') \
+            .build(spec)
 
 if __name__ == '__main__':
-    test_TikTorchSpec()
+    #test_TikTorchSpec()
+    test_BuildyMcBuildface()
