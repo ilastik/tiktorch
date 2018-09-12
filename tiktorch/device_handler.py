@@ -47,6 +47,8 @@ class ModelHandler(Processor):
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
+        # Initiate dry run on gpu
+        self.dry_run() if 'cuda' in self.device_names[0] else None
         # Init superclass
         super(ModelHandler, self).__init__(num_parallel_jobs=len(self.devices))
 

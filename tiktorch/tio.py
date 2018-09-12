@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from . import utils
+import tiktorch.utils as utils
 
 
 class TikIO(object):
@@ -155,3 +155,13 @@ class TikOut(TikIO):
                                                   f"instead.",
                       TikIO.ShapeError)
         return list(batch)
+
+def test_tikin():
+    tikin = TikIn([np.random.randn(1, 100, 100) for _ in range(3)])
+    assert tikin.shape == torch.Size([1, 100, 100])
+    assert tikin.format == 'CHW/DHW'
+    batch = tikin.batcher(network_input_shape=[1, 10, 10])
+    assert batch.shape == torch.Size([3, 1, 100, 100])
+
+if __name__ == '__main__':
+    test_tikin()

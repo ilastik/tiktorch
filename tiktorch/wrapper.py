@@ -7,7 +7,8 @@ import torch
 import yaml
 
 from tiktorch.tio import TikIn, TikOut
-from . import utils
+import tiktorch.utils as utils
+from tiktorch.device_handler import ModelHandler
 
 logger = logging.getLogger('TikTorch')
 
@@ -16,11 +17,13 @@ class TikTorch(object):
     def __init__(self, build_directory):
         # Privates
         self._build_directory = None
+        self._handler = None
         self._model = None
         self._config = {}
         # Publics
         self.build_directory = build_directory
         self.read_config()
+        self._set_handler()
 
     @property
     def build_directory(self):
@@ -49,6 +52,14 @@ class TikTorch(object):
         with open(config_file_name, 'r') as f:
             self._config.update(yaml.load(f))
         return self
+
+    def _set_handler(self):
+        self._handler = ModelHandler(model=self.model,
+                                     device_names=self.get('devices'),
+                                     in_channels=self.get('in_channels'),
+                                     out_channels=self.get('out_channels', 1),
+                                     dynamic_shape_code=self.get('dynamic_input_shape'))
+                                     
 
     def get(self, tag, default=None, assert_exist=False):
         if assert_exist:
@@ -88,8 +99,11 @@ class TikTorch(object):
             getattr(module, self.get('model_class_name'))(**self.get('model_init_kwargs'))
         # Load parameters
         state_path = os.path.join(self.build_directory, 'state.nn')
-        state_dict = torch.load(state_path)
-        model.load_state_dict(state_dict)
+        try:
+            state_dict = torch.load(state_path)
+            model.load_state_dict(state_dict)
+        except FileNotFoundError as e:
+            print('Model weights could not be found!', e)
         # Save attribute and return
         self._model = model
         return self
@@ -137,10 +151,26 @@ class TikTorch(object):
         # Send batch to the right device
         batches = [batch.to(self.devices) for batch in batches]
         # Make sure model is in right device and feedforward
-        output_batches = self.ensure_model_on_device()(*batches)
+        output_batches = self.ensure_model_on_device().double()(*batches)
         if not isinstance(output_batches, (list, tuple)):
             output_batches = [output_batches]
         else:
             output_batches = list(output_batches)
         outputs = [TikOut(batch) for batch in output_batches]
         return outputs
+
+def test_TikTorch_init():
+    # move this function to test/test_core
+    tiktorch = TikTorch(build_directory='/home/jo/sfb1129/test_configs_tiktorch/config/')
+    return 0
+
+def test_forward():
+    tiktorch = TikTorch('/home/jo/sfb1129/test_configs_tiktorch/simple_config/')
+    tikin_list = [TikIn([np.random.randn(1, 100, 100) for i in range(3)]) for j in range(2)]
+    out = tiktorch.forward(tikin_list)
+    return 0
+
+
+if __name__ == '__main__':
+    #test_TikTorch_init()
+    test_forward()
