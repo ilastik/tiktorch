@@ -69,6 +69,13 @@ class slicey(object):
 class Blockinator(object):
     def __init__(self, data, dynamic_shape, num_channel_axes=0,
                  pad_fn=(lambda tensor, padding: tensor)):
+        """
+        Parameters
+        ----------
+        num_channel_axes: int
+        Specifies the position of the channel axis in data (tensor).
+        E.g. data.shape == (N, C, H, W) then num_channel_axes = 2.
+        """
         # Privates
         self._processor = None
         # Publics
@@ -182,16 +189,27 @@ class Blockinator(object):
 
 
 def np_pad(x, padding):
-    # TODO
-    pass
-    # return np.pad(x, padding, mode='reflect')
+    np_padding = []
+    for _dim_pad in padding:
+        if _dim_pad is None:
+            np_padding.append((0,0))
+        else:
+            np_padding.append(_dim_pad)
+    return np.pad(x, np_padding, mode='reflect')
 
 
 def th_pad(x, padding):
+    """
+    Parameters
+    ----------
+    x: torch.Tensor
+    """
     torch_padding = []
-    for _dim_pad in padding:
-        pass
-    # TODO
+    for _dim_pad in reversed(padding):
+        if _dim_pad is not None:
+            torch_padding.extend(_dim_pad)
+    # pytorch 0.4.1 only implements reflect padding for tensors of shape (N, C, H, W) (or smaller)
+    return thf.pad(x, torch_padding, mode='reflect') if x.dim() < 5 else thf.pad(x, torch_padding)
 
 
 def _test_blocky_basic():
@@ -211,6 +229,17 @@ def _test_blocky_halo():
         out = block[1:3, 2:4]
     print(out.shape)
 
+def _test_pad_function():
+    t4d = torch.rand(1, 1, 32, 32)
+    n4d = np.random.rand(1, 1, 32, 32)
+    p4d = (None, None, (4, 4), (9, 9))
+    assert th_pad(x=t4d, padding=p4d).shape == np_pad(n4d, p4d).shape
+
+    t5d = torch.rand(1, 3, 10, 64, 64)
+    n5d = np.random.rand(1, 3, 10, 64, 64)
+    p5d = (None, None, (5, 5), (8, 8), (16, 16))
+    assert th_pad(t5d, p5d).shape == np_pad(n5d, p5d).shape
 
 if __name__ == '__main__':
-    _test_blocky_halo()
+    #_test_blocky_halo()
+    _test_pad_function()
