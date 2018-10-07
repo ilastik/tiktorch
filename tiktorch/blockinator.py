@@ -3,7 +3,7 @@ import numpy as np
 import torch.nn.functional as thf
 from tiktorch.utils import DynamicShape
 from contextlib import contextmanager
-
+from functools import reduce
 
 class slicey(object):
     def __init__(self, start=None, stop=None, step=None, padding=(0, 0), shape=None):
@@ -178,8 +178,58 @@ class Blockinator(object):
         return self.fetch(item)
 
     def process(self):
-        # TODO Scheduling
-        pass
+        assert self._processor is not None
+        device = self._processor.devices[0]
+        num_pixels = self[:].numel()
+        max_specs = self._processor._device_specs.get(0, None)
+        max_shape = max_specs.shape if max_specs is not None else self.dynamic_shape.base_shape
+        num_max_pixels = reduce(lambda x, y: x*y, max_shape)
+        output_tensor = torch.empty_like(self.data).cpu()
+        print(device)
+        print(next(self._processor.model.parameters()).device)
+
+        if num_pixels < num_max_pixels:
+            # process the whole tensor at once
+            print("Case 1")
+            with torch.no_grad():
+                output_tensor = self._processor.crop_to_shape(
+                    self._processor.model(self[:].to(device)).cpu()
+                )
+        else:
+            if self[:][0].numel() < num_max_pixels:
+                print("Case 2")
+                # process base_block-max-batch-wise (base block from dynamic shape)
+                max_batch_size = int(num_max_pixels / self[:][0].numel()) - 1
+                num_batches = self[:].shape[0] // max_batch_size
+                rest = self[:].shape[0] % max_batch_size
+                print(max_batch_size, num_batches, rest)
+                for i in range(0, max_batch_size*num_batches, max_batch_size):
+                    with torch.no_grad():
+                        out = self._processor.model(self[:][i: i + max_batch_size].to(device)).cpu()
+                        output_tensor[i: i + max_batch_size] = self._processor.crop_to_shape(out)
+                out = self._processor.model(
+                    self[:][max_batch_size*num_batches: max_batch_size * num_batches + rest].to(device)).cpu()
+                out = self._processor.crop_to_shape(out)
+                output_tensor[max_batch_size*num_batches: max_batch_size * num_batches + rest] = out
+            else:
+                print("Case 3")
+                for n in range(self[:].shape[0]):
+                    for i in range(self.num_blocks[0]):
+                        for j in range(self.num_blocks[1]):
+                            with torch.no_grad():
+                                out = self._processor.crop_to_shape(
+                                    self._processor.model(self[i, j][n: n+1].to(device)).cpu())
+                            output_tensor[[slice(n, n+1, None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
+                                
+        return output_tensor
+            
+        for i in range(self.num_blocks[0]):
+            for j in range(self.num_blocks[1]):
+                with torch.no_grad():
+                    out = self._processor.crop_to_shape(self._processor.model(self[i, j].to(device)).cpu())
+                    output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
+                    
+        return output_tensor
 
     @contextmanager
     def attach(self, processor):
@@ -241,5 +291,10 @@ def _test_pad_function():
     assert th_pad(t5d, p5d).shape == np_pad(n5d, p5d).shape
 
 if __name__ == '__main__':
-    #_test_blocky_halo()
+    #dynamic_shape = DynamicShape('(32 * (nH + 1), 32 * (nW + 1))')
+    #block = Blockinator(torch.rand(256, 256), dynamic_shape)
+    #for i in range(block.num_blocks[0]):
+    #    for j in range(block.num_blocks[1]):
+    #        print(block[i, j].shape, block.get_slice(i, j))
+    _test_blocky_halo()
     _test_pad_function()

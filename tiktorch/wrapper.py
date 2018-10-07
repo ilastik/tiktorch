@@ -44,6 +44,12 @@ class TikTorch(object):
             self.load_model()
         return self._model
 
+    @property
+    def handler(self):
+        if self._handler is None:
+            raise ValueError
+        return self._handler
+
     def read_config(self):
         config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
         if not os.path.exists(config_file_name):
@@ -54,12 +60,12 @@ class TikTorch(object):
         return self
 
     def _set_handler(self):
-        self._handler = ModelHandler(model=self.model,
-                                     device_names=self.get('devices'),
-                                     in_channels=self.get('in_channels'),
-                                     out_channels=self.get('out_channels', 1),
+        assert self.get('model_init_kwargs').get('in_channels') is not None
+        assert self.get('model_init_kwargs').get('out_channels') is not None
+        self._handler = ModelHandler(model=self.model,device_names=self.get('devices'),
+                                     in_channels=self.get('model_init_kwargs').get('in_channels'),
+                                     out_channels=self.get('model_init_kwargs').get('out_channels'),
                                      dynamic_shape_code=self.get('dynamic_input_shape'))
-                                     
 
     def get(self, tag, default=None, assert_exist=False):
         if assert_exist:
@@ -149,9 +155,12 @@ class TikTorch(object):
         # Batch inputs
         batches = self.batch_inputs(inputs)
         # Send batch to the right device
-        batches = [batch.to(self.devices) for batch in batches]
+        #batches = [batch.to(self.devices) for batch in batches]
+        batches = [batch for batch in batches]
         # Make sure model is in right device and feedforward
-        output_batches = self.ensure_model_on_device().double()(*batches)
+        # throws an error if inputs is a TikIn list with more than 1 element!
+        #self.ensure_model_on_device()
+        output_batches = self.handler.forward(*batches)
         if not isinstance(output_batches, (list, tuple)):
             output_batches = [output_batches]
         else:
@@ -166,11 +175,28 @@ def test_TikTorch_init():
 
 def test_forward():
     tiktorch = TikTorch('/home/jo/sfb1129/test_configs_tiktorch/simple_config/')
-    tikin_list = [TikIn([np.random.randn(1, 100, 100) for i in range(3)]) for j in range(2)]
+    tikin_list = [TikIn([np.random.randn(1, 100, 100) for i in range(3)]) for j in range(1)]
     out = tiktorch.forward(tikin_list)
     return 0
 
+def test_dunet():
+    import h5py
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    from inferno.io.transform import Compose
+    from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
+    tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+
+    with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
+        cremi_raw = f['volumes']['raw'][:, 0:512, 0:512]
+
+    transform = Compose(Normalize(), Cast('float32'))
+    tikin_list = [TikIn([transform(cremi_raw[i: i+1]) for i in range(1)])]
+
+    out = tiktorch.forward(tikin_list)
+    return 0
 
 if __name__ == '__main__':
     #test_TikTorch_init()
-    test_forward()
+    #test_forward()
+    test_dunet()

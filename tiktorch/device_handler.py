@@ -1,7 +1,10 @@
 import torch
 from tiktorch.utils import DynamicShape, assert_, to_list
+from tiktorch.blockinator import Blockinator, th_pad
 from itertools import count
 import logging
+from functools import reduce
+import numpy as np
 
 logger = logging.getLogger('DeviceHandler')
 
@@ -209,9 +212,8 @@ class ModelHandler(Processor):
     def compute_halo(self, device_id=0, set_=True):
         device = self.devices[device_id]
         # Evaluate model on the smallest possible image to keep it quick
-        input_tensor = torch.zeros(1, self.in_channels, *self.dynamic_shape.base_shape).to(device)
-        model = self.model.to(device)
-        output_tensor = model(input_tensor)
+        input_tensor = torch.zeros(1, self.in_channels, *self.dynamic_shape.base_shape)
+        output_tensor = self.model.to(device)(input_tensor.to(device))
         # Assuming NCHW or NCDHW, the first two axes are not relevant for computing halo
         input_spatial_shape = input_tensor.shape[2:]
         output_spatial_shape = output_tensor.shape[2:]
@@ -226,9 +228,90 @@ class ModelHandler(Processor):
             self.halo = halo
         return halo
 
-    def forward(self, input_tensor):
+    def crop_to_shape(self, tensor):
+        crop_area = []
+        num_channel_axes = 2 # TODO --> class attribute
+        for _dim_crop in range(len(self.dynamic_shape.base_shape)):
+            crop_amount = self.dynamic_shape.base_shape[_dim_crop]
+            crop_area.append(slice(crop_amount, -crop_amount))
+        return tensor[[slice(None)] * num_channel_axes + crop_area]
 
-        pass
+    def forward(self, input_tensor):
+        """
+        Parameters
+        ----------
+        input_tensor: torch.Tensor
+        """
+        device = self.devices[0]
+        block = Blockinator(input_tensor, self.dynamic_shape, num_channel_axes=2, pad_fn=th_pad)
+        while True:
+            try:
+                self.model.to(device)(torch.empty_like(block[0, 0]).to(device))
+                break
+            except RuntimeError as e:
+                print('Throws weird', e)
+
+        if self.halo[0] == 0:
+            self.halo = 1
+
+        with block.attach(self):
+            output_tensor = block.process()
+        
+        #cpu_device_capacity = DeviceMemoryCapacity(len(self.dynamic_shape)*[1], self.dynamic_shape) # Hard coded for now
+        #self._device_specs.get(0, cpu_device_capacity).shape
+        #max_batch_size = int(
+        #    np.floor(reduce(lambda x, y: x*y, self._device_specs.get(0, cpu_device_capacity).shape) /
+        #             reduce(lambda x, y: x*y, list(input_tensor.shape[2:]))
+        #    )
+        #)
+        #num_batches = int(input_tensor.shape[0] / max_batch_size)
+
+       # print(max_batch_size, num_batches)
+
+       # import time
+        #s = time.time()
+        #with block.attach(self):
+        #    output_tensor = block.process()
+        #e = time.time()
+        #print('time-whole-batch:', e - s)
+
+        import scipy
+        for i in range(output_tensor.shape[0]):
+            scipy.misc.imsave(f'/export/home/jhugger/sfb1129/tiktorch/output{i}_.jpg', output_tensor[i, 0].data.cpu().numpy())
+        return output_tensor
+
+        
+
+def test_forward():
+    import torch.nn as nn
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    model = nn.Sequential(nn.Conv2d(3, 512, 3),
+                          nn.Conv2d(512, 512, 3),
+                          nn.Conv2d(512, 512, 3),
+                          nn.Conv2d(512, 3, 3))
+    handler = ModelHandler(model=model,
+                           device_names=['cuda:0'],
+                           in_channels=3, out_channels=3,
+                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
+    input_tensor = torch.randn(1, 3, 96, 96)
+    output_batch = handler.forward(input_tensor)
+
+
+def test_forward_3d():
+    import torch.nn as nn
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+    model = nn.Sequential(nn.Conv3d(3, 512, 3),
+                          nn.Conv3d(512, 512, 3),
+                          nn.Conv3d(512, 512, 3),
+                          nn.Conv3d(512, 3, 3))
+    handler = ModelHandler(model=model,
+                           device_names=['cpu'],  # ['cuda:0'],
+                           in_channels=3, out_channels=3,
+                           dynamic_shape_code='(10 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))')
+    input_tensor = torch.randn(1, 1, 30, 96, 96)
+    output_batch = handler.forward(input_tensor)
 
 
 def test_dry_run_on_device():
@@ -254,9 +337,9 @@ def test_dry_run():
                           nn.Conv2d(512, 512, 3),
                           nn.Conv2d(512, 3, 3))
     handler = ModelHandler(model=model,
-                           device_names=['cuda:0', 'cuda:1'],
+                           device_names=['cpu'], #['cuda:0', 'cuda:1'],
                            in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
+                           dynamic_shape_code='(120 * (nH + 1), 120 * (nW + 1))')
     handler.dry_run()
     print(f"GPU0 Specs: {handler.get_device_spec(0)}")
     print(f"GPU1 Specs: {handler.get_device_spec(1)}")
@@ -277,4 +360,6 @@ def test_halo_computer():
 
 if __name__ == '__main__':
     # test_halo_computer()
-    test_dry_run()
+    # test_dry_run()
+    test_forward()
+    #test_forward_3d()
