@@ -26,6 +26,14 @@ class TikTorch(object):
         self._set_handler()
 
     @property
+    def halo(self):
+        """
+        Returns the halo in dynamic base shape blocks
+        """
+        assert self.handler is not None
+        return self.handler.halo_in_blocks
+
+    @property
     def build_directory(self):
         if self._build_directory is not None:
             return self._build_directory

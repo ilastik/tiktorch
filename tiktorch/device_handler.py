@@ -76,6 +76,14 @@ class ModelHandler(Processor):
         return [torch.device(name) for name in self.device_names]
 
     @property
+    def halo_in_blocks(self):
+        """
+        Returns the number of dynamic base shape blocks to cover the halo.
+        """
+        return [int(np.ceil(_halo / _block_shape))
+                for _halo, _block_shape in zip(self.halo, self.dynamic_shape.base_shape)]
+    
+    @property
     def halo(self):
         if self._halo is None:
             self._halo = self.compute_halo()
@@ -337,8 +345,23 @@ def test_halo_computer():
     print(f"Halo: {handler.halo}")
 
 
+def test_halo_blocks():
+    import torch.nn as nn
+    model = nn.Sequential(nn.Conv2d(3, 10, 3),
+                          nn.Conv2d(10, 10, 3),
+                          nn.Conv2d(10, 10, 3),
+                          nn.Conv2d(10, 3, 3))
+    handler = ModelHandler(model=model,
+                           device_names='cpu',
+                           in_channels=3, out_channels=3,
+                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
+    print(f"Halo: {handler.halo}")
+    print(f"Halo in blocks: {handler.halo_in_blocks}")
+
+
 if __name__ == '__main__':
     # test_halo_computer()
+    test_halo_blocks()
     # test_dry_run()
-    test_forward()
-    #test_forward_3d()
+    # test_forward()
+    # test_forward_3d()
