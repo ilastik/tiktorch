@@ -185,19 +185,15 @@ class Blockinator(object):
         max_shape = max_specs.shape if max_specs is not None else self.dynamic_shape.base_shape
         num_max_pixels = reduce(lambda x, y: x*y, max_shape)
         output_tensor = torch.empty_like(self.data).cpu()
-        print(device)
-        print(next(self._processor.model.parameters()).device)
 
         if num_pixels < num_max_pixels:
             # process the whole tensor at once
-            print("Case 1")
             with torch.no_grad():
                 output_tensor = self._processor.crop_to_shape(
                     self._processor.model(self[:].to(device)).cpu()
                 )
         else:
             if self[:][0].numel() < num_max_pixels:
-                print("Case 2")
                 # process base_block-max-batch-wise (base block from dynamic shape)
                 max_batch_size = int(num_max_pixels / self[:][0].numel()) - 1
                 num_batches = self[:].shape[0] // max_batch_size
@@ -212,7 +208,6 @@ class Blockinator(object):
                 out = self._processor.crop_to_shape(out)
                 output_tensor[max_batch_size*num_batches: max_batch_size * num_batches + rest] = out
             else:
-                print("Case 3")
                 for n in range(self[:].shape[0]):
                     for i in range(self.num_blocks[0]):
                         for j in range(self.num_blocks[1]):

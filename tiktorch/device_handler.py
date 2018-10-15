@@ -257,27 +257,6 @@ class ModelHandler(Processor):
         with block.attach(self):
             output_tensor = block.process()
         
-        #cpu_device_capacity = DeviceMemoryCapacity(len(self.dynamic_shape)*[1], self.dynamic_shape) # Hard coded for now
-        #self._device_specs.get(0, cpu_device_capacity).shape
-        #max_batch_size = int(
-        #    np.floor(reduce(lambda x, y: x*y, self._device_specs.get(0, cpu_device_capacity).shape) /
-        #             reduce(lambda x, y: x*y, list(input_tensor.shape[2:]))
-        #    )
-        #)
-        #num_batches = int(input_tensor.shape[0] / max_batch_size)
-
-       # print(max_batch_size, num_batches)
-
-       # import time
-        #s = time.time()
-        #with block.attach(self):
-        #    output_tensor = block.process()
-        #e = time.time()
-        #print('time-whole-batch:', e - s)
-
-        import scipy
-        for i in range(output_tensor.shape[0]):
-            scipy.misc.imsave(f'/export/home/jhugger/sfb1129/tiktorch/output{i}_.jpg', output_tensor[i, 0].data.cpu().numpy())
         return output_tensor
 
         

@@ -151,7 +151,7 @@ class TikTorch(object):
         inputs: list of TikIn
             List of TikIn objects.
         """
-        inputs = self.parse_inputs(inputs)
+        inputs = self.parse_inputs(TikIn(inputs))
         # Batch inputs
         batches = self.batch_inputs(inputs)
         # Send batch to the right device
@@ -161,12 +161,8 @@ class TikTorch(object):
         # throws an error if inputs is a TikIn list with more than 1 element!
         #self.ensure_model_on_device()
         output_batches = self.handler.forward(*batches)
-        if not isinstance(output_batches, (list, tuple)):
-            output_batches = [output_batches]
-        else:
-            output_batches = list(output_batches)
-        outputs = [TikOut(batch) for batch in output_batches]
-        return outputs
+
+        return output_batches.numpy()
 
 def test_TikTorch_init():
     # move this function to test/test_core
