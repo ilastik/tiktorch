@@ -213,6 +213,67 @@ class ModelHandler(Processor):
             self._device_specs[device_id] = self._dry_run_on_device(device_id)
         return self
 
+    def binary_dry_run(self, image_shape):
+        """
+        Parameters
+        ----------
+        image_shape: list
+        """
+        assert len(image_shape) == len(self.dynamic_shape.base_shape)
+        default_cpu_image_shape = [512 for _ in range(len(image_shape))] # Hard coded --> not good
+        if self.devices[0] == torch.device('cpu') and image_shape > default_cpu_image_shape:
+            image_shape = default_cpu_image_shape
+        upper_bound_shape = [int(np.ceil(size / base_shape))
+                             for size, base_shape in zip(image_shape, self.dynamic_shape.base_shape)]
+        for device_id in range(self.num_devices):
+            logger.debug(f'Dry running on device: {device_id}')
+            self._device_specs[device_id] = self._binary_dry_run_on_device(upper_bound_shape, device_id)
+        return self
+
+    def _binary_dry_run_on_device(self, max_shape, device_id):
+        """
+        Parameters
+        ----------
+        max_shape: list in base shape units
+        """
+        base_shape = self.dynamic_shape.base_shape
+        previous_spatial_shape = []
+        l = [1 for _ in range(len(self.dynamic_shape))]
+        r = max_shape
+        bark = False
+        while sum(l) <= sum(r):
+            m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(len(self.dynamic_shape))]
+            spatial_shape = self.dynamic_shape(*m)
+            logger.debug(f"Dry run on (GPU{device_id}) with; "
+                         f"shape = {spatial_shape}.")
+            if previous_spatial_shape == spatial_shape:
+                break
+            else:
+                previous_spatial_shape = spatial_shape
+            success = self._try_running_on_blocksize(*m, device_id=device_id)
+            if not success and bark is False:
+                logger.debug(f"GPU{device_id} barked at; "
+                             f"shape = {spatial_shape}.")
+                bark = True
+                r = [m[i] - 1 for i in range(len(self.dynamic_shape)) if m[i] - 1 > 0]
+            elif not success and bark is True:
+                logger.debug(f"GPU{device_id} barked at; "
+                             f"shape = {spatial_shape}.")
+                bark = True
+                r = [m[i] - 1 for i in range(len(self.dynamic_shape)) if m[i] - 1 > 0]
+            elif success and bark is False:
+                if m == max_shape:
+                    device_capacity = max_shape
+                    break
+                l = [m[i] + 1 for i in range(len(self.dynamic_shape))]
+            else:
+                # moar!
+                device_capacity = m
+
+        print(f'device_capacit:{device_capacity}')
+        return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
+                
+            
     @property
     def num_parallel_jobs(self):
         return self.num_devices
@@ -267,6 +328,18 @@ class ModelHandler(Processor):
         
         return output_tensor
 
+def test_binary_dry_run():
+    import torch.nn as nn
+    model = nn.Sequential(nn.Conv2d(3, 512, 3),
+                          nn.Conv2d(512, 512, 3),
+                          nn.Conv2d(512, 512, 3),
+                          nn.Conv2d(512, 3, 3))
+    handler = ModelHandler(model=model,
+                           device_names=['cpu'],
+                           in_channels=3, out_channels=3,
+                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
+    device_capacity = handler.binary_dry_run([1024, 1024])
+    print(device_capacity)
         
 
 def test_forward():
@@ -361,7 +434,8 @@ def test_halo_blocks():
 
 if __name__ == '__main__':
     # test_halo_computer()
-    test_halo_blocks()
+    # test_halo_blocks()
     # test_dry_run()
     # test_forward()
     # test_forward_3d()
+    test_binary_dry_run()

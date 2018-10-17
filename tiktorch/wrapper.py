@@ -58,6 +58,18 @@ class TikTorch(object):
             raise ValueError
         return self._handler
 
+    def dry_run(self, image_shape):
+        """
+        Initiates dry run.
+        Parameters
+        ----------
+        image_shape: list
+        shape of an image in the dataset (2D or 3D). For instance, given the dataset (30, 512, 512)
+        then image_shape --> [512, 512]
+        """
+        assert self.handlder is not None
+        return self.handler.binary_dry_run(image_shape)
+
     def read_config(self):
         config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
         if not os.path.exists(config_file_name):
