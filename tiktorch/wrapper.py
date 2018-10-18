@@ -67,7 +67,7 @@ class TikTorch(object):
         shape of an image in the dataset (2D or 3D). For instance, given the dataset (30, 512, 512)
         then image_shape --> [512, 512]
         """
-        assert self.handlder is not None
+        assert self.handler is not None
         return self.handler.binary_dry_run(image_shape)
 
     def read_config(self):
