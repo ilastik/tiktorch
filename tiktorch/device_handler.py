@@ -78,10 +78,11 @@ class ModelHandler(Processor):
     @property
     def halo_in_blocks(self):
         """
-        Returns the number of dynamic base shape blocks to cover the halo.
+        Returns a list, containing the number of dynamic base shape blocks to cover the halo.
         """
-        return [int(np.ceil(_halo / _block_shape))
-                for _halo, _block_shape in zip(self.halo, self.dynamic_shape.base_shape)]
+        halo_block =  [int(np.ceil(_halo / _block_shape))
+                       for _halo, _block_shape in zip(self.halo, self.dynamic_shape.base_shape)]
+        return self.dynamic_shape(*halo_block)
     
     @property
     def halo(self):
@@ -223,12 +224,18 @@ class ModelHandler(Processor):
         default_cpu_image_shape = [512 for _ in range(len(image_shape))] # Hard coded --> not good
         if self.devices[0] == torch.device('cpu') and image_shape > default_cpu_image_shape:
             image_shape = default_cpu_image_shape
-        upper_bound_shape = [int(np.ceil(size / base_shape))
+        upper_bound_shape = [int(np.ceil(size / base_shape))-1
                              for size, base_shape in zip(image_shape, self.dynamic_shape.base_shape)]
+        max_shape = []
         for device_id in range(self.num_devices):
             logger.debug(f'Dry running on device: {device_id}')
             self._device_specs[device_id] = self._binary_dry_run_on_device(upper_bound_shape, device_id)
-        return self
+            max_device_shape = self.dynamic_shape(*self._device_specs[device_id].num_blocks)
+            if len(max_shape) == 0:
+                max_shape = max_device_shape
+            elif max_shape < max_device_shape:
+                max_shape = max_device_shape
+        return max_shape
 
     def _binary_dry_run_on_device(self, max_shape, device_id):
         """
@@ -269,11 +276,8 @@ class ModelHandler(Processor):
             else:
                 # moar!
                 device_capacity = m
-
-        print(f'device_capacit:{device_capacity}')
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
-                
-            
+           
     @property
     def num_parallel_jobs(self):
         return self.num_devices
@@ -434,8 +438,8 @@ def test_halo_blocks():
 
 if __name__ == '__main__':
     # test_halo_computer()
-    # test_halo_blocks()
     # test_dry_run()
     # test_forward()
     # test_forward_3d()
+    test_halo_blocks()
     test_binary_dry_run()
