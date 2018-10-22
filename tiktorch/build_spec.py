@@ -11,7 +11,7 @@ class FileExtensionError(Exception):
 
 
 class BuildSpec(object):
-    def __init__(self, build_directory):
+    def __init__(self, build_directory, device='cpu'):
         """
         Parameters
         ----------
@@ -20,6 +20,8 @@ class BuildSpec(object):
         """
         self._build_directory = None
         self.build_directory = build_directory
+        # TODO validate device
+        self.device = device
 
     @property
     def build_directory(self):
@@ -67,12 +69,17 @@ class BuildSpec(object):
         with open(dump_file_name, 'w') as f:
             yaml.dump(config_dict, f)
 
-    # TODO
-    def _to_dynamic_shape(self, minimal_increment):
-        return minimal_increment
+    @staticmethod
+    def _to_dynamic_shape(minimal_increment):
+        if len(minimal_increment) == 2:
+            dynamic_shape = '(%i * (nH + 1), %i * (nW + 1))' % minimal_increment
+        elif len(minimal_increment) == 3:
+            dynamic_shape = '(%i * (nD + 1), %i * (nH + 1), %i * (nW + 1))' % minimal_increment
+        else:
+            raise ValueError("Invald length %i for minimal increment" % len(minimal_increment))
+        return dynamic_shape
 
     def _validate_spec(self, spec):
-        # TODO we might need to send the model to a device ?!
         # first, try to load the model
         try:
             module_spec = imputils.spec_from_file_location(spec.code_path)
@@ -80,6 +87,7 @@ class BuildSpec(object):
             module_spec.loader.exec_module(module)
             model: torch.nn.Module =\
                 getattr(module, self.get(spec.model_class_name))(**spec.model_init_kwargs)
+            model.to(self.device)
         except:
             raise ValueError(f'Could not load model {spec.model_class_name} from {spec.code_path}')
         # next, try to load the state
