@@ -184,6 +184,33 @@ class TikTorch(object):
 
         return output_batches.numpy()
 
+def test_full_pipeline():
+    import h5py
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    from inferno.io.transform import Compose
+    from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
+    #tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+    tiktorch = TikTorch('/home/jo/config/')
+
+    #with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
+    with h5py.File('/home/jo/sfb1129/sample_C_20160501.hdf') as f:
+        cremi_raw = f['volumes']['raw'][:, 0:512, 0:512]
+
+    transform = Compose(Normalize(), Cast('float32'))
+    inputs = [transform(cremi_raw[i: i+1]) for i in range(1)]
+
+    halo = tiktorch.halo
+    max_shape = tiktorch.dry_run([512, 512])
+
+    print(f'Halo: {halo}')
+    print(f'max_shape: {max_shape}')
+    print('----------------------------------')
+
+    out = tiktorch.forward(inputs)
+
+    return 0
+
 def test_TikTorch_init():
     # move this function to test/test_core
     tiktorch = TikTorch(build_directory='/home/jo/sfb1129/test_configs_tiktorch/config/')
@@ -201,18 +228,22 @@ def test_dunet():
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     from inferno.io.transform import Compose
     from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
-    tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+    #tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+    tiktorch = TikTorch('/home/jo/config/')
 
-    with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
-        cremi_raw = f['volumes']['raw'][:, 0:512, 0:512]
+    #with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
+    with h5py.File('/home/jo/sfb1129/sample_C_20160501.hdf') as f:
+        cremi_raw = f['volumes']['raw'][:, 0:1024, 0:1024]
 
     transform = Compose(Normalize(), Cast('float32'))
     tikin_list = [TikIn([transform(cremi_raw[i: i+1]) for i in range(1)])]
+    inputs = [transform(cremi_raw[i: i+1]) for i in range(2)]
 
-    out = tiktorch.forward(tikin_list)
+    out = tiktorch.forward(inputs)
     return 0
 
 if __name__ == '__main__':
-    #test_TikTorch_init()
-    #test_forward()
-    test_dunet()
+    # test_TikTorch_init()
+    # test_forward()
+    # test_dunet()
+    test_full_pipeline()

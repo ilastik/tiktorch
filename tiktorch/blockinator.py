@@ -183,10 +183,15 @@ class Blockinator(object):
         num_pixels = self[:].numel()
         max_specs = self._processor._device_specs.get(0, None)
         max_shape = max_specs.shape if max_specs is not None else self.dynamic_shape.base_shape
-        num_max_pixels = reduce(lambda x, y: x*y, max_shape)
+        num_max_pixels = reduce(lambda x, y: x * y, max_shape)
         output_tensor = torch.empty_like(self.data).cpu()
 
-        if num_pixels < num_max_pixels:
+        if device == torch.device('cpu'):
+            with torch.no_grad():
+                output_tensor = self._processor.model(self[:].to(device))
+            return output_tensor
+
+        if num_pixels <= num_max_pixels:
             # process the whole tensor at once
             with torch.no_grad():
                 output_tensor = self._processor.crop_to_shape(
