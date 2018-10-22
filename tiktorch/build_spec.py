@@ -99,7 +99,7 @@ class BuildSpec(object):
         # next, pipe iput of given shape through the network
         with torch.no_grad():
             try:
-                input_ = torch.zeros(*spec.input_shape, dtype=torch.float())
+                input_ = torch.zeros(*spec.input_shape, dtype=torch.float32, device=self.device)
                 out = model(input_)
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
