@@ -126,7 +126,7 @@ class TikTorch(object):
         # Load parameters
         state_path = os.path.join(self.build_directory, 'state.nn')
         try:
-            state_dict = torch.load(state_path)
+            state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
         except FileNotFoundError as e:
             print('Model weights could not be found!', e)
