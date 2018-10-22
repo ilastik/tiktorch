@@ -2,12 +2,14 @@ import os
 import shutil
 import yaml
 
+import torch
+
 
 class FileExtensionError(Exception):
     pass
 
 
-class BuildyMcBuildface(object):
+class BuildSpec(object):
     def __init__(self, build_directory):
         """
         Parameters
@@ -64,6 +66,37 @@ class BuildyMcBuildface(object):
         with open(dump_file_name, 'w') as f:
             yaml.dump(config_dict, f)
 
+    # TODO
+    def _to_dynamic_shape(self, minimal_increment):
+        return minimal_increment
+
+    def _validate_spec(self):
+        # TODO we might need to send the model to a device ?!
+        # first, try to load the model
+        try:
+            module_spec = imputils.spec_from_file_location(spec.code_path)
+            module = imputils.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+            model: torch.nn.Module =\
+                getattr(module, self.get(spec.model_class_name))(**spec.model_init_kwargs)
+        except:
+            raise ValueError(f'Could not load model {spec.model_class_name} from {spec.code_path}')
+        # next, try to load the state
+        try:
+            state_dict = torch.load(spec.state_path)
+            model.load_state_dict(state_dict)
+        except:
+            raise ValueError(f'Could not load model state from {spec.state_path}')
+        # next, pipe iput of given shape through the network
+        with torch.no_grad():
+            try:
+                input_ = torch.zeros(*model.input_shape, dtype=torch.float())
+                out = model(input_)
+            except:
+                raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
+        return tuple(out.shape)
+
+
     def build(self, spec):
         """
         Build tiktorch configuration.
@@ -73,15 +106,23 @@ class BuildyMcBuildface(object):
         spec: TikTorchSpec
             Specification Object
         """
+
+        output_shape = self._validate_spec(spec)
+
         # Validate and copy code path
         self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path,
                                                                          'model.py')
         # ... and weights path
-        self.validate_path(spec.state_path, 'nn').copy_to_build_directory(spec.state_path,
-                                                                          'state.nn')
+        self.copy_to_build_directory(spec.state_path, 'state.nn')
+
         # Build and dump configuration dict
-        tiktorch_config = spec.__dict__
-        tiktorch_config.update({'build_directory': self.build_directory})
+        tiktorch_config = {'build_directory': self.build_directory,
+                           'input_shape': spec.input_shape,
+                           'output_shape': output_shape,
+                           'dynamic_input_shape': self._to_dynamic_shape(minimal_increment),
+                           'model_class_name': spec.model_class_name,
+                           'model_init_kwargs': spec.model_init_kwargs,
+                           'torch-version': torch.__version__}
         self.dump_config(tiktorch_config)
         # Done
         return self
@@ -89,8 +130,8 @@ class BuildyMcBuildface(object):
 
 class TikTorchSpec(object):
     def __init__(self, code_path=None, model_class_name=None, state_path=None,
-                 input_shape=None, output_shape=None, dynamic_input_shape=None,
-                 devices=None, model_init_kwargs=None):
+                 input_shape=None, minimal_increment=None,
+                 model_init_kwargs=None):
         """
         Parameters
         ----------
@@ -102,21 +143,8 @@ class TikTorchSpec(object):
             Path to where the state_dict is pickled. .
         input_shape: tuple or list
             Input shape of the model. Must be `CHW` (for 2D models) or `CDHW` (for 3D models).
-        output_shape: tuple or list
-            Shape of the model output. Must be `CHW` (for 2D models) or `CDHW` (for 3D models)
-        dynamic_input_shape: str
-            String specifying how to select dynamic values for (D,) H, W in C(D)HW shapes.
-            The string must have a "n{H, W, D}" in it somewhere, which will be interpreted as
-            integers starting at 0.
-            For instance, "(64 * 2 ** nD, 32 * 2 ** nH, 32 * 2 ** nW)" would mean the following
-            possible DHW shapes:
-                (nD=0, nH = 0, nW = 0) --> (64, 32, 32),
-                (nD=1, nH = 0, nW = 0) --> (128, 32, 32),
-                (nD=0, nH = 1, nW = 2) --> (64, 64, 128),
-                (nD=1, nH = 3, nW = 4) --> (128, 256, 512),
-                ...
-        devices: list
-            List of devices to use (e.g. 'cpu:0' or ['cuda:0', 'cuda:1']).
+        minimal_increment: tuple or list
+            Minimal values by which to increment / decrement the input shape for it to still be valid.
         model_init_kwargs: dict
             Kwargs to the model constructor (if any).
         """
@@ -124,9 +152,7 @@ class TikTorchSpec(object):
         self.model_class_name = model_class_name
         self.state_path = state_path
         self.input_shape = input_shape
-        self.output_shape = output_shape
-        self.dynamic_input_shape = dynamic_input_shape
-        self.devices = devices
+        self.minimal_increment = minimal_increment
         self.model_init_kwargs = model_init_kwargs or {}
 
         self.validate()
@@ -139,28 +165,22 @@ class TikTorchSpec(object):
 
     def validate(self):
 
+        # TODO in the long run we should support both ways of serializing a model:
+        # https://pytorch.org/docs/master/notes/serialization.html
+        self.assert_(os.path.exists(self.state_path), f'Path not found: {self.state_path}', FileExistsError)
         self.assert_(os.path.exists(self.code_path), f'Path not found: {self.code_path}', FileExistsError)
-
         self.assert_(isinstance(self.model_class_name, str), "Model Class Name must be a string", ValueError)
 
-        self.assert_(os.path.exists(self.state_path), f'Path not found: {self.state_path}', FileExistsError)
+        # TODO why do we care if this is list, tuple or whatever ?
+        # self.assert_(isinstance(self.input_shape, list), "input_shape must be a list", ValueError)
 
-        self.assert_(isinstance(self.input_shape, list), "input_shape must be a list", ValueError)
-
-        self.assert_(len(self.input_shape) == 3 or len(self.input_shape) == 4,
+        ndim = len(self.input_shape)
+        self.assert_(ndim in (3, 4),
          f"input_shape has length {len(self.input_shape)} but should have lenght 3 or 4", ValueError)
-
-        self.assert_(isinstance(self.output_shape, list), "output_shape must be a list", ValueError)
-        
-        self.assert_(len(self.output_shape) == 3 or len(self.output_shape) == 4,
-         f"output_shape has length {len(self.output_shape)} but should have lenght 3 or 4", ValueError)
-
-        self.assert_(isinstance(self.dynamic_input_shape, str), "dynamic_input_shape must be a string", ValueError)
-
-        self.assert_(isinstance(self.devices, list), "devices must be a list", ValueError)
+        self.assert_(ndim - 1 == len(self.minimal_increment),
+         f"minimal increment must have 1 entry less than input shape")
 
         self.assert_(isinstance(self.model_init_kwargs, dict), "model_init_kwargs must be a dictionary", ValueError)
-
         return self
 
 def test_TikTorchSpec():
