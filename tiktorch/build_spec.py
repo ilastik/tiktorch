@@ -1,7 +1,8 @@
 import os
 import shutil
-import yaml
+from importlib import util as imputils
 
+import yaml
 import torch
 
 
@@ -70,7 +71,7 @@ class BuildSpec(object):
     def _to_dynamic_shape(self, minimal_increment):
         return minimal_increment
 
-    def _validate_spec(self):
+    def _validate_spec(self, spec):
         # TODO we might need to send the model to a device ?!
         # first, try to load the model
         try:
@@ -90,7 +91,7 @@ class BuildSpec(object):
         # next, pipe iput of given shape through the network
         with torch.no_grad():
             try:
-                input_ = torch.zeros(*model.input_shape, dtype=torch.float())
+                input_ = torch.zeros(*spec.input_shape, dtype=torch.float())
                 out = model(input_)
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
@@ -116,13 +117,14 @@ class BuildSpec(object):
         self.copy_to_build_directory(spec.state_path, 'state.nn')
 
         # Build and dump configuration dict
-        tiktorch_config = {'build_directory': self.build_directory,
+        # TODO why would we need the build directory in the config ?
+        tiktorch_config = {# 'build_directory': self.build_directory,
                            'input_shape': spec.input_shape,
                            'output_shape': output_shape,
                            'dynamic_input_shape': self._to_dynamic_shape(minimal_increment),
                            'model_class_name': spec.model_class_name,
                            'model_init_kwargs': spec.model_init_kwargs,
-                           'torch-version': torch.__version__}
+                           'torch_version': torch.__version__}
         self.dump_config(tiktorch_config)
         # Done
         return self
