@@ -133,6 +133,10 @@ class BuildSpec(object):
                            'model_class_name': spec.model_class_name,
                            'model_init_kwargs': spec.model_init_kwargs,
                            'torch_version': torch.__version__}
+        if spec.description is not None:
+            tiktorch_config['description' = spec.description]
+        if spec.data_source is not None:
+            tiktorch_config['data_source' = spec.data_source]
         self.dump_config(tiktorch_config)
         # Done
         return self
@@ -140,8 +144,8 @@ class BuildSpec(object):
 
 class TikTorchSpec(object):
     def __init__(self, code_path=None, model_class_name=None, state_path=None,
-                 input_shape=None, minimal_increment=None,
-                 model_init_kwargs=None):
+                 input_shape=None, minimal_increment=None, model_init_kwargs=None,
+                 description=None, data_source=None):
         """
         Parameters
         ----------
@@ -157,6 +161,10 @@ class TikTorchSpec(object):
             Minimal values by which to increment / decrement the input shape for it to still be valid.
         model_init_kwargs: dict
             Kwargs to the model constructor (if any).
+        description: str
+            description of the pre-trained mode, optional
+        data_source: str
+            url to data used for pre-training, optional
         """
         self.code_path = code_path
         self.model_class_name = model_class_name
@@ -164,6 +172,8 @@ class TikTorchSpec(object):
         self.input_shape = input_shape
         self.minimal_increment = minimal_increment
         self.model_init_kwargs = model_init_kwargs or {}
+        self.description = description
+        self.data_source = data_source
 
         self.validate()
 
@@ -191,6 +201,11 @@ class TikTorchSpec(object):
          f"minimal increment must have 1 entry less than input shape")
 
         self.assert_(isinstance(self.model_init_kwargs, dict), "model_init_kwargs must be a dictionary", ValueError)
+
+        if self.description is not None:
+            self.assert_(isinstance(self.description, str), "description must be a string", ValueError)
+        if self.data_source is not None:
+            self.assert_(isinstance(self.data_source, str), "data_source must be a string", ValueError)
         return self
 
 def test_TikTorchSpec():

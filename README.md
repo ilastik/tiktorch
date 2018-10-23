@@ -20,6 +20,11 @@ The config must contain the following keys:
 - `model_init_kwargs`: keyword arguments to build model
 - `torch_version`: torch version used to train this model
 
+In addition, the config may contain the following keys:
+
+- `description`: Description of the pre-trained model
+- `data_source`: URL of the data used for pre-training
+
 TODO explain how to generate with tiktorch.
 
 Possible extensions:
