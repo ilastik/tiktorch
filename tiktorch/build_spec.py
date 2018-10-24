@@ -85,10 +85,11 @@ class BuildSpec(object):
 
     @staticmethod
     def _to_dynamic_shape(minimal_increment):
+        assert isinstance(minimal_increment, list) or isinstance(minimal_increment, tuple)
         if len(minimal_increment) == 2:
-            dynamic_shape = '(%i * (nH + 1), %i * (nW + 1))' % minimal_increment
+            dynamic_shape = '(%i * (nH + 1), %i * (nW + 1))' % tuple(minimal_increment)
         elif len(minimal_increment) == 3:
-            dynamic_shape = '(%i * (nD + 1), %i * (nH + 1), %i * (nW + 1))' % minimal_increment
+            dynamic_shape = '(%i * (nD + 1), %i * (nH + 1), %i * (nW + 1))' % tuple(minimal_increment)
         else:
             raise ValueError("Invald length %i for minimal increment" % len(minimal_increment))
         return dynamic_shape
@@ -100,24 +101,24 @@ class BuildSpec(object):
             module = imputils.module_from_spec(module_spec)
             module_spec.loader.exec_module(module)
             model: torch.nn.Module =\
-                getattr(module, self.get(spec.model_class_name))(**spec.model_init_kwargs)
-            model.to(self.device)
+                getattr(module, spec.model_class_name)(**spec.model_init_kwargs)
         except:
             raise ValueError(f'Could not load model {spec.model_class_name} from {spec.code_path}')
         # next, try to load the state
         try:
-            state_dict = torch.load(spec.state_path)
+            state_dict = torch.load(spec.state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
+            model.to(self.device)
         except:
             raise ValueError(f'Could not load model state from {spec.state_path}')
         # next, pipe iput of given shape through the network
         with torch.no_grad():
             try:
-                input_ = torch.zeros(*spec.input_shape, dtype=torch.float32, device=self.device)
+                input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32, device=self.device)
                 out = model(input_)
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
-        return tuple(out.shape)
+        return tuple(out[0].shape)
 
 
     def build(self, spec):
@@ -139,9 +140,9 @@ class BuildSpec(object):
         self.copy_to_build_directory(spec.state_path, 'state.nn')
 
         # Build and dump configuration dict
-        tiktorch_config = {'input_shape': spec.input_shape,
-                           'output_shape': output_shape,
-                           'dynamic_input_shape': self._to_dynamic_shape(minimal_increment),
+        tiktorch_config = {'input_shape': tuple(spec.input_shape),
+                           'output_shape': tuple(output_shape),
+                           'dynamic_input_shape': self._to_dynamic_shape(spec.minimal_increment),
                            'model_class_name': spec.model_class_name,
                            'model_init_kwargs': spec.model_init_kwargs,
                            'torch_version': torch.__version__}
@@ -220,32 +221,3 @@ class TikTorchSpec(object):
         if self.data_source is not None:
             self.assert_(isinstance(self.data_source, str), "data_source must be a string", ValueError)
         return self
-
-def test_TikTorchSpec():
-    code_path = '/Users'
-    model_class_name = "DUNet2D"
-    state_path = "/Users"
-    input_shape = [1, 512, 512]
-    output_shape = [1, 512, 512]
-    dynamic_input_shape = '(32 * (nH + 1), 32 * (nW + 1))'
-    devices = ['cpu:0']
-    model_init_kwargs = {}
-
-    spec = TikTorchSpec(code_path, model_class_name, state_path, input_shape,
-                        output_shape, dynamic_input_shape, devices, model_init_kwargs)
-
-def test_BuildyMcBuildface():
-    spec = TikTorchSpec(code_path='/export/home/jhugger/sfb1129/test_configs_tiktorch/dunet2D.py',
-                        model_class_name='DUNet2D',
-                        state_path='/export/home/jhugger/sfb1129/test_configs_tiktorch/dunet2D_weights.nn',
-                        input_shape=[3, 256, 256],
-                        output_shape=[3, 256, 256],
-                        dynamic_input_shape='(1 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))',
-                        devices=['cuda:0', 'cuda:1'],
-                        model_init_kwargs={'in_channels': 1, 'out_channels': 1})
-    build = BuildyMcBuildface(build_directory='/export/home/jhugger/sfb1129/test_configs_tiktorch/config') \
-            .build(spec)
-
-if __name__ == '__main__':
-    #test_TikTorchSpec()
-    test_BuildyMcBuildface()
