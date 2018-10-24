@@ -20,8 +20,22 @@ class BuildSpec(object):
         """
         self._build_directory = None
         self.build_directory = build_directory
-        # TODO validate device
+        self._device = None
         self.device = device
+
+    @property
+    def device(self):
+        self.assert_(self._device is not None,
+                     "Trying to access `device`, but it's not defined.",
+                     ValueError)
+        return self._device
+
+    @device.setter
+    def device(self, value):
+        self.assert_('cpu' in value or 'cuda' in value,
+                     "Value for `device` is not valid.",
+                     ValueError)
+        self._device = value
 
     @property
     def build_directory(self):
@@ -82,7 +96,7 @@ class BuildSpec(object):
     def _validate_spec(self, spec):
         # first, try to load the model
         try:
-            module_spec = imputils.spec_from_file_location(spec.code_path)
+            module_spec = imputils.spec_from_file_location('model', spec.code_path)
             module = imputils.module_from_spec(module_spec)
             module_spec.loader.exec_module(module)
             model: torch.nn.Module =\
@@ -125,18 +139,16 @@ class BuildSpec(object):
         self.copy_to_build_directory(spec.state_path, 'state.nn')
 
         # Build and dump configuration dict
-        # TODO why would we need the build directory in the config ?
-        tiktorch_config = {# 'build_directory': self.build_directory,
-                           'input_shape': spec.input_shape,
+        tiktorch_config = {'input_shape': spec.input_shape,
                            'output_shape': output_shape,
                            'dynamic_input_shape': self._to_dynamic_shape(minimal_increment),
                            'model_class_name': spec.model_class_name,
                            'model_init_kwargs': spec.model_init_kwargs,
                            'torch_version': torch.__version__}
         if spec.description is not None:
-            tiktorch_config['description' = spec.description]
+            tiktorch_config['description'] = spec.description
         if spec.data_source is not None:
-            tiktorch_config['data_source' = spec.data_source]
+            tiktorch_config['data_source'] = spec.data_source
         self.dump_config(tiktorch_config)
         # Done
         return self
@@ -159,6 +171,7 @@ class TikTorchSpec(object):
             Input shape of the model. Must be `CHW` (for 2D models) or `CDHW` (for 3D models).
         minimal_increment: tuple or list
             Minimal values by which to increment / decrement the input shape for it to still be valid.
+            Must be `HW` (for 2D inputs) or `DHW` (for 3D inputs).
         model_init_kwargs: dict
             Kwargs to the model constructor (if any).
         description: str
