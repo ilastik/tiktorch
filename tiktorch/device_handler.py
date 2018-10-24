@@ -36,35 +36,27 @@ class Processor(object):
 
 
 class ModelHandler(Processor):
-    def __init__(self, *, model, device_names, in_channels, out_channels=1,
-                 dynamic_shape_code):
+    def __init__(self, *, model, device_names, channels, dynamic_shape_code):
         # Privates
         self._max_batch_limit = 500
         self._halo = None
+        self._channels = channels
         self._model = model
-        self._in_channels = in_channels
-        self._out_channels = out_channels
         self._device_specs = {}
         self.__num_trial_runs_on_device = {}
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
-        # Initiate dry run on gpu
-        #self.dry_run() if 'cuda' in self.device_names[0] else None
         # Init superclass
         super(ModelHandler, self).__init__(num_parallel_jobs=len(self.devices))
 
     @property
+    def channels(self):
+        return self._channels
+
+    @property
     def model(self):
         return self._model
-
-    @property
-    def in_channels(self):
-        return self._in_channels
-
-    @property
-    def out_channels(self):
-        return self._out_channels
 
     @property
     def device(self):
@@ -136,7 +128,7 @@ class ModelHandler(Processor):
                 return False
 
     def _try_running_on_blocksize(self, *block_size, device_id):
-        return self._trial_run_successful(self.in_channels, *self.dynamic_shape(*block_size),
+        return self._trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
                                           device_id=device_id)
 
     def _dry_run_on_device(self, device_id=0):
@@ -219,7 +211,6 @@ class ModelHandler(Processor):
         ----------
         image_shape: list or tuple
         """
-        print("Initiating binary dry run")
         assert len(image_shape) == len(self.dynamic_shape.base_shape)
         image_shape = list(image_shape) # in case image_shape is a tuple
         default_cpu_image_shape = [512 for _ in range(len(image_shape))] # Hard coded --> not good
@@ -292,7 +283,7 @@ class ModelHandler(Processor):
     def compute_halo(self, device_id=0, set_=True):
         device = self.devices[device_id]
         # Evaluate model on the smallest possible image to keep it quick
-        input_tensor = torch.zeros(1, self.in_channels, *self.dynamic_shape.base_shape)
+        input_tensor = torch.zeros(1, self.channels, *self.dynamic_shape.base_shape)
         output_tensor = self.model.to(device)(input_tensor.to(device))
         # Assuming NCHW or NCDHW, the first two axes are not relevant for computing halo
         input_spatial_shape = input_tensor.shape[2:]
@@ -335,115 +326,3 @@ class ModelHandler(Processor):
             output_tensor = block.process()
         
         return output_tensor
-
-def test_binary_dry_run():
-    import torch.nn as nn
-    model = nn.Sequential(nn.Conv2d(3, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names=['cpu'],
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-    device_capacity = handler.binary_dry_run([1250, 1250])
-    print(device_capacity)
-        
-
-def test_forward():
-    import torch.nn as nn
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    model = nn.Sequential(nn.Conv2d(3, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names=['cuda:0'],
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-    input_tensor = torch.randn(1, 3, 96, 96)
-    output_batch = handler.forward(input_tensor)
-
-
-def test_forward_3d():
-    import torch.nn as nn
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
-    model = nn.Sequential(nn.Conv3d(3, 512, 3),
-                          nn.Conv3d(512, 512, 3),
-                          nn.Conv3d(512, 512, 3),
-                          nn.Conv3d(512, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names=['cpu'],  # ['cuda:0'],
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(10 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))')
-    input_tensor = torch.randn(1, 1, 30, 96, 96)
-    output_batch = handler.forward(input_tensor)
-
-
-def test_dry_run_on_device():
-    import torch.nn as nn
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
-    model = nn.Sequential(nn.Conv2d(3, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names='cuda:0',
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-    spec = handler._dry_run_on_device(0)
-    print(f"GPU Specs: {spec}")
-
-
-def test_dry_run():
-    import torch.nn as nn
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
-    model = nn.Sequential(nn.Conv2d(3, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 512, 3),
-                          nn.Conv2d(512, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names=['cpu'], #['cuda:0', 'cuda:1'],
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(120 * (nH + 1), 120 * (nW + 1))')
-    handler.dry_run()
-    print(f"GPU0 Specs: {handler.get_device_spec(0)}")
-    print(f"GPU1 Specs: {handler.get_device_spec(1)}")
-
-
-def test_halo_computer():
-    import torch.nn as nn
-    model = nn.Sequential(nn.Conv2d(3, 10, 3),
-                          nn.Conv2d(10, 10, 3),
-                          nn.Conv2d(10, 10, 3),
-                          nn.Conv2d(10, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names='cuda:0',
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-    print(f"Halo: {handler.halo}")
-
-
-def test_halo_blocks():
-    import torch.nn as nn
-    model = nn.Sequential(nn.Conv2d(3, 10, 3),
-                          nn.Conv2d(10, 10, 3),
-                          nn.Conv2d(10, 10, 3),
-                          nn.Conv2d(10, 3, 3))
-    handler = ModelHandler(model=model,
-                           device_names='cpu',
-                           in_channels=3, out_channels=3,
-                           dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-    print(f"Halo: {handler.halo}")
-    print(f"Halo in blocks: {handler.halo_in_blocks}")
-
-
-if __name__ == '__main__':
-    # test_halo_computer()
-    # test_dry_run()
-    # test_forward()
-    # test_forward_3d()
-    test_halo_blocks()
-    test_binary_dry_run()

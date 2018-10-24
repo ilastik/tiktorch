@@ -3,5 +3,6 @@ __pycache__/
 .idea/
 tiktorch/.idea
 tiktorch/__pycache/
-.py#
+/#wrapper.py#
+/.#wrapper.py#
 .py~
