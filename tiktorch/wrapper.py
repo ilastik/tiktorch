@@ -63,12 +63,11 @@ class TikTorch(object):
         Initiates dry run.
         Parameters
         ----------
-        image_shape: list
-        shape of an image in the dataset (2D or 3D). For instance, given the dataset (30, 512, 512)
-        then image_shape --> [512, 512]
+        image_shape: list or tuple
+        shape of an image in the dataset (e.g `HW` for 2D or `DHW` for 3D)
         """
         assert self.handler is not None
-        return self.handler.binary_dry_run(image_shape)
+        return self.handler.binary_dry_run(list(image_shape))
 
     def read_config(self):
         config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
@@ -128,8 +127,8 @@ class TikTorch(object):
         try:
             state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
-        except FileNotFoundError as e:
-            print('Model weights could not be found!', e)
+        except:
+            raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
         # Save attribute and return
         self._model = model
         return self
@@ -205,7 +204,6 @@ def test_full_pipeline():
 
     print(f'Halo: {halo}')
     print(f'max_shape: {max_shape}')
-    print('----------------------------------')
 
     out = tiktorch.forward(inputs)
 
