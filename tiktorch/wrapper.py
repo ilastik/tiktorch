@@ -31,7 +31,9 @@ class TikTorch(object):
         Returns the halo in dynamic base shape blocks
         """
         assert self.handler is not None
-        return self.handler.halo_in_blocks
+        halo_block = self.handler.halo_in_blocks
+        base_shape = self.handler.dynamic_shape.base_shape
+        return [shape*block for shape, block in zip(base_shape, halo_block)]
 
     @property
     def build_directory(self):
@@ -207,17 +209,6 @@ def test_full_pipeline():
 
     out = tiktorch.forward(inputs)
 
-    return 0
-
-def test_TikTorch_init():
-    # move this function to test/test_core
-    tiktorch = TikTorch(build_directory='/home/jo/sfb1129/test_configs_tiktorch/config/')
-    return 0
-
-def test_forward():
-    tiktorch = TikTorch('/home/jo/sfb1129/test_configs_tiktorch/simple_config/')
-    tikin_list = [TikIn([np.random.randn(1, 100, 100) for i in range(3)]) for j in range(1)]
-    out = tiktorch.forward(tikin_list)
     return 0
 
 def test_dunet():

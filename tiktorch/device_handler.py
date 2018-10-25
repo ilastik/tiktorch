@@ -67,13 +67,23 @@ class ModelHandler(Processor):
         return [torch.device(name) for name in self.device_names]
 
     @property
+    def num_devices(self):
+        return len(self.device_names)
+
+    def get_device_spec(self, device_id):
+        device_spec = self._device_specs.get(device_id)
+        assert_(device_spec is not None,
+                f"device_id {device_id} not found in specs. Consider calling dry_run() first.",
+                RuntimeError)
+        return device_spec
+
+    @property
     def halo_in_blocks(self):
         """
         Returns a list, containing the number of dynamic base shape blocks to cover the halo.
         """
-        halo_block =  [int(np.ceil(_halo / _block_shape))
-                       for _halo, _block_shape in zip(self.halo, self.dynamic_shape.base_shape)]
-        return [shape*block for shape, block in zip(self.dynamic_shape.base_shape, halo_block)]
+        return [int(np.ceil(_halo / _block_shape))
+                for _halo, _block_shape in zip(self.halo, self.dynamic_shape.base_shape)]
     
     @property
     def halo(self):
@@ -92,16 +102,6 @@ class ModelHandler(Processor):
                     ValueError)
             self._halo = value
 
-    @property
-    def num_devices(self):
-        return len(self.device_names)
-
-    def get_device_spec(self, device_id):
-        device_spec = self._device_specs.get(device_id)
-        assert_(device_spec is not None,
-                f"device_id {device_id} not found in specs. Consider calling dry_run() first.",
-                RuntimeError)
-        return device_spec
 
     def _trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:
@@ -274,6 +274,7 @@ class ModelHandler(Processor):
             else:
                 # moar!
                 device_capacity = m
+
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
            
     @property
@@ -295,17 +296,31 @@ class ModelHandler(Processor):
                 "Only symmetric halos are supported.", RuntimeError)
         # Compute halo
         halo = [_shape_diff // 2 for _shape_diff in shape_difference]
+        print(halo)
         if set_:
             self.halo = halo
         return halo
 
-    def crop_to_shape(self, tensor):
-        crop_area = []
-        num_channel_axes = 2 # TODO --> class attribute
-        for _dim_crop in range(len(self.dynamic_shape.base_shape)):
-            crop_amount = self.dynamic_shape.base_shape[_dim_crop]
-            crop_area.append(slice(crop_amount, -crop_amount))
-        return tensor[[slice(None)] * num_channel_axes + crop_area]
+    def crop_output_tensor(self, tensor, num_channel_axes=2):
+        base_shape = self.dynamic_shape.base_shape
+        roi_shape = []
+        for size, halo, blocks in zip(base_shape, self.halo, self.halo_in_blocks):
+            if halo > 0:
+                roi_shape.append(slice(size * blocks, -size * blocks))
+            else:
+                roi_shape.append(slice(None))
+        return tensor[[slice(None)] * num_channel_axes + roi_shape]
+
+
+    def crop_halo(self, tensor, num_channel_axes=2):
+        base_shape = self.dynamic_shape.base_shape
+        roi_shape = []
+        for size, halo, blocks in zip(base_shape, self.halo, self.halo_in_blocks):
+            if halo > 0:
+                roi_shape.append(slice(size*blocks - halo, -(size*blocks - halo)))
+            else:
+                roi_shape.append(slice(None))
+        return tensor[[slice(None)] * num_channel_axes + roi_shape]
 
     def forward(self, input_tensor):
         """
@@ -313,15 +328,14 @@ class ModelHandler(Processor):
         ----------
         input_tensor: torch.Tensor
         """
-        device = self.devices[0]
-        block = Blockinator(input_tensor, self.dynamic_shape, num_channel_axes=2, pad_fn=th_pad)
         while True:
             try:
-                self.model.to(device)(torch.empty_like(block[0, 0]).to(device))
+                self.model.to(self.device)(torch.zeros(1, self.channels, *self.dynamic_shape.base_shape).to(self.device))
                 break
-            except RuntimeError as e:
-                print('Throws weird', e)
+            except:
+                RuntimeError(f"Can't load tensor on `{self.device}`")
 
+        block = Blockinator(input_tensor, self.dynamic_shape, num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):
             output_tensor = block.process()
         
