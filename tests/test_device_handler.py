@@ -23,7 +23,7 @@ class ProcessTest(unittest.TestCase):
                                device_names='cuda:0',
                                dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
         shape = handler.binary_dry_run([3096, 2048])
-        out = handler.forward(torch.zeros(*([1, 3, 128, 128]), dtype=torch.float32))
+        out = handler.forward(torch.zeros(*([1, 3] + shape), dtype=torch.float32))
 
     def test_process_3D(self):
         model = nn.Sequential(nn.Conv3d(1, 12, 3),
@@ -35,7 +35,7 @@ class ProcessTest(unittest.TestCase):
                                device_names='cuda:0',
                                dynamic_shape_code='(32 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))')
         shape = handler.binary_dry_run([128, 512, 512])
-        out = handler.forward(torch.zeros(*([1, 1, 96, 96, 96]), dtype=torch.float32))
+        out = handler.forward(torch.zeros(*([1, 1] + shape), dtype=torch.float32))
 
 class DryRunTest(unittest.TestCase):
     def test_binary_dry_run_2d(self):

@@ -335,12 +335,11 @@ class ModelHandler(Processor):
         ----------
         input_tensor: torch.Tensor
         """
-        while True:
-            try:
-                self.model.to(self.device)(torch.zeros(1, self.channels, *self.dynamic_shape.base_shape).to(self.device))
-                break
-            except:
-                RuntimeError(f"Can't load tensor on `{self.device}`")
+        try:
+            self.model.to(self.device)(torch.zeros(1, self.channels, *self.dynamic_shape.base_shape).to(self.device))
+        except:
+            logger.debug(f"Can't load tensor on `{self.device}`")
+            RuntimeError(f"Can't load tensor on `{self.device}`")
 
         block = Blockinator(input_tensor, self.dynamic_shape.base_shape, num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):

@@ -183,7 +183,7 @@ class Blockinator(object):
         device = self._processor.device
         try:
             with torch.no_grad():
-                output_tensor = model(self.data.to(device)).cpu()
+                output_tensor = model.to(device)(self.data.to(device)).cpu()
             return self._processor.crop_halo(output_tensor)
         except:
             RuntimeError("Tensor could not be processed at once. Processing blockwise....")
