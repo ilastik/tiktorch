@@ -82,10 +82,9 @@ class TikTorch(object):
 
     def _set_handler(self):
         assert self.get('input_shape') is not None
-        assert self.get('output_shape') is not None
-        self._handler = ModelHandler(model=self.model,device_names=self.get('devices'),
-                                     in_channels=self.get('input_shape')[0],
-                                     out_channels=self.get('output_shape')[0],
+        self._handler = ModelHandler(model=self.model,
+                                     device_names='cuda:0' if torch.cuda.is_available() else 'cpu', #TODO
+                                     channels=self.get('input_shape')[0],
                                      dynamic_shape_code=self.get('dynamic_input_shape'))
 
     def get(self, tag, default=None, assert_exist=False):
