@@ -230,7 +230,7 @@ class ModelHandler(Processor):
                 max_shape = max_device_shape
             elif max_shape < max_device_shape:
                 max_shape = max_device_shape
-        logger.debug(f'Dry run finished. Max shape: {max_shape}')
+        logger.debug(f'Dry run finished. Max shape / upper bound: {max_shape} / {image_shape}')
         return max_shape
 
     def _binary_dry_run_on_device(self, image_shape, device_id):
@@ -239,47 +239,49 @@ class ModelHandler(Processor):
         ----------
         max_shape: list in base shape units
         """
-        base_shape = self.dynamic_shape.base_shape
-        max_shape = [int(np.ceil(size / base_shape)) for size, base_shape in zip(image_shape, base_shape)]
         ndim_image = len(image_shape)
         previous_spatial_shape = [0 for i in range(ndim_image)]
-        previous_m = [0 for i in range(ndim_image)]
-        l = [1 for _ in range(ndim_image)]
-        r = max_shape
+        device_capacity = [0 for i in range(ndim_image)]
+        l = [0 for _ in range(ndim_image)]
+        r = [int(np.ceil(size / base_shape))
+             for size, base_shape in zip(image_shape, self.dynamic_shape.base_shape)]
+        m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
         bark = False
+        break_flag = False
 
         while sum(l) <= sum(r):
-            m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
-            spatial_shape = self.dynamic_shape(*m)
-            
-            logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
-        
-            if spatial_shape > image_shape:
-                device_capacity = previous_m
-                break
-            else:
-                previous_m = m
+            for i in range(ndim_image):
+                m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
+                spatial_shape = self.dynamic_shape(*m)
                 
+                logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
+
+                if spatial_shape > image_shape:
+                    break_flag = True
+                    break
+                else:
+                    device_capacity = m
+                
+                success = self._try_running_on_blocksize(*m, device_id=device_id)
+
+                if not success:
+                    logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
+                    bark = True
+                    r[i] = m[i] - 1 if m[i] - 1 > 0 else m[i]
+                elif success and bark is False:
+                    l[i] = m[i] + 1
+                else:
+                    device_capacity = m
+                    break_flag = True
+                    break
+
             if previous_spatial_shape == spatial_shape:
-                device_capacity = previous_m
                 break
             else:
                 previous_spatial_shape = spatial_shape
-                
-            success = self._try_running_on_blocksize(*m, device_id=device_id)
-            
-            if not success and bark is False:
-                logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
-                bark = True
-                r = [m[i] - 1 if m[i] - 1 > 0 else m[i] for i in range(ndim_image)]
-            elif not success and bark is True:
-                logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
-                bark = True
-                r = [m[i] - 1 if m[i] - 1 > 0 else m[i] for i in range(ndim_image)]
-            elif success and bark is False:
-                l = [m[i] + 1 for i in range(ndim_image)]
-            else:
-                device_capacity = m
+
+            if break_flag == True:
+                break
 
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
            

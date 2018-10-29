@@ -7,21 +7,22 @@ import torch
 import torch.nn as nn
 from tiktorch.device_handler import ModelHandler
 from tiktorch.blockinator import Blockinator
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 logging.basicConfig(level=logging.DEBUG)
 
 class ProcessTest(unittest.TestCase):
     def test_process_2D(self):
-        return 0
         model = nn.Sequential(nn.Conv2d(3, 512, 3),
                               nn.Conv2d(512, 512, 3),
                               nn.Conv2d(512, 512, 3),
                               nn.Conv2d(512, 3, 3))
         handler = ModelHandler(model=model,
                                channels=3,
-                               device_names='cpu',
+                               device_names='cuda:0',
                                dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
-        shape = handler.binary_dry_run([256, 256])
+        shape = handler.binary_dry_run([3096, 2048])
         out = handler.forward(torch.zeros(*([1, 3, 128, 128]), dtype=torch.float32))
 
     def test_process_3D(self):
@@ -31,9 +32,9 @@ class ProcessTest(unittest.TestCase):
                               nn.Conv3d(12, 1, 3))
         handler = ModelHandler(model=model,
                                channels=1,
-                               device_names='cpu',
+                               device_names='cuda:0',
                                dynamic_shape_code='(32 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))')
-        shape = handler.binary_dry_run([96, 96, 96])
+        shape = handler.binary_dry_run([128, 512, 512])
         out = handler.forward(torch.zeros(*([1, 1, 96, 96, 96]), dtype=torch.float32))
 
 class DryRunTest(unittest.TestCase):
@@ -43,7 +44,7 @@ class DryRunTest(unittest.TestCase):
                               nn.Conv2d(3512, 512, 3),
                               nn.Conv2d(512, 3, 3))
         handler = ModelHandler(model=model,
-                               device_names=['cpu'],
+                               device_names='cuda:0',
                                channels=3,
                                dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
         image_shapes = [[512, 512], [760, 520], [1024, 1250], [3250, 4002]]
@@ -53,11 +54,11 @@ class DryRunTest(unittest.TestCase):
 
     def test_binary_dry_run_3d(self):
         model = nn.Sequential(nn.Conv3d(3, 512, 3),
-                              nn.Conv3d(512, 1512, 3),
-                              nn.Conv3d(1512, 512, 3),
+                              nn.Conv3d(512, 512, 3),
+                              nn.Conv3d(512, 512, 3),
                               nn.Conv3d(512, 3, 3))
         handler = ModelHandler(model=model,
-                               device_names=['cpu'],
+                               device_names='cuda:0',
                                channels=3,
                                dynamic_shape_code='(10 * (nD + 1), 32 * (nH + 1), 32 * (nW + 1))')
         volumes = [[10, 512, 1024], [2000, 2000, 2000], [50, 256, 256]]
