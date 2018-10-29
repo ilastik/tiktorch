@@ -67,7 +67,7 @@ class slicey(object):
 
 
 class Blockinator(object):
-    def __init__(self, data, dynamic_shape, num_channel_axes=0,
+    def __init__(self, data, base_shape, num_channel_axes=0,
                  pad_fn=(lambda tensor, padding: tensor)):
         """
         Parameters
@@ -81,12 +81,12 @@ class Blockinator(object):
         # Publics
         self.data = data
         self.num_channel_axes = num_channel_axes
-        self.dynamic_shape = dynamic_shape
+        self.base_shape = base_shape
         self.pad_fn = pad_fn
 
     @property
     def block_shape(self):
-        return self.dynamic_shape.base_shape
+        return self.base_shape
 
     @property
     def spatial_shape(self):
@@ -184,7 +184,7 @@ class Blockinator(object):
         try:
             with torch.no_grad():
                 output_tensor = model(self.data.to(device)).cpu()
-            return self._processor.crop_output_tensor(output_tensor)
+            return self._processor.crop_halo(output_tensor)
         except:
             RuntimeError("Tensor could not be processed at once. Processing blockwise....")
 

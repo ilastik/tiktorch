@@ -211,22 +211,26 @@ class ModelHandler(Processor):
         ----------
         image_shape: list or tuple
         """
-        assert len(image_shape) == len(self.dynamic_shape.base_shape)
         image_shape = list(image_shape) # in case image_shape is a tuple
-        default_cpu_image_shape = [512 for _ in range(len(image_shape))] # Hard coded --> not good
+        assert len(image_shape) == len(self.dynamic_shape.base_shape)
         
-        if self.devices[0] == torch.device('cpu') and image_shape > default_cpu_image_shape:
-            image_shape = default_cpu_image_shape
+        if self.devices[0] == torch.device('cpu'):
+            default_shape = [256, 256] if len(image_shape) == 2 else [96, 96, 96]
+            image_shape = [default_shape[i] if image_shape[i] > default_shape[i] else image_shape[i]
+                           for i in range(len(image_shape))]
+
+        logger.debug(f'Dry run with upper bound: {image_shape}')
             
         max_shape = []
         for device_id in range(self.num_devices):
-            logger.debug(f'Dry running on device: {device_id}')
+            logger.debug(f'Dry running on device: {self.devices[device_id]}')
             self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape, device_id)
             max_device_shape = self.dynamic_shape(*self._device_specs[device_id].num_blocks)
             if len(max_shape) == 0:
                 max_shape = max_device_shape
             elif max_shape < max_device_shape:
                 max_shape = max_device_shape
+        logger.debug(f'Dry run finished. Max shape: {max_shape}')
         return max_shape
 
     def _binary_dry_run_on_device(self, image_shape, device_id):
@@ -247,7 +251,9 @@ class ModelHandler(Processor):
         while sum(l) <= sum(r):
             m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
             spatial_shape = self.dynamic_shape(*m)
-            logger.debug(f"Dry run on (GPU{device_id}) with shape = {spatial_shape}.")
+            
+            logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
+        
             if spatial_shape > image_shape:
                 device_capacity = previous_m
                 break
@@ -255,6 +261,7 @@ class ModelHandler(Processor):
                 previous_m = m
                 
             if previous_spatial_shape == spatial_shape:
+                device_capacity = previous_m
                 break
             else:
                 previous_spatial_shape = spatial_shape
@@ -262,17 +269,16 @@ class ModelHandler(Processor):
             success = self._try_running_on_blocksize(*m, device_id=device_id)
             
             if not success and bark is False:
-                logger.debug(f"GPU{device_id} barked at shape = {spatial_shape}.")
+                logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
                 bark = True
-                r = [m[i] - 1 for i in range(len(self.dynamic_shape)) if m[i] - 1 > 0]
+                r = [m[i] - 1 if m[i] - 1 > 0 else m[i] for i in range(ndim_image)]
             elif not success and bark is True:
-                logger.debug(f"GPU{device_id} barked at shape = {spatial_shape}.")
+                logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
                 bark = True
-                r = [m[i] - 1 for i in range(len(self.dynamic_shape)) if m[i] - 1 > 0]
+                r = [m[i] - 1 if m[i] - 1 > 0 else m[i] for i in range(ndim_image)]
             elif success and bark is False:
-                l = [m[i] + 1 for i in range(len(self.dynamic_shape))]
+                l = [m[i] + 1 for i in range(ndim_image)]
             else:
-                # moar!
                 device_capacity = m
 
         return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
@@ -296,7 +302,6 @@ class ModelHandler(Processor):
                 "Only symmetric halos are supported.", RuntimeError)
         # Compute halo
         halo = [_shape_diff // 2 for _shape_diff in shape_difference]
-        print(halo)
         if set_:
             self.halo = halo
         return halo
@@ -335,7 +340,7 @@ class ModelHandler(Processor):
             except:
                 RuntimeError(f"Can't load tensor on `{self.device}`")
 
-        block = Blockinator(input_tensor, self.dynamic_shape, num_channel_axes=2, pad_fn=th_pad)
+        block = Blockinator(input_tensor, self.dynamic_shape.base_shape, num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):
             output_tensor = block.process()
         
