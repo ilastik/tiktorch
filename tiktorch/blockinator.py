@@ -67,7 +67,7 @@ class slicey(object):
 
 
 class Blockinator(object):
-    def __init__(self, data, dynamic_shape, num_channel_axes=0,
+    def __init__(self, data, base_shape, num_channel_axes=0,
                  pad_fn=(lambda tensor, padding: tensor)):
         """
         Parameters
@@ -81,12 +81,12 @@ class Blockinator(object):
         # Publics
         self.data = data
         self.num_channel_axes = num_channel_axes
-        self.dynamic_shape = dynamic_shape
+        self.base_shape = base_shape
         self.pad_fn = pad_fn
 
     @property
     def block_shape(self):
-        return self.dynamic_shape.base_shape
+        return self.base_shape
 
     @property
     def spatial_shape(self):
@@ -178,58 +178,39 @@ class Blockinator(object):
         return self.fetch(item)
 
     def process(self):
-        assert self._processor is not None
-        device = self._processor.devices[0]
-        num_pixels = self[:].numel()
-        max_specs = self._processor._device_specs.get(0, None)
-        max_shape = max_specs.shape if max_specs is not None else self.dynamic_shape.base_shape
-        num_max_pixels = reduce(lambda x, y: x * y, max_shape)
+        # try to process the whole thing at once
+        model = self._processor.model
+        device = self._processor.device
+        try:
+            with torch.no_grad():
+                output_tensor = model.to(device)(self.data.to(device)).cpu()
+            return self._processor.crop_halo(output_tensor)
+        except:
+            RuntimeError("Tensor could not be processed at once. Processing blockwise....")
+
+        # if it does not work, process it blockwise
+        halo = self._processor.halo_in_blocks
         output_tensor = torch.empty_like(self.data).cpu()
-
-        if device == torch.device('cpu'):
-            with torch.no_grad():
-                output_tensor = self._processor.model(self[:].to(device))
-            return output_tensor
-
-        if num_pixels <= num_max_pixels:
-            # process the whole tensor at once
-            with torch.no_grad():
-                output_tensor = self._processor.crop_to_shape(
-                    self._processor.model(self[:].to(device)).cpu()
-                )
-        else:
-            if self[:][0].numel() < num_max_pixels:
-                # process base_block-max-batch-wise (base block from dynamic shape)
-                max_batch_size = int(num_max_pixels / self[:][0].numel()) - 1
-                num_batches = self[:].shape[0] // max_batch_size
-                rest = self[:].shape[0] % max_batch_size
-                print(max_batch_size, num_batches, rest)
-                for i in range(0, max_batch_size*num_batches, max_batch_size):
+        
+        for i in range(halo[0], self.num_blocks[0] - halo[0]):
+            for j in range(halo[1], self.num_blocks[1] - halo[1]):
+                if len(self.num_blocks) == 3:
+                    for k in range(halo[2], self.num_blocks[2] - halo[2]):
+                        with torch.no_grad():
+                            out = model(self[i, j, k].to(device)).cpu()
+                        out = self._processor.crop_halo(out, self.num_channel_axes)
+                        output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j, k)]] = out
+                else:
                     with torch.no_grad():
-                        out = self._processor.model(self[:][i: i + max_batch_size].to(device)).cpu()
-                        output_tensor[i: i + max_batch_size] = self._processor.crop_to_shape(out)
-                out = self._processor.model(
-                    self[:][max_batch_size*num_batches: max_batch_size * num_batches + rest].to(device)).cpu()
-                out = self._processor.crop_to_shape(out)
-                output_tensor[max_batch_size*num_batches: max_batch_size * num_batches + rest] = out
-            else:
-                for n in range(self[:].shape[0]):
-                    for i in range(self.num_blocks[0]):
-                        for j in range(self.num_blocks[1]):
-                            with torch.no_grad():
-                                out = self._processor.crop_to_shape(
-                                    self._processor.model(self[i, j][n: n+1].to(device)).cpu())
-                            output_tensor[[slice(n, n+1, None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
-                                
-        return output_tensor
-            
-        for i in range(self.num_blocks[0]):
-            for j in range(self.num_blocks[1]):
-                with torch.no_grad():
-                    out = self._processor.crop_to_shape(self._processor.model(self[i, j].to(device)).cpu())
-                    output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
-                    
-        return output_tensor
+                        out = model(self[i, j].to(device)).cpu()
+                        out = self._processor.crop_halo(out, self.num_channel_axes)
+                        output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
+        return self._processor.crop_output_tensor(output_tensor, self.num_channel_axes)
+
+    @property
+    def processor(self):
+        assert self._processor is not None
+        self._processor
 
     @contextmanager
     def attach(self, processor):

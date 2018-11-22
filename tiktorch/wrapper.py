@@ -31,7 +31,9 @@ class TikTorch(object):
         Returns the halo in dynamic base shape blocks
         """
         assert self.handler is not None
-        return self.handler.halo_in_blocks
+        halo_block = self.handler.halo_in_blocks
+        base_shape = self.handler.dynamic_shape.base_shape
+        return [shape*block for shape, block in zip(base_shape, halo_block)]
 
     @property
     def build_directory(self):
@@ -63,12 +65,11 @@ class TikTorch(object):
         Initiates dry run.
         Parameters
         ----------
-        image_shape: list
-        shape of an image in the dataset (2D or 3D). For instance, given the dataset (30, 512, 512)
-        then image_shape --> [512, 512]
+        image_shape: list or tuple
+        shape of an image in the dataset (e.g `HW` for 2D or `DHW` for 3D)
         """
         assert self.handler is not None
-        return self.handler.binary_dry_run(image_shape)
+        return self.handler.binary_dry_run(list(image_shape))
 
     def read_config(self):
         config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
@@ -81,10 +82,9 @@ class TikTorch(object):
 
     def _set_handler(self):
         assert self.get('input_shape') is not None
-        assert self.get('output_shape') is not None
-        self._handler = ModelHandler(model=self.model,device_names=self.get('devices'),
-                                     in_channels=self.get('input_shape')[0],
-                                     out_channels=self.get('output_shape')[0],
+        self._handler = ModelHandler(model=self.model,
+                                     device_names='cuda:0' if torch.cuda.is_available() else 'cpu', #TODO
+                                     channels=self.get('input_shape')[0],
                                      dynamic_shape_code=self.get('dynamic_input_shape'))
 
     def get(self, tag, default=None, assert_exist=False):
@@ -128,8 +128,8 @@ class TikTorch(object):
         try:
             state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
-        except FileNotFoundError as e:
-            print('Model weights could not be found!', e)
+        except:
+            raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
         # Save attribute and return
         self._model = model
         return self
@@ -205,21 +205,9 @@ def test_full_pipeline():
 
     print(f'Halo: {halo}')
     print(f'max_shape: {max_shape}')
-    print('----------------------------------')
 
     out = tiktorch.forward(inputs)
 
-    return 0
-
-def test_TikTorch_init():
-    # move this function to test/test_core
-    tiktorch = TikTorch(build_directory='/home/jo/sfb1129/test_configs_tiktorch/config/')
-    return 0
-
-def test_forward():
-    tiktorch = TikTorch('/home/jo/sfb1129/test_configs_tiktorch/simple_config/')
-    tikin_list = [TikIn([np.random.randn(1, 100, 100) for i in range(3)]) for j in range(1)]
-    out = tiktorch.forward(tikin_list)
     return 0
 
 def test_dunet():
