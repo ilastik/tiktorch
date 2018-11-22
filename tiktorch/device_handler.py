@@ -1,12 +1,22 @@
-import torch
-from tiktorch.utils import DynamicShape, assert_, to_list
-from tiktorch.blockinator import Blockinator, th_pad
 from itertools import count
+import queue
+import time
 import logging
 from functools import reduce
+
+import torch
+import torch.multiprocessing as mp
 import numpy as np
-from .dataloader import get_dataloader
-from .trainer import TikTorchTrainer
+
+from inferno.io.transform import Compose
+from inferno.io.transform.generic import Normalize
+from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotate
+
+from tiktorch.utils import DynamicShape, assert_, to_list
+from tiktorch.blockinator import Blockinator, th_pad
+
+# from .dataloader import get_dataloader
+# from .trainer import TikTorchTrainer
 
 logger = logging.getLogger('DeviceHandler')
 
@@ -46,6 +56,14 @@ class ModelHandler(Processor):
         self._model = model
         self._device_specs = {}
         self.__num_trial_runs_on_device = {}
+        # Data Prep
+        self._raw_preprocessor = None
+        self._joint_preprocessor = None
+        # Training
+        self._data_queue = None
+        self._abort_event = None
+        self._training_process = None
+        self._ignited = True
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
@@ -104,19 +122,103 @@ class ModelHandler(Processor):
                     ValueError)
             self._halo = value
 
-    def train(self, data, labels):
-        import torch.nn as nn
-        from inferno.extensions.optimizers import AnnealedAdam
-        dataloader = get_dataloader(data, labels)
-        print("training set size:", len(data))
-        trainer = TikTorchTrainer(self._model) \
-                  .build_criterion(method=nn.BCELoss, size_average=True) \
-                  .build_optimizer(AnnealedAdam, lr=0.0005, lr_decay=1.0, weight_decay=0.001) \
-                  .set_max_num_iterations(int(len(data)*2)) \
-                  .bind_loader('train', dataloader)
-        trainer.fit()
-        torch.save(trainer.model.state_dict(), '/home/jo/server/CREMI_DUNet_pretrained/state.nn')
+    @staticmethod
+    def _train_process(model: torch.nn.Module,
+                       device: torch.device,
+                       data_queue: mp.Queue,
+                       abort: mp.Event,
+                       batch_size: int):
+        # Set up what's needed for training
+        criterion = torch.nn.BCEWithLogitsLoss(reduce=False)
+        optim = torch.optim.Adam(model.parameters(), lr=0.0003,
+                                 weight_decay=0.0001, amsgrad=True)
+        batch = []
+        while True:
+            # Check if abort event is set
+            if abort.is_set():
+                break
+            try:
+                for sample in range(batch_size):
+                    # Try to fetch from data queue
+                    data, labels, weights = data_queue.get(block=False)
+                    batch.append((data, labels, weights))
+            except queue.Empty:
+                if len(batch) == 0:
+                    time.sleep(0.1)
+                    continue
+            # Make a batch
+            data, labels, weights = zip(*batch)
+            data, labels, weights = (torch.stack(data, dim=0),
+                                     torch.stack(labels, dim=0),
+                                     torch.stack(weights, dim=0))
+            # Ship tensors to device
+            data, labels, weights = data.to(device), labels.to(device), weights.to(device)
+            # Train the model
+            prediction = model(data)
+            loss = criterion(prediction, labels).mul(weights).mean()
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
 
+    def ignition(self):
+        # Done in this method:
+        #   1. Init data queue
+        #   2. Init abort event
+        #   3. Start the training process
+        self._data_queue = mp.Queue()
+        self._abort_event = mp.Event()
+        self._model.share_memory_()
+        self._training_process = mp.Process(target=self._train_process,
+                                            args=(self._model, self.device,
+                                                  self._data_queue, self._abort_event,
+                                                  1))
+        self._training_process.start()
+        self._ignited = True
+
+    def shut_down_training_process(self):
+        # Shut down the training process
+        self._abort_event.set()
+        for _ in range(6):
+            # Give training process some time to die
+            if self._training_process.is_alive():
+                time.sleep(10)
+
+    def __del__(self):
+        # Shut down the training process
+        self.shut_down_training_process()
+
+    def _preprocess(self, data, labels):
+        # labels.shape = data.shape = (c, z, y, x)
+        if self._raw_preprocessor is None:
+            self._raw_preprocessor = Normalize()
+        if self._joint_preprocessor is None:
+            self._joint_preprocessor = Compose(RandomFlip(),
+                                               RandomRotate(),
+                                               ElasticTransform(alpha=2000., sigma=50.))
+        # Convert data and labels to torch tensors
+        data, labels = torch.from_numpy(data), torch.from_numpy(labels)
+        with torch.no_grad():
+            # Apply transforms
+            data = self._raw_preprocessor(data)
+            data, labels = self._joint_preprocessor(data, labels)
+            # Obtain weight map
+            weights = labels.gt(0)
+            # Label value 0 actually corresponds to Ignore. Subtract 1 from all pixels that will be
+            # weighted to account for that
+            labels[weights] -= 1
+        # Done
+        return data, labels, weights.float()
+
+    def train(self, data, labels):
+        # Done in this method:
+        #   1. Augment data
+        #   2. Push to queue
+        if not self._ignited:
+            self.ignition()
+        # Augment
+        for _data, _labels in zip(data, labels):
+            _data, _labels, _weights = self._preprocess(_data, _labels)
+            self._data_queue.put((_data, _labels, _weights))
 
     def _train_trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:
