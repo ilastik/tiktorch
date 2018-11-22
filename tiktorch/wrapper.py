@@ -26,6 +26,10 @@ class TikTorch(object):
         self._set_handler()
 
     @property
+    def output_shape(self):
+        return self.get('output_shape')
+
+    @property
     def halo(self):
         """
         Returns the halo in dynamic base shape blocks
@@ -60,7 +64,12 @@ class TikTorch(object):
             raise ValueError
         return self._handler
 
-    def dry_run(self, image_shape):
+    def train(self, data, labels):
+        assert self.handler is not None
+        self.handler.train(data, labels)
+        pass
+
+    def dry_run(self, image_shape, train=False):
         """
         Initiates dry run.
         Parameters
@@ -69,7 +78,7 @@ class TikTorch(object):
         shape of an image in the dataset (e.g `HW` for 2D or `DHW` for 3D)
         """
         assert self.handler is not None
-        return self.handler.binary_dry_run(list(image_shape))
+        return self.handler.binary_dry_run(list(image_shape), train_flag=train)
 
     def read_config(self):
         config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')

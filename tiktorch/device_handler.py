@@ -5,6 +5,8 @@ from itertools import count
 import logging
 from functools import reduce
 import numpy as np
+from .dataloader import get_dataloader
+from .trainer import TikTorchTrainer
 
 logger = logging.getLogger('DeviceHandler')
 
@@ -102,6 +104,43 @@ class ModelHandler(Processor):
                     ValueError)
             self._halo = value
 
+    def train(self, data, labels):
+        import torch.nn as nn
+        from inferno.extensions.optimizers import AnnealedAdam
+        dataloader = get_dataloader(data, labels)
+        print("training set size:", len(data))
+        trainer = TikTorchTrainer(self._model) \
+                  .build_criterion(method=nn.BCELoss, size_average=True) \
+                  .build_optimizer(AnnealedAdam, lr=0.0005, lr_decay=1.0, weight_decay=0.001) \
+                  .set_max_num_iterations(int(len(data)*2)) \
+                  .bind_loader('train', dataloader)
+        trainer.fit()
+        torch.save(trainer.model.state_dict(), '/home/jo/server/CREMI_DUNet_pretrained/state.nn')
+
+
+    def _train_trial_run_successful(self, *input_shape, device_id=None):
+        if device_id is None:
+            return [self._trial_run_successful(*input_shape, device_id=_device_id)
+                    for _device_id in range(len(self.devices))]
+        try:
+            if device_id not in self.__num_trial_runs_on_device:
+                self.__num_trial_runs_on_device[device_id] = 1
+            else:
+                self.__num_trial_runs_on_device[device_id] += 1
+            device = self.devices[device_id]
+            self.model.to(device)(torch.zeros(1, *input_shape).to(device))
+            return True
+        except RuntimeError:
+            # FIXME Investigate
+            # Unexplained torch weirdness: new device can be "out of memory" for no reason,
+            # so we give it another chance
+            if self.__num_trial_runs_on_device[device_id] == 1:
+                # second chance
+                return self._trial_run_successful(*input_shape, device_id=device_id)
+            else:
+                # Nope
+                return False
+
 
     def _trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:
@@ -127,9 +166,13 @@ class ModelHandler(Processor):
                 # Nope
                 return False
 
-    def _try_running_on_blocksize(self, *block_size, device_id):
-        return self._trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
-                                          device_id=device_id)
+    def _try_running_on_blocksize(self, *block_size, device_id, train_flag=False):
+        if train_flag:
+            return self._train_trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
+                                                    device_id=device_id)
+        else:
+            return self._trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
+                                              device_id=device_id)
 
     def _dry_run_on_device(self, device_id=0):
         # Sweep diagonals to find where it crashes.
@@ -205,7 +248,7 @@ class ModelHandler(Processor):
             self._device_specs[device_id] = self._dry_run_on_device(device_id)
         return self
 
-    def binary_dry_run(self, image_shape):
+    def binary_dry_run(self, image_shape, train_flag=False):
         """
         Parameters
         ----------
@@ -224,7 +267,7 @@ class ModelHandler(Processor):
         max_shape = []
         for device_id in range(self.num_devices):
             logger.debug(f'Dry running on device: {self.devices[device_id]}')
-            self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape, device_id)
+            self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape, device_id, train_flag=train_flag)
             max_device_shape = self.dynamic_shape(*self._device_specs[device_id].num_blocks)
             if len(max_shape) == 0:
                 max_shape = max_device_shape
@@ -233,7 +276,7 @@ class ModelHandler(Processor):
         logger.debug(f'Dry run finished. Max shape / upper bound: {max_shape} / {image_shape}')
         return max_shape
 
-    def _binary_dry_run_on_device(self, image_shape, device_id):
+    def _binary_dry_run_on_device(self, image_shape, device_id, train_flag=False):
         """
         Parameters
         ----------
@@ -255,6 +298,7 @@ class ModelHandler(Processor):
                 spatial_shape = self.dynamic_shape(*m)
                 
                 logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
+                print(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
 
                 if spatial_shape > image_shape:
                     break_flag = True
@@ -262,7 +306,7 @@ class ModelHandler(Processor):
                 else:
                     device_capacity = m
                 
-                success = self._try_running_on_blocksize(*m, device_id=device_id)
+                success = self._try_running_on_blocksize(*m, device_id=device_id, train_flag=train_flag)
 
                 if not success:
                     logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
