@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 class TestUNet(unittest.TestCase):
     def setUp(self):
-        path = '/home/jo/sfb1129/pretrained_net_constantin/ISBI2012_UNet_pretrained/'
+        path = '/export/home/jhugger/sfb1129/pretrained_net_constantin/ISBI2012_UNet_pretrained/'
         model_file_name = path + 'model.py' #'/export/home/jhugger/sfb1129/ISBI2012_UNet_pretrained/model.py'
         module_spec = imputils.spec_from_file_location('model', model_file_name)
         module = imputils.module_from_spec(module_spec)
@@ -33,7 +33,7 @@ class TestUNet(unittest.TestCase):
 
         self.handler = ModelHandler(model=model,
                                     channels=1,
-                                    device_names='cpu', #'cuda:0',
+                                    device_names='cuda:0',
                                     dynamic_shape_code='(32 * (nH + 1), 32 * (nW + 1))')
 
     def test_model(self):
@@ -42,11 +42,12 @@ class TestUNet(unittest.TestCase):
         transform = Compose(Normalize(), Cast('float32'))
 
         #with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
-        with h5py.File('/home/jo/sfb1129/sample_C_20160501.hdf') as f:
+        with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
             cremi_raw = f['volumes']['raw'][0:1, 0:1248, 0:1248]
 
         input_tensor = torch.from_numpy(transform(cremi_raw[0: 1]))
-        input_tensor = torch.rand(1, 400, 400)
+        input_tensor = torch.rand(1, 572, 572)
+        print(torch.unsqueeze(input_tensor, 0).shape)
         out = self.handler.forward(torch.unsqueeze(input_tensor, 0))
         import scipy
         scipy.misc.imsave('/export/home/jhugger/sfb1129/tiktorch/out.jpg', out[0, 0].data.cpu().numpy())
