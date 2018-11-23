@@ -128,6 +128,7 @@ class ModelHandler(Processor):
                        data_queue: mp.Queue,
                        abort: mp.Event,
                        batch_size: int):
+        logging.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = torch.nn.BCEWithLogitsLoss(reduce=False)
         optim = torch.optim.Adam(model.parameters(), lr=0.0003,
@@ -136,16 +137,22 @@ class ModelHandler(Processor):
         while True:
             # Check if abort event is set
             if abort.is_set():
+                logging.info(f"Aborting...")
                 break
             try:
                 for sample in range(batch_size):
+                    logging.info(f"Trying to Fetch sample {sample} of {batch_size}...")
                     # Try to fetch from data queue
                     data, labels, weights = data_queue.get(block=False)
                     batch.append((data, labels, weights))
+                    logging.info(f"Fetched sample {sample} of {batch_size}...")
             except queue.Empty:
+                logging.info(f"Queue Exhausted.")
                 if len(batch) == 0:
+                    logging.info(f"Trying to fetch again...")
                     time.sleep(0.1)
                     continue
+            logging.info(f"Stepping...")
             # Make a batch
             data, labels, weights = zip(*batch)
             data, labels, weights = (torch.stack(data, dim=0),
@@ -159,34 +166,50 @@ class ModelHandler(Processor):
             optim.zero_grad()
             loss.backward()
             optim.step()
+            logging.info(f"Stepped.")
 
     def ignition(self):
         # Done in this method:
         #   1. Init data queue
         #   2. Init abort event
         #   3. Start the training process
+        logging.info("Prepping Queue and Event...")
         self._data_queue = mp.Queue()
         self._abort_event = mp.Event()
-        self._model = self._model.share_memory()
+
+        logging.info("Sharing Memory...")
+        self._model.share_memory_()
+
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self._model, self.device,
                                                   self._data_queue, self._abort_event,
                                                   1))
+        logging.info("3, 2, 1...")
         self._training_process.start()
+        logging.info("We have lift off.")
         self._ignited = True
 
     def shut_down_training_process(self):
         # Shut down the training process
+        logging.info("Setting Abort Event...")
         self._abort_event.set()
-        for _ in range(6):
+        for trial in range(6):
+            logging.info(f"Try {trial} of 5:")
             # Give training process some time to die
             if self._training_process.is_alive():
+                logging.info(f"Process Alive.")
                 time.sleep(10)
+            else:
+                break
+            logging.info(f"Process Dead.")
 
     def __del__(self):
         pass
         # Shut down the training process
-        #self.shut_down_training_process()
+
+        self.shut_down_training_process()
+        self._ignited = False
+
 
     def _preprocess(self, data, labels):
         # labels.shape = data.shape = (c, z, y, x)
@@ -215,6 +238,7 @@ class ModelHandler(Processor):
         #   1. Augment data
         #   2. Push to queue
         if not self._ignited:
+            logging.info("Ignition...")
             self.ignition()
         # Augment
         for _data, _labels in zip(data, labels):
