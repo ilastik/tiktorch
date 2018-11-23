@@ -63,7 +63,7 @@ class ModelHandler(Processor):
         self._data_queue = None
         self._abort_event = None
         self._training_process = None
-        self._ignited = True
+        self._ignited = False
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
@@ -167,7 +167,7 @@ class ModelHandler(Processor):
         #   3. Start the training process
         self._data_queue = mp.Queue()
         self._abort_event = mp.Event()
-        self._model.share_memory_()
+        self._model = self._model.share_memory()
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self._model, self.device,
                                                   self._data_queue, self._abort_event,
@@ -184,8 +184,9 @@ class ModelHandler(Processor):
                 time.sleep(10)
 
     def __del__(self):
+        pass
         # Shut down the training process
-        self.shut_down_training_process()
+        #self.shut_down_training_process()
 
     def _preprocess(self, data, labels):
         # labels.shape = data.shape = (c, z, y, x)
@@ -196,11 +197,11 @@ class ModelHandler(Processor):
                                                RandomRotate(),
                                                ElasticTransform(alpha=2000., sigma=50.))
         # Convert data and labels to torch tensors
-        data, labels = torch.from_numpy(data), torch.from_numpy(labels)
         with torch.no_grad():
             # Apply transforms
             data = self._raw_preprocessor(data)
             data, labels = self._joint_preprocessor(data, labels)
+            data, labels = torch.from_numpy(data), torch.from_numpy(labels)
             # Obtain weight map
             weights = labels.gt(0)
             # Label value 0 actually corresponds to Ignore. Subtract 1 from all pixels that will be
