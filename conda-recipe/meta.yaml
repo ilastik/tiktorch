@@ -1,0 +1,45 @@
+{% set pytorch_flavor=pytorch_flavor or "pytorch" %}
+{% set inferno_flavor=inferno_flavor or "inferno" %}
+{% set package_name=package_name or "tiktorch" %}
+package:
+  name: {{ package_name }}
+  {% set tagged_version = GIT_DESCRIBE_TAG|replace("v","")|replace("-", ".") %}
+  {% if GIT_DESCRIBE_NUMBER|int != 0 %}
+    {% set tagged_version = tagged_version + '.post' + GIT_DESCRIBE_NUMBER %}
+  {% endif %}
+
+  version:
+   {{tagged_version}}
+
+source:
+  path: ..
+
+build:
+  number: 1
+  script: python -m pip install --no-deps --ignore-installed .
+  string: np{{CONDA_NPY}}py{{CONDA_PY}}_{{PKG_BUILDNUM}}_h{{PKG_HASH}}_g{{GIT_FULL_HASH[:7]}}
+
+
+requirements:
+  build:
+    - pip
+    - python {{ python }}
+  run:
+    - numpy {{ numpy }}*
+    - pyyaml
+    - scipy
+    - tifffile {{ tifffile }}*
+    - tqdm
+    - {{ inferno_flavor }} {{ inferno_version }}*
+    - {{ pytorch_flavor }} {{ pytorch_version }}*
+
+
+test:
+  imports:
+    - tiktorch
+  # source_files:
+  #   - tests/*.py
+  # requires:
+  #   - pytest
+  # commands:
+  #   - pytest
