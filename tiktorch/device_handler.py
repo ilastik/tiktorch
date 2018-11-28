@@ -3,6 +3,7 @@ import queue
 import time
 import logging
 from functools import reduce
+from collections import deque
 
 import torch
 import torch.multiprocessing as mp
@@ -127,12 +128,17 @@ class ModelHandler(Processor):
                        device: torch.device,
                        data_queue: mp.Queue,
                        abort: mp.Event,
-                       batch_size: int):
+                       batch_size: int,
+                       cache_size: int):
         logging.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
+        # FIXME: Not have these hard-coded
         criterion = torch.nn.BCEWithLogitsLoss(reduce=False)
         optim = torch.optim.Adam(model.parameters(), lr=0.0003,
                                  weight_decay=0.0001, amsgrad=True)
+        # Init a cache. In case there are not enough batches in data_queue,
+        # we'll use it to top up the batch with what's in this cache.
+        data_cache = deque(maxlen=cache_size)
         batch = []
         while True:
             # Check if abort event is set
@@ -144,15 +150,30 @@ class ModelHandler(Processor):
                     logging.info(f"Trying to Fetch sample {sample} of {batch_size}...")
                     # Try to fetch from data queue
                     data, labels, weights = data_queue.get(block=False)
-                    batch.append((data, labels, weights))
                     logging.info(f"Fetched sample {sample} of {batch_size}...")
+                    # Add to batch
+                    batch.append((data, labels, weights))
+                    # Add to cache
+                    data_cache.append((data, labels, weights))
             except queue.Empty:
                 logging.info(f"Queue Exhausted.")
-                if len(batch) == 0:
+                if len(batch) == 0 and len(data_cache) == 0:
+                    # Both batch and cache empty, try again
                     logging.info(f"Trying to fetch again...")
                     time.sleep(0.1)
                     continue
-            logging.info(f"Stepping...")
+                elif len(batch) < batch_size:
+                    # Batch not full, try to top it up from the cache
+                    logging.info(f"Topping up batch, currently with {len(batch)} elements...")
+                    while len(data_cache) > 0 and len(batch) < batch_size:
+                        sample = data_cache.popleft()
+                        batch.append(sample)
+                        data_cache.append(sample)
+                else:
+                    logging.error(f"LOLWTF: len(batch) = {len(batch)}, "
+                                  f"len(data_cache) = {len(data_cache)}")
+                    raise RuntimeError
+            logging.info(f"Updating with {len(batch)} samples...")
             # Make a batch
             data, labels, weights = zip(*batch)
             data, labels, weights = (torch.stack(data, dim=0),
@@ -160,11 +181,15 @@ class ModelHandler(Processor):
                                      torch.stack(weights, dim=0))
             # Ship tensors to device
             data, labels, weights = data.to(device), labels.to(device), weights.to(device)
+            logging.info(f"Transferred.")
             # Train the model
             prediction = model(data)
+            logging.info(f"Predicted.")
             loss = criterion(prediction, labels).mul(weights).mean()
+            logging.info(f"Loss Evaluated.")
             optim.zero_grad()
             loss.backward()
+            logging.info(f"Backproped.")
             optim.step()
             logging.info(f"Stepped.")
 
@@ -183,7 +208,7 @@ class ModelHandler(Processor):
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self._model, self.device,
                                                   self._data_queue, self._abort_event,
-                                                  1))
+                                                  1, 1))
         logging.info("3, 2, 1...")
         self._training_process.start()
         logging.info("We have lift off.")
@@ -213,6 +238,7 @@ class ModelHandler(Processor):
 
     def _preprocess(self, data, labels):
         # labels.shape = data.shape = (c, z, y, x)
+        # FIXME Not have these hard coded
         if self._raw_preprocessor is None:
             self._raw_preprocessor = Normalize()
         if self._joint_preprocessor is None:
@@ -267,7 +293,6 @@ class ModelHandler(Processor):
             else:
                 # Nope
                 return False
-
 
     def _trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:

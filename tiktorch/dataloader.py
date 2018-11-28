@@ -5,6 +5,7 @@ from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotat
 from inferno.io.transform.generic import AsTorchBatch, Normalize
 from inferno.utils.io_utils import yaml2dict
 
+
 class TikTorchDataset(Dataset):
     def __init__(self, raw_volume, labels, config=None):
         super(TikTorchDataset, self).__init__()
@@ -25,7 +26,8 @@ class TikTorchDataset(Dataset):
         return transforms
 
     def __getitem__(self, index):
-        return self.transform(self.transform_raw(self.raw_volume[index][0, 0, :, :]), self.labels[index][0, 0, :, :])
+        return self.transform(self.transform_raw(self.raw_volume[index][0, 0, :, :]),
+                              self.labels[index][0, 0, :, :])
 
     def __len__(self):
         assert len(self.raw_volume) == len(self.labels)
