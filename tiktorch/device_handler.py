@@ -51,12 +51,12 @@ class ModelHandler(Processor):
         self._channels = channels
         self._device_specs = {}
         self.__num_trial_runs_on_device = {}
-        # Set
-        self._set_model(model)
-        self._set_trainer(training_hyperparams)
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
+        # Set
+        self._set_model(model)
+        self._set_trainer(training_hyperparams)
         # Init superclass
         super(ModelHandler, self).__init__(num_parallel_jobs=len(self.devices))
 
@@ -72,7 +72,7 @@ class ModelHandler(Processor):
     def _set_model(self, model):
         # Use this only once to prevent amusing bugs
         assert self._model is None
-        self._model = model.to(self.device).share_memory()
+        self._model = model.to(self.device)
 
     def _set_trainer(self, hyperparameters):
         self._trainer = Trainer(handler=self,

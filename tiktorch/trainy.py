@@ -46,6 +46,10 @@ class Trainer(object):
     def model(self):
         return self._handler.model
 
+    def share_memory(self):
+        self._handler._model = self._handler._model.share_memory()
+        return self
+
     @property
     def device(self):
         return self._handler.device
@@ -60,7 +64,7 @@ class Trainer(object):
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
-        optim = getattr(torch.optim, hparams.optimizer_name)(**hparams.optimizer_kwargs)
+        optim = getattr(torch.optim, hparams.optimizer_name)(model.parameters(), **hparams.optimizer_kwargs)
         # Init a cache. In case there are not enough batches in data_queue,
         # we'll use it to top up the batch with what's in this cache.
         data_cache = deque(maxlen=hparams.cache_size)
@@ -140,8 +144,8 @@ class Trainer(object):
         self._abort_event = mp.Event()
         self._pause_event = mp.Event()
         # NOTE Not required anymore, ModelHandler._set_model takes care of this.
-        # logger.info("Sharing Memory...")
-        # self.model.share_memory()
+        logger.info("Sharing Memory...")
+        # self.share_memory()
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self.model, self.device,
                                                   self._data_queue, self._abort_event,
