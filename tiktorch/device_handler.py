@@ -139,8 +139,9 @@ class ModelHandler(Processor):
         # Init a cache. In case there are not enough batches in data_queue,
         # we'll use it to top up the batch with what's in this cache.
         data_cache = deque(maxlen=cache_size)
-        batch = []
         while True:
+            # Init a batch
+            batch = []
             # Check if abort event is set
             if abort.is_set():
                 logging.info(f"Aborting...")
@@ -162,6 +163,9 @@ class ModelHandler(Processor):
                     logging.info(f"Trying to fetch again...")
                     time.sleep(0.1)
                     continue
+                elif len(batch) == batch_size:
+                    # Nothing to do here
+                    pass
                 elif len(batch) < batch_size:
                     # Batch not full, try to top it up from the cache
                     logging.info(f"Topping up batch, currently with {len(batch)} elements...")
@@ -176,6 +180,9 @@ class ModelHandler(Processor):
             logging.info(f"Updating with {len(batch)} samples...")
             # Make a batch
             data, labels, weights = zip(*batch)
+            logging.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
+                          f"label.shapes = {[list(t.shape) for t in labels]}, "
+                          f"weights.shapes = {[list(t.shape) for t in weights]}")
             data, labels, weights = (torch.stack(data, dim=0),
                                      torch.stack(labels, dim=0),
                                      torch.stack(weights, dim=0))
@@ -203,7 +210,7 @@ class ModelHandler(Processor):
         self._abort_event = mp.Event()
 
         logging.info("Sharing Memory...")
-        self._model.share_memory_()
+        self._model.share_memory()
 
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self._model, self.device,
