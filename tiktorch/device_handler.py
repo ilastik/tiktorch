@@ -215,7 +215,7 @@ class ModelHandler(Processor):
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self._model, self.device,
                                                   self._data_queue, self._abort_event,
-                                                  1, 1))
+                                                  1, 8))
         logging.info("3, 2, 1...")
         self._training_process.start()
         logging.info("We have lift off.")
