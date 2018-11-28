@@ -147,7 +147,7 @@ class ModelHandler(Processor):
                 logging.info(f"Aborting...")
                 break
             try:
-                for sample in range(batch_size):
+                while len(batch) < batch_size:
                     logging.info(f"Trying to Fetch sample {sample} of {batch_size}...")
                     # Try to fetch from data queue
                     data, labels, weights = data_queue.get(block=False)
