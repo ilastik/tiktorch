@@ -147,6 +147,7 @@ class ModelHandler(Processor):
                 logging.info(f"Aborting...")
                 break
             try:
+                sample = 0
                 while len(batch) < batch_size:
                     logging.info(f"Trying to Fetch sample {sample} of {batch_size}...")
                     # Try to fetch from data queue
@@ -156,6 +157,7 @@ class ModelHandler(Processor):
                     batch.append((data, labels, weights))
                     # Add to cache
                     data_cache.append((data, labels, weights))
+                    sample += 1
             except queue.Empty:
                 logging.info(f"Queue Exhausted.")
                 if len(batch) == 0 and len(data_cache) == 0:
