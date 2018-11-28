@@ -215,26 +215,24 @@ class ModelHandler(Processor):
         self._ignited = True
 
     def shut_down_training_process(self):
-        # Shut down the training process
-        logging.info("Setting Abort Event...")
-        self._abort_event.set()
-        for trial in range(6):
-            logging.info(f"Try {trial} of 5:")
-            # Give training process some time to die
-            if self._training_process.is_alive():
-                logging.info(f"Process Alive.")
-                time.sleep(10)
-            else:
-                break
-            logging.info(f"Process Dead.")
+        if self._training_process is not None:
+            # Shut down the training process
+            logging.info("Setting Abort Event...")
+            self._abort_event.set()
+            for trial in range(6):
+                logging.info(f"Try {trial} of 5:")
+                # Give training process some time to die
+                if self._training_process.is_alive():
+                    logging.info(f"Process Alive.")
+                    time.sleep(10)
+                else:
+                    break
+                logging.info(f"Process Dead.")
 
     def __del__(self):
-        pass
         # Shut down the training process
-
         self.shut_down_training_process()
         self._ignited = False
-
 
     def _preprocess(self, data, labels):
         # labels.shape = data.shape = (c, z, y, x)
