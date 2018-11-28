@@ -1,25 +1,17 @@
 from itertools import count
-import queue
-import time
 import logging
-from functools import reduce
-from collections import deque
 
 import torch
-import torch.multiprocessing as mp
 import numpy as np
-
-from inferno.io.transform import Compose
-from inferno.io.transform.generic import Normalize
-from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotate
 
 from tiktorch.utils import DynamicShape, assert_, to_list
 from tiktorch.blockinator import Blockinator, th_pad
-
+from tiktorch.trainy import Trainer
 # from .dataloader import get_dataloader
 # from .trainer import TikTorchTrainer
 
 logger = logging.getLogger('DeviceHandler')
+
 
 class DeviceMemoryCapacity(object):
     def __init__(self, num_blocks, dynamic_shape, device_id=None):
@@ -49,22 +41,19 @@ class Processor(object):
 
 
 class ModelHandler(Processor):
-    def __init__(self, *, model, device_names, channels, dynamic_shape_code):
+    def __init__(self, *, model, device_names, channels, dynamic_shape_code,
+                 training_hyperparams=None):
         # Privates
+        self._model = None
+        self._trainer = None
         self._max_batch_limit = 500
         self._halo = None
         self._channels = channels
-        self._model = model
         self._device_specs = {}
         self.__num_trial_runs_on_device = {}
-        # Data Prep
-        self._raw_preprocessor = None
-        self._joint_preprocessor = None
-        # Training
-        self._data_queue = None
-        self._abort_event = None
-        self._training_process = None
-        self._ignited = False
+        # Set
+        self._set_model(model)
+        self._set_trainer(training_hyperparams)
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
@@ -77,7 +66,22 @@ class ModelHandler(Processor):
 
     @property
     def model(self):
+        assert self._model is not None
         return self._model
+
+    def _set_model(self, model):
+        # Use this only once to prevent amusing bugs
+        assert self._model is None
+        self._model = model.to(self.device).share_memory()
+
+    def _set_trainer(self, hyperparameters):
+        self._trainer = Trainer(handler=self,
+                                hyperparameters=hyperparameters)
+
+    @property
+    def trainer(self):
+        assert self._trainer is not None
+        return self._trainer
 
     @property
     def device(self):
@@ -123,160 +127,30 @@ class ModelHandler(Processor):
                     ValueError)
             self._halo = value
 
-    @staticmethod
-    def _train_process(model: torch.nn.Module,
-                       device: torch.device,
-                       data_queue: mp.Queue,
-                       abort: mp.Event,
-                       batch_size: int,
-                       cache_size: int):
-        logging.info(f"Initializing Loss and Optimizer.")
-        # Set up what's needed for training
-        # FIXME: Not have these hard-coded
-        criterion = torch.nn.BCEWithLogitsLoss(reduce=False)
-        optim = torch.optim.Adam(model.parameters(), lr=0.0003,
-                                 weight_decay=0.0001, amsgrad=True)
-        # Init a cache. In case there are not enough batches in data_queue,
-        # we'll use it to top up the batch with what's in this cache.
-        data_cache = deque(maxlen=cache_size)
-        while True:
-            # Init a batch
-            batch = []
-            # Check if abort event is set
-            if abort.is_set():
-                logging.info(f"Aborting...")
-                break
-            try:
-                sample = 0
-                while len(batch) < batch_size:
-                    logging.info(f"Trying to Fetch sample {sample} of {batch_size}...")
-                    # Try to fetch from data queue
-                    data, labels, weights = data_queue.get(block=False)
-                    logging.info(f"Fetched sample {sample} of {batch_size}...")
-                    # Add to batch
-                    batch.append((data, labels, weights))
-                    # Add to cache
-                    data_cache.append((data, labels, weights))
-                    sample += 1
-            except queue.Empty:
-                logging.info(f"Queue Exhausted.")
-                if len(batch) == 0 and len(data_cache) == 0:
-                    # Both batch and cache empty, try again
-                    logging.info(f"Trying to fetch again...")
-                    time.sleep(0.1)
-                    continue
-                elif len(batch) == batch_size:
-                    # Nothing to do here
-                    pass
-                elif len(batch) < batch_size:
-                    # Batch not full, try to top it up from the cache
-                    logging.info(f"Topping up batch, currently with {len(batch)} elements...")
-                    while len(data_cache) > 0 and len(batch) < batch_size:
-                        sample = data_cache.popleft()
-                        batch.append(sample)
-                        data_cache.append(sample)
-                else:
-                    logging.error(f"LOLWTF: len(batch) = {len(batch)}, "
-                                  f"len(data_cache) = {len(data_cache)}")
-                    raise RuntimeError
-            logging.info(f"Updating with {len(batch)} samples...")
-            # Make a batch
-            data, labels, weights = zip(*batch)
-            logging.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
-                          f"label.shapes = {[list(t.shape) for t in labels]}, "
-                          f"weights.shapes = {[list(t.shape) for t in weights]}")
-            data, labels, weights = (torch.stack(data, dim=0),
-                                     torch.stack(labels, dim=0),
-                                     torch.stack(weights, dim=0))
-            # Ship tensors to device
-            data, labels, weights = data.to(device), labels.to(device), weights.to(device)
-            logging.info(f"Transferred.")
-            # Train the model
-            prediction = model(data)
-            logging.info(f"Predicted.")
-            loss = criterion(prediction, labels).mul(weights).mean()
-            logging.info(f"Loss Evaluated.")
-            optim.zero_grad()
-            loss.backward()
-            logging.info(f"Backproped.")
-            optim.step()
-            logging.info(f"Stepped.")
-
-    def ignition(self):
-        # Done in this method:
-        #   1. Init data queue
-        #   2. Init abort event
-        #   3. Start the training process
-        logging.info("Prepping Queue and Event...")
-        self._data_queue = mp.Queue()
-        self._abort_event = mp.Event()
-
-        logging.info("Sharing Memory...")
-        self._model.share_memory()
-
-        self._training_process = mp.Process(target=self._train_process,
-                                            args=(self._model, self.device,
-                                                  self._data_queue, self._abort_event,
-                                                  1, 8))
-        logging.info("3, 2, 1...")
-        self._training_process.start()
-        logging.info("We have lift off.")
-        self._ignited = True
-
-    def shut_down_training_process(self):
-        if self._training_process is not None:
-            # Shut down the training process
-            logging.info("Setting Abort Event...")
-            self._abort_event.set()
-            for trial in range(6):
-                logging.info(f"Try {trial} of 5:")
-                # Give training process some time to die
-                if self._training_process.is_alive():
-                    logging.info(f"Process Alive.")
-                    time.sleep(10)
-                else:
-                    break
-                logging.info(f"Process Dead.")
-
-    def __del__(self):
-        # Shut down the training process
-        self.shut_down_training_process()
-        self._ignited = False
-
-    def _preprocess(self, data, labels):
-        # labels.shape = data.shape = (c, z, y, x)
-        # FIXME Not have these hard coded
-        if self._raw_preprocessor is None:
-            self._raw_preprocessor = Normalize()
-        if self._joint_preprocessor is None:
-            self._joint_preprocessor = Compose(RandomFlip(),
-                                               RandomRotate(),
-                                               ElasticTransform(alpha=2000., sigma=50.))
-        # Convert data and labels to torch tensors
-        with torch.no_grad():
-            # Apply transforms
-            data = self._raw_preprocessor(data)
-            data, labels = self._joint_preprocessor(data, labels)
-            data, labels = torch.from_numpy(data), torch.from_numpy(labels)
-            # Obtain weight map
-            weights = labels.gt(0)
-            # Label value 0 actually corresponds to Ignore. Subtract 1 from all pixels that will be
-            # weighted to account for that
-            labels[weights] -= 1
-        # Done
-        return data, labels, weights.float()
-
     def train(self, data, labels):
-        # Done in this method:
-        #   1. Augment data
-        #   2. Push to queue
-        if not self._ignited:
-            logging.info("Ignition...")
-            self.ignition()
-        # Augment
-        for _data, _labels in zip(data, labels):
-            _data, _labels, _weights = self._preprocess(_data, _labels)
-            self._data_queue.put((_data, _labels, _weights))
+        self.trainer.push(data, labels)
+        return self
+
+    def pause_training(self):
+        self.trainer.pause()
+        return self
+
+    def resume_training(self):
+        self.trainer.resume()
+        return self
+
+    def stop_training(self):
+        self.trainer.shut_down_training_process()
+        return self
+
+    def start_training(self):
+        self.trainer.ignition()
+        return self
+
+    def dump_state(self, filename):
+        state_dict = self.model.state_dict()
+        torch.save(state_dict, filename)
+        return self
 
     def _train_trial_run_successful(self, *input_shape, device_id=None):
         if device_id is None:
@@ -521,7 +395,6 @@ class ModelHandler(Processor):
                 roi_shape.append(slice(None))
         return tensor[[slice(None)] * num_channel_axes + roi_shape]
 
-
     def crop_halo(self, tensor, num_channel_axes=2):
         base_shape = self.dynamic_shape.base_shape
         roi_shape = []
@@ -543,9 +416,15 @@ class ModelHandler(Processor):
         except:
             logger.debug(f"Can't load tensor on `{self.device}`")
             RuntimeError(f"Can't load tensor on `{self.device}`")
-
-        block = Blockinator(input_tensor, self.dynamic_shape.base_shape, num_channel_axes=2, pad_fn=th_pad)
+        block = Blockinator(input_tensor, self.dynamic_shape.base_shape,
+                            num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):
             output_tensor = block.process()
-        
         return output_tensor
+
+    def to_device(self, obj):
+        return obj.to(self.device)
+
+    def process_tensor(self, tensor):
+        tensor = self.to_device(tensor)
+        return self.model(tensor)

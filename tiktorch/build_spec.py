@@ -89,7 +89,8 @@ class BuildSpec(object):
         if len(minimal_increment) == 2:
             dynamic_shape = '(%i * (nH + 1), %i * (nW + 1))' % tuple(minimal_increment)
         elif len(minimal_increment) == 3:
-            dynamic_shape = '(%i * (nD + 1), %i * (nH + 1), %i * (nW + 1))' % tuple(minimal_increment)
+            dynamic_shape = '(%i * (nD + 1), %i * (nH + 1), %i * (nW + 1))' % tuple(
+                minimal_increment)
         else:
             raise ValueError("Invald length %i for minimal increment" % len(minimal_increment))
         return dynamic_shape
@@ -100,7 +101,7 @@ class BuildSpec(object):
             module_spec = imputils.spec_from_file_location('model', spec.code_path)
             module = imputils.module_from_spec(module_spec)
             module_spec.loader.exec_module(module)
-            model: torch.nn.Module =\
+            model: torch.nn.Module = \
                 getattr(module, spec.model_class_name)(**spec.model_init_kwargs)
         except:
             raise ValueError(f'Could not load model {spec.model_class_name} from {spec.code_path}')
@@ -114,12 +115,12 @@ class BuildSpec(object):
         # next, pipe iput of given shape through the network
         with torch.no_grad():
             try:
-                input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32, device=self.device)
+                input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32,
+                                     device=self.device)
                 out = model(input_)
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
         return tuple(out[0].shape)
-
 
     def build(self, spec):
         """
@@ -198,26 +199,32 @@ class TikTorchSpec(object):
         return cls
 
     def validate(self):
-
         # TODO in the long run we should support both ways of serializing a model:
         # https://pytorch.org/docs/master/notes/serialization.html
-        self.assert_(os.path.exists(self.state_path), f'Path not found: {self.state_path}', FileExistsError)
-        self.assert_(os.path.exists(self.code_path), f'Path not found: {self.code_path}', FileExistsError)
-        self.assert_(isinstance(self.model_class_name, str), "Model Class Name must be a string", ValueError)
+        self.assert_(os.path.exists(self.state_path), f'Path not found: {self.state_path}',
+                     FileExistsError)
+        self.assert_(os.path.exists(self.code_path), f'Path not found: {self.code_path}',
+                     FileExistsError)
+        self.assert_(isinstance(self.model_class_name, str), "Model Class Name must be a string",
+                     ValueError)
 
         # TODO why do we care if this is list, tuple or whatever ?
         # self.assert_(isinstance(self.input_shape, list), "input_shape must be a list", ValueError)
 
         ndim = len(self.input_shape)
         self.assert_(ndim in (3, 4),
-         f"input_shape has length {len(self.input_shape)} but should have lenght 3 or 4", ValueError)
+                     f"input_shape has length {len(self.input_shape)} but should have lenght 3 or 4",
+                     ValueError)
         self.assert_(ndim - 1 == len(self.minimal_increment),
-         f"minimal increment must have 1 entry less than input shape")
+                     f"minimal increment must have 1 entry less than input shape")
 
-        self.assert_(isinstance(self.model_init_kwargs, dict), "model_init_kwargs must be a dictionary", ValueError)
+        self.assert_(isinstance(self.model_init_kwargs, dict),
+                     "model_init_kwargs must be a dictionary", ValueError)
 
         if self.description is not None:
-            self.assert_(isinstance(self.description, str), "description must be a string", ValueError)
+            self.assert_(isinstance(self.description, str), "description must be a string",
+                         ValueError)
         if self.data_source is not None:
-            self.assert_(isinstance(self.data_source, str), "data_source must be a string", ValueError)
+            self.assert_(isinstance(self.data_source, str), "data_source must be a string",
+                         ValueError)
         return self

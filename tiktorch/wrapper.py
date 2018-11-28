@@ -14,16 +14,21 @@ logger = logging.getLogger('TikTorch')
 
 
 class TikTorch(object):
-    def __init__(self, build_directory):
+    def __init__(self, build_directory, device=None):
         # Privates
         self._build_directory = None
-        self._handler = None
+        self._handler: ModelHandler = None
         self._model = None
         self._config = {}
+        if device is None:
+            # The default behaviour is to select a GPU if one is availabe.
+            # This can be overriden by providing device in the constructor.
+            self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        else:
+            self._device = device
         # Publics
         self.build_directory = build_directory
         self.read_config()
-        self._set_handler()
 
     @property
     def output_shape(self):
@@ -54,14 +59,16 @@ class TikTorch(object):
 
     @property
     def model(self):
-        if self._model is None:
-            self.load_model()
-        return self._model
+        return self.handler.model
+
+    @property
+    def device(self):
+        return self.handler.device
 
     @property
     def handler(self):
         if self._handler is None:
-            raise ValueError
+            self.load_model()
         return self._handler
 
     def train(self, data, labels):
@@ -89,10 +96,11 @@ class TikTorch(object):
             self._config.update(yaml.load(f))
         return self
 
-    def _set_handler(self):
+    def _set_handler(self, model):
         assert self.get('input_shape') is not None
-        self._handler = ModelHandler(model=self.model,
-                                     device_names='cuda:0' if torch.cuda.is_available() else 'cpu', #TODO
+        # Pass
+        self._handler = ModelHandler(model=model,
+                                     device_names=self._device,
                                      channels=self.get('input_shape')[0],
                                      dynamic_shape_code=self.get('dynamic_input_shape'))
 
@@ -100,28 +108,6 @@ class TikTorch(object):
         if assert_exist:
             assert tag in self._config, f"Tag '{tag}' not found in configuration."
         return self._config.get(tag, default)
-
-    def set_devices(self, devices):
-        # TODO Validate
-        self._config.update({'devices': devices})
-        return self
-
-    @property
-    def devices(self):
-        devices = self.get('devices', None)
-        if isinstance(devices, list):
-            raise NotImplementedError("Multi-GPU support is not implemented yet.")
-        if devices is None:
-            return torch.device('cpu')
-        elif isinstance(devices, int):
-            return torch.device(f'cuda:{devices}')
-        elif isinstance(devices, str):
-            return torch.device(devices)
-        else:
-            raise ValueError
-
-    def ensure_model_on_device(self):
-        return self.model.to(self.devices)
 
     def load_model(self):
         # Dynamically import file.
@@ -139,8 +125,8 @@ class TikTorch(object):
             model.load_state_dict(state_dict)
         except:
             raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
-        # Save attribute and return
-        self._model = model
+        # Build handler
+        self._set_handler(model)
         return self
 
     def batch_inputs(self, inputs):
@@ -184,14 +170,12 @@ class TikTorch(object):
         # Batch inputs
         batches = self.batch_inputs(inputs)
         # Send batch to the right device
-        #batches = [batch.to(self.devices) for batch in batches]
         batches = [batch for batch in batches]
         # Make sure model is in right device and feedforward
         # throws an error if inputs is a TikIn list with more than 1 element!
-        #self.ensure_model_on_device()
         output_batches = self.handler.forward(*batches)
-
         return output_batches.numpy()
+
 
 def test_full_pipeline():
     import h5py

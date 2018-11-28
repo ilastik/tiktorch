@@ -4,6 +4,10 @@ import torch.nn.functional as thf
 from tiktorch.utils import DynamicShape
 from contextlib import contextmanager
 from functools import reduce
+import logging
+
+logger = logging.getLogger('Blockinator')
+
 
 class slicey(object):
     def __init__(self, start=None, stop=None, step=None, padding=(0, 0), shape=None):
@@ -179,19 +183,19 @@ class Blockinator(object):
 
     def process(self):
         # try to process the whole thing at once
-        model = self._processor.model
-        device = self._processor.device
+        # model = self.processor.model
+        device = self.processor.device
         try:
-            print(device)
-            print(self.data.shape)
+            logger.info(f"Processing on {device}")
+            logger.info(f"Data shape is: {self.data.shape}")
             with torch.no_grad():
-                output_tensor = model.to(device)(self.data.to(device)).cpu()
-            return self._processor.crop_halo(output_tensor)
+                output_tensor = self.processor.process_tensor(self.data).cpu()
+            return self.processor.crop_halo(output_tensor)
         except:
             RuntimeError("Tensor could not be processed at once. Processing blockwise....")
 
         # if it does not work, process it blockwise
-        halo = self._processor.halo_in_blocks
+        halo = self.processor.halo_in_blocks
         output_tensor = torch.empty_like(self.data).cpu()
         
         for i in range(halo[0], self.num_blocks[0] - halo[0]):
@@ -199,20 +203,22 @@ class Blockinator(object):
                 if len(self.num_blocks) == 3:
                     for k in range(halo[2], self.num_blocks[2] - halo[2]):
                         with torch.no_grad():
-                            out = model(self[i, j, k].to(device)).cpu()
-                        out = self._processor.crop_halo(out, self.num_channel_axes)
-                        output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j, k)]] = out
+                            out = self.processor.process_tensor(self[i, j, k]).cpu()
+                        out = self.processor.crop_halo(out, self.num_channel_axes)
+                        output_tensor[[slice(None)] * self.num_channel_axes +
+                                      [sl for sl in self.get_slice(i, j, k)]] = out
                 else:
                     with torch.no_grad():
-                        out = model(self[i, j].to(device)).cpu()
-                        out = self._processor.crop_halo(out, self.num_channel_axes)
-                        output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
-        return self._processor.crop_output_tensor(output_tensor, self.num_channel_axes)
+                        out = self.processor.process_tensor(self[i, j]).cpu()
+                        out = self.processor.crop_halo(out, self.num_channel_axes)
+                        output_tensor[[slice(None)] * self.num_channel_axes +
+                                      [sl for sl in self.get_slice(i, j)]] = out
+        return self.processor.crop_output_tensor(output_tensor, self.num_channel_axes)
 
     @property
     def processor(self):
         assert self._processor is not None
-        self._processor
+        return self._processor
 
     @contextmanager
     def attach(self, processor):
