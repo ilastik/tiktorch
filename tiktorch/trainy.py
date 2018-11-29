@@ -7,8 +7,11 @@ from collections import deque
 from argparse import Namespace
 import torch
 import torch.multiprocessing as mp
-import numpy as np
 
+if torch.cuda.is_available():
+    mp.set_start_method('spawn')
+
+import numpy as np
 from inferno.io.transform import Compose
 from inferno.io.transform.generic import Normalize
 from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotate
