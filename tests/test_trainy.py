@@ -33,7 +33,6 @@ class TestTrainy(unittest.TestCase):
         tiktorch._set_handler(tiktorch._model)
         self.tiktorch = tiktorch
 
-    @unittest.skip('kek')
     def test_forward(self):
         logger = logging.getLogger('test_forward')
         out = self.tiktorch.forward([np.random.uniform(size=(512, 512)).astype('float32')
@@ -41,21 +40,21 @@ class TestTrainy(unittest.TestCase):
         logger.info(f"out.shape = {out.shape}")
 
     def test_train(self):
+        logger = logging.getLogger('test_train')
         # Start training
         mock_data = [np.random.uniform(size=(1, 320, 320)).astype('float32') for _ in range(3)]
         mock_label = [np.random.randint(0, 2, size=(1, 320, 320)).astype('float32') for _ in range(3)]
-        logging.info(f"Starting Training")
+        logger.info(f"Starting Training")
         self.tiktorch.handler.train(mock_data, mock_label)
         # Infer in parallel
         time.sleep(5)
         for it in range(10):
-            logging.info(f"Inference Iter: {it}")
+            logger.info(f"Inference Iter: {it}")
             self.tiktorch.forward([np.random.uniform(size=(512, 512)).astype('float32')
                                    for _ in range(3)])
             time.sleep(2)
-        logging.info(f"Sending Stop Signal")
+        logger.info(f"Sending Stop Signal")
         self.tiktorch.handler.stop_training()
-
 
 
 if __name__ == '__main__':
