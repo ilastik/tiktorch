@@ -77,9 +77,9 @@ def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
     model: torch.nn.Module = \
         getattr(module, model_class_name)(**model_init_kwargs)
     # Monkey patch
-    model.__model_file_name = model_file_name
-    model.__model_class_name = model_class_name
-    model.__model_init_kwargs = model_init_kwargs
+    model._model_file_name = model_file_name
+    model._model_class_name = model_class_name
+    model._model_init_kwargs = model_init_kwargs
     return model
 
 

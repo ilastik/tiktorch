@@ -158,9 +158,9 @@ class Trainer(object):
         logger.info("Sharing Memory...")
         self.share_memory()
         model_state = self.model.state_dict()
-        model_config = (self.model.__model_file_name,
-                        self.model.__model_class_name,
-                        self.model.__model_init_kwargs)
+        model_config = (self.model._model_file_name,
+                        self.model._model_class_name,
+                        self.model._model_init_kwargs)
         self._training_process = mp.Process(target=self._train_process,
                                             args=(model_state, model_config,
                                                   self.device,
