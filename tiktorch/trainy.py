@@ -17,6 +17,7 @@ from inferno.io.transform.generic import Normalize
 from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotate
 
 import tiktorch.utils as utils
+import tiktorch.fast_augment as aug
 
 logger = logging.getLogger('Trainy')
 
@@ -26,6 +27,8 @@ class Trainer(object):
         # Privates
         self._handler = handler
         # Preprocessing
+        self._augmentor = None
+        # FIXME Deprecate:
         self._raw_preprocessor = None
         self._joint_preprocessor = None
         # Training
@@ -43,13 +46,20 @@ class Trainer(object):
                                      criterion_kwargs=dict(reduce=False),
                                      criterion_name='BCEWithLogitsLoss',
                                      batch_size=1,
-                                     cache_size=8)
+                                     cache_size=8,
+                                     augmentor_kwargs={})
         else:
             self.hparams: Namespace = hyperparameters
 
     @property
     def model(self):
         return self._handler.model
+
+    @property
+    def augmentor(self):
+        if self._augmentor is None:
+            self._augmentor = aug.AugmentationSuite(**self.hparams.augmentor_kwargs)
+        return self._augmentor
 
     def share_memory(self):
         self._handler._model = self._handler._model.share_memory()
@@ -63,16 +73,10 @@ class Trainer(object):
     def _train_process(model: torch.nn.Module,
                        device: torch.device,
                        data_queue: mp.Queue,
+                       augmentor: aug.AugmentationSuite,
                        abort: mp.Event,
                        pause: mp.Event,
                        hparams: Namespace):
-        # logger = logging.getLogger("Trainer._train_process")
-        # logger.info(f"Defining model...")
-        # model = utils.define_patched_model(*model_config)
-        # model = model.to(device)
-        # logger.info(f"Loading state_dict...")
-        # model.load_state_dict(model_state)
-        # logger.info(f"Model is on {next(model.parameters()).device}")
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -96,13 +100,13 @@ class Trainer(object):
                 while len(batch) < hparams.batch_size:
                     logger.info(f"Trying to Fetch sample {sample} of {hparams.batch_size}...")
                     # Try to fetch from data queue
-                    data, labels, weights = data_queue.get(block=False)
+                    data, labels = data_queue.get(block=False)
                     logger.info(f"Fetched sample {sample} of {hparams.batch_size}. "
                                 f"Remaining items in queue: {data_queue.qsize()}...")
                     # Add to batch
-                    batch.append((data, labels, weights))
+                    batch.append((data, labels))
                     # Add to cache
-                    data_cache.append((data, labels, weights))
+                    data_cache.append((data, labels))
                     sample += 1
             except queue.Empty:
                 logger.info(f"Queue Exhausted.")
@@ -125,12 +129,15 @@ class Trainer(object):
                     logger.error(f"LOLWTF: len(batch) = {len(batch)}, "
                                   f"len(data_cache) = {len(data_cache)}")
                     raise RuntimeError
+
             logger.info(f"Updating with {len(batch)} samples...")
             # Make a batch
-            data, labels, weights = zip(*batch)
+            logger.info("Augmenting...")
+            augmented_batch = [augmentor(*sample) for sample in batch]
+            data, labels, weights = zip(*augmented_batch)
             logger.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
-                          f"label.shapes = {[list(t.shape) for t in labels]}, "
-                          f"weights.shapes = {[list(t.shape) for t in weights]}")
+                         f"label.shapes = {[list(t.shape) for t in labels]}, "
+                         f"weights.shapes = {[list(t.shape) for t in weights]}")
             data, labels, weights = (torch.stack(data, dim=0),
                                      torch.stack(labels, dim=0),
                                      torch.stack(weights, dim=0))
@@ -165,10 +172,10 @@ class Trainer(object):
         #                 self.model._model_class_name,
         #                 self.model._model_init_kwargs)
         self._training_process = mp.Process(target=self._train_process,
-                                            args=(self.model,
-                                                  self.device,
-                                                  self._data_queue, self._abort_event,
-                                                  self._pause_event, self.hparams))
+                                            args=(self.model, self.device,
+                                                  self._data_queue, self.augmentor,
+                                                  self._abort_event, self._pause_event,
+                                                  self.hparams))
         logger.info("3, 2, 1...")
         self._training_process.start()
         logger.info("We have lift off.")
@@ -231,8 +238,7 @@ class Trainer(object):
         logger.info(f"Feeding {len(data)} samples to queue...")
         # Augment
         for _data, _labels in zip(data, labels):
-            _data, _labels, _weights = self._preprocess(_data, _labels)
-            self._data_queue.put((_data, _labels, _weights))
+            self._data_queue.put((_data, _labels))
         logger.info(f"Fed {len(data)} samples to queue...")
 
     def pause(self):
