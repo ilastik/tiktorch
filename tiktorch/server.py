@@ -241,9 +241,21 @@ class TikTorchServer(object):
                         logger.info('Dispatch confirmed.')
                         self.train()
                         logger.info("Train successful; waiting...")
+                    elif request['id'] == 'DISPATCH.SHUTDOWN':
+                        logger.info("Received request to shutdown.")
+                        self.meta_send({'id': 'DISPATCHING.SHUTDOWN'})
+                        logger.info("Dispatch confirmed.")
+                        self.shutdown()
+                        break
                     else:
                         # Bad id
                         raise RuntimeError
+
+    def shutdown(self):
+        logger = logging.getLogger('TikTorchServer.shutdown')
+        logger.info("Stopping training...")
+        self.handler.stop_training()
+        logger.info("Training stop.")
 
 
 def debug_server():

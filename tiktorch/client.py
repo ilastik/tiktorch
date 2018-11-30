@@ -192,6 +192,14 @@ class TikTorchClient(object):
             dist.send(labels, dst=1)
             logger.info("Data and labels sent.")
 
+    def shutdown(self):
+        logger = logging.getLogger('TikTorchClient.shutdown')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('SHUTDOWN')
+            logger.info("Request successful.")
+
 
 def debug_client():
     TikTorchClient.read_config = lambda self: self
