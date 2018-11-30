@@ -148,15 +148,33 @@ class TikTorchServer(object):
             assert tag in self._config, f"Tag '{tag}' not found in configuration."
         return self._config.get(tag, default)
 
-    def load_model(self):
+    @staticmethod
+    def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
         # Dynamically import file.
-        model_file_name = os.path.join(self.build_directory, 'model.py')
         module_spec = imputils.spec_from_file_location('model', model_file_name)
         module = imputils.module_from_spec(module_spec)
         module_spec.loader.exec_module(module)
         # Build model from file
         model: torch.nn.Module = \
-            getattr(module, self.get('model_class_name'))(**self.get('model_init_kwargs'))
+            getattr(module, model_class_name)(**model_init_kwargs)
+        # Monkey patch
+        model.__model_file_name = model_file_name
+        model.__model_class_name = model_class_name
+        model.__model_init_kwargs = model_init_kwargs
+
+        def __reduce__(self):
+            return (TikTorchServer.define_patched_model,
+                    (self.__model_file_name, self.__model_class_name, self.__model_init_kwargs))
+
+        model.__reduce__ = __reduce__
+        return model
+
+    def load_model(self):
+        # Dynamically import file.
+        model_file_name = os.path.join(self.build_directory, 'model.py')
+        model = self.define_patched_model(model_file_name,
+                                          self.get('model_class_name'),
+                                          self.get('model_init_kwargs'))
         # Load parameters
         state_path = os.path.join(self.build_directory, 'state.nn')
         try:
@@ -187,6 +205,9 @@ class TikTorchServer(object):
         logger.info("Sending output.")
         dist.send(output_batches, dst=0)
         logger.info("Sent output.")
+
+    def train(self):
+        pass
 
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')
