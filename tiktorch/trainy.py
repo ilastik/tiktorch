@@ -146,9 +146,8 @@ class Trainer(object):
         self._data_queue = mp.Queue()
         self._abort_event = mp.Event()
         self._pause_event = mp.Event()
-        # NOTE Not required anymore, ModelHandler._set_model takes care of this.
         logger.info("Sharing Memory...")
-        # self.share_memory()
+        self.share_memory()
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self.model, self.device,
                                                   self._data_queue, self._abort_event,

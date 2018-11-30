@@ -70,9 +70,12 @@ class ModelHandler(Processor):
         return self._model
 
     def _set_model(self, model):
+        logger = logging.getLogger("ModelHandler._set_model")
         # Use this only once to prevent amusing bugs
         assert self._model is None
+        logger.info(f"Sending model to {self.device}")
         self._model = model.to(self.device)
+        logger.info(f"Model on {next(model.parameters()).device}")
 
     def _set_trainer(self, hyperparameters):
         self._trainer = Trainer(handler=self,
