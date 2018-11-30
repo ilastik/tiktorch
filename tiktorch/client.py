@@ -15,6 +15,9 @@ import tiktorch.utils as utils
 
 logging.basicConfig(level=logging.INFO)
 
+if torch.cuda.is_available():
+    torch.multiprocessing.set_start_method('spawn')
+
 
 class TikTorchClient(object):
     RANK = 0
