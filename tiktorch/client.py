@@ -4,6 +4,7 @@ import subprocess
 import yaml
 import zmq
 import sys
+import threading as thr
 
 import numpy as np
 import torch
@@ -32,6 +33,8 @@ class TikTorchClient(object):
         self._config = {}
         self._zmq_context = None
         self._zmq_socket = None
+        # Locks
+        self._forward_lock = thr.Lock()
         # Initialize
         self.read_config()
         self.init()
@@ -134,34 +137,36 @@ class TikTorchClient(object):
 
     def forward(self, inputs: list):
         logger = logging.getLogger('TikTorchClient.forward')
-        # Send dispatch request and wait for confirmation
-        logger.info("Requesting dispatch...")
-        assert self.request_dispatch('FORWARD')
-        logger.info("Request successful.")
-        # Parse inputs
-        inputs = self.parse_inputs(TikIn(inputs))
-        # Batch inputs
-        batches = self.batch_inputs(inputs)
-        logger.info("Batched inputs.")
-        # Make info dict to send to server
-        info = {'id': 'FORWARD.BATCHSPEC',
-                'len': len(batches),
-                'shapes': tuple(batch.shape for batch in batches)}
-        logger.info("Sending BatchSpec.")
-        self.meta_send(info)
-        # Send batch to the server
-        for batch in batches:
-            logger.info("Sending batch.")
-            dist.send(batch, 1)
-        # Receive meta data
-        logger.info("Waiting for OutSpec.")
-        outspec = self.meta_recv()
-        assert outspec['id'] == 'FORWARD.OUTSPEC'
-        logger.info("OutSpec received.")
-        output_tensor = torch.zeros(*outspec['shape'])
-        # Receive it
-        dist.recv(tensor=output_tensor, src=1)
-        logger.info("Output received.")
+        logger.info("Waiting for Forward Lock...")
+        with self._forward_lock.acquire():
+            # Send dispatch request and wait for confirmation
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('FORWARD')
+            logger.info("Request successful.")
+            # Parse inputs
+            inputs = self.parse_inputs(TikIn(inputs))
+            # Batch inputs
+            batches = self.batch_inputs(inputs)
+            logger.info("Batched inputs.")
+            # Make info dict to send to server
+            info = {'id': 'FORWARD.BATCHSPEC',
+                    'len': len(batches),
+                    'shapes': tuple(batch.shape for batch in batches)}
+            logger.info("Sending BatchSpec.")
+            self.meta_send(info)
+            # Send batch to the server
+            for batch in batches:
+                logger.info("Sending batch.")
+                dist.send(batch, 1)
+            # Receive meta data
+            logger.info("Waiting for OutSpec.")
+            outspec = self.meta_recv()
+            assert outspec['id'] == 'FORWARD.OUTSPEC'
+            logger.info("OutSpec received.")
+            output_tensor = torch.zeros(*outspec['shape'])
+            # Receive it
+            dist.recv(tensor=output_tensor, src=1)
+            logger.info("Output received.")
         # Convert to np and done
         return output_tensor.numpy()
 
