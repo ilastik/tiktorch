@@ -207,13 +207,20 @@ class TikTorchServer(object):
         batch_spec = self.meta_recv()
         assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
         logger.info("Receiving data and labels from chief.")
-        data = torch.zeros(*batch_spec['data.shape'])
-        labels = torch.zeros(*batch_spec['labels.shape'])
+        data = [torch.zeros(*shape) for shape in batch_spec['data.shapes']]
+        labels = [torch.zeros(*shape) for shape in batch_spec['labels.shapes']]
         # Receive tensors
-        dist.recv(data, src=0)
-        dist.recv(labels, src=0)
-        # Send away
-        self.handler.train(data.numpy(), labels.numpy())
+        for _data in data:
+            dist.recv(_data, src=0)
+        for _label in labels:
+            dist.recv(_label, src=0)
+        logger.info("Received data and labels from chief.")
+        # Convert back to numpy (I'm not proud about this)
+        data = [_data.numpy() for _data in data]
+        labels = [_label.numpy() for _label in labels]
+        logger.info("Sending to handler.")
+        self.handler.train(data, labels)
+        logger.info("Sent to handler.")
 
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')

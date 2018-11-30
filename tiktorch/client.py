@@ -177,19 +177,21 @@ class TikTorchClient(object):
             logger.info("Requesting Dispatch")
             assert self.request_dispatch('TRAIN')
             logger.info("Request successful.")
-            # Convert data and labels to torch tensors for transport
-            data = torch.from_numpy(data)
-            labels = torch.from_numpy(labels)
             # Build info dict
             info = {'id': 'TRAIN.BATCHSPEC',
-                    'data.shape': tuple(data.shape),
-                    'labels.shape': tuple(labels.shape)}
+                    'len': len(data),
+                    'data.shapes': [tuple(_data.shape) for _data in data],
+                    'labels.shapes': [tuple(_label.shape) for _label in labels]}
             logger.info("Sending BatchSpec")
             self.meta_send(info)
             # Send tensors
             logger.info("Sending data and labels...")
-            dist.send(data, dst=1)
-            dist.send(labels, dst=1)
+            for _data in data:
+                _data_th = torch.from_numpy(_data)
+                dist.send(_data_th, dst=1)
+            for _label in labels:
+                _label_th = torch.from_numpy(_label)
+                dist.send(_label_th, dst=1)
             logger.info("Data and labels sent.")
 
     def shutdown(self):
