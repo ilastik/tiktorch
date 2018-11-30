@@ -171,7 +171,7 @@ class Trainer(object):
                     time.sleep(10)
                 else:
                     break
-                logger.info(f"Process Dead.")
+            logger.info(f"Process Dead.")
 
     def __del__(self):
         # Shut down the training process
