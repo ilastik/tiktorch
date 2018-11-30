@@ -67,6 +67,7 @@ class Trainer(object):
                        abort: mp.Event,
                        pause: mp.Event,
                        hparams: Namespace):
+        logger = logging.getLogger("Trainer._train_process")
         logger.info(f"Defining model...")
         model = utils.define_patched_model(*model_config)
         model = model.to(device)
@@ -151,6 +152,7 @@ class Trainer(object):
         #   1. Init data queue
         #   2. Init abort event
         #   3. Start the training process
+        logger = logging.info("Trainer.ignition")
         logger.info("Prepping Queue and Event...")
         self._data_queue = mp.Queue()
         self._abort_event = mp.Event()
@@ -220,6 +222,7 @@ class Trainer(object):
             self.ignition()
 
     def push(self, data, labels):
+        logger = logging.getLogger("Trainer.push")
         # Done in this method:
         #   1. Augment data
         #   2. Push to queue
