@@ -92,11 +92,12 @@ class Trainer(object):
                 logger.info(f"Waiting for resume...")
                 time.sleep(1)
             try:
+                logger.info(f"Currently {data_queue.qsize()} elements in data_queue.")
                 sample = 0
                 while len(batch) < hparams.batch_size:
                     logger.info(f"Trying to Fetch sample {sample} of {hparams.batch_size}...")
                     # Try to fetch from data queue
-                    data, labels, weights = data_queue.get(timeout=0.1)
+                    data, labels, weights = data_queue.get(block=False)
                     logger.info(f"Fetched sample {sample} of {hparams.batch_size}. "
                                 f"Remaining items in queue: {data_queue.qsize()}...")
                     # Add to batch
