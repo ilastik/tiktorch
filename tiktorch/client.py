@@ -138,7 +138,7 @@ class TikTorchClient(object):
     def forward(self, inputs: list):
         logger = logging.getLogger('TikTorchClient.forward')
         logger.info("Waiting for Forward Lock...")
-        with self._forward_lock.acquire():
+        with self._forward_lock:
             # Send dispatch request and wait for confirmation
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('FORWARD')
