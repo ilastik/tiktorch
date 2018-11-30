@@ -1,5 +1,6 @@
 from itertools import count
 import logging
+from copy import deepcopy
 
 import torch
 import numpy as np
@@ -51,6 +52,7 @@ class ModelHandler(Processor):
         self._channels = channels
         self._device_specs = {}
         self.__num_trial_runs_on_device = {}
+        self._parameter_copy = None
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
@@ -80,6 +82,20 @@ class ModelHandler(Processor):
     def _set_trainer(self, hyperparameters):
         self._trainer = Trainer(handler=self,
                                 hyperparameters=hyperparameters)
+
+    def _evaluate_parameter_diff(self):
+        if self._parameter_copy is None:
+            self._parameter_copy = [deepcopy(p) for p in self.model.parameters()]
+            return 0
+        else:
+            param_now = [deepcopy(p) for p in self.model.parameters()]
+            param_prev = self._parameter_copy
+            self._parameter_copy = param_now
+            # Compute diff
+            with torch.no_grad():
+                diff = sum([torch.norm(p_now - p_prev).item()
+                            for p_now, p_prev in zip(param_now, param_prev)])
+            return diff
 
     @property
     def trainer(self):
@@ -414,11 +430,9 @@ class ModelHandler(Processor):
         ----------
         input_tensor: torch.Tensor
         """
-        try:
-            self.model.to(self.device)(torch.zeros(1, self.channels, *self.dynamic_shape.base_shape).to(self.device))
-        except:
-            logger.debug(f"Can't load tensor on `{self.device}`")
-            RuntimeError(f"Can't load tensor on `{self.device}`")
+        logger = logging.getLogger('ModelHandler.forward')
+        logger.info(f"Params have changed by norm {self._evaluate_parameter_diff()} "
+                    f"since last forward.")
         block = Blockinator(input_tensor, self.dynamic_shape.base_shape,
                             num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):
