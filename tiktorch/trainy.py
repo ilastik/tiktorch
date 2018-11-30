@@ -96,7 +96,7 @@ class Trainer(object):
                 while len(batch) < hparams.batch_size:
                     logger.info(f"Trying to Fetch sample {sample} of {hparams.batch_size}...")
                     # Try to fetch from data queue
-                    data, labels, weights = data_queue.get(block=False)
+                    data, labels, weights = data_queue.get(timeout=0.1)
                     logger.info(f"Fetched sample {sample} of {hparams.batch_size}...")
                     # Add to batch
                     batch.append((data, labels, weights))
