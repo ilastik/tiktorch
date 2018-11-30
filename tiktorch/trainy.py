@@ -152,7 +152,7 @@ class Trainer(object):
         #   1. Init data queue
         #   2. Init abort event
         #   3. Start the training process
-        logger = logging.info("Trainer.ignition")
+        logger = logging.getLogger("Trainer.ignition")
         logger.info("Prepping Queue and Event...")
         self._data_queue = mp.Queue()
         self._abort_event = mp.Event()
