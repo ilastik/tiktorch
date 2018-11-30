@@ -155,18 +155,19 @@ class TikTorchServer(object):
         module = imputils.module_from_spec(module_spec)
         module_spec.loader.exec_module(module)
         # Build model from file
-        model: torch.nn.Module = \
-            getattr(module, model_class_name)(**model_init_kwargs)
+        model_klass: torch.nn.Module = \
+            getattr(module, model_class_name)
         # Monkey patch
-        model.__model_file_name = model_file_name
-        model.__model_class_name = model_class_name
-        model.__model_init_kwargs = model_init_kwargs
+        model_klass.__model_file_name = model_file_name
+        model_klass.__model_class_name = model_class_name
+        model_klass.__model_init_kwargs = model_init_kwargs
 
         def __reduce__(self):
             return (TikTorchServer.define_patched_model,
                     (self.__model_file_name, self.__model_class_name, self.__model_init_kwargs))
 
-        model.__reduce__ = __reduce__
+        model_klass.__reduce__ = __reduce__
+        model = model_klass(**model_init_kwargs)
         return model
 
     def load_model(self):
