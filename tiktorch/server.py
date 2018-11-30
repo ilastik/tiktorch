@@ -21,6 +21,7 @@ class TikTorchServer(object):
     SIZE = 2
 
     def __init__(self, build_directory, address, port, meta_port, device=None):
+        logger = logging.getLogger("TikTorchServer.__init__")
         # Privates
         self._build_directory = None
         self._handler: ModelHandler = None
@@ -36,6 +37,7 @@ class TikTorchServer(object):
             self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         else:
             self._device = device
+        logger.info(f"Using device: {self._device}")
         # Publics
         self.build_directory = build_directory
         self.addr = address
