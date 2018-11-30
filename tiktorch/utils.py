@@ -1,6 +1,7 @@
 import signal
 import torch
 from torch.autograd import Variable
+from importlib import util as imputils
 
 
 class delayed_keyboard_interrupt(object):
@@ -65,6 +66,21 @@ class TinyConvNet2D(torch.nn.Module):
 
     def forward(self, *input):
         return self.conv2d(input[0])
+
+
+def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
+    # Dynamically import file.
+    module_spec = imputils.spec_from_file_location('model', model_file_name)
+    module = imputils.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    # Build model from file
+    model: torch.nn.Module = \
+        getattr(module, model_class_name)(**model_init_kwargs)
+    # Monkey patch
+    model.__model_file_name = model_file_name
+    model.__model_class_name = model_class_name
+    model.__model_init_kwargs = model_init_kwargs
+    return model
 
 
 class DynamicShape(object):

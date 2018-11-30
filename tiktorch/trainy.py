@@ -16,6 +16,8 @@ from inferno.io.transform import Compose
 from inferno.io.transform.generic import Normalize
 from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotate
 
+import tiktorch.utils as utils
+
 logger = logging.getLogger('Trainy')
 
 
@@ -58,12 +60,19 @@ class Trainer(object):
         return self._handler.device
 
     @staticmethod
-    def _train_process(model: torch.nn.Module,
+    def _train_process(model_state: dict,
+                       model_config: tuple,
                        device: torch.device,
                        data_queue: mp.Queue,
                        abort: mp.Event,
                        pause: mp.Event,
                        hparams: Namespace):
+        logger.info(f"Defining model...")
+        model = utils.define_patched_model(*model_config)
+        model = model.to(device)
+        logger.info(f"Loading state_dict...")
+        model.load_state_dict(model_state)
+        logger.info(f"Model is on {next(model.parameters()).device}")
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -148,8 +157,13 @@ class Trainer(object):
         self._pause_event = mp.Event()
         logger.info("Sharing Memory...")
         self.share_memory()
+        model_state = self.model.state_dict()
+        model_config = (self.model.__model_file_name,
+                        self.model.__model_class_name,
+                        self.model.__model_init_kwargs)
         self._training_process = mp.Process(target=self._train_process,
-                                            args=(self.model, self.device,
+                                            args=(model_state, model_config,
+                                                  self.device,
                                                   self._data_queue, self._abort_event,
                                                   self._pause_event, self.hparams))
         logger.info("3, 2, 1...")
