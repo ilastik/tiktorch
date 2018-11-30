@@ -45,9 +45,9 @@ class TikTorchClient(object):
             'python',
             os.path.join(os.path.dirname(os.path.realpath(__file__)), 'server.py'),
             self.build_directory,
-            self.addr,
-            self.port,
-            self.meta_port
+            '--addr', self.addr,
+            '--port', self.port,
+            '--meta_port', self.meta_port
         ]
         # Start server
         if self._START_PROCESS:

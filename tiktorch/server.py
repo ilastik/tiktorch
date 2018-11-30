@@ -231,13 +231,16 @@ if __name__ == '__main__':
     import argparse
     parsey = argparse.ArgumentParser()
     parsey.add_argument('build_directory', type=str)
-    parsey.add_argument('addr', type=str)
-    parsey.add_argument('port', type=str)
-    parsey.add_argument('meta_port', type=str)
-    # args = parsey.parse_args()
+    parsey.add_argument('--addr', type=str, default='127.0.0.1')
+    parsey.add_argument('--port', type=str, default='29500')
+    parsey.add_argument('--meta_port', type=str, default='29501')
+    parsey.add_argument('--debug', type=bool, default=False)
+    args = parsey.parse_args()
     # Go!
-    server = debug_server()
-    # server = TikTorchServer(build_directory=args.build_directory, address=args.addr,
-    #                         port=args.port, meta_port=args.meta_port)
+    if args.debug:
+        server = debug_server()
+    else:
+        server = TikTorchServer(build_directory=args.build_directory, address=args.addr,
+                                port=args.port, meta_port=args.meta_port)
     server.listen()
 
