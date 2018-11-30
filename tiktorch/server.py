@@ -13,7 +13,7 @@ import tiktorch.utils as utils
 from tiktorch.device_handler import ModelHandler
 
 if torch.cuda.is_available():
-    torch.multiprocessing.set_start_method('spawn')
+    torch.multiprocessing.set_start_method('spawn', force=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('TikTorchServer')
