@@ -60,20 +60,19 @@ class Trainer(object):
         return self._handler.device
 
     @staticmethod
-    def _train_process(model_state: dict,
-                       model_config: tuple,
+    def _train_process(model: torch.nn.Module,
                        device: torch.device,
                        data_queue: mp.Queue,
                        abort: mp.Event,
                        pause: mp.Event,
                        hparams: Namespace):
-        logger = logging.getLogger("Trainer._train_process")
-        logger.info(f"Defining model...")
-        model = utils.define_patched_model(*model_config)
-        model = model.to(device)
-        logger.info(f"Loading state_dict...")
-        model.load_state_dict(model_state)
-        logger.info(f"Model is on {next(model.parameters()).device}")
+        # logger = logging.getLogger("Trainer._train_process")
+        # logger.info(f"Defining model...")
+        # model = utils.define_patched_model(*model_config)
+        # model = model.to(device)
+        # logger.info(f"Loading state_dict...")
+        # model.load_state_dict(model_state)
+        # logger.info(f"Model is on {next(model.parameters()).device}")
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -161,12 +160,12 @@ class Trainer(object):
         self._pause_event = mp.Event()
         logger.info("Sharing Memory...")
         self.share_memory()
-        model_state = self.model.state_dict()
-        model_config = (self.model._model_file_name,
-                        self.model._model_class_name,
-                        self.model._model_init_kwargs)
+        # model_state = self.model.state_dict()
+        # model_config = (self.model._model_file_name,
+        #                 self.model._model_class_name,
+        #                 self.model._model_init_kwargs)
         self._training_process = mp.Process(target=self._train_process,
-                                            args=(model_state, model_config,
+                                            args=(self.model,
                                                   self.device,
                                                   self._data_queue, self._abort_event,
                                                   self._pause_event, self.hparams))
