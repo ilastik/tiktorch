@@ -34,7 +34,7 @@ class TikTorchClient(object):
         self._zmq_context = None
         self._zmq_socket = None
         # Locks
-        self._forward_lock = thr.Lock()
+        self._main_lock = thr.Lock()
         # Initialize
         self.read_config()
         self.init()
@@ -137,8 +137,8 @@ class TikTorchClient(object):
 
     def forward(self, inputs: list):
         logger = logging.getLogger('TikTorchClient.forward')
-        logger.info("Waiting for Forward Lock...")
-        with self._forward_lock:
+        logger.info("Waiting for lock...")
+        with self._main_lock:
             # Send dispatch request and wait for confirmation
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('FORWARD')
@@ -170,8 +170,27 @@ class TikTorchClient(object):
         # Convert to np and done
         return output_tensor.numpy()
 
-    def train(self, *args, **kwargs):
-        pass
+    def train(self, data, labels):
+        logger = logging.getLogger('TikTorchClient.train')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting Dispatch")
+            assert self.request_dispatch('TRAIN')
+            logger.info("Request successful.")
+            # Convert data and labels to torch tensors for transport
+            data = torch.from_numpy(data)
+            labels = torch.from_numpy(labels)
+            # Build info dict
+            info = {'id': 'TRAIN.BATCHSPEC',
+                    'data.shape': tuple(data.shape),
+                    'labels.shape': tuple(labels.shape)}
+            logger.info("Sending BatchSpec")
+            self.meta_send(info)
+            # Send tensors
+            logger.info("Sending data and labels...")
+            dist.send(data, dst=1)
+            dist.send(labels, dst=1)
+            logger.info("Data and labels sent.")
 
 
 def debug_client():

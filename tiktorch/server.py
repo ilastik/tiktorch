@@ -110,11 +110,6 @@ class TikTorchServer(object):
             self.load_model()
         return self._handler
 
-    def train(self, data, labels):
-        assert self.handler is not None
-        self.handler.train(data, labels)
-        pass
-
     def dry_run(self, image_shape, train=False):
         """
         Initiates dry run.
@@ -207,7 +202,18 @@ class TikTorchServer(object):
         logger.info("Sent output.")
 
     def train(self):
-        pass
+        logger = logging.getLogger('TikTorchServer.train')
+        logger.info("Receiving BatchSpec")
+        batch_spec = self.meta_recv()
+        assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
+        logger.info("Receiving data and labels from chief.")
+        data = torch.zeros(*batch_spec['data.shape'])
+        labels = torch.zeros(*batch_spec['labels.shape'])
+        # Receive tensors
+        dist.recv(data, src=0)
+        dist.recv(labels, src=0)
+        # Send away
+        self.handler.train(data.numpy(), labels.numpy())
 
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')
@@ -229,9 +235,12 @@ class TikTorchServer(object):
                         self.forward()
                         logger.info("Forward successful; waiting...")
                     elif request['id'] == 'DISPATCH.TRAIN':
-                        # Call train
-                        # TODO
-                        pass
+                        logger.info("Received request to dispatch train.")
+                        # Confirm dispatch
+                        self.meta_send({'id': 'DISPATCHING.TRAIN'})
+                        logger.info('Dispatch confirmed.')
+                        self.train()
+                        logger.info("Train successful; waiting...")
                     else:
                         # Bad id
                         raise RuntimeError
