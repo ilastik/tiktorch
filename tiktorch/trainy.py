@@ -7,6 +7,7 @@ from collections import deque
 from argparse import Namespace
 import torch
 import torch.multiprocessing as mp
+import threading as thr
 
 if torch.cuda.is_available():
     mp.set_start_method('spawn')
@@ -22,6 +23,10 @@ import tiktorch.fast_augment as aug
 logger = logging.getLogger('Trainy')
 
 
+# Globals
+STATE_QUEUE_GET_TIMEOUT = 5
+
+
 class Trainer(object):
     def __init__(self, handler, hyperparameters=None):
         # Privates
@@ -33,8 +38,10 @@ class Trainer(object):
         self._joint_preprocessor = None
         # Training
         self._data_queue: mp.Queue = None
+        self._state_queue: mp.Queue = None
         self._abort_event: mp.Event = None
         self._pause_event: mp.Event = None
+        self._state_request_event = None
         self._training_process: mp.Process = None
         self._ignited = False
         # Publics
@@ -74,9 +81,42 @@ class Trainer(object):
                        device: torch.device,
                        data_queue: mp.Queue,
                        augmentor: aug.AugmentationSuite,
+                       state_queue: mp.Queue,
                        abort: mp.Event,
                        pause: mp.Event,
+                       state_request: mp.Event,
                        hparams: Namespace):
+
+        logger = logging.getLogger('Trainer._train_process')
+
+        _state_lock = thr.Lock()
+        _stop_server = thr.Event()
+
+        # This guy listens if state request has been set; if it is, it serves the state_dict in
+        # the queue.
+        def _state_server():
+            while True:
+                if _stop_server.is_set():
+                    logger.info("Stopping state server...")
+                    break
+                if state_request.is_set():
+                    try:
+                        logger.info("Obtained request for new state. Waiting for lock...")
+                        with _state_lock:
+                            state_queue.put_nowait(model.state_dict())
+                            logger.info("Put most recent state in queue.")
+                    except queue.Full:
+                        logger.info("State queue is full.")
+                        pass
+                    state_request.clear()
+                    logger.info("State request cleared.")
+                time.sleep(0.01)
+
+        # Set up server to listen for state requests
+        logger.info("Spooling state server thread...")
+        server_thread = thr.Thread(target=_state_server, args=())
+        server_thread.start()
+
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -85,24 +125,44 @@ class Trainer(object):
         # we'll use it to top up the batch with what's in this cache.
         data_cache = deque(maxlen=hparams.cache_size)
         while True:
+            # Check if a new state is requested
+            if state_request.is_set():
+                # First things first,
+                state_request.clear()
+                try:
+                    state_queue.put_nowait(model.state_dict())
+                except queue.Full:
+                    # Welp, no new parameters
+                    pass
             # Init a batch
             batch = []
             # Check if abort event is set
             if abort.is_set():
                 logger.info(f"Aborting...")
+                _stop_server.set()
+                while server_thread.is_alive():
+                    time.sleep(1)
                 break
             if pause.is_set():
                 logger.info(f"Waiting for resume...")
                 time.sleep(1)
             try:
-                logger.info(f"Currently {data_queue.qsize()} elements in data_queue.")
+                try:
+                    logger.info(f"Currently {data_queue.qsize()} elements in data_queue.")
+                except NotImplementedError:
+                    # This raises a Not Implemented Error on OSX
+                    pass
                 sample = 0
                 while len(batch) < hparams.batch_size:
                     logger.info(f"Trying to Fetch sample {sample} of {hparams.batch_size}...")
                     # Try to fetch from data queue
                     data, labels = data_queue.get(block=False)
+                    try:
+                        _q_size_now = data_queue.qsize()
+                    except NotImplementedError:
+                        _q_size_now = None
                     logger.info(f"Fetched sample {sample} of {hparams.batch_size}. "
-                                f"Remaining items in queue: {data_queue.qsize()}...")
+                                f"Remaining items in queue: {_q_size_now}...")
                     # Add to batch
                     batch.append((data, labels))
                     # Add to cache
@@ -127,7 +187,7 @@ class Trainer(object):
                         data_cache.append(data_sample)
                 else:
                     logger.error(f"LOLWTF: len(batch) = {len(batch)}, "
-                                  f"len(data_cache) = {len(data_cache)}")
+                                 f"len(data_cache) = {len(data_cache)}")
                     raise RuntimeError
 
             logger.info(f"Updating with {len(batch)} samples...")
@@ -148,12 +208,13 @@ class Trainer(object):
             prediction = model(data)
             logger.info(f"Fed forward.")
             loss = criterion(prediction, labels).mul(weights).mean()
-            logger.info(f"Loss Evaluated.")
-            optim.zero_grad()
-            loss.backward()
-            logger.info(f"Backproped.")
-            optim.step()
-            logger.info(f"Stepped.")
+            logger.info(f"Loss Evaluated. Waiting for state lock...")
+            with _state_lock:
+                optim.zero_grad()
+                loss.backward()
+                logger.info(f"Backproped.")
+                optim.step()
+                logger.info(f"Stepped.")
 
     def ignition(self):
         # Done in this method:
@@ -163,8 +224,10 @@ class Trainer(object):
         logger = logging.getLogger("Trainer.ignition")
         logger.info("Prepping Queue and Event...")
         self._data_queue = mp.Queue()
+        self._state_queue = mp.Queue()
         self._abort_event = mp.Event()
         self._pause_event = mp.Event()
+        self._state_request_event = mp.Event()
         logger.info("Sharing Memory...")
         self.share_memory()
         # model_state = self.model.state_dict()
@@ -174,12 +237,45 @@ class Trainer(object):
         self._training_process = mp.Process(target=self._train_process,
                                             args=(self.model, self.device,
                                                   self._data_queue, self.augmentor,
+                                                  self._state_queue,
                                                   self._abort_event, self._pause_event,
+                                                  self._state_request_event,
                                                   self.hparams))
         logger.info("3, 2, 1...")
         self._training_process.start()
         logger.info("We have lift off.")
         self._ignited = True
+
+    def _drain_state_queue(self):
+        logger = logging.getLogger('Trainer._drain_state_queue')
+        state = None
+        while True:
+            try:
+                state = self._state_queue.get_nowait()
+                logger.info("Found residual state in state_queue.")
+            except queue.Empty:
+                break
+        return state
+
+    def update_handler_model_state(self):
+        logger = logging.getLogger('Trainer.update_handler_model_state')
+        assert self._ignited, "Training process not ignited."
+        logger.info("Requesting new state.")
+        # Flush queue for residual states (e.g. from previously timed-out queue-get's)
+        state = self._drain_state_queue()
+        # Send request for parameters
+        self._state_request_event.set()
+        # Try to get parameters from queue
+        try:
+            logger.info("Waiting for new state...")
+            state = self._state_queue.get(timeout=STATE_QUEUE_GET_TIMEOUT)
+            logger.info("Acquired new state.")
+        except queue.Empty:
+            logger.info("Failed to acquire new state...")
+            pass
+        if state is not None:
+            self.model.load_state_dict(state)
+            logger.info("Loaded state.")
 
     def shut_down_training_process(self):
         if self._training_process is not None:
@@ -228,6 +324,10 @@ class Trainer(object):
         if not self._ignited:
             logger.info("Ignition...")
             self.ignition()
+
+    @property
+    def is_ignited(self):
+        return self._ignited
 
     def push(self, data, labels):
         logger = logging.getLogger("Trainer.push")

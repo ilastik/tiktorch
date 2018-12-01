@@ -166,6 +166,12 @@ class ModelHandler(Processor):
         self.trainer.ignition()
         return self
 
+    def update_state(self):
+        logger = logging.getLogger('ModelHandler.update_state')
+        if self.trainer.is_ignited:
+            logger.info("Updating state...")
+            self.trainer.update_handler_model_state()
+
     def dump_state(self, filename):
         state_dict = self.model.state_dict()
         torch.save(state_dict, filename)
@@ -431,6 +437,7 @@ class ModelHandler(Processor):
         input_tensor: torch.Tensor
         """
         logger = logging.getLogger('ModelHandler.forward')
+        self.update_state()
         logger.info(f"Params have changed by norm {self._evaluate_parameter_diff()} "
                     f"since last forward.")
         block = Blockinator(input_tensor, self.dynamic_shape.base_shape,

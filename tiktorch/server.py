@@ -217,9 +217,6 @@ class TikTorchServer(object):
         for _label in labels:
             dist.recv(_label, src=0)
         logger.info("Received data and labels from chief.")
-        # Convert back to numpy (I'm not proud about this)
-        data = [_data.numpy() for _data in data]
-        labels = [_label.numpy() for _label in labels]
         logger.info("Sending to handler.")
         self.handler.train(data, labels)
         logger.info("Sent to handler.")
@@ -286,7 +283,11 @@ if __name__ == '__main__':
     parsey.add_argument('--port', type=str, default='29500')
     parsey.add_argument('--meta_port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
-    args = parsey.parse_args()
+    # args = parsey.parse_args()
+
+    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
+    args = argparse.Namespace(build_directory=BUILD_DIR, addr='127.0.0.1', port='29500',
+                              meta_port='29501', debug=False)
     # Go!
     if args.debug:
         server = debug_server()

@@ -217,12 +217,48 @@ def debug_client():
     return client
 
 
-if __name__ == '__main__':
-    client = debug_client()
+def test_client_forward():
+    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
+    TikTorchClient._START_PROCESS = False
+    client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
-    out = client.forward([np.random.uniform(size=(512, 512)).astype('float32') for _ in range(1)])
+    out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")
     logging.info("Forwarding again...")
-    out = client.forward([np.random.uniform(size=(512, 512)).astype('float32') for _ in range(1)])
+    out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")
+    logging.info("Shutting down...")
+    client.shutdown()
     logging.info("Done!")
+
+
+def test_client_train():
+    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
+    TikTorchClient._START_PROCESS = False
+    client = TikTorchClient(BUILD_DIR)
+    logging.info("Obtained client. Forwarding...")
+    out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
+    logging.info(f"out.shape = {out.shape}")
+
+    logging.info("Sending train data and labels.")
+    train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
+    train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
+    client.train(train_data, train_labels)
+    logging.info("Sent train data and labels and waiting for 30s...")
+
+    import time
+    time.sleep(30)
+
+    logging.info("Forwarding again...")
+    out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
+    logging.info(f"out.shape = {out.shape}")
+
+    logging.info("Shutting down...")
+    client.shutdown()
+    logging.info("Done!")
+
+
+if __name__ == '__main__':
+    # import sys
+    # print('Python %s on %s' % (sys.version, sys.platform))
+    test_client_train()

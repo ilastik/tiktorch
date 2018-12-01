@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import random
+import logging
 
 
 class AugmentationSuite(object):
@@ -17,7 +18,7 @@ class AugmentationSuite(object):
         self.allow_z_flips = allow_z_flips
 
     def normalize(self, data):
-        data = F.batch_norm(data[0], None, None, None, None, False, 0.)[0]
+        data = F.batch_norm(data[None], None, None, None, None, True, 0.)[0]
         return data
 
     def random_flips(self, data, label):
@@ -65,19 +66,39 @@ class AugmentationSuite(object):
         return label, weights.float()
 
     def __call__(self, data, label):
+        logger = logging.getLogger('AugmentationSuite.__call__')
+        init_data_shape = data.shape
+        init_label_shape = label.shape
         with torch.no_grad():
-            if self.do_normalize:
-                data = self.normalize(data)
-            if self.do_random_flips:
-                data, label = self.random_flips(data, label)
-            if self.do_random_transpose:
-                data, label = self.random_transpose(data, label)
-            if self.do_random_rotate:
-                data, label = self.random_rotate(data, label)
-            if self.do_elastic_transform:
-                data, label = self.elastic_transform(data, label)
-            if self.do_patch_ignore_labels:
-                label, weights = self.patch_ignore_labels(label)
-            else:
-                weights = None
+            try:
+                if self.do_normalize:
+                    data = self.normalize(data)
+                if self.do_random_flips:
+                    data, label = self.random_flips(data, label)
+                if self.do_random_transpose:
+                    data, label = self.random_transpose(data, label)
+                if self.do_random_rotate:
+                    data, label = self.random_rotate(data, label)
+                if self.do_elastic_transform:
+                    data, label = self.elastic_transform(data, label)
+                if self.do_patch_ignore_labels:
+                    label, weights = self.patch_ignore_labels(label)
+                else:
+                    weights = None
+            except Exception:
+                logger.error(f"data.shape = {data.shape} (initially {init_data_shape}), "
+                             f"label.shape = {label.shape} (initially {init_label_shape})")
+                raise
         return data, label, weights
+
+
+def test_augmentor():
+    data = torch.rand(1, 100, 100)
+    label = torch.randint(0, 2, (1, 100, 100))
+    augmentor = AugmentationSuite()
+    out = augmentor(data, label)
+
+
+if __name__ == '__main__':
+    test_augmentor()
+
