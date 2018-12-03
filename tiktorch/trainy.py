@@ -117,6 +117,21 @@ class Trainer(object):
         server_thread = thr.Thread(target=_state_server, args=())
         server_thread.start()
 
+        def _kill_state_server(num_kill_attempts=5):
+            logger.info("Killing state server thread...")
+            _stop_server.set()
+            kill_attempts = 0
+            while server_thread.is_alive():
+                time.sleep(1)
+                kill_attempts += 1
+                logger.info(f"Attempt {kill_attempts} of {num_kill_attempts}.")
+                if kill_attempts > num_kill_attempts:
+                    break
+            if server_thread.is_alive():
+                logger.warning(f"Failed to kill state server after {num_kill_attempts} attempts.")
+            else:
+                logger.info("State server killed.")
+
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -139,9 +154,7 @@ class Trainer(object):
             # Check if abort event is set
             if abort.is_set():
                 logger.info(f"Aborting...")
-                _stop_server.set()
-                while server_thread.is_alive():
-                    time.sleep(1)
+                _kill_state_server()
                 break
             if pause.is_set():
                 logger.info(f"Waiting for resume...")
@@ -188,33 +201,39 @@ class Trainer(object):
                 else:
                     logger.error(f"LOLWTF: len(batch) = {len(batch)}, "
                                  f"len(data_cache) = {len(data_cache)}")
+                    # Stop state server before throwing up error
+                    _kill_state_server()
                     raise RuntimeError
 
             logger.info(f"Updating with {len(batch)} samples...")
             # Make a batch
             logger.info("Augmenting...")
-            augmented_batch = [augmentor(*sample) for sample in batch]
-            data, labels, weights = zip(*augmented_batch)
-            logger.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
-                         f"label.shapes = {[list(t.shape) for t in labels]}, "
-                         f"weights.shapes = {[list(t.shape) for t in weights]}")
-            data, labels, weights = (torch.stack(data, dim=0),
-                                     torch.stack(labels, dim=0),
-                                     torch.stack(weights, dim=0))
-            # Ship tensors to device
-            data, labels, weights = data.to(device), labels.to(device), weights.to(device)
-            logger.info(f"Transferred to device.")
-            # Train the model
-            prediction = model(data)
-            logger.info(f"Fed forward.")
-            loss = criterion(prediction, labels).mul(weights).mean()
-            logger.info(f"Loss Evaluated. Waiting for state lock...")
-            with _state_lock:
-                optim.zero_grad()
-                loss.backward()
-                logger.info(f"Backproped.")
-                optim.step()
-                logger.info(f"Stepped.")
+            try:
+                augmented_batch = [augmentor(*sample) for sample in batch]
+                data, labels, weights = zip(*augmented_batch)
+                logger.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
+                             f"label.shapes = {[list(t.shape) for t in labels]}, "
+                             f"weights.shapes = {[list(t.shape) for t in weights]}")
+                data, labels, weights = (torch.stack(data, dim=0),
+                                         torch.stack(labels, dim=0),
+                                         torch.stack(weights, dim=0))
+                # Ship tensors to device
+                data, labels, weights = data.to(device), labels.to(device), weights.to(device)
+                logger.info(f"Transferred to device.")
+                # Train the model
+                prediction = model(data)
+                logger.info(f"Fed forward.")
+                loss = criterion(prediction, labels).mul(weights).mean()
+                logger.info(f"Loss Evaluated. Waiting for state lock...")
+                with _state_lock:
+                    optim.zero_grad()
+                    loss.backward()
+                    logger.info(f"Backproped.")
+                    optim.step()
+                    logger.info(f"Stepped.")
+            except Exception:
+                _kill_state_server()
+                raise
 
     def ignition(self):
         # Done in this method:
