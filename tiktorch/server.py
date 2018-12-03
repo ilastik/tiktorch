@@ -25,7 +25,8 @@ class TikTorchServer(object):
     RANK = 1
     SIZE = 2
 
-    def __init__(self, build_directory, address, port, meta_port, device=None):
+    def __init__(self, build_directory, address='127.0.0.1', port='29500',
+                 meta_port='29501', device=None):
         logger = logging.getLogger("TikTorchServer.__init__")
         # Privates
         self._build_directory = None
