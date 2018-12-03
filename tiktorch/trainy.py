@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 import threading as thr
 
 if torch.cuda.is_available():
-    mp.set_start_method('spawn')
+    mp.set_start_method('spawn', force=True)
 
 import numpy as np
 from inferno.io.transform import Compose
@@ -86,10 +86,10 @@ class Trainer(object):
                        abort: mp.Event,
                        pause: mp.Event,
                        state_request: mp.Event,
+                       use_cache_keeping: bool,
                        hparams: Namespace):
 
         logger = logging.getLogger('Trainer._train_process')
-
         # Build the model
         model = utils.define_patched_model(*model_config)
         # Load state dict
