@@ -118,9 +118,10 @@ class BuildSpec(object):
                 input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32,
                                      device=self.device)
                 out = model(input_)
+                halo = tuple((i - o) // 2 for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
-        return tuple(out[0].shape)
+        return tuple(out[0].shape), halo
 
     def build(self, spec):
         """
@@ -132,7 +133,7 @@ class BuildSpec(object):
             Specification Object
         """
 
-        output_shape = self._validate_spec(spec)
+        output_shape, halo_shape = self._validate_spec(spec)
 
         # Validate and copy code path
         self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path,
@@ -143,6 +144,7 @@ class BuildSpec(object):
         # Build and dump configuration dict
         tiktorch_config = {'input_shape': tuple(spec.input_shape),
                            'output_shape': tuple(output_shape),
+                           'halo': tuple(halo_shape),
                            'dynamic_input_shape': self._to_dynamic_shape(spec.minimal_increment),
                            'model_class_name': spec.model_class_name,
                            'model_init_kwargs': spec.model_init_kwargs,
