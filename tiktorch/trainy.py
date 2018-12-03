@@ -28,6 +28,9 @@ STATE_QUEUE_GET_TIMEOUT = 5
 
 
 class Trainer(object):
+    # Setting this to true might help training, but can amount to a lot of compute.
+    USE_CACHE_KEEPING = False
+
     def __init__(self, handler, hyperparameters=None):
         # Privates
         self._handler = handler
@@ -145,6 +148,42 @@ class Trainer(object):
         # Init a cache. In case there are not enough batches in data_queue,
         # we'll use it to top up the batch with what's in this cache.
         data_cache = deque(maxlen=hparams.cache_size)
+
+        # If this returns true, the sample will be added to batch later downstream.
+        def _cache_keeping(sample):
+            global data_cache
+            dirty_indices = []
+            update_batch = True
+            for idx, cache_sample in enumerate(data_cache):
+                cache_data, cache_labels = cache_sample
+                data, labels = sample
+                # Compare data
+                data_diff = data.sub(cache_data).abs_().sum().item()
+                if data_diff > 1e-5:
+                    # Not a match
+                    continue
+                else:
+                    # A match - data exists in cache. But still, the labels could have
+                    # been updated...
+                    labels_diff = labels.sub(cache_labels).abs_().sum().item()
+                    if labels_diff < 1e-5:
+                        # Labels match - the sample exists 1-to-1 in the cache, so there's no
+                        # need to update the batch.
+                        update_batch = False
+                    else:
+                        # The data matches, but the labels don't match - the cache is dirty
+                        # and needs updating.
+                        dirty_indices.append(idx)
+            # Clean out the dirties yeet
+            if dirty_indices:
+                # Make a new, clean cache
+                data_cache = deque([_sample for _idx, _sample in enumerate(data_cache)
+                                    if _idx not in dirty_indices], maxlen=hparams.cache_size)
+            # So if we're still updating the batch, we should also update the cache
+            data_cache.append(sample)
+            # Done-o
+            return update_batch
+
         while True:
             # Check if a new state is requested
             if state_request.is_set():
@@ -182,11 +221,16 @@ class Trainer(object):
                         _q_size_now = None
                     logger.info(f"Fetched sample {sample} of {hparams.batch_size}. "
                                 f"Remaining items in queue: {_q_size_now}...")
-                    # Add to batch
-                    batch.append((data, labels))
-                    # Add to cache
-                    data_cache.append((data, labels))
-                    sample += 1
+                    if use_cache_keeping:
+                        if _cache_keeping((data, labels)):
+                            batch.append((data, labels))
+                            sample += 1
+                    else:
+                        # Add to batch
+                        batch.append((data, labels))
+                        # Add to cache
+                        data_cache.append((data, labels))
+                        sample += 1
             except queue.Empty:
                 logger.info(f"Queue Exhausted.")
                 if len(batch) == 0 and len(data_cache) == 0:
@@ -265,6 +309,7 @@ class Trainer(object):
                                                   self._state_queue,
                                                   self._abort_event, self._pause_event,
                                                   self._state_request_event,
+                                                  self.USE_CACHE_KEEPING,
                                                   self.hparams))
         logger.info("3, 2, 1...")
         self._training_process.start()
