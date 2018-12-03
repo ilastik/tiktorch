@@ -53,7 +53,7 @@ class Trainer(object):
                                      criterion_kwargs=dict(reduce=False),
                                      criterion_name='BCEWithLogitsLoss',
                                      batch_size=1,
-                                     cache_size=8,
+                                     cache_size=128,
                                      augmentor_kwargs={})
         else:
             self.hparams: Namespace = hyperparameters
