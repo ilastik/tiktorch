@@ -182,8 +182,6 @@ class Blockinator(object):
         model = self._processor.model
         device = self._processor.device
         try:
-            print(device)
-            print(self.data.shape)
             with torch.no_grad():
                 output_tensor = model.to(device)(self.data.to(device)).cpu()
             return self._processor.crop_halo(output_tensor)

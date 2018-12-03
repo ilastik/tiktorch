@@ -111,16 +111,50 @@ class BuildSpec(object):
             model.to(self.device)
         except:
             raise ValueError(f'Could not load model state from {spec.state_path}')
-        # next, pipe iput of given shape through the network
+        # next, pipe input of given shape through the network
         with torch.no_grad():
             try:
                 input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32, device=self.device)
                 out = model(input_)
-                halo = tuple(i-o for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
+                halo = tuple((i-o) // 2 for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
         return tuple(out[0].shape), halo
 
+    def _determine_min_input_shape(self, spec, halo_shape):
+        # first, try to load the model
+        try:
+            module_spec = imputils.spec_from_file_location('model', spec.code_path)
+            module = imputils.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+            model: torch.nn.Module = \
+                getattr(module, spec.model_class_name)(**spec.model_init_kwargs)
+        except:
+            raise ValueError(f'Could not load model {spec.model_class_name} from {spec.code_path}')
+        # next, try to load the state
+        try:
+            state_dict = torch.load(spec.state_path, map_location=lambda storage, loc: storage)
+            model.load_state_dict(state_dict)
+            model.to(self.device)
+        except:
+            raise ValueError(f'Could not load model state from {spec.state_path}')
+
+        haloBlocked = tuple(int(np.ceil(x / minimalIncrement) * minimalIncrement - x) if x > 0 else minimalIncrement for x in halo)
+        input_shape = list(spec.minimal_increment)
+        while True:
+            input_shape = [x+1 for x in input_shape]
+            try:
+                with torch.no_grad():
+                    input_ = torch.zeros(*([1, 1] + input_shape), dtype=torch.float32, device=self.device)
+                    print(f'input shape: {input_.shape}')
+                    out = model(input_)
+                    halo = tuple((i-o) // 2 for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
+                    inputWithoutHalo = [i - 2*h for i, h in zip(tuple(input_[0, 0].shape), halo)]
+                    print(f'input shape without halo: {inputWithoutHalo}')
+                    break
+            except:
+                RuntimeError
+        return tuple(input_[0].shape)
 
     def build(self, spec):
         """
@@ -131,8 +165,8 @@ class BuildSpec(object):
         spec: TikTorchSpec
             Specification Object
         """
-
         output_shape, halo_shape = self._validate_spec(spec)
+        min_input_shape = self._determine_min_input_shape(spec, halo_shape)
 
         # Validate and copy code path
         self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path,
@@ -223,3 +257,13 @@ class TikTorchSpec(object):
         if self.data_source is not None:
             self.assert_(isinstance(self.data_source, str), "data_source must be a string", ValueError)
         return self
+
+if __name__ == '__main__':
+    spec = TikTorchSpec(code_path='/home/jo/ISBI2012_UNet_pretrained/model.py',
+                        model_class_name='UNet2dGN',
+                        state_path='/home/jo/ISBI2012_UNet_pretrained/state.nn',
+                        input_shape=[1, 572, 572],
+                        minimal_increment=[32, 32],
+                        model_init_kwargs={'in_channels': 1, 'initial_features': 64, 'out_channels': 1})
+    buildface = BuildSpec('/home/jo/foo')
+    buildface.build(spec)

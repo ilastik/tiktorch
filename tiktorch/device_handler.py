@@ -496,7 +496,7 @@ class ModelHandler(Processor):
         device = self.devices[device_id]
         # Evaluate model on the smallest possible image to keep it quick
         input_tensor = torch.zeros(1, self.channels, *self.dynamic_shape.base_shape)
-        output_tensor = self.model.to(device)(input_tensor.to(device))
+        output_tensor = torch.zeros(1, self.channels, *self.dynamic_shape.base_shape)
         # Assuming NCHW or NCDHW, the first two axes are not relevant for computing halo
         input_spatial_shape = input_tensor.shape[2:]
         output_spatial_shape = output_tensor.shape[2:]
@@ -538,11 +538,6 @@ class ModelHandler(Processor):
         ----------
         input_tensor: torch.Tensor
         """
-        try:
-            self.model.to(self.device)(torch.zeros(1, self.channels, *self.dynamic_shape.base_shape).to(self.device))
-        except:
-            logger.debug(f"Can't load tensor on `{self.device}`")
-            RuntimeError(f"Can't load tensor on `{self.device}`")
 
         block = Blockinator(input_tensor, self.dynamic_shape.base_shape, num_channel_axes=2, pad_fn=th_pad)
         with block.attach(self):
