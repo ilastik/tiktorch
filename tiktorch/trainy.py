@@ -77,7 +77,8 @@ class Trainer(object):
         return self._handler.device
 
     @staticmethod
-    def _train_process(model: torch.nn.Module,
+    def _train_process(model_state: dict,
+                       model_config: tuple,
                        device: torch.device,
                        data_queue: mp.Queue,
                        augmentor: aug.AugmentationSuite,
@@ -88,6 +89,11 @@ class Trainer(object):
                        hparams: Namespace):
 
         logger = logging.getLogger('Trainer._train_process')
+
+        # Build the model
+        model = utils.define_patched_model(*model_config)
+        # Load state dict
+        model.load_state_dict(model_state)
 
         _state_lock = thr.Lock()
         _stop_server = thr.Event()
@@ -248,13 +254,13 @@ class Trainer(object):
         self._pause_event = mp.Event()
         self._state_request_event = mp.Event()
         logger.info("Sharing Memory...")
-        self.share_memory()
-        # model_state = self.model.state_dict()
-        # model_config = (self.model._model_file_name,
-        #                 self.model._model_class_name,
-        #                 self.model._model_init_kwargs)
+        # self.share_memory()
+        model_state = self.model.state_dict()
+        model_config = (self.model._model_file_name,
+                        self.model._model_class_name,
+                        self.model._model_init_kwargs)
         self._training_process = mp.Process(target=self._train_process,
-                                            args=(self.model, self.device,
+                                            args=(model_state, model_config, self.device,
                                                   self._data_queue, self.augmentor,
                                                   self._state_queue,
                                                   self._abort_event, self._pause_event,

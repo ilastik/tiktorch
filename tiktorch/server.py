@@ -167,11 +167,11 @@ class TikTorchServer(object):
 
     def load_model(self):
         # Dynamically import file.
-        # model_file_name = os.path.join(self.build_directory, 'model.py')
-        # model = utils.define_patched_model(model_file_name,
-        #                                    self.get('model_class_name'),
-        #                                    self.get('model_init_kwargs'))
-        model = DUNet(**self.get('model_init_kwargs'))
+        model_file_name = os.path.join(self.build_directory, 'model.py')
+        model = utils.define_patched_model(model_file_name,
+                                           self.get('model_class_name'),
+                                           self.get('model_init_kwargs'))
+        # model = DUNet(**self.get('model_init_kwargs'))
         # Load parameters
         state_path = os.path.join(self.build_directory, 'state.nn')
         try:
