@@ -284,11 +284,11 @@ if __name__ == '__main__':
     parsey.add_argument('--port', type=str, default='29500')
     parsey.add_argument('--meta_port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
-    # args = parsey.parse_args()
+    args = parsey.parse_args()
 
-    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    args = argparse.Namespace(build_directory=BUILD_DIR, addr='127.0.0.1', port='29500',
-                              meta_port='29501', debug=False)
+    # BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
+    # args = argparse.Namespace(build_directory=BUILD_DIR, addr='127.0.0.1', port='29500',
+    #                           meta_port='29501', debug=False)
     # Go!
     if args.debug:
         server = debug_server()
