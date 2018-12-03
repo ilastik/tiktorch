@@ -4,6 +4,7 @@ from importlib import util as imputils
 
 import yaml
 import torch
+import numpy as np
 
 
 class FileExtensionError(Exception):
@@ -139,8 +140,9 @@ class BuildSpec(object):
         except:
             raise ValueError(f'Could not load model state from {spec.state_path}')
 
-        haloBlocked = tuple(int(np.ceil(x / minimalIncrement) * minimalIncrement - x) if x > 0 else minimalIncrement for x in halo)
-        input_shape = list(spec.minimal_increment)
+        haloBlocked = tuple(int(np.ceil(x / minimalIncrement) * minimalIncrement) if x > 0 else minimalIncrement
+                            for x, minimalIncrement in zip(halo_shape, spec.minimal_increment))
+        input_shape = [256 + 2*h for h in haloBlocked]
         while True:
             input_shape = [x+1 for x in input_shape]
             try:
@@ -149,12 +151,13 @@ class BuildSpec(object):
                     print(f'input shape: {input_.shape}')
                     out = model(input_)
                     halo = tuple((i-o) // 2 for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
-                    inputWithoutHalo = [i - 2*h for i, h in zip(tuple(input_[0, 0].shape), halo)]
+                    inputWithoutHalo = [i - 2*h for i, h in zip(tuple(input_[0, 0].shape), haloBlocked)]
+                    inputWithoutHalo = [1] + inputWithoutHalo if len(inputWithoutHalo) == 2 else inputWithoutHalo
                     print(f'input shape without halo: {inputWithoutHalo}')
                     break
             except:
                 RuntimeError
-        return tuple(input_[0].shape)
+        return tuple(input_[0].shape), tuple(inputWithoutHalo)
 
     def build(self, spec):
         """
@@ -166,7 +169,7 @@ class BuildSpec(object):
             Specification Object
         """
         output_shape, halo_shape = self._validate_spec(spec)
-        min_input_shape = self._determine_min_input_shape(spec, halo_shape)
+        min_input_shape, _ = self._determine_min_input_shape(spec, halo_shape)
 
         # Validate and copy code path
         self.validate_path(spec.code_path, 'py').copy_to_build_directory(spec.code_path,
@@ -176,6 +179,7 @@ class BuildSpec(object):
 
         # Build and dump configuration dict
         tiktorch_config = {'input_shape': tuple(spec.input_shape),
+                           'min_input_shape': tuple(min_input_shape),
                            'output_shape': tuple(output_shape),
                            'halo': tuple(halo_shape),
                            'dynamic_input_shape': self._to_dynamic_shape(spec.minimal_increment),
@@ -265,5 +269,5 @@ if __name__ == '__main__':
                         input_shape=[1, 572, 572],
                         minimal_increment=[32, 32],
                         model_init_kwargs={'in_channels': 1, 'initial_features': 64, 'out_channels': 1})
-    buildface = BuildSpec('/home/jo/foo')
+    buildface = BuildSpec('/home/jo/ISBI2012_UNet_pretrained_new/')
     buildface.build(spec)
