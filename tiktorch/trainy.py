@@ -94,7 +94,7 @@ class Trainer(object):
 
         logger = logging.getLogger('Trainer._train_process')
         # Build the model
-        model = utils.define_patched_model(*model_config)
+        model = utils.define_patched_model(*model_config).to(device)
         # Load state dict
         model.load_state_dict(model_state)
 
