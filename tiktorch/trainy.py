@@ -94,9 +94,10 @@ class Trainer(object):
 
         logger = logging.getLogger('Trainer._train_process')
         # Build the model
-        model = utils.define_patched_model(*model_config).to(device)
+        model = utils.define_patched_model(*model_config)
         # Load state dict
         model.load_state_dict(model_state)
+        model = model.to(device)
 
         _state_lock = thr.Lock()
         _stop_server = thr.Event()
