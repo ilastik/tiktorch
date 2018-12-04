@@ -25,7 +25,7 @@ class TikTorchServer(object):
     RANK = 1
     SIZE = 2
 
-    def __init__(self, build_directory, address='127.0.0.1', port='29500',
+    def __init__(self, address='127.0.0.1', port='29500',
                  meta_port='29501', device=None):
         logger = logging.getLogger("TikTorchServer.__init__")
         # Privates
@@ -45,7 +45,6 @@ class TikTorchServer(object):
             self._device = device
         logger.info(f"Using device: {self._device}")
         # Publics
-        self.build_directory = build_directory
         self.addr = address
         self.port = port
         self.meta_port = meta_port
@@ -69,6 +68,12 @@ class TikTorchServer(object):
         logger.info("Setting up Poller...")
         self._zmq_pollin = zmq.Poller()
         self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
+        # Receive build directory
+        logger.info("Waiting for build directory...")
+        message = self.meta_recv()
+        assert message['id'] == 'INIT.BUILD_DIR'
+        self.build_directory = message['content']
+        logger.info("Build directory received.")
 
     def meta_send(self, info_dict):
         self._zmq_socket.send_json(info_dict)
@@ -267,7 +272,7 @@ class TikTorchServer(object):
 
 def debug_server():
     TikTorchServer.read_config = lambda self: self
-    server = TikTorchServer(build_directory='.', address='127.0.0.1', port='29500',
+    server = TikTorchServer(address='127.0.0.1', port='29500',
                             meta_port='29501')
     server._model = torch.nn.Conv2d(1, 1, 1)
     server._config = {'input_shape': [1, 512, 512],
@@ -279,21 +284,16 @@ def debug_server():
 if __name__ == '__main__':
     import argparse
     parsey = argparse.ArgumentParser()
-    parsey.add_argument('build_directory', type=str)
     parsey.add_argument('--addr', type=str, default='127.0.0.1')
     parsey.add_argument('--port', type=str, default='29500')
     parsey.add_argument('--meta_port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
     args = parsey.parse_args()
 
-    # BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    # args = argparse.Namespace(build_directory=BUILD_DIR, addr='127.0.0.1', port='29500',
-    #                           meta_port='29501', debug=False)
     # Go!
     if args.debug:
         server = debug_server()
     else:
-        server = TikTorchServer(build_directory=args.build_directory, address=args.addr,
-                                port=args.port, meta_port=args.meta_port)
+        server = TikTorchServer(address=args.addr, port=args.port, meta_port=args.meta_port)
     server.listen()
 

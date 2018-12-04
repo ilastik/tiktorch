@@ -23,7 +23,7 @@ class TikTorchClient(object):
     RANK = 0
     SIZE = 2
 
-    _START_PROCESS = True
+    _START_PROCESS = False
 
     def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501'):
         self.build_directory = build_directory
@@ -69,6 +69,11 @@ class TikTorchClient(object):
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
         self._zmq_socket.bind(f'tcp://{self.addr}:{self.meta_port}')
+        # Send build directory
+        logger.info("Sending build directory...")
+        self.meta_send({'id': 'INIT.BUILD_DIR',
+                        'content': self.build_directory})
+        logger.info("Build directory sent.")
         return self
 
     def terminate(self):
@@ -234,7 +239,7 @@ def test_client_forward():
 
 def test_client_train():
     BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    TikTorchClient._START_PROCESS = False
+    TikTorchClient._START_PROCESS = True
     client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
