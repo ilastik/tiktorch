@@ -205,6 +205,7 @@ class Trainer(object):
             if pause.is_set():
                 logger.info(f"Waiting for resume...")
                 time.sleep(1)
+                continue
             try:
                 try:
                     logger.info(f"Currently {data_queue.qsize()} elements in data_queue.")

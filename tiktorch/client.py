@@ -210,6 +210,22 @@ class TikTorchClient(object):
             assert self.request_dispatch('SHUTDOWN')
             logger.info("Request successful.")
 
+    def pause(self):
+        logger = logging.getLogger('TikTorchClient.pause')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('PAUSE')
+            logger.info("Request successful.")
+
+    def resume(self):
+        logger = logging.getLogger('TikTorchClient.resume')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('RESUME')
+            logger.info("Request successful.")
+
 
 def debug_client():
     TikTorchClient.read_config = lambda self: self
@@ -238,8 +254,8 @@ def test_client_forward():
 
 
 def test_client_train():
-    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    TikTorchClient._START_PROCESS = True
+    BUILD_DIR = '/home/ial/Python/scratch/CREMI_DUNet_pretrained'
+    TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
@@ -249,14 +265,31 @@ def test_client_train():
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
     client.train(train_data, train_labels)
-    logging.info("Sent train data and labels and waiting for 30s...")
+    logging.info("Sent train data and labels and waiting for 15s...")
 
     import time
-    time.sleep(30)
+    time.sleep(15)
+
+    logging.info("Pausing...")
+    client.pause()
+
+    logging.info("Paused training, waiting for 10s...")
+    time.sleep(10)
+
+    logging.info("Forwarding again with paused model...")
+    out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
+    logging.info(f"out.shape = {out.shape}")
+
+    logging.info("Resuming training...")
+    client.resume()
+    logging.info("Resumed, waiting for 10s...")
 
     logging.info("Forwarding again...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")
+
+    logging.info("Waiting 10s...")
+    time.sleep(10)
 
     logging.info("Shutting down...")
     client.shutdown()

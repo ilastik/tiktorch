@@ -259,6 +259,16 @@ class TikTorchServer(object):
                         logger.info("Dispatch confirmed.")
                         self.shutdown()
                         break
+                    elif request['id'] == 'DISPATCH.PAUSE':
+                        logger.info("Received request to pause training.")
+                        self.meta_send({'id': 'DISPATCHING.PAUSE'})
+                        logger.info("Dispatch confirmed, pausing training...")
+                        self.handler.pause_training()
+                    elif request['id'] == 'DISPATCH.RESUME':
+                        logger.info("Received request to resume training.")
+                        self.meta_send({'id': 'DISPATCHING.RESUME'})
+                        logger.info("Dispatch confirmed, resuming...")
+                        self.handler.resume_training()
                     else:
                         # Bad id
                         raise RuntimeError
