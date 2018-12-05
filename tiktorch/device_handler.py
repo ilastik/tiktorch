@@ -166,6 +166,9 @@ class ModelHandler(Processor):
         self.trainer.ignition()
         return self
 
+    def training_process_is_alive(self):
+        return self.trainer.is_alive()
+
     def update_state(self):
         logger = logging.getLogger('ModelHandler.update_state')
         if self.trainer.is_ignited:

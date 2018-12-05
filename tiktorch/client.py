@@ -226,6 +226,16 @@ class TikTorchClient(object):
             assert self.request_dispatch('RESUME')
             logger.info("Request successful.")
 
+    def training_process_is_running(self):
+        logger = logging.getLogger("TikTorchClient.training_process_is_running")
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('POLL_TRAIN')
+            # Receive info
+            info = self.meta_recv()
+        return info['is_alive']
+
 
 def debug_client():
     TikTorchClient.read_config = lambda self: self
@@ -261,6 +271,10 @@ def test_client_train():
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")
 
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
+
     logging.info("Sending train data and labels.")
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
@@ -270,11 +284,19 @@ def test_client_train():
     import time
     time.sleep(15)
 
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
+
     logging.info("Pausing...")
     client.pause()
 
     logging.info("Paused training, waiting for 10s...")
     time.sleep(10)
+
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
 
     logging.info("Forwarding again with paused model...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
@@ -283,6 +305,12 @@ def test_client_train():
     logging.info("Resuming training...")
     client.resume()
     logging.info("Resumed, waiting for 10s...")
+
+    time.sleep(10)
+
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
 
     logging.info("Forwarding again...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])

@@ -414,9 +414,21 @@ class Trainer(object):
         logger.info(f"Fed {len(data)} samples to queue...")
 
     def pause(self):
-        logger.info("Pausing training...")
-        self._pause_event.set()
+        if self._ignited:
+            logger.info("Pausing training...")
+            self._pause_event.set()
+        else:
+            logger.warning("Not ignited, nothing to pause.")
 
     def resume(self):
-        logger.info("Resuming training...")
-        self._pause_event.clear()
+        if self._ignited:
+            logger.info("Resuming training...")
+            self._pause_event.clear()
+        else:
+            logger.warning("Not ignited, nothing to resume.")
+
+    def is_alive(self):
+        if self._training_process is None:
+            return False
+        else:
+            return self._training_process.is_alive()

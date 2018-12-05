@@ -269,9 +269,25 @@ class TikTorchServer(object):
                         self.meta_send({'id': 'DISPATCHING.RESUME'})
                         logger.info("Dispatch confirmed, resuming...")
                         self.handler.resume_training()
+                    elif request['id'] == 'DISPATCH.POLL_TRAIN':
+                        logger.info("Received request to poll training process.")
+                        self.meta_send({'id': 'DISPATCHING.POLL_TRAIN'})
+                        logger.info("Dispatch confirmed, polling...")
+                        self.poll_training_process()
                     else:
                         # Bad id
                         raise RuntimeError
+
+    def poll_training_process(self):
+        logger = logging.getLogger('TikTorchServer.poll_training_process')
+        logger.info("Polling...")
+        # Check if training process is running, and send info back
+        it_lives = self.handler.training_process_is_alive()
+        logger.info("Poll successful. Sending response...")
+        info = {'id': 'POLL_TRAIN.INFO',
+                'is_alive': it_lives}
+        self.meta_send(info)
+        logger.info("Poll response sent.")
 
     def shutdown(self):
         logger = logging.getLogger('TikTorchServer.shutdown')
