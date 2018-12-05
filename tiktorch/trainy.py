@@ -32,7 +32,7 @@ class Trainer(object):
     # Setting this to true might help training, but can amount to a lot of compute.
     USE_CACHE_KEEPING = False
     # Cache size to use. Large cache size ==> more CPU RAM.
-    CACHE_SIZE = 2000
+    CACHE_SIZE = 200
     # FIXME This is a hack to invert the labels. Make sure the labels are binary to begin with, or else...
     INVERT_BINARY_LABELS = True
 
