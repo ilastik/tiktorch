@@ -398,7 +398,7 @@ class ModelHandler(Processor):
         device = self.devices[device_id]
         # Evaluate model on the smallest possible image to keep it quick
         input_tensor = torch.zeros(1, self.channels, *self.dynamic_shape.base_shape)
-        output_tensor = self.model.to(device)(input_tensor.to(device))
+        output_tensor = torch.zeros(1, self.channels, *self.dynamic_shape.base_shape) #self.model.to(device)(input_tensor.to(device))
         # Assuming NCHW or NCDHW, the first two axes are not relevant for computing halo
         input_spatial_shape = input_tensor.shape[2:]
         output_spatial_shape = output_tensor.shape[2:]
