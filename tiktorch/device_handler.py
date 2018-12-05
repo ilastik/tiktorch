@@ -43,7 +43,7 @@ class Processor(object):
 
 class ModelHandler(Processor):
     def __init__(self, *, model, device_names, channels, dynamic_shape_code,
-                 training_hyperparams=None):
+                 training_hyperparams=None, log_directory=None):
         # Privates
         self._model = None
         self._trainer = None
@@ -58,7 +58,7 @@ class ModelHandler(Processor):
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
         # Set
         self._set_model(model)
-        self._set_trainer(training_hyperparams)
+        self._set_trainer(training_hyperparams, log_directory)
         # Init superclass
         super(ModelHandler, self).__init__(num_parallel_jobs=len(self.devices))
 
@@ -79,9 +79,10 @@ class ModelHandler(Processor):
         self._model = model.to(self.device)
         logger.info(f"Model on {next(model.parameters()).device}")
 
-    def _set_trainer(self, hyperparameters):
+    def _set_trainer(self, hyperparameters, log_directory=None):
         self._trainer = Trainer(handler=self,
-                                hyperparameters=hyperparameters)
+                                hyperparameters=hyperparameters,
+                                log_directory=log_directory)
 
     def _evaluate_parameter_diff(self):
         if self._parameter_copy is None:

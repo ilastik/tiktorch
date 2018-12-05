@@ -19,6 +19,7 @@ from inferno.io.transform.image import ElasticTransform, RandomFlip, RandomRotat
 
 import tiktorch.utils as utils
 import tiktorch.fast_augment as aug
+import tensorboardX as tX
 
 logger = logging.getLogger('Trainy')
 
@@ -35,7 +36,7 @@ class Trainer(object):
     # FIXME This is a hack to invert the labels. Make sure the labels are binary to begin with, or else...
     INVERT_BINARY_LABELS = True
 
-    def __init__(self, handler, hyperparameters=None):
+    def __init__(self, handler, hyperparameters=None, log_directory=None):
         # Privates
         self._handler = handler
         # Preprocessing
@@ -64,6 +65,7 @@ class Trainer(object):
                                      augmentor_kwargs={'invert_binary_labels': self.INVERT_BINARY_LABELS})
         else:
             self.hparams: Namespace = hyperparameters
+        self.log_directory = log_directory
 
     @property
     def model(self):
@@ -94,14 +96,21 @@ class Trainer(object):
                        pause: mp.Event,
                        state_request: mp.Event,
                        use_cache_keeping: bool,
-                       hparams: Namespace):
-
+                       hparams: Namespace,
+                       log_directory: str):
         logger = logging.getLogger('Trainer._train_process')
         # Build the model
         model = utils.define_patched_model(*model_config)
         # Load state dict
         model.load_state_dict(model_state)
         model = model.to(device)
+        # Build tensorboard logger
+        if log_directory is not None:
+            tensorboard = tX.SummaryWriter(log_dir=log_directory)
+            logger.info(f"Writing tensorboard logs to {log_directory}")
+        else:
+            tensorboard = None
+            logger.warning("Not writing tensorboard logs.")
 
         _state_lock = thr.Lock()
         _stop_server = thr.Event()
@@ -189,6 +198,8 @@ class Trainer(object):
             # Done-o
             return update_batch
 
+        # Global Training Iteration Counter
+        iter_count = 0
         while True:
             # Check if a new state is requested
             if state_request.is_set():
@@ -287,6 +298,11 @@ class Trainer(object):
                     logger.info(f"Backproped.")
                     optim.step()
                     logger.info(f"Stepped.")
+                    iter_count += 1
+                # Logging
+                if tensorboard is not None:
+                    tensorboard.add_scalar('loss', loss.item(), global_step=(iter_count - 1))
+                    logger.info(f"Logged iteration {iter_count}.")
             except Exception:
                 _kill_state_server()
                 raise
@@ -316,7 +332,7 @@ class Trainer(object):
                                                   self._abort_event, self._pause_event,
                                                   self._state_request_event,
                                                   self.USE_CACHE_KEEPING,
-                                                  self.hparams))
+                                                  self.hparams, self.log_directory))
         logger.info("3, 2, 1...")
         self._training_process.start()
         logger.info("We have lift off.")

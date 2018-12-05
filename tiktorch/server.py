@@ -7,6 +7,8 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import yaml
+from datetime import datetime
+import socket
 
 from tiktorch.tio import TikIn, TikOut
 import tiktorch.utils as utils
@@ -33,6 +35,7 @@ class TikTorchServer(object):
         self._handler: ModelHandler = None
         self._model = None
         self._config = {}
+        self._log_directory = None
         # Set up queues
         self._zmq_context: zmq.Context = None
         self._zmq_socket: zmq.Socket = None
@@ -45,6 +48,7 @@ class TikTorchServer(object):
             self._device = device
         logger.info(f"Using device: {self._device}")
         # Publics
+        self.ilp_directory = None
         self.addr = address
         self.port = port
         self.meta_port = meta_port
@@ -71,8 +75,9 @@ class TikTorchServer(object):
         # Receive build directory
         logger.info("Waiting for build directory...")
         message = self.meta_recv()
-        assert message['id'] == 'INIT.BUILD_DIR'
-        self.build_directory = message['content']
+        assert message['id'] == 'INIT.PATHS'
+        self.build_directory = message['build_dir']
+        self.ilp_directory = message['ilp_dir']
         logger.info("Build directory received.")
 
     def meta_send(self, info_dict):
@@ -108,6 +113,18 @@ class TikTorchServer(object):
         if not os.path.exists(value):
             raise FileNotFoundError(f"Build directory does not exist: {value}")
         self._build_directory = value
+
+    @property
+    def log_directory(self):
+        if self._log_directory is None and self.ilp_directory is not None:
+            # Make a log directory in the ilp_directory
+            path = os.path.join(self.ilp_directory, 'TikTorchLogs',
+                                f"{datetime.now().strftime('%b%d_%H-%M-%S')}_{socket.gethostname()}")
+            os.makedirs(path, exist_ok=True)
+            self._log_directory = path
+            return self._log_directory
+        else:
+            return self._log_directory
 
     @property
     def model(self):
@@ -149,7 +166,8 @@ class TikTorchServer(object):
         self._handler = ModelHandler(model=model,
                                      device_names=self._device,
                                      channels=self.get('input_shape')[0],
-                                     dynamic_shape_code=self.get('dynamic_input_shape'))
+                                     dynamic_shape_code=self.get('dynamic_input_shape'),
+                                     log_directory=self.log_directory)
 
     def get(self, tag, default=None, assert_exist=False):
         if assert_exist:
