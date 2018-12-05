@@ -30,6 +30,10 @@ STATE_QUEUE_GET_TIMEOUT = 5
 class Trainer(object):
     # Setting this to true might help training, but can amount to a lot of compute.
     USE_CACHE_KEEPING = False
+    # Cache size to use. Large cache size ==> more CPU RAM.
+    CACHE_SIZE = 2000
+    # FIXME This is a hack to invert the labels. Make sure the labels are binary to begin with, or else...
+    INVERT_BINARY_LABELS = True
 
     def __init__(self, handler, hyperparameters=None):
         # Privates
@@ -56,8 +60,8 @@ class Trainer(object):
                                      criterion_kwargs=dict(reduce=False),
                                      criterion_name='BCEWithLogitsLoss',
                                      batch_size=1,
-                                     cache_size=128,
-                                     augmentor_kwargs={})
+                                     cache_size=self.CACHE_SIZE,
+                                     augmentor_kwargs={'invert_binary_labels': self.INVERT_BINARY_LABELS})
         else:
             self.hparams: Namespace = hyperparameters
 
@@ -369,6 +373,7 @@ class Trainer(object):
         self.shut_down_training_process()
         self._ignited = False
 
+    # TODO Deprecate
     def _preprocess(self, data, labels):
         # labels.shape = data.shape = (c, z, y, x)
         # FIXME Not have these hard coded

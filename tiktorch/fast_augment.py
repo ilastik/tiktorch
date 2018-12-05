@@ -15,7 +15,7 @@ class AugmentationSuite(object):
     def __init__(self, normalize=True, random_flips=True, random_transpose=True,
                  random_rotate=True, elastic_transform=True, patch_ignore_labels=True,
                  allow_z_flips=False, elastic_transform_scale=2000, elastic_transform_sigma=50,
-                 elastic_transform_kernel_size=None):
+                 elastic_transform_kernel_size=None, invert_binary_labels=False):
         self.do_normalize = normalize
         self.do_random_flips = random_flips
         self.do_random_transpose = random_transpose
@@ -26,6 +26,7 @@ class AugmentationSuite(object):
         self.flow_scale = elastic_transform_scale
         self.elastic_transform_scale = elastic_transform_scale
         self.elastic_transform_sigma = elastic_transform_sigma
+        self.invert_binary_labels = invert_binary_labels
         if elastic_transform_kernel_size is None:
             self.elastic_transform_kernel_size = 2 * self.elastic_transform_sigma + 1
         else:
@@ -94,6 +95,8 @@ class AugmentationSuite(object):
         # Label value 0 actually corresponds to Ignore. Subtract 1 from all pixels that will be
         # weighted to account for that
         label[weights] -= 1
+        if self.invert_binary_labels:
+            label[weights] = 1 - label[weights]
         return label, weights.float()
 
     def __call__(self, data, label):
