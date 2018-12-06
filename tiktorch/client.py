@@ -176,7 +176,7 @@ class TikTorchClient(object):
             output_tensor = torch.zeros(*outspec['shape'])
             # Receive it
             dist.recv(tensor=output_tensor, src=1)
-            logger.info("Output received.")
+            logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
         # Convert to np and done
         return output_tensor.numpy()
 
