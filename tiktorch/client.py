@@ -39,37 +39,20 @@ class TikTorchClient(object):
         self._zmq_socket = None
         # Locks
         self._main_lock = thr.Lock()
+        self._zmq_lock = thr.Lock()
         # Initialize
         self.read_config()
         self.init()
 
     def init(self):
         logger = logging.getLogger('TikTorchClient.init')
-        os.environ['MASTER_ADDR'] = self.addr
-        os.environ['MASTER_PORT'] = self.port
-        # Build args for the server
-        self._args = [
-            'python',
-            os.path.join(os.path.dirname(os.path.realpath(__file__)), 'server.py'),
-            self.build_directory,
-            '--addr', self.addr,
-            '--port', self.port,
-            '--meta_port', self.meta_port
-        ]
-        # Start server
-        if self._START_PROCESS:
-            logger.info("Starting Server...")
-            self._process = subprocess.Popen(self._args, stdout=sys.stdout)
-        # Init torch distributed
-        logger.info("Initializing Process Group...")
-        dist.init_process_group(backend='tcp', rank=self.RANK, world_size=self.SIZE)
         # Make server for zmq
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
-        self._zmq_socket.bind(f'tcp://{self.addr}:{self.meta_port}')
+        self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
         # Send build directory
         logger.info("Sending build directory...")
         self.meta_send({'id': 'INIT.PATHS',
@@ -109,6 +92,26 @@ class TikTorchClient(object):
 
     def meta_recv(self):
         return self._zmq_socket.recv_json()
+
+    def tensor_send(self, x, key):
+        assert torch.is_tensor(x) or isinstance(x, np.ndarray)
+        # Send meta data
+        self.meta_send({'id': f"{key.upper()}.TENSORSPEC",
+                        'shape': tuple(x.shape),
+                        'dtype': str(x.dtype).lstrip('torch.'),
+                        'device': str(x.device) if torch.is_tensor(x) else 'cpu'})
+        # Make sure x is on the CPU and send
+        self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
+
+    def tensor_recv(self, key, framework='numpy'):
+        tensor_spec = self.meta_recv()
+        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC"
+        # Receive the buffer
+        buf = memoryview(self._zmq_socket.recv())
+        x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
+        if framework == 'torch':
+            x = torch.from_numpy(x).to(tensor_spec['device'])
+        return x
 
     def batch_inputs(self, inputs):
         input_shapes = self.get('input_shape', assert_exist=True)
@@ -158,24 +161,12 @@ class TikTorchClient(object):
             # Batch inputs
             batches = self.batch_inputs(inputs)
             logger.info("Batched inputs.")
-            # Make info dict to send to server
-            info = {'id': 'FORWARD.BATCHSPEC',
-                    'len': len(batches),
-                    'shapes': tuple(batch.shape for batch in batches)}
-            logger.info("Sending BatchSpec.")
-            self.meta_send(info)
             # Send batch to the server
-            for batch in batches:
+            for idx, batch in enumerate(batches):
                 logger.info("Sending batch.")
-                dist.send(batch, 1)
+                self.tensor_send(batch, f'FORWARD_IN_{idx}')
             # Receive meta data
-            logger.info("Waiting for OutSpec.")
-            outspec = self.meta_recv()
-            assert outspec['id'] == 'FORWARD.OUTSPEC'
-            logger.info("OutSpec received.")
-            output_tensor = torch.zeros(*outspec['shape'])
-            # Receive it
-            dist.recv(tensor=output_tensor, src=1)
+            output_tensor = self.tensor_recv('FORWARD_OUT')
             logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
         # Convert to np and done
         return output_tensor.numpy()
