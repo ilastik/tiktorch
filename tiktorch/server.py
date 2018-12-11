@@ -202,7 +202,8 @@ class TikTorchServer(object):
             state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
         except:
-            raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
+            logger.warning(f"state.nn file not found in {state_path}, not loading weights!")
+            # raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
         # Build handler
         self._set_handler(model)
         return self
