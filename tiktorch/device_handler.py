@@ -151,6 +151,10 @@ class ModelHandler(Processor):
         self.trainer.push(data, labels)
         return self
 
+    def set_hparams(self, hparams):
+        self.trainer.push_hparams(hparams)
+        return self
+
     def pause_training(self):
         self.trainer.pause()
         return self

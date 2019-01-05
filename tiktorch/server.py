@@ -246,6 +246,17 @@ class TikTorchServer(object):
         self.handler.train(data, labels)
         logger.info("Sent to handler.")
 
+    def set_hparams(self):
+        logger = logging.getLogger('TikTorchServer.set_hparams')
+        logger.info("Receiving new hyperparameters from client.")
+        hparams = self.meta_recv()
+        assert hparams['id'] == 'TRAIN.HYPERPARAMETERS'
+        logger.info("Sending to handler.")
+        self.handler.set_hparams(hparams['parameters'])
+        logger.info("Sent to handler.")
+
+
+
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')
         logger.info('Waiting...')
@@ -293,6 +304,11 @@ class TikTorchServer(object):
                         self.meta_send({'id': 'DISPATCHING.POLL_TRAIN'})
                         logger.info("Dispatch confirmed, polling...")
                         self.poll_training_process()
+                    elif request['id'] == 'DISPATCH.HYPERPARAMETERS':
+                        logger.info("Received request to dispatch hyperparameters.")
+                        self.meta_send({'id': 'DISPATCHING.HYPERPARAMETERS'})
+                        logger.info("Dispatch confirmed, changing hyperparameters...")
+                        self.set_hparams()
                     else:
                         # Bad id
                         raise RuntimeError

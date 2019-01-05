@@ -5,6 +5,7 @@ import yaml
 import zmq
 import sys
 import threading as thr
+from argparse import Namespace
 
 import numpy as np
 import torch
@@ -204,6 +205,19 @@ class TikTorchClient(object):
                 dist.send(_label_th, dst=1)
             logger.info("Data and labels sent.")
 
+    def set_hparams(self, hparams: dict):
+        logger = logging.getLogger('TikTorchClient.set_hparams')
+        logger.info("Waiting for Lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('HYPERPARAMETERS')
+            logger.info("Request successful.")
+            # Build info dict
+            info = {'id': 'TRAIN.HYPERPARAMETERS',
+                    'parameters': hparams}
+            logger.info("Sending hyperparameters...")
+            self.meta_send(info)
+
     def shutdown(self):
         logger = logging.getLogger('TikTorchClient.shutdown')
         logger.info("Waiting for lock...")
@@ -252,6 +266,7 @@ def debug_client():
 
 def test_client_forward():
     BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
+    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -265,9 +280,59 @@ def test_client_forward():
     logging.info("Done!")
 
 
+def test_client_hparams():
+    # Test for changing hyperparameter setting before and during training
+    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
+    TikTorchClient._START_PROCESS = False
+    client = TikTorchClient(BUILD_DIR)
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
+
+    client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0003, weight_decay=0.0001, amsgrad=True),
+                            optimizer_name='Adam',
+                            criterion_kwargs=dict(reduce=False),
+                            criterion_name='BCEWithLogitsLoss',
+                            batch_size=1,
+                            cache_size=200,
+                            augmentor_kwargs={'invert_binary_labels': True}))
+
+    logging.info("Sending train data and labels.")
+    train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
+    train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
+    client.train(train_data, train_labels)
+    logging.info("Sent train data and labels...")
+
+    client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
+                            optimizer_name='Adam',
+                            criterion_kwargs=dict(reduce=False),
+                            criterion_name='BCEWithLogitsLoss',
+                            batch_size=2,
+                            cache_size=200,
+                            augmentor_kwargs={'invert_binary_labels': True}))
+
+    logging.info("Sending train data and labels.")
+    train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
+    train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
+    client.train(train_data, train_labels)
+    logging.info("Sent train data and labels...")
+
+    client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
+                            optimizer_name='Adam',
+                            criterion_kwargs=dict(reduce=False),
+                            criterion_name='BCEWithLogitsLoss',
+                            batch_size=3,
+                            cache_size=200,
+                            augmentor_kwargs={'invert_binary_labels': True}))
+
+
+
+
 def test_client_train():
     BUILD_DIR = '/home/ial/Python/scratch/CREMI_DUNet_pretrained'
-    ILP_DIR = '/home/ial/Python/scratch/mock_ilp_path'
+    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
+    ILP_DIR = None
+    #ILP_DIR = '/home/ial/Python/scratch/mock_ilp_path'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR, ilp_directory=ILP_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -330,4 +395,5 @@ def test_client_train():
 if __name__ == '__main__':
     # import sys
     # print('Python %s on %s' % (sys.version, sys.platform))
-    test_client_train()
+    #test_client_train()
+    test_client_hparams()

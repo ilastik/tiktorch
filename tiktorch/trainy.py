@@ -47,6 +47,8 @@ class Trainer(object):
         # Training
         self._data_queue: mp.Queue = None
         self._state_queue: mp.Queue = None
+        self._hparams_queue: mp.Queue = None
+        self._change_hparams_event: mp.Event = None
         self._abort_event: mp.Event = None
         self._pause_event: mp.Event = None
         self._state_request_event = None
@@ -94,9 +96,10 @@ class Trainer(object):
                        state_queue: mp.Queue,
                        abort: mp.Event,
                        pause: mp.Event,
+                       change_hparams: mp.Event,
                        state_request: mp.Event,
                        use_cache_keeping: bool,
-                       hparams: Namespace,
+                       hparams_queue: mp.Queue,
                        log_directory: str):
         logger = logging.getLogger('Trainer._train_process')
         # Build the model
@@ -157,6 +160,7 @@ class Trainer(object):
 
         logger.info(f"Initializing Loss and Optimizer.")
         # Set up what's needed for training
+        hparams = hparams_queue.get()
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
         optim = getattr(torch.optim, hparams.optimizer_name)(model.parameters(), **hparams.optimizer_kwargs)
         # Init a cache. In case there are not enough batches in data_queue,
@@ -201,6 +205,17 @@ class Trainer(object):
         # Global Training Iteration Counter
         iter_count = 0
         while True:
+            if change_hparams.is_set():
+                change_hparams.clear()
+                try:
+                    hparams = hparams_queue.get_nowait()
+                except queue.Empty:
+                    logger.info(f"Hyperparameter queue is empty.")
+                    pass
+                logger.info(f"Changing hyperparameters: initializing loss and optimizer.")
+                criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
+                optim = getattr(torch.optim, hparams.optimizer_name)(model.parameters(), **hparams.optimizer_kwargs)
+                    
             # Check if a new state is requested
             if state_request.is_set():
                 # First things first,
@@ -316,9 +331,12 @@ class Trainer(object):
         logger.info("Prepping Queue and Event...")
         self._data_queue = mp.Queue()
         self._state_queue = mp.Queue()
+        self._hparams_queue = mp.Queue()
+        self._hparams_queue.put(self.hparams)
         self._abort_event = mp.Event()
         self._pause_event = mp.Event()
         self._state_request_event = mp.Event()
+        self._change_hparams_event = mp.Event()
         logger.info("Sharing Memory...")
         # self.share_memory()
         model_state = self.model.state_dict()
@@ -330,9 +348,11 @@ class Trainer(object):
                                                   self._data_queue, self.augmentor,
                                                   self._state_queue,
                                                   self._abort_event, self._pause_event,
+                                                  self._change_hparams_event,
                                                   self._state_request_event,
                                                   self.USE_CACHE_KEEPING,
-                                                  self.hparams, self.log_directory))
+                                                  self._hparams_queue,
+                                                  self.log_directory))
         logger.info("3, 2, 1...")
         self._training_process.start()
         logger.info("We have lift off.")
@@ -433,6 +453,35 @@ class Trainer(object):
         for _data, _labels in zip(data, labels):
             self._data_queue.put((_data, _labels))
         logger.info(f"Fed {len(data)} samples to queue...")
+
+    def push_hparams(self, hparams: dict):
+        logger = logging.getLogger("Trainer.push_hparams")
+        # Done in this method:
+        # If training process is running, push hparams into queue, else set as default
+        
+        def _drain_hparams_queue():
+            deprecated_hparams = None
+            while True:
+                try:
+                    deprecated_hparams = self._hparams_queue.get_nowait()
+                    logger.info("Found deprecated hyperparameters in hparams_queue")
+                except queue.Empty:
+                    break
+            return deprecated_hparams
+        
+        hparams = Namespace(**hparams)
+        if not self.is_ignited:
+            logger.info("Setting new default hyperparameters")
+            self.hparams = hparams
+        else:
+            self.hparams = hparams
+            logger.info("Feeding parameters to hyperparameter queue")
+            with thr.Lock():
+                _drain_hparams_queue()
+                self._hparams_queue.put(hparams)
+                time.sleep(1)
+            self._change_hparams_event.set()
+
 
     def pause(self):
         if self._ignited:
