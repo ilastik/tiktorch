@@ -181,7 +181,7 @@ class TikTorchClient(object):
         # Convert to np and done
         return output_tensor.numpy()
 
-    def train(self, data, labels):
+    def train(self, data, labels, sample_ids):
         logger = logging.getLogger('TikTorchClient.train')
         logger.info("Waiting for lock...")
         with self._main_lock:
