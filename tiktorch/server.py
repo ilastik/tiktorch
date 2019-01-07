@@ -61,7 +61,7 @@ class TikTorchServer(object):
         os.environ['MASTER_PORT'] = self.port
         # Init torch distributed
         logger.info("Initializing Process Group...")
-        dist.init_process_group(backend='tcp', rank=self.RANK, world_size=self.SIZE)
+        dist.init_process_group(backend='Gloo', rank=self.RANK, world_size=self.SIZE)
         # Init ZMQ
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
