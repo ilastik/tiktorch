@@ -57,18 +57,14 @@ class TikTorchServer(object):
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
-        os.environ['MASTER_ADDR'] = self.addr
-        os.environ['MASTER_PORT'] = self.port
-        # Init torch distributed
-        logger.info("Initializing Process Group...")
-        dist.init_process_group(backend='Gloo', rank=self.RANK, world_size=self.SIZE)
+        logger.info("Setting up ZMQ")
         # Init ZMQ
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
-        self._zmq_socket.connect(f'tcp://{self.addr}:{self.meta_port}')
+        self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         logger.info("Setting up Poller...")
         self._zmq_pollin = zmq.Poller()
         self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
@@ -80,12 +76,32 @@ class TikTorchServer(object):
         self.ilp_directory = message['ilp_dir']
         logger.info("Build directory received.")
 
-    def meta_send(self, info_dict):
-        self._zmq_socket.send_json(info_dict)
+    def meta_send(self, info_dict, flags=0):
+        self._zmq_socket.send_json(info_dict, flags=flags)
         return self
 
     def meta_recv(self):
         return self._zmq_socket.recv_json()
+
+    def tensor_send(self, x, key):
+        assert torch.is_tensor(x) or isinstance(x, np.ndarray)
+        # Send meta data
+        self.meta_send({'id': f"{key.upper()}.TENSORSPEC",
+                        'shape': tuple(x.shape),
+                        'dtype': str(x.dtype).lstrip('torch.'),
+                        'device': str(x.device) if torch.is_tensor(x) else 'cpu'})
+        # Make sure x is on the CPU and send
+        self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
+
+    def tensor_recv(self, key, framework='numpy'):
+        tensor_spec = self.meta_recv()
+        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC"
+        # Receive the buffer
+        buf = memoryview(self._zmq_socket.recv())
+        x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
+        if framework == 'torch':
+            x = torch.from_numpy(x).to(tensor_spec['device'])
+        return x
 
     @property
     def output_shape(self):
