@@ -6,6 +6,7 @@ import zmq
 import sys
 import threading as thr
 from argparse import Namespace
+import time
 
 import numpy as np
 import torch
@@ -26,7 +27,8 @@ class TikTorchClient(object):
 
     _START_PROCESS = False
 
-    def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501', ilp_directory=None):
+    def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501', ilp_directory=None,
+                 start_server=True):
         self.build_directory = build_directory
         self.addr = address
         self.port = port
@@ -43,7 +45,29 @@ class TikTorchClient(object):
         self._zmq_lock = thr.Lock()
         # Initialize
         self.read_config()
+        self._local_server_process = None
+        if start_server:
+            self.start_server()
+
         self.init()
+
+    def start_server(self):
+        if self.addr in ('127.0.0.1', 'localhost'):
+            # start local server process
+            if self._local_server_process is None or self._local_server_process.poll() is not None:
+                kwargs = {'address': self.addr, 'port': self.port, 'meta_port': self.meta_port}
+                logger = logging.getLogger('TikTorchClient.localServer')
+                logger.info('Starting local TikTorchServer...')
+                self._local_server_process = subprocess.Popen(
+                    [sys.executable, '-c',
+                     f'from tiktorch.server import TikTorchServer;kwargs={str(kwargs)};TikTorchServer(**kwargs).listen()'],
+                    stdout=sys.stdout)
+                # check if local server process runs
+                time.sleep(3)
+                if self._local_server_process.poll() is not None:
+                    logger.error('Could not start local TikTorchServer')
+        else:
+            raise NotImplementedError('Starting remote server not yet implemented!')
 
     def init(self):
         logger = logging.getLogger('TikTorchClient.init')
@@ -254,10 +278,10 @@ def debug_client():
                       'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
     return client
 
+# hacky lazy global build dir for tests
+BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 
 def test_client_forward():
-    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -273,7 +297,6 @@ def test_client_forward():
 
 def test_client_hparams():
     # Test for changing hyperparameter setting before and during training
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Polling")
@@ -320,10 +343,6 @@ def test_client_hparams():
 
 
 def test_client_train():
-    BUILD_DIR = '/home/ial/Python/scratch/CREMI_DUNet_pretrained'
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
-    ILP_DIR = None
-    #ILP_DIR = '/home/ial/Python/scratch/mock_ilp_path'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR, ilp_directory=ILP_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -384,7 +403,10 @@ def test_client_train():
 
 
 if __name__ == '__main__':
+    BUILD_DIR = '/ilastik/models/CREMI_DUNet_pretrained_new '
+    ILP_DIR = None
     # import sys
     # print('Python %s on %s' % (sys.version, sys.platform))
     #test_client_train()
-    test_client_hparams()
+    # test_client_hparams()
+    test_client_forward()
