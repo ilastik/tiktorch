@@ -1,10 +1,13 @@
 import os
 import shutil
+import logging
 from importlib import util as imputils
 
 import yaml
 import torch
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('BuildSpec')
 
 class FileExtensionError(Exception):
     pass
@@ -97,6 +100,7 @@ class BuildSpec(object):
 
     def _validate_spec(self, spec):
         # first, try to load the model
+        logger.info('Validate TikTorchSpec object.')
         try:
             module_spec = imputils.spec_from_file_location('model', spec.code_path)
             module = imputils.module_from_spec(module_spec)
@@ -110,6 +114,7 @@ class BuildSpec(object):
             state_dict = torch.load(spec.state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
             model.to(self.device)
+            logger.info('Model successfully loaded.')
         except:
             raise ValueError(f'Could not load model state from {spec.state_path}')
         # next, pipe iput of given shape through the network
@@ -117,10 +122,13 @@ class BuildSpec(object):
             try:
                 input_ = torch.zeros(*([1] + list(spec.input_shape)), dtype=torch.float32,
                                      device=self.device)
+                logger.info(f'Forward pass with tensor of size {input_.shape}.')
                 out = model(input_)
                 halo = tuple((i - o) // 2 for i, o in zip(tuple(input_[0, 0].shape), tuple(out[0, 0].shape)))
+                logger.info(f'Model outputs tensors of size {out.shape} and has a halo of {halo}.')
             except:
                 raise ValueError(f'Input of shape {spec.input_shape} invalid for model')
+            
         return tuple(out[0].shape), halo
 
     def build(self, spec):
@@ -132,7 +140,8 @@ class BuildSpec(object):
         spec: TikTorchSpec
             Specification Object
         """
-
+        logger = logging.getLogger('BuildSpec.build')
+        
         output_shape, halo_shape = self._validate_spec(spec)
 
         # Validate and copy code path
@@ -230,3 +239,17 @@ class TikTorchSpec(object):
             self.assert_(isinstance(self.data_source, str), "data_source must be a string",
                          ValueError)
         return self
+
+def test_build_spec():
+    spec = TikTorchSpec(code_path='/home/jo/CREMI_DUNet_pretrained/model.py',
+                        model_class_name='DUNet2D',
+                        state_path='/home/jo/CREMI_DUNet_pretrained/state.nn',
+                        input_shape=[1, 512, 512],
+                        minimal_increment=[32, 32],
+                        model_init_kwargs={'in_channels': 1, 'out_channels': 1})
+
+    build = BuildSpec(build_directory='/home/jo/sfb1129/ilastik_debug/tiktorch_build')
+    build.build(spec)
+
+if __name__=='__main__':
+    test_build_spec()
