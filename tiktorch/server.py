@@ -95,7 +95,7 @@ class TikTorchServer(object):
 
     def tensor_recv(self, key, framework='numpy'):
         tensor_spec = self.meta_recv()
-        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC"
+        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC", (tensor_spec['id'], f"{key.upper()}.TENSORSPEC")
         # Receive the buffer
         buf = memoryview(self._zmq_socket.recv())
         x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
@@ -249,14 +249,16 @@ class TikTorchServer(object):
         logger.info("Receiving BatchSpec")
         batch_spec = self.meta_recv()
         assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
+        assert batch_spec['len'] == len(batch_spec['data.shapes']) == len(batch_spec['labels.shapes']) == \
+               len(batch_spec['sample_ids'])
         logger.info("Receiving data and labels from chief.")
         data = [torch.zeros(*shape) for shape in batch_spec['data.shapes']]
         labels = [torch.zeros(*shape) for shape in batch_spec['labels.shapes']]
+        ids = [None] * batch_spec['len']
         # Receive tensors
-        for _data in data:
-            dist.recv(_data, src=0)
-        for _label in labels:
-            dist.recv(_label, src=0)
+        for idx, id in enumerate(batch_spec['sample_ids']):
+            data[idx] = self.tensor_recv(f'TRAIN_DATA_{id}')
+            labels[idx] = self.tensor_recv(f'TRAIN_LABEL_{id}')
         logger.info("Received data and labels from chief.")
         logger.info("Sending to handler.")
         self.handler.train(data, labels)
@@ -270,8 +272,6 @@ class TikTorchServer(object):
         logger.info("Sending to handler.")
         self.handler.set_hparams(hparams['parameters'])
         logger.info("Sent to handler.")
-
-
 
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')

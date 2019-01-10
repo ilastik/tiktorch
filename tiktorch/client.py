@@ -63,7 +63,7 @@ class TikTorchClient(object):
                      f'from tiktorch.server import TikTorchServer;kwargs={str(kwargs)};TikTorchServer(**kwargs).listen()'],
                     stdout=sys.stdout)
                 # check if local server process runs
-                time.sleep(3)
+                time.sleep(5)
                 if self._local_server_process.poll() is not None:
                     logger.error('Could not start local TikTorchServer')
         else:
@@ -214,17 +214,15 @@ class TikTorchClient(object):
             info = {'id': 'TRAIN.BATCHSPEC',
                     'len': len(data),
                     'data.shapes': [tuple(_data.shape) for _data in data],
-                    'labels.shapes': [tuple(_label.shape) for _label in labels]}
+                    'labels.shapes': [tuple(_label.shape) for _label in labels],
+                    'sample_ids': sample_ids}
             logger.info("Sending BatchSpec")
             self.meta_send(info)
             # Send tensors
             logger.info("Sending data and labels...")
-            for _data in data:
-                _data_th = torch.from_numpy(_data)
-                dist.send(_data_th, dst=1)
-            for _label in labels:
-                _label_th = torch.from_numpy(_label)
-                dist.send(_label_th, dst=1)
+            for _data, _label, id in zip(data, labels, sample_ids):
+                self.tensor_send(_data, f'TRAIN_DATA_{id}')
+                self.tensor_send(_label, f'TRAIN_LABEL_{id}')
             logger.info("Data and labels sent.")
 
     def set_hparams(self, hparams: dict):
@@ -286,6 +284,7 @@ def debug_client():
     return client
 
 # hacky lazy global build dir for tests
+ILP_DIR = None
 BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 # BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 
@@ -365,7 +364,7 @@ def test_client_train():
     logging.info("Sending train data and labels.")
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
-    client.train(train_data, train_labels)
+    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
     logging.info("Sent train data and labels and waiting for 15s...")
 
     import time
@@ -414,6 +413,6 @@ def test_client_train():
 if __name__ == '__main__':
     # import sys
     # print('Python %s on %s' % (sys.version, sys.platform))
-    #test_client_train()
+    # test_client_forward()
+    test_client_train()
     # test_client_hparams()
-    test_client_forward()
