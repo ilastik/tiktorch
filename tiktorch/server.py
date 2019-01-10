@@ -231,17 +231,17 @@ class TikTorchServer(object):
         assert batch_spec['id'] == 'FORWARD.BATCHSPEC'
         logger.info("Received BatchSpec.")
         batches = [torch.zeros(*shape) for shape in batch_spec['shapes']]
-        for batch in batches:
+        for idx in range(batch_spec['len']):
             logger.info("Receiving batch from chief.")
-            dist.recv(batch, src=0)
+            batches[idx] = self.tensor_recv(f'FORWARD_IN_{idx}', framework='torch')
         # Forward
         logger.info("Feedforward.")
         output_batches = self.handler.forward(*batches)
         # Send output spec
-        logger.info("Sending OutSpec.")
-        self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
+        # logger.info("Sending OutSpec.")
+        # self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
         logger.info("Sending output.")
-        dist.send(output_batches, dst=0)
+        self.tensor_send(output_batches, 'FORWARD_OUT')
         logger.info("Sent output.")
 
     def train(self):

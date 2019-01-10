@@ -129,6 +129,7 @@ class TikTorchClient(object):
         self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
 
     def tensor_recv(self, key, framework='numpy'):
+        assert framework in ('numpy', 'torch')
         tensor_spec = self.meta_recv()
         assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC"
         # Receive the buffer
@@ -136,6 +137,7 @@ class TikTorchClient(object):
         x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
         if framework == 'torch':
             x = torch.from_numpy(x).to(tensor_spec['device'])
+
         return x
 
     def batch_inputs(self, inputs):
@@ -186,6 +188,12 @@ class TikTorchClient(object):
             # Batch inputs
             batches = self.batch_inputs(inputs)
             logger.info("Batched inputs.")
+            # Make info dict to send to server
+            info = {'id': 'FORWARD.BATCHSPEC',
+                    'len': len(batches),
+                    'shapes': tuple(batch.shape for batch in batches)}
+            logger.info("Sending BatchSpec.")
+            self.meta_send(info)
             # Send batch to the server
             for idx, batch in enumerate(batches):
                 logger.info("Sending batch.")
@@ -193,8 +201,7 @@ class TikTorchClient(object):
             # Receive meta data
             output_tensor = self.tensor_recv('FORWARD_OUT')
             logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
-        # Convert to np and done
-        return output_tensor.numpy()
+        return output_tensor
 
     def train(self, data, labels, sample_ids):
         logger = logging.getLogger('TikTorchClient.train')
@@ -280,6 +287,8 @@ def debug_client():
 
 # hacky lazy global build dir for tests
 BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+# BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+
 
 def test_client_forward():
     TikTorchClient._START_PROCESS = False
@@ -403,8 +412,6 @@ def test_client_train():
 
 
 if __name__ == '__main__':
-    BUILD_DIR = '/ilastik/models/CREMI_DUNet_pretrained_new '
-    ILP_DIR = None
     # import sys
     # print('Python %s on %s' % (sys.version, sys.platform))
     #test_client_train()
