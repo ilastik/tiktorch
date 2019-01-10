@@ -69,6 +69,19 @@ class TikTorchClient(object):
         else:
             raise NotImplementedError('Starting remote server not yet implemented!')
 
+    def kill_local_server(self, delay: int=0):
+        """
+        Kill the server process.
+        :param delay: Seconds to wait for server to terminate itself.
+        """
+        assert delay >= 0
+        for d in range(delay):
+            if self._local_server_process is None or self._local_server_process.poll() is not None:
+                return
+            time.sleep(1)
+
+        self._local_server_process.kill()
+
     def init(self):
         logger = logging.getLogger('TikTorchClient.init')
         # Make server for zmq
@@ -203,7 +216,7 @@ class TikTorchClient(object):
             logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
         return output_tensor
 
-    def train(self, data, labels, sample_ids):
+    def train(self, data, labels, sample_ids: list):
         logger = logging.getLogger('TikTorchClient.train')
         logger.info("Waiting for lock...")
         with self._main_lock:
@@ -245,6 +258,7 @@ class TikTorchClient(object):
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('SHUTDOWN')
             logger.info("Request successful.")
+            self.kill_local_server(delay=10)
 
     def pause(self):
         logger = logging.getLogger('TikTorchClient.pause')
@@ -285,8 +299,12 @@ def debug_client():
 
 # hacky lazy global build dir for tests
 ILP_DIR = None
-BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
-# BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+BUILD_DIR = None
+import platform
+if platform.system() == 'Windows':
+    BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+else:
+    BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 
 
 def test_client_forward():
@@ -322,8 +340,8 @@ def test_client_hparams():
     logging.info("Sending train data and labels.")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels)
-    logging.info("Sent train data and labels...")
+    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
+    logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
                             optimizer_name='Adam',
@@ -333,11 +351,11 @@ def test_client_hparams():
                             cache_size=200,
                             augmentor_kwargs={'invert_binary_labels': True}))
 
-    logging.info("Sending train data and labels.")
+    logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels)
-    logging.info("Sent train data and labels...")
+    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
+    logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
                             optimizer_name='Adam',
@@ -347,7 +365,12 @@ def test_client_hparams():
                             cache_size=200,
                             augmentor_kwargs={'invert_binary_labels': True}))
 
+    logging.info("Waiting 10s...")
+    time.sleep(10)
 
+    logging.info("Shutting down...")
+    client.shutdown()
+    logging.info("Done!")
 
 
 def test_client_train():
@@ -361,7 +384,7 @@ def test_client_train():
     is_running = client.training_process_is_running()
     logging.info(f"Training process running? {is_running}")
 
-    logging.info("Sending train data and labels.")
+    logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
     client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
@@ -411,8 +434,7 @@ def test_client_train():
 
 
 if __name__ == '__main__':
-    # import sys
-    # print('Python %s on %s' % (sys.version, sys.platform))
-    # test_client_forward()
+    print('Python %s on %s' % (sys.version, sys.platform))
+    test_client_forward()
     test_client_train()
-    # test_client_hparams()
+    test_client_hparams()
