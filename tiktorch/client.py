@@ -5,12 +5,10 @@ import yaml
 import zmq
 import sys
 import threading as thr
-from argparse import Namespace
 import time
 
 import numpy as np
 import torch
-import torch.distributed as dist
 
 from tiktorch.tio import TikIn
 import tiktorch.utils as utils

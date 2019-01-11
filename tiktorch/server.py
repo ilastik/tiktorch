@@ -5,15 +5,12 @@ import zmq
 
 import numpy as np
 import torch
-import torch.distributed as dist
 import yaml
 from datetime import datetime
 import socket
 
-from tiktorch.tio import TikIn, TikOut
 import tiktorch.utils as utils
 from tiktorch.device_handler import ModelHandler
-from tiktorch.models.dunet import DUNet
 
 
 if torch.cuda.is_available():
