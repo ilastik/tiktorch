@@ -61,7 +61,7 @@ class TikTorchServer(object):
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
-        self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
+        self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
         logger.info("Setting up Poller...")
         self._zmq_pollin = zmq.Poller()
         self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
