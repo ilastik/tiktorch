@@ -5,11 +5,10 @@ import yaml
 import zmq
 import sys
 import threading as thr
-from argparse import Namespace
+import time
 
 import numpy as np
 import torch
-import torch.distributed as dist
 
 from tiktorch.tio import TikIn
 import tiktorch.utils as utils
@@ -26,7 +25,8 @@ class TikTorchClient(object):
 
     _START_PROCESS = False
 
-    def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501', ilp_directory=None):
+    def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501', ilp_directory=None,
+                 start_server=True):
         self.build_directory = build_directory
         self.addr = address
         self.port = port
@@ -40,37 +40,55 @@ class TikTorchClient(object):
         self._zmq_socket = None
         # Locks
         self._main_lock = thr.Lock()
+        self._zmq_lock = thr.Lock()
         # Initialize
         self.read_config()
+        self._local_server_process = None
+        if start_server:
+            self.start_server()
+
         self.init()
+
+    def start_server(self):
+        if self.addr in ('127.0.0.1', 'localhost'):
+            # start local server process
+            if self._local_server_process is None or self._local_server_process.poll() is not None:
+                kwargs = {'address': self.addr, 'port': self.port, 'meta_port': self.meta_port}
+                logger = logging.getLogger('TikTorchClient.localServer')
+                logger.info('Starting local TikTorchServer...')
+                self._local_server_process = subprocess.Popen(
+                    [sys.executable, '-c',
+                     f'from tiktorch.server import TikTorchServer;kwargs={str(kwargs)};TikTorchServer(**kwargs).listen()'],
+                    stdout=sys.stdout)
+                # check if local server process runs
+                time.sleep(5)
+                if self._local_server_process.poll() is not None:
+                    logger.error('Could not start local TikTorchServer')
+        else:
+            raise NotImplementedError('Starting remote server not yet implemented!')
+
+    def kill_local_server(self, delay: int=0):
+        """
+        Kill the server process.
+        :param delay: Seconds to wait for server to terminate itself.
+        """
+        assert delay >= 0
+        for d in range(delay):
+            if self._local_server_process is None or self._local_server_process.poll() is not None:
+                return
+            time.sleep(1)
+
+        self._local_server_process.kill()
 
     def init(self):
         logger = logging.getLogger('TikTorchClient.init')
-        os.environ['MASTER_ADDR'] = self.addr
-        os.environ['MASTER_PORT'] = self.port
-        # Build args for the server
-        self._args = [
-            'python',
-            os.path.join(os.path.dirname(os.path.realpath(__file__)), 'server.py'),
-            self.build_directory,
-            '--addr', self.addr,
-            '--port', self.port,
-            '--meta_port', self.meta_port
-        ]
-        # Start server
-        if self._START_PROCESS:
-            logger.info("Starting Server...")
-            self._process = subprocess.Popen(self._args, stdout=sys.stdout)
-        # Init torch distributed
-        logger.info("Initializing Process Group...")
-        dist.init_process_group(backend='Gloo', rank=self.RANK, world_size=self.SIZE)
         # Make server for zmq
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
-        self._zmq_socket.bind(f'tcp://{self.addr}:{self.meta_port}')
+        self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
         # Send build directory
         logger.info("Sending build directory...")
         self.meta_send({'id': 'INIT.PATHS',
@@ -110,6 +128,28 @@ class TikTorchClient(object):
 
     def meta_recv(self):
         return self._zmq_socket.recv_json()
+
+    def tensor_send(self, x, key):
+        assert torch.is_tensor(x) or isinstance(x, np.ndarray)
+        # Send meta data
+        self.meta_send({'id': f"{key.upper()}.TENSORSPEC",
+                        'shape': tuple(x.shape),
+                        'dtype': str(x.dtype).lstrip('torch.'),
+                        'device': str(x.device) if torch.is_tensor(x) else 'cpu'})
+        # Make sure x is on the CPU and send
+        self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
+
+    def tensor_recv(self, key, framework='numpy'):
+        assert framework in ('numpy', 'torch')
+        tensor_spec = self.meta_recv()
+        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC"
+        # Receive the buffer
+        buf = memoryview(self._zmq_socket.recv())
+        x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
+        if framework == 'torch':
+            x = torch.from_numpy(x).to(tensor_spec['device'])
+
+        return x
 
     def batch_inputs(self, inputs):
         input_shapes = self.get('input_shape', assert_exist=True)
@@ -166,22 +206,15 @@ class TikTorchClient(object):
             logger.info("Sending BatchSpec.")
             self.meta_send(info)
             # Send batch to the server
-            for batch in batches:
+            for idx, batch in enumerate(batches):
                 logger.info("Sending batch.")
-                dist.send(batch, 1)
+                self.tensor_send(batch, f'FORWARD_IN_{idx}')
             # Receive meta data
-            logger.info("Waiting for OutSpec.")
-            outspec = self.meta_recv()
-            assert outspec['id'] == 'FORWARD.OUTSPEC'
-            logger.info("OutSpec received.")
-            output_tensor = torch.zeros(*outspec['shape'])
-            # Receive it
-            dist.recv(tensor=output_tensor, src=1)
+            output_tensor = self.tensor_recv('FORWARD_OUT')
             logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
-        # Convert to np and done
-        return output_tensor.numpy()
+        return output_tensor
 
-    def train(self, data, labels):
+    def train(self, data, labels, sample_ids: list):
         logger = logging.getLogger('TikTorchClient.train')
         logger.info("Waiting for lock...")
         with self._main_lock:
@@ -192,17 +225,15 @@ class TikTorchClient(object):
             info = {'id': 'TRAIN.BATCHSPEC',
                     'len': len(data),
                     'data.shapes': [tuple(_data.shape) for _data in data],
-                    'labels.shapes': [tuple(_label.shape) for _label in labels]}
+                    'labels.shapes': [tuple(_label.shape) for _label in labels],
+                    'sample_ids': sample_ids}
             logger.info("Sending BatchSpec")
             self.meta_send(info)
             # Send tensors
             logger.info("Sending data and labels...")
-            for _data in data:
-                _data_th = torch.from_numpy(_data)
-                dist.send(_data_th, dst=1)
-            for _label in labels:
-                _label_th = torch.from_numpy(_label)
-                dist.send(_label_th, dst=1)
+            for _data, _label, id in zip(data, labels, sample_ids):
+                self.tensor_send(_data, f'TRAIN_DATA_{id}')
+                self.tensor_send(_label, f'TRAIN_LABEL_{id}')
             logger.info("Data and labels sent.")
 
     def set_hparams(self, hparams: dict):
@@ -225,6 +256,7 @@ class TikTorchClient(object):
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('SHUTDOWN')
             logger.info("Request successful.")
+            self.kill_local_server(delay=10)
 
     def pause(self):
         logger = logging.getLogger('TikTorchClient.pause')
@@ -263,10 +295,17 @@ def debug_client():
                       'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
     return client
 
+# hacky lazy global build dir for tests
+ILP_DIR = None
+BUILD_DIR = None
+import platform
+if platform.system() == 'Windows':
+    BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+else:
+    BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+
 
 def test_client_forward():
-    BUILD_DIR = '/Users/nasimrahaman/Documents/Python/tiktorch/tests/CREMI_DUNet_pretrained'
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -282,7 +321,6 @@ def test_client_forward():
 
 def test_client_hparams():
     # Test for changing hyperparameter setting before and during training
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR)
     logging.info("Polling")
@@ -300,8 +338,8 @@ def test_client_hparams():
     logging.info("Sending train data and labels.")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels)
-    logging.info("Sent train data and labels...")
+    client.train(train_data, train_labels, list(range(len(train_data))))
+    logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
                             optimizer_name='Adam',
@@ -311,11 +349,11 @@ def test_client_hparams():
                             cache_size=200,
                             augmentor_kwargs={'invert_binary_labels': True}))
 
-    logging.info("Sending train data and labels.")
+    logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels)
-    logging.info("Sent train data and labels...")
+    client.train(train_data, train_labels, list(range(len(train_data))))
+    logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
                             optimizer_name='Adam',
@@ -325,14 +363,15 @@ def test_client_hparams():
                             cache_size=200,
                             augmentor_kwargs={'invert_binary_labels': True}))
 
+    logging.info("Waiting 10s...")
+    time.sleep(10)
 
+    logging.info("Shutting down...")
+    client.shutdown()
+    logging.info("Done!")
 
 
 def test_client_train():
-    BUILD_DIR = '/home/ial/Python/scratch/CREMI_DUNet_pretrained'
-    BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained'
-    ILP_DIR = None
-    #ILP_DIR = '/home/ial/Python/scratch/mock_ilp_path'
     TikTorchClient._START_PROCESS = False
     client = TikTorchClient(BUILD_DIR, ilp_directory=ILP_DIR)
     logging.info("Obtained client. Forwarding...")
@@ -343,13 +382,12 @@ def test_client_train():
     is_running = client.training_process_is_running()
     logging.info(f"Training process running? {is_running}")
 
-    logging.info("Sending train data and labels.")
+    logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
-    client.train(train_data, train_labels)
+    client.train(train_data, train_labels, list(range(len(train_data))))
     logging.info("Sent train data and labels and waiting for 15s...")
 
-    import time
     time.sleep(15)
 
     logging.info("Polling")
@@ -393,7 +431,7 @@ def test_client_train():
 
 
 if __name__ == '__main__':
-    # import sys
-    # print('Python %s on %s' % (sys.version, sys.platform))
-    #test_client_train()
+    print('Python %s on %s' % (sys.version, sys.platform))
+    test_client_forward()
+    test_client_train()
     test_client_hparams()

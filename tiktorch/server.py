@@ -5,15 +5,12 @@ import zmq
 
 import numpy as np
 import torch
-import torch.distributed as dist
 import yaml
 from datetime import datetime
 import socket
 
-from tiktorch.tio import TikIn, TikOut
 import tiktorch.utils as utils
 from tiktorch.device_handler import ModelHandler
-from tiktorch.models.dunet import DUNet
 
 
 if torch.cuda.is_available():
@@ -57,18 +54,14 @@ class TikTorchServer(object):
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
-        os.environ['MASTER_ADDR'] = self.addr
-        os.environ['MASTER_PORT'] = self.port
-        # Init torch distributed
-        logger.info("Initializing Process Group...")
-        dist.init_process_group(backend='Gloo', rank=self.RANK, world_size=self.SIZE)
+        logger.info("Setting up ZMQ")
         # Init ZMQ
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
-        self._zmq_socket.connect(f'tcp://{self.addr}:{self.meta_port}')
+        self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         logger.info("Setting up Poller...")
         self._zmq_pollin = zmq.Poller()
         self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
@@ -80,12 +73,32 @@ class TikTorchServer(object):
         self.ilp_directory = message['ilp_dir']
         logger.info("Build directory received.")
 
-    def meta_send(self, info_dict):
-        self._zmq_socket.send_json(info_dict)
+    def meta_send(self, info_dict, flags=0):
+        self._zmq_socket.send_json(info_dict, flags=flags)
         return self
 
     def meta_recv(self):
         return self._zmq_socket.recv_json()
+
+    def tensor_send(self, x, key):
+        assert torch.is_tensor(x) or isinstance(x, np.ndarray)
+        # Send meta data
+        self.meta_send({'id': f"{key.upper()}.TENSORSPEC",
+                        'shape': tuple(x.shape),
+                        'dtype': str(x.dtype).lstrip('torch.'),
+                        'device': str(x.device) if torch.is_tensor(x) else 'cpu'})
+        # Make sure x is on the CPU and send
+        self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
+
+    def tensor_recv(self, key, framework='numpy'):
+        tensor_spec = self.meta_recv()
+        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC", (tensor_spec['id'], f"{key.upper()}.TENSORSPEC")
+        # Receive the buffer
+        buf = memoryview(self._zmq_socket.recv())
+        x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
+        if framework == 'torch':
+            x = torch.from_numpy(x).to(tensor_spec['device'])
+        return x
 
     @property
     def output_shape(self):
@@ -215,17 +228,17 @@ class TikTorchServer(object):
         assert batch_spec['id'] == 'FORWARD.BATCHSPEC'
         logger.info("Received BatchSpec.")
         batches = [torch.zeros(*shape) for shape in batch_spec['shapes']]
-        for batch in batches:
+        for idx in range(batch_spec['len']):
             logger.info("Receiving batch from chief.")
-            dist.recv(batch, src=0)
+            batches[idx] = self.tensor_recv(f'FORWARD_IN_{idx}', framework='torch')
         # Forward
         logger.info("Feedforward.")
         output_batches = self.handler.forward(*batches)
         # Send output spec
-        logger.info("Sending OutSpec.")
-        self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
+        # logger.info("Sending OutSpec.")
+        # self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
         logger.info("Sending output.")
-        dist.send(output_batches, dst=0)
+        self.tensor_send(output_batches, 'FORWARD_OUT')
         logger.info("Sent output.")
 
     def train(self):
@@ -233,14 +246,16 @@ class TikTorchServer(object):
         logger.info("Receiving BatchSpec")
         batch_spec = self.meta_recv()
         assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
+        assert batch_spec['len'] == len(batch_spec['data.shapes']) == len(batch_spec['labels.shapes']) == \
+               len(batch_spec['sample_ids'])
         logger.info("Receiving data and labels from chief.")
         data = [torch.zeros(*shape) for shape in batch_spec['data.shapes']]
         labels = [torch.zeros(*shape) for shape in batch_spec['labels.shapes']]
+        ids = [None] * batch_spec['len']
         # Receive tensors
-        for _data in data:
-            dist.recv(_data, src=0)
-        for _label in labels:
-            dist.recv(_label, src=0)
+        for idx, id in enumerate(batch_spec['sample_ids']):
+            data[idx] = self.tensor_recv(f'TRAIN_DATA_{id}')
+            labels[idx] = self.tensor_recv(f'TRAIN_LABEL_{id}')
         logger.info("Received data and labels from chief.")
         logger.info("Sending to handler.")
         self.handler.train(data, labels)
@@ -254,8 +269,6 @@ class TikTorchServer(object):
         logger.info("Sending to handler.")
         self.handler.set_hparams(hparams['parameters'])
         logger.info("Sent to handler.")
-
-
 
     def listen(self):
         logger = logging.getLogger('TikTorchServer.listen')
