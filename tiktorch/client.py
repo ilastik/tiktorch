@@ -340,7 +340,7 @@ def test_client_hparams():
     logging.info("Sending train data and labels.")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
+    client.train(train_data, train_labels, list(range(len(train_data))))
     logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
@@ -354,7 +354,7 @@ def test_client_hparams():
     logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 64, 64)).astype('float32') for _ in range(10)]
     train_labels = [np.random.randint(0, 2, size=(1, 64, 64)).astype('float32') for _ in range(10)]
-    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
+    client.train(train_data, train_labels, list(range(len(train_data))))
     logging.info("Sent train data and labels.")
 
     client.set_hparams(dict(optimizer_kwargs=dict(lr=0.0005, weight_decay=0.0002, amsgrad=True),
@@ -387,10 +387,9 @@ def test_client_train():
     logging.info("Sending train data and labels...")
     train_data = [np.random.uniform(size=(1, 256, 256)).astype('float32') for _ in range(4)]
     train_labels = [np.random.randint(0, 2, size=(1, 256, 256)).astype('float32') for _ in range(4)]
-    client.train(train_data, train_labels, np.arange(len(train_data)).tolist())
+    client.train(train_data, train_labels, list(range(len(train_data))))
     logging.info("Sent train data and labels and waiting for 15s...")
 
-    import time
     time.sleep(15)
 
     logging.info("Polling")
