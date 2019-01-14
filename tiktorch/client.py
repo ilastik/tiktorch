@@ -27,9 +27,9 @@ class TikTorchClient(object):
 
     _START_PROCESS = False
 
-    def __init__(self, local_build_dir=None, remote_build_dir=None, remote_model_dir=None, address='localhost', ssh_port=22, port='5556', meta_port='5557',
-                 ilp_directory=None,
-                 start_server=True, username=None, password=None):
+    def __init__(self, local_build_dir=None, remote_build_dir=None, remote_model_dir=None, address='localhost',
+                 ssh_port=22, port='5556', meta_port='5557', ilp_directory=None, start_server=True, username=None,
+                 password=None):
         assert local_build_dir is not None or remote_build_dir is not None
         assert local_build_dir is None or remote_build_dir is None
         assert remote_build_dir is None or remote_model_dir is None
@@ -39,7 +39,13 @@ class TikTorchClient(object):
         self.remote_model_dir = remote_model_dir
         logger = logging.getLogger()
         logger.info(f'local build directory {local_build_dir}')
-        self.ssh_connect = {'hostname': address, 'username': username, 'password': password, 'timeout': 10}
+        self.ssh_connect = {
+            'hostname': address,
+            'port': ssh_port,
+            'username': username,
+            'password': password,
+            'timeout': 10
+        }
         self.ssh_max_buffer_size = 4096
         self.addr = gethostbyname(address)  # resolve address if address is a hostname
         self.port = port
