@@ -275,56 +275,51 @@ class TikTorchServer(object):
         logger.info('Waiting...')
         # Listen for requests
         while True:
-            socks = dict(self._zmq_pollin.poll(50))
-            if socks:
-                # Yay, a message!
-                if socks.get(self._zmq_socket) == zmq.POLLIN:
-                    logger.info("Request Polled.")
-                    request = self.meta_recv()
-                    logger.info("Request Received.")
-                    if request['id'] == 'DISPATCH.FORWARD':
-                        logger.info("Received request to dispatch forward.")
-                        # Confirm dispatch
-                        self.meta_send({'id': 'DISPATCHING.FORWARD'})
-                        logger.info("Dispatch confirmed.")
-                        self.forward()
-                        logger.info("Forward successful; waiting...")
-                    elif request['id'] == 'DISPATCH.TRAIN':
-                        logger.info("Received request to dispatch train.")
-                        # Confirm dispatch
-                        self.meta_send({'id': 'DISPATCHING.TRAIN'})
-                        logger.info('Dispatch confirmed.')
-                        self.train()
-                        logger.info("Train successful; waiting...")
-                    elif request['id'] == 'DISPATCH.SHUTDOWN':
-                        logger.info("Received request to shutdown.")
-                        self.meta_send({'id': 'DISPATCHING.SHUTDOWN'})
-                        logger.info("Dispatch confirmed.")
-                        self.shutdown()
-                        break
-                    elif request['id'] == 'DISPATCH.PAUSE':
-                        logger.info("Received request to pause training.")
-                        self.meta_send({'id': 'DISPATCHING.PAUSE'})
-                        logger.info("Dispatch confirmed, pausing training...")
-                        self.handler.pause_training()
-                    elif request['id'] == 'DISPATCH.RESUME':
-                        logger.info("Received request to resume training.")
-                        self.meta_send({'id': 'DISPATCHING.RESUME'})
-                        logger.info("Dispatch confirmed, resuming...")
-                        self.handler.resume_training()
-                    elif request['id'] == 'DISPATCH.POLL_TRAIN':
-                        logger.info("Received request to poll training process.")
-                        self.meta_send({'id': 'DISPATCHING.POLL_TRAIN'})
-                        logger.info("Dispatch confirmed, polling...")
-                        self.poll_training_process()
-                    elif request['id'] == 'DISPATCH.HYPERPARAMETERS':
-                        logger.info("Received request to dispatch hyperparameters.")
-                        self.meta_send({'id': 'DISPATCHING.HYPERPARAMETERS'})
-                        logger.info("Dispatch confirmed, changing hyperparameters...")
-                        self.set_hparams()
-                    else:
-                        # Bad id
-                        raise RuntimeError
+            request = self.meta_recv()
+            logger.info("Request Received.")
+            if request['id'] == 'DISPATCH.FORWARD':
+                logger.info("Received request to dispatch forward.")
+                # Confirm dispatch
+                self.meta_send({'id': 'DISPATCHING.FORWARD'})
+                logger.info("Dispatch confirmed.")
+                self.forward()
+                logger.info("Forward successful; waiting...")
+            elif request['id'] == 'DISPATCH.TRAIN':
+                logger.info("Received request to dispatch train.")
+                # Confirm dispatch
+                self.meta_send({'id': 'DISPATCHING.TRAIN'})
+                logger.info('Dispatch confirmed.')
+                self.train()
+                logger.info("Train successful; waiting...")
+            elif request['id'] == 'DISPATCH.SHUTDOWN':
+                logger.info("Received request to shutdown.")
+                self.meta_send({'id': 'DISPATCHING.SHUTDOWN'})
+                logger.info("Dispatch confirmed.")
+                self.shutdown()
+                break
+            elif request['id'] == 'DISPATCH.PAUSE':
+                logger.info("Received request to pause training.")
+                self.meta_send({'id': 'DISPATCHING.PAUSE'})
+                logger.info("Dispatch confirmed, pausing training...")
+                self.handler.pause_training()
+            elif request['id'] == 'DISPATCH.RESUME':
+                logger.info("Received request to resume training.")
+                self.meta_send({'id': 'DISPATCHING.RESUME'})
+                logger.info("Dispatch confirmed, resuming...")
+                self.handler.resume_training()
+            elif request['id'] == 'DISPATCH.POLL_TRAIN':
+                logger.info("Received request to poll training process.")
+                self.meta_send({'id': 'DISPATCHING.POLL_TRAIN'})
+                logger.info("Dispatch confirmed, polling...")
+                self.poll_training_process()
+            elif request['id'] == 'DISPATCH.HYPERPARAMETERS':
+                logger.info("Received request to dispatch hyperparameters.")
+                self.meta_send({'id': 'DISPATCHING.HYPERPARAMETERS'})
+                logger.info("Dispatch confirmed, changing hyperparameters...")
+                self.set_hparams()
+            else:
+                # Bad id
+                raise RuntimeError
 
     def poll_training_process(self):
         logger = logging.getLogger('TikTorchServer.poll_training_process')
