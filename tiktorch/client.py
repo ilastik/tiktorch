@@ -87,8 +87,8 @@ class TikTorchClient(object):
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
-        logger.info("Binding to socket...")
-        self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
+        logger.info("Connect to socket...")
+        self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         # Send build directory
         logger.info("Sending build directory...")
         self.meta_send({'id': 'INIT.PATHS',
