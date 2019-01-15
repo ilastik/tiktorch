@@ -1,17 +1,19 @@
-import os
-import logging
-import subprocess
-import yaml
-import zmq
 import sys
-import threading as thr
 import time
 
+import logging
 import numpy as np
+import os
+import subprocess
+import threading as thr
 import torch
+import yaml
+import zmq
+from paramiko import SSHClient, AutoAddPolicy
+from socket import gethostbyname, timeout
 
-from tiktorch.tio import TikIn
 import tiktorch.utils as utils
+from tiktorch.tio import TikIn
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,13 +27,30 @@ class TikTorchClient(object):
 
     _START_PROCESS = False
 
-    def __init__(self, build_directory, address='127.0.0.1', port='29500', meta_port='29501', ilp_directory=None,
-                 start_server=True):
-        self.build_directory = build_directory
-        self.addr = address
+    def __init__(self, local_build_dir=None, remote_build_dir=None, remote_model_dir=None, address='localhost',
+                 ssh_port=22, port='5556', meta_port='5557', ilp_directory=None, start_server=True, username=None,
+                 password=None):
+        assert local_build_dir is not None or remote_build_dir is not None
+        assert local_build_dir is None or remote_build_dir is None
+        assert remote_build_dir is None or remote_model_dir is None
+        # todo: actually use meta_port
+        self.local_build_dir = local_build_dir
+        self.remote_build_dir = remote_build_dir
+        self.remote_model_dir = remote_model_dir
+        logger = logging.getLogger()
+        logger.info(f'local build directory {local_build_dir}')
+        self.ssh_connect = {
+            'hostname': address,
+            'port': ssh_port,
+            'username': username,
+            'password': password,
+            'timeout': 10
+        }
+        self.ssh_max_buffer_size = 4096
+        self.addr = gethostbyname(address)  # resolve address if address is a hostname
         self.port = port
         self.meta_port = meta_port
-        self.ilp_directory = ilp_directory
+        self.ilp_directory = ilp_directory  # todo: remove ilp_directory
         # Privates
         self._args: list = None
         self._process: subprocess.Popen = None
@@ -44,30 +63,134 @@ class TikTorchClient(object):
         # Initialize
         self.read_config()
         self._local_server_process = None
+        self._ssh_client = None
+        self._remote_server_channel = None
         if start_server:
             self.start_server()
 
         self.init()
 
     def start_server(self):
-        if self.addr in ('127.0.0.1', 'localhost'):
-            # start local server process
-            if self._local_server_process is None or self._local_server_process.poll() is not None:
-                kwargs = {'address': self.addr, 'port': self.port, 'meta_port': self.meta_port}
-                logger = logging.getLogger('TikTorchClient.localServer')
+        with self._main_lock:
+            if self.addr in ('127.0.0.1', 'localhost'):
+                self.remote_build_dir = self.local_build_dir
+                logger = logging.getLogger('TikTorchClient.local_server_process')
+                # start local server process
+                assert self._local_server_process is None or self._local_server_process.poll() is not None, \
+                    'local server already running!'
                 logger.info('Starting local TikTorchServer...')
                 self._local_server_process = subprocess.Popen(
                     [sys.executable, '-c',
-                     f'from tiktorch.server import TikTorchServer;kwargs={str(kwargs)};TikTorchServer(**kwargs).listen()'],
+                     f'from tiktorch.server import TikTorchServer;TikTorchServer(address="{self.addr}", '
+                     f'port={self.port}, meta_port={self.meta_port}).listen()'],
                     stdout=sys.stdout)
                 # check if local server process runs
                 time.sleep(5)
                 if self._local_server_process.poll() is not None:
                     logger.error('Could not start local TikTorchServer')
-        else:
-            raise NotImplementedError('Starting remote server not yet implemented!')
+            else:
+                logger = logging.getLogger('TikTorchClient.ssh_client')
+                # todo: improve starting remote server
+                self.kill_remote_server()  # make sure we do not have an open server connection
+                assert self._ssh_client is None
+                assert self._remote_server_channel is None
+                self._ssh_client = SSHClient()
+                self._ssh_client.set_missing_host_key_policy(AutoAddPolicy())
+                self._ssh_client.load_system_host_keys()
+                try:
+                    self._ssh_client.connect(**self.ssh_connect)
+                except timeout as e:
+                    logger.error(f'Could not establish ssh connection:\n {e}')
+                    return
 
-    def kill_local_server(self, delay: int=0):
+                channel = self._ssh_client.invoke_shell()
+                channel.settimeout(10)
+
+                if self.remote_build_dir is None:
+                    assert self.local_build_dir is not None
+                    # transfer local_build_dir to server
+                    # todo: do with zmq instead?
+                    build_dir_name = os.path.basename(self.local_build_dir)
+                    logger.info('Opening sftp conneciton...')
+                    sftp = self._ssh_client.open_sftp()
+                    if self.remote_model_dir is None:
+                        remote_cwd = f'/home/{self.ssh_connect["username"]}'
+                    else:
+                        remote_cwd = self.remote_model_directory
+
+                    logger.info(f'Setting remote cwd to {remote_cwd} ...')
+                    sftp.chdir(remote_cwd)
+                    logger.info(f'Creating remote build directory "{build_dir_name}"...')
+                    try:
+                        sftp.mkdir(build_dir_name)
+                    except Exception:
+                        logger.debug(f'Failed to create remote build directory. Does it already exist?')
+
+                    try:
+                        for root, dirs, files in os.walk(self.local_build_dir):
+                            for file in files:
+                                if file.endswith('.pyc'):
+                                    continue
+
+                                def cb(done:int, total:int):
+                                    logger.info(f'Transfering {os.path.join(build_dir_name, file)} {done/total*100:2.0f}%')
+
+                                sftp.put(os.path.join(root, file), os.path.join(build_dir_name, file), callback=cb)
+
+                        self.remote_build_dir = build_dir_name
+                    except timeout as e:
+                        logger.error(
+                            f'Could not transfer content of local building directory {self.local_build_dir}\n{e}')
+                        self.kill_remote_server()
+                        return
+
+                try:
+                    channel.send('conda activate ilastikTiktorchServer\n')
+                    time.sleep(1)
+                    logger.info('Starting remote TikTorchServer...')
+                    channel.send(
+                        f'python -c \'from tiktorch.server import TikTorchServer;TikTorchServer(address="{self.addr}", '
+                        f'port={self.port}, meta_port={self.meta_port}).listen()\'\n'
+                    )
+                except timeout as e:
+                    logger.error(f'Tiktorch server could not be started:\n {e}')
+                    self.kill_remote_server()
+                    return
+
+                self._remote_server_channel = channel
+                self.log_server_report()
+
+    def log_server_report(self, delay: int=2):
+        if self._local_server_process is not None:
+            logger = logging.getLogger('TikTorchClient.local_server_process')
+            logger.info(f'local server process active: {self._local_server_process.poll() is None}')
+        elif self._ssh_client is not None:
+            logger = logging.getLogger('TikTorchClient.ssh_client')
+            for _ in range(delay):
+                time.sleep(1)
+                if self._remote_server_channel.recv_ready():
+                    logger.info(f'{self._remote_server_channel.recv(self.ssh_max_buffer_size).decode("utf-8")}')
+        else:
+            logger = logging.getLogger()
+            logger.warning('No local or remote server to report from!')
+
+
+
+    def kill_server(self, delay: int=0):
+        assert self._local_server_process is None or self._ssh_client is None, 'Use either a local or a remote server!'
+        if self._local_server_process is not None:
+            self.kill_local_server(delay=delay)
+        elif self._ssh_client is not None:
+            self.kill_remote_server()
+
+    def kill_remote_server(self):
+        if self._ssh_client is not None:
+            self._ssh_client.close()
+
+        self._ssh_client = None
+        self._remote_server_channel = None
+
+    def kill_local_server(self, delay:int=0):
         """
         Kill the server process.
         :param delay: Seconds to wait for server to terminate itself.
@@ -76,6 +199,7 @@ class TikTorchClient(object):
         for d in range(delay):
             if self._local_server_process is None or self._local_server_process.poll() is not None:
                 return
+
             time.sleep(1)
 
         self._local_server_process.kill()
@@ -87,14 +211,15 @@ class TikTorchClient(object):
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
-        logger.info("Binding to socket...")
-        self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
+        logger.info("Connect to socket...")
+        self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         # Send build directory
         logger.info("Sending build directory...")
         self.meta_send({'id': 'INIT.PATHS',
-                        'build_dir': self.build_directory,
+                        'build_dir': self.remote_build_dir,
                         'ilp_dir': self.ilp_directory})
         logger.info("Build directory sent.")
+        self.log_server_report()
         return self
 
     def terminate(self):
@@ -109,10 +234,10 @@ class TikTorchClient(object):
         return self._process.poll() is None
 
     def read_config(self):
-        config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
+        config_file_name = os.path.join(self.local_build_dir, 'tiktorch_config.yml')
         if not os.path.exists(config_file_name):
             raise FileNotFoundError(f"Config file not found in "
-                                    f"build_directory: {self.build_directory}.")
+                                    f"local_build_dir: {self.local_build_dir}.")
         with open(config_file_name, 'r') as f:
             self._config.update(yaml.load(f))
         return self
@@ -192,6 +317,7 @@ class TikTorchClient(object):
         with self._main_lock:
             # Send dispatch request and wait for confirmation
             logger.info("Requesting dispatch...")
+            self.log_server_report()
             assert self.request_dispatch('FORWARD')
             logger.info("Request successful.")
             # Parse inputs
@@ -256,7 +382,7 @@ class TikTorchClient(object):
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('SHUTDOWN')
             logger.info("Request successful.")
-            self.kill_local_server(delay=10)
+            self.kill_server(delay=10)
 
     def pause(self):
         logger = logging.getLogger('TikTorchClient.pause')
@@ -288,17 +414,19 @@ class TikTorchClient(object):
 def debug_client():
     TikTorchClient.read_config = lambda self: self
     TikTorchClient._START_PROCESS = False
-    client = TikTorchClient(build_directory='.', address='127.0.0.1', port='29500',
+    client = TikTorchClient(local_build_dir='.', address='127.0.0.1', port='29500',
                             meta_port='29501')
     client._model = torch.nn.Conv2d(1, 1, 1)
     client._config = {'input_shape': [1, 512, 512],
                       'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
     return client
 
+
 # hacky lazy global build dir for tests
 ILP_DIR = None
 BUILD_DIR = None
 import platform
+
 if platform.system() == 'Windows':
     BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 else:
