@@ -111,7 +111,7 @@ class TikTorchClient(object):
                     # transfer local_build_dir to server
                     # todo: do with zmq instead?
                     build_dir_name = os.path.basename(self.local_build_dir)
-                    logger.info('Opening sftp conneciton...')
+                    logger.info('Opening sftp connection...')
                     sftp = self._ssh_client.open_sftp()
                     if self.remote_model_dir is None:
                         remote_cwd = f'/home/{self.ssh_connect["username"]}'
@@ -145,6 +145,8 @@ class TikTorchClient(object):
                         return
 
                 try:
+                    channel.send('source .bashrc\n')
+                    time.sleep(1)
                     channel.send('conda activate ilastikTiktorchServer\n')
                     time.sleep(1)
                     logger.info('Starting remote TikTorchServer...')
