@@ -27,18 +27,11 @@ class TikTorchClient(object):
 
     _START_PROCESS = False
 
-    def __init__(self, local_build_dir=None, remote_build_dir=None, remote_model_dir=None, address='localhost',
-                 ssh_port=22, port='5556', meta_port='5557', ilp_directory=None, start_server=True, username=None,
+    def __init__(self, tiktorch_config, binary_model_file, binary_model_state=b'', binary_optimizer_state=b'',
+                 address='localhost', ssh_port=22, port='5556', meta_port='5557', start_server=True, username=None,
                  password=None):
-        assert local_build_dir is not None or remote_build_dir is not None
-        assert local_build_dir is None or remote_build_dir is None
-        assert remote_build_dir is None or remote_model_dir is None
         # todo: actually use meta_port
-        self.local_build_dir = local_build_dir
-        self.remote_build_dir = remote_build_dir
-        self.remote_model_dir = remote_model_dir
         logger = logging.getLogger()
-        logger.info(f'local build directory {local_build_dir}')
         self.ssh_connect = {
             'hostname': address,
             'port': ssh_port,
@@ -50,7 +43,6 @@ class TikTorchClient(object):
         self.addr = gethostbyname(address)  # resolve address if address is a hostname
         self.port = port
         self.meta_port = meta_port
-        self.ilp_directory = ilp_directory  # todo: remove ilp_directory
         # Privates
         self._args: list = None
         self._process: subprocess.Popen = None
@@ -61,19 +53,17 @@ class TikTorchClient(object):
         self._main_lock = thr.Lock()
         self._zmq_lock = thr.Lock()
         # Initialize
-        self.read_config()
         self._local_server_process = None
         self._ssh_client = None
         self._remote_server_channel = None
         if start_server:
             self.start_server()
 
-        self.init()
+        self.init(tiktorch_config, binary_model_file, binary_model_state, binary_optimizer_state)
 
     def start_server(self):
         with self._main_lock:
             if self.addr in ('127.0.0.1', 'localhost'):
-                self.remote_build_dir = self.local_build_dir
                 logger = logging.getLogger('TikTorchClient.local_server_process')
                 # start local server process
                 assert self._local_server_process is None or self._local_server_process.poll() is not None, \
@@ -106,43 +96,43 @@ class TikTorchClient(object):
                 channel = self._ssh_client.invoke_shell()
                 channel.settimeout(10)
 
-                if self.remote_build_dir is None:
-                    assert self.local_build_dir is not None
-                    # transfer local_build_dir to server
-                    # todo: do with zmq instead?
-                    build_dir_name = os.path.basename(self.local_build_dir)
-                    logger.info('Opening sftp connection...')
-                    sftp = self._ssh_client.open_sftp()
-                    if self.remote_model_dir is None:
-                        remote_cwd = f'/home/{self.ssh_connect["username"]}'
-                    else:
-                        remote_cwd = self.remote_model_directory
-
-                    logger.info(f'Setting remote cwd to {remote_cwd} ...')
-                    sftp.chdir(remote_cwd)
-                    logger.info(f'Creating remote build directory "{build_dir_name}"...')
-                    try:
-                        sftp.mkdir(build_dir_name)
-                    except Exception:
-                        logger.debug(f'Failed to create remote build directory. Does it already exist?')
-
-                    try:
-                        for root, dirs, files in os.walk(self.local_build_dir):
-                            for file in files:
-                                if file.endswith('.pyc'):
-                                    continue
-
-                                def cb(done:int, total:int):
-                                    logger.info(f'Transfering {os.path.join(build_dir_name, file)} {done/total*100:2.0f}%')
-
-                                sftp.put(os.path.join(root, file), os.path.join(build_dir_name, file), callback=cb)
-
-                        self.remote_build_dir = build_dir_name
-                    except timeout as e:
-                        logger.error(
-                            f'Could not transfer content of local building directory {self.local_build_dir}\n{e}')
-                        self.kill_remote_server()
-                        return
+                # if self.remote_build_dir is None:
+                #     assert self.local_build_dir is not None
+                #     # transfer local_build_dir to server
+                #     # todo: do with zmq instead?
+                #     build_dir_name = os.path.basename(self.local_build_dir)
+                #     logger.info('Opening sftp connection...')
+                #     sftp = self._ssh_client.open_sftp()
+                #     if self.remote_model_dir is None:
+                #         remote_cwd = f'/home/{self.ssh_connect["username"]}'
+                #     else:
+                #         remote_cwd = self.remote_model_directory
+                #
+                #     logger.info(f'Setting remote cwd to {remote_cwd} ...')
+                #     sftp.chdir(remote_cwd)
+                #     logger.info(f'Creating remote build directory "{build_dir_name}"...')
+                #     try:
+                #         sftp.mkdir(build_dir_name)
+                #     except Exception:
+                #         logger.debug(f'Failed to create remote build directory. Does it already exist?')
+                #
+                #     try:
+                #         for root, dirs, files in os.walk(self.local_build_dir):
+                #             for file in files:
+                #                 if file.endswith('.pyc'):
+                #                     continue
+                #
+                #                 def cb(done:int, total:int):
+                #                     logger.info(f'Transfering {os.path.join(build_dir_name, file)} {done/total*100:2.0f}%')
+                #
+                #                 sftp.put(os.path.join(root, file), os.path.join(build_dir_name, file), callback=cb)
+                #
+                #         self.remote_build_dir = build_dir_name
+                #     except timeout as e:
+                #         logger.error(
+                #             f'Could not transfer content of local building directory {self.local_build_dir}\n{e}')
+                #         self.kill_remote_server()
+                #         return
 
                 try:
                     channel.send('source .bashrc\n')
@@ -206,22 +196,24 @@ class TikTorchClient(object):
 
         self._local_server_process.kill()
 
-    def init(self):
+    def init(self, tiktorch_config, binary_model_file, binary_model_state, binary_optimizer_state):
         logger = logging.getLogger('TikTorchClient.init')
         # Make server for zmq
         logger.info("Setting up ZMQ Context...")
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
-        logger.info("Connect to socket...")
+        info = logger.info("Connect to socket...")
         self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         # Send build directory
-        logger.info("Sending build directory...")
-        self.meta_send({'id': 'INIT.PATHS',
-                        'build_dir': self.remote_build_dir,
-                        'ilp_dir': self.ilp_directory})
-        logger.info("Build directory sent.")
-        self.log_server_report()
+        logger.info("Sending init data...")
+        with self._main_lock:
+            self._zmq_socket.send_json(tiktorch_config)
+            self._zmq_socket.send(binary_model_file)
+            self._zmq_socket.send(binary_model_state)
+            self._zmq_socket.send(binary_optimizer_state)
+
+        logger.info("Init data sent.")
         return self
 
     def terminate(self):
@@ -234,15 +226,6 @@ class TikTorchClient(object):
 
     def is_running(self):
         return self._process.poll() is None
-
-    def read_config(self):
-        config_file_name = os.path.join(self.local_build_dir, 'tiktorch_config.yml')
-        if not os.path.exists(config_file_name):
-            raise FileNotFoundError(f"Config file not found in "
-                                    f"local_build_dir: {self.local_build_dir}.")
-        with open(config_file_name, 'r') as f:
-            self._config.update(yaml.load(f))
-        return self
 
     def get(self, tag, default=None, assert_exist=False):
         if assert_exist:
@@ -413,19 +396,18 @@ class TikTorchClient(object):
         return info['is_alive']
 
 
-def debug_client():
-    TikTorchClient.read_config = lambda self: self
-    TikTorchClient._START_PROCESS = False
-    client = TikTorchClient(local_build_dir='.', address='127.0.0.1', port='29500',
-                            meta_port='29501')
-    client._model = torch.nn.Conv2d(1, 1, 1)
-    client._config = {'input_shape': [1, 512, 512],
-                      'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
-    return client
+# def debug_client():
+#     TikTorchClient.read_config = lambda self: self
+#     TikTorchClient._START_PROCESS = False
+#     client = TikTorchClient(local_build_dir='.', address='127.0.0.1', port='29500',
+#                             meta_port='29501')
+#     client._model = torch.nn.Conv2d(1, 1, 1)
+#     client._config = {'input_shape': [1, 512, 512],
+#                       'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
+#     return client
 
 
 # hacky lazy global build dir for tests
-ILP_DIR = None
 BUILD_DIR = None
 import platform
 
@@ -434,10 +416,18 @@ if platform.system() == 'Windows':
 else:
     BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
 
+INIT_DATA = []
+with open(os.path.join(BUILD_DIR, 'tiktorch_config.yml')) as file:
+    INIT_DATA.append(yaml.load(file))
+
+for fn in ['model.py', 'state.nn']:
+    with open(os.path.join(BUILD_DIR, fn), 'rb') as file:
+        INIT_DATA.append(file.read())
+
 
 def test_client_forward():
     TikTorchClient._START_PROCESS = False
-    client = TikTorchClient(BUILD_DIR)
+    client = TikTorchClient(*INIT_DATA)
     logging.info("Obtained client. Forwarding...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")
@@ -452,7 +442,7 @@ def test_client_forward():
 def test_client_hparams():
     # Test for changing hyperparameter setting before and during training
     TikTorchClient._START_PROCESS = False
-    client = TikTorchClient(BUILD_DIR)
+    client = TikTorchClient(*INIT_DATA)
     logging.info("Polling")
     is_running = client.training_process_is_running()
     logging.info(f"Training process running? {is_running}")
@@ -503,7 +493,7 @@ def test_client_hparams():
 
 def test_client_train():
     TikTorchClient._START_PROCESS = False
-    client = TikTorchClient(BUILD_DIR, ilp_directory=ILP_DIR)
+    client = TikTorchClient(*INIT_DATA)
     logging.info("Obtained client. Forwarding...")
     out = client.forward([np.random.uniform(size=(256, 256)).astype('float32') for _ in range(1)])
     logging.info(f"out.shape = {out.shape}")

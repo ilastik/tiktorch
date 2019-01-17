@@ -31,7 +31,6 @@ class TikTorchServer(object):
         self._build_directory = None
         self._handler: ModelHandler = None
         self._model = None
-        self._config = {}
         self._log_directory = None
         # Set up queues
         self._zmq_context: zmq.Context = None
@@ -50,7 +49,6 @@ class TikTorchServer(object):
         self.port = port
         self.meta_port = meta_port
         self.init()
-        self.read_config()
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
@@ -66,12 +64,15 @@ class TikTorchServer(object):
         self._zmq_pollin = zmq.Poller()
         self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
         # Receive build directory
-        logger.info("Waiting for build directory...")
-        message = self.meta_recv()
-        assert message['id'] == 'INIT.PATHS'
-        self.build_directory = message['build_dir']
-        self.ilp_directory = message['ilp_dir']
-        logger.info("Build directory received.")
+        logger.info("Waiting for init data...")
+        self._config = self._zmq_socket.recv_json()
+        logger.info("tiktorch config received.")
+        self.binary_model_file = self._zmq_socket.recv()
+        logger.info("model file received.")
+        self.binary_model_state = self._zmq_socket.recv()
+        logger.info("model state received.")
+        self.binary_optimizer_state = self._zmq_socket.recv()
+        logger.info("Init data received.")
 
     def meta_send(self, info_dict, flags=0):
         self._zmq_socket.send_json(info_dict, flags=flags)
@@ -115,19 +116,6 @@ class TikTorchServer(object):
         return [shape*block for shape, block in zip(base_shape, halo_block)]
 
     @property
-    def build_directory(self):
-        if self._build_directory is not None:
-            return self._build_directory
-        else:
-            raise ValueError("Trying to access `build_directory`, but it's not set yet.")
-
-    @build_directory.setter
-    def build_directory(self, value):
-        if not os.path.exists(value):
-            raise FileNotFoundError(f"Build directory does not exist: {value}")
-        self._build_directory = value
-
-    @property
     def log_directory(self):
         if self._log_directory is None and self.ilp_directory is not None:
             # Make a log directory in the ilp_directory
@@ -163,15 +151,6 @@ class TikTorchServer(object):
         """
         assert self.handler is not None
         return self.handler.binary_dry_run(list(image_shape), train_flag=train)
-
-    def read_config(self):
-        config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
-        if not os.path.exists(config_file_name):
-            raise FileNotFoundError(f"Config file not found in "
-                                    f"build_directory: {self.build_directory}.")
-        with open(config_file_name, 'r') as f:
-            self._config.update(yaml.load(f))
-        return self
 
     def _set_handler(self, model):
         assert self.get('input_shape') is not None
