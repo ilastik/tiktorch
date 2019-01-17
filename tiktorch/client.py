@@ -46,7 +46,7 @@ class TikTorchClient(object):
         # Privates
         self._args: list = None
         self._process: subprocess.Popen = None
-        self._config = {}
+        self._config = tiktorch_config
         self._zmq_context = None
         self._zmq_socket = None
         # Locks
@@ -95,45 +95,6 @@ class TikTorchClient(object):
 
                 channel = self._ssh_client.invoke_shell()
                 channel.settimeout(10)
-
-                # if self.remote_build_dir is None:
-                #     assert self.local_build_dir is not None
-                #     # transfer local_build_dir to server
-                #     # todo: do with zmq instead?
-                #     build_dir_name = os.path.basename(self.local_build_dir)
-                #     logger.info('Opening sftp connection...')
-                #     sftp = self._ssh_client.open_sftp()
-                #     if self.remote_model_dir is None:
-                #         remote_cwd = f'/home/{self.ssh_connect["username"]}'
-                #     else:
-                #         remote_cwd = self.remote_model_directory
-                #
-                #     logger.info(f'Setting remote cwd to {remote_cwd} ...')
-                #     sftp.chdir(remote_cwd)
-                #     logger.info(f'Creating remote build directory "{build_dir_name}"...')
-                #     try:
-                #         sftp.mkdir(build_dir_name)
-                #     except Exception:
-                #         logger.debug(f'Failed to create remote build directory. Does it already exist?')
-                #
-                #     try:
-                #         for root, dirs, files in os.walk(self.local_build_dir):
-                #             for file in files:
-                #                 if file.endswith('.pyc'):
-                #                     continue
-                #
-                #                 def cb(done:int, total:int):
-                #                     logger.info(f'Transfering {os.path.join(build_dir_name, file)} {done/total*100:2.0f}%')
-                #
-                #                 sftp.put(os.path.join(root, file), os.path.join(build_dir_name, file), callback=cb)
-                #
-                #         self.remote_build_dir = build_dir_name
-                #     except timeout as e:
-                #         logger.error(
-                #             f'Could not transfer content of local building directory {self.local_build_dir}\n{e}')
-                #         self.kill_remote_server()
-                #         return
-
                 try:
                     channel.send('source .bashrc\n')
                     time.sleep(1)

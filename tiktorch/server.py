@@ -8,6 +8,8 @@ import torch
 import yaml
 from datetime import datetime
 import socket
+import shutil
+import tempfile
 
 import tiktorch.utils as utils
 from tiktorch.device_handler import ModelHandler
@@ -49,6 +51,10 @@ class TikTorchServer(object):
         self.port = port
         self.meta_port = meta_port
         self.init()
+        self.tmp_dir = tempfile.mkdtemp()  # todo: get rid of tmp dir!
+
+    def __del__(self):
+        shutil.rmtree(self.tmp_dir)
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
@@ -183,21 +189,34 @@ class TikTorchServer(object):
 
     def load_model(self):
         # Dynamically import file.
-        model_file_name = os.path.join(self.build_directory, 'model.py')
-        model = utils.define_patched_model(model_file_name,
+        # hack to keep current impl: safe binary_model_file to tmp file
+        # todo: load model.py without tmp directory
+        tmp_dir = self.tmp_dir
+        model_file_path = os.path.join(tmp_dir, 'model.py')
+        with open(model_file_path, 'wb') as f:
+            f.write(self.binary_model_file)
+
+        model_state_path = None
+        if self.binary_model_state:
+            model_state_path = os.path.join(tmp_dir, 'state.nn')
+            with open(model_state_path, 'wb') as f:
+                f.write(self.binary_model_state)
+
+        # todo: optimizer state
+
+        model = utils.define_patched_model(model_file_path,
                                            self.get('model_class_name'),
                                            self.get('model_init_kwargs'))
-        # model = DUNet(**self.get('model_init_kwargs'))
         # Load parameters
-        state_path = os.path.join(self.build_directory, 'state.nn')
         try:
-            state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
+            state_dict = torch.load(model_state_path, map_location=lambda storage, loc: storage)
             model.load_state_dict(state_dict)
         except:
-            logger.warning(f"state.nn file not found in {state_path}, not loading weights!")
+            logger.warning(f"state.nn file not found in {model_state_path}, not loading weights!")
             # raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
         # Build handler
         self._set_handler(model)
+
         return self
 
     def forward(self):
