@@ -23,11 +23,16 @@ requirements:
     - pip
     - python {{ python }}
   run:
+    - h5py
     - numpy {{ numpy }}*
     - pyyaml
+    - paramiko
     - scipy
+    - tensorboardX
     - tifffile {{ tifffile }}*
     - tqdm
+    - zeromq
+
     {% if not "client" in package_name %}
     - inferno {{ inferno_version }}*
     - pytorch {{ pytorch_version }}*
