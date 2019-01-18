@@ -1,4 +1,5 @@
 import logging
+import io
 import os
 from importlib import util as imputils
 import zmq
@@ -315,9 +316,30 @@ class TikTorchServer(object):
                 self.meta_send({'id': 'DISPATCHING.HYPERPARAMETERS'})
                 logger.info("Dispatch confirmed, changing hyperparameters...")
                 self.set_hparams()
+            elif request['id'] == 'DISPATCH.MODEL_STATE_DICT_REQUEST':
+                logger.info("Received a request for the model state dict.")
+                self.meta_send({'id': 'DISPATCHING.MODEL_STATE_DICT_REQUEST'})
+                logger.info('Dispatch confirmed.')
+                self.request_model_state_dict()
             else:
                 # Bad id
                 raise RuntimeError
+
+    def request_model_state_dict(self):
+        logger = logging.getLogger('TikTorchServer.request_model_state_dict')
+        logger.info('Requesting model state dict from handler....')
+        self.handler.update_state()
+        state_dict = io.BytesIO()
+        torch.save(self.model.state_dict(), f=state_dict)
+        logger.info('Sending state dict.')
+        self._zmq_socket.send(state_dict.getvalue())
+        logger.info('Sent state dict.')
+        state_dict.close()
+
+
+    def request_optimizer_state_dict(self):
+        pass
+
 
     def poll_training_process(self):
         logger = logging.getLogger('TikTorchServer.poll_training_process')
