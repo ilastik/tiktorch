@@ -1,5 +1,3 @@
-{% set pytorch_flavor=pytorch_flavor or "pytorch" %}
-{% set inferno_flavor=inferno_flavor or "inferno" %}
 {% set package_name=package_name or "tiktorch" %}
 package:
   name: {{ package_name }}
@@ -30,8 +28,10 @@ requirements:
     - scipy
     - tifffile {{ tifffile }}*
     - tqdm
-    - {{ inferno_flavor }} {{ inferno_version }}*
-    - {{ pytorch_flavor }} {{ pytorch_version }}*
+    {% if not "client" in package_name %}
+    - inferno {{ inferno_version }}*
+    - pytorch {{ pytorch_version }}*
+    {% endif %}
 
 
 test:

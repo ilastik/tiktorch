@@ -5,19 +5,9 @@ python:
 tifffile:
   - 0.4.post2
 package_name:
-  - tiktorch-cpu
   - tiktorch
-pytorch_flavor:
-  - pytorch-cpu
-  - pytorch
-inferno_flavor:
-  - inferno-cpu
-  - inferno
+  - tiktorch-client
 pytorch_version:
-  - 0.4.1
+  - 1.0
 inferno_version:
-  - 0.2
-zip_keys:
-  - package_name
-  - pytorch_flavor
-  - inferno_flavor
+  - 0.3
