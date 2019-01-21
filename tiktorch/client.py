@@ -356,34 +356,19 @@ class TikTorchClient(object):
             info = self.meta_recv()
         return info['is_alive']
 
+    def request_model_state_dict(self):
+        logger = logging.getLogger('TikTorchClient.request_model_state_dict')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('MODEL_STATE_DICT_REQUEST')
+            logger.info("Request successful. Waiting for model state dict...")
+            state_dict = self._zmq_socket.recv()
+            logger.info("Model state dict received.")
+        return state_dict
 
-# def debug_client():
-#     TikTorchClient.read_config = lambda self: self
-#     TikTorchClient._START_PROCESS = False
-#     client = TikTorchClient(local_build_dir='.', address='127.0.0.1', port='29500',
-#                             meta_port='29501')
-#     client._model = torch.nn.Conv2d(1, 1, 1)
-#     client._config = {'input_shape': [1, 512, 512],
-#                       'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
-#     return client
-
-
-# hacky lazy global build dir for tests
-BUILD_DIR = None
-import platform
-
-if platform.system() == 'Windows':
-    BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
-else:
-    BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
-
-INIT_DATA = []
-with open(os.path.join(BUILD_DIR, 'tiktorch_config.yml')) as file:
-    INIT_DATA.append(yaml.load(file))
-
-for fn in ['model.py', 'state.nn']:
-    with open(os.path.join(BUILD_DIR, fn), 'rb') as file:
-        INIT_DATA.append(file.read())
+    def request_optimizer_state_dict(self):
+        pass
 
 
 def test_client_forward():
@@ -511,8 +496,59 @@ def test_client_train():
     logging.info("Done!")
 
 
+def test_client_state_request():
+    import io
+    import torch
+    client = TikTorchClient(tiktorch_config=INIT_DATA[0],
+                            binary_model_file=INIT_DATA[1],
+                            binary_model_state=INIT_DATA[2])
+
+    state_dict = client.request_model_state_dict()
+    file = io.BytesIO(state_dict)
+    state_dict = torch.load(file, map_location=lambda storage, loc: storage)
+
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
+
+    logging.info("Sending train data and labels...")
+    train_data = [np.random.uniform(size=(1, 128, 128)).astype('float32') for _ in range(10)]
+    train_labels = [np.random.randint(0, 2, size=(1, 128, 128)).astype('float32') for _ in range(10)]
+    client.train(train_data, train_labels, list(range(len(train_data))))
+    logging.info("Sent train data and labels and waiting for 10s...")
+    time.sleep(10)
+
+    state_dict = client.request_model_state_dict()
+    file = io.BytesIO(state_dict)
+    state_dict = torch.load(file, map_location=lambda storage, loc: storage)
+
+    client.shutdown()
+
 if __name__ == '__main__':
+    import argparse
+    import platform
+
     print('Python %s on %s' % (sys.version, sys.platform))
-    test_client_forward()
-    test_client_train()
-    test_client_hparams()
+
+    parsey = argparse.ArgumentParser()
+    parsey.add_argument('--name', type=str, default='jo')
+    args = parsey.parse_args()
+
+    BUILD_DIR = None
+    if args.name == 'fynn':
+        if platform.system() == 'Windows':
+            BUILD_DIR = '/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+        else:
+            BUILD_DIR = '/mnt/c/Users/fbeut/documents/ilastik/models/CREMI_DUNet_pretrained_new'
+    elif args.name == 'jo':
+        BUILD_DIR = '/home/jo/CREMI_DUNet_pretrained_new'
+
+    INIT_DATA = []
+    with open(os.path.join(BUILD_DIR, 'tiktorch_config.yml')) as file:
+        INIT_DATA.append(yaml.load(file))
+
+    for fn in ['model.py', 'state.nn']:
+        with open(os.path.join(BUILD_DIR, fn), 'rb') as file:
+            INIT_DATA.append(file.read())
+
+    test_client_state_request()
