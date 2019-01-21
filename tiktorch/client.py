@@ -337,6 +337,7 @@ class TikTorchClient(object):
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('PAUSE')
             logger.info("Request successful.")
+            self.log_server_report()
 
     def resume(self):
         logger = logging.getLogger('TikTorchClient.resume')
@@ -345,6 +346,7 @@ class TikTorchClient(object):
             logger.info("Requesting dispatch...")
             assert self.request_dispatch('RESUME')
             logger.info("Request successful.")
+            self.log_server_report()
 
     def training_process_is_running(self):
         logger = logging.getLogger("TikTorchClient.training_process_is_running")
@@ -354,6 +356,8 @@ class TikTorchClient(object):
             assert self.request_dispatch('POLL_TRAIN')
             # Receive info
             info = self.meta_recv()
+        self.log_server_report()
+        logger.info(f"return: {info['is_alive']}")
         return info['is_alive']
 
     def request_model_state_dict(self):
