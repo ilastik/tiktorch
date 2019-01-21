@@ -506,6 +506,22 @@ def test_client_state_request():
     state_dict = client.request_model_state_dict()
     file = io.BytesIO(state_dict)
     state_dict = torch.load(file, map_location=lambda storage, loc: storage)
+
+    logging.info("Polling")
+    is_running = client.training_process_is_running()
+    logging.info(f"Training process running? {is_running}")
+
+    logging.info("Sending train data and labels...")
+    train_data = [np.random.uniform(size=(1, 128, 128)).astype('float32') for _ in range(10)]
+    train_labels = [np.random.randint(0, 2, size=(1, 128, 128)).astype('float32') for _ in range(10)]
+    client.train(train_data, train_labels, list(range(len(train_data))))
+    logging.info("Sent train data and labels and waiting for 10s...")
+    time.sleep(10)
+
+    state_dict = client.request_model_state_dict()
+    file = io.BytesIO(state_dict)
+    state_dict = torch.load(file, map_location=lambda storage, loc: storage)
+
     client.shutdown()
 
 if __name__ == '__main__':
