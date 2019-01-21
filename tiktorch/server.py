@@ -245,13 +245,12 @@ class TikTorchServer(object):
         assert batch_spec['len'] == len(batch_spec['data.shapes']) == len(batch_spec['labels.shapes']) == \
                len(batch_spec['sample_ids'])
         logger.info("Receiving data and labels from chief.")
-        data = [torch.zeros(*shape) for shape in batch_spec['data.shapes']]
-        labels = [torch.zeros(*shape) for shape in batch_spec['labels.shapes']]
-        ids = [None] * batch_spec['len']
         # Receive tensors
-        for idx, id in enumerate(batch_spec['sample_ids']):
-            data[idx] = self.tensor_recv(f'TRAIN_DATA_{id}')
-            labels[idx] = self.tensor_recv(f'TRAIN_LABEL_{id}')
+        data, labels = [], []
+        for id in batch_spec['sample_ids']:
+            id = tuple(id)
+            data.append(torch.from_numpy(self.tensor_recv(f'TRAIN_DATA_{id}')))
+            labels.append(torch.from_numpy(self.tensor_recv(f'TRAIN_LABEL_{id}')))
         logger.info("Received data and labels from chief.")
         logger.info("Sending to handler.")
         self.handler.train(data, labels)
