@@ -253,8 +253,8 @@ class TikTorchServer(object):
         ids = [None] * batch_spec['len']
         # Receive tensors
         for idx, id in enumerate(batch_spec['sample_ids']):
-            data[idx] = self.tensor_recv(f'TRAIN_DATA_{id}')
-            labels[idx] = self.tensor_recv(f'TRAIN_LABEL_{id}')
+            data[idx] = torch.from_numpy(self.tensor_recv(f'TRAIN_DATA_{id}'))
+            labels[idx] = torch.from_numpy(self.tensor_recv(f'TRAIN_LABEL_{id}'))
         logger.info("Received data and labels from chief.")
         logger.info("Sending to handler.")
         self.handler.train(data, labels)
