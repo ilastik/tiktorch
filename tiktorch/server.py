@@ -67,9 +67,6 @@ class TikTorchServer(object):
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket...")
         self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
-        logger.info("Setting up Poller...")
-        self._zmq_pollin = zmq.Poller()
-        self._zmq_pollin.register(self._zmq_socket, zmq.POLLIN)
         # Receive build directory
         logger.info("Waiting for init data...")
         self._config = self._zmq_socket.recv_json()
