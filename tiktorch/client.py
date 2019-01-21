@@ -12,6 +12,8 @@ import zmq
 from paramiko import SSHClient, AutoAddPolicy
 from socket import gethostbyname, timeout
 
+from typing import Sequence
+
 import tiktorch.utils as utils
 from tiktorch.tio import TikIn
 
@@ -286,7 +288,7 @@ class TikTorchClient(object):
             logger.info(f"Output received (shape = {tuple(output_tensor.shape)}).")
         return output_tensor
 
-    def train(self, data, labels, sample_ids: list):
+    def train(self, data, labels, sample_ids: Sequence(tuple)):
         logger = logging.getLogger('TikTorchClient.train')
         logger.info("Waiting for lock...")
         with self._main_lock:
