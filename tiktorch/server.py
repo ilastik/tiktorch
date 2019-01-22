@@ -247,6 +247,7 @@ class TikTorchServer(object):
         # Receive tensors
         data, labels = [], []
         for id in batch_spec['sample_ids']:
+            # assert isinstance(id, tuple)  # todo: make sure sample_ids only contains tuples 
             id = tuple(id)
             data.append(torch.from_numpy(self.tensor_recv(f'TRAIN_DATA_{id}')))
             labels.append(torch.from_numpy(self.tensor_recv(f'TRAIN_LABEL_{id}')))

@@ -354,7 +354,7 @@ class Trainer(object):
                                                   self._hparams_queue,
                                                   self.log_directory))
         logger.info("3, 2, 1...")
-        self._training_process.start()
+        self._training_process.start()  # todo: fix bug: sometimes the training process does not start
         logger.info("We have lift off.")
         self._ignited = True
 
