@@ -166,6 +166,8 @@ class TikTorchClient(object):
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
+        # set high water mark
+        self._zmq_socket.set_hwm(16)
         info = logger.info("Connect to socket...")
         self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         # Send build directory
