@@ -38,7 +38,6 @@ class TikTorchServer(object):
         # Set up queues
         self._zmq_context: zmq.Context = None
         self._zmq_socket: zmq.Socket = None
-        self._zmq_pollin: zmq.Poller = None
         if device is None:
             # The default behaviour is to select a GPU if one is availabe.
             # This can be overriden by providing device in the constructor.
@@ -353,6 +352,7 @@ class TikTorchServer(object):
         logger.info("Stopping training...")
         self.handler.stop_training()
         logger.info("Training stop.")
+        self._zmq_socket.close()
 
 
 def debug_server():

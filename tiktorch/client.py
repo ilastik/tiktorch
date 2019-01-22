@@ -333,6 +333,7 @@ class TikTorchClient(object):
             assert self.request_dispatch('SHUTDOWN')
             logger.info("Request successful.")
             self.kill_server(delay=10)
+            self._zmq_socket.close()
 
     def pause(self):
         logger = logging.getLogger('TikTorchClient.pause')
