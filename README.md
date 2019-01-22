@@ -1,6 +1,12 @@
 # tiktorch
 Wrappers for Pytorch
 
+## Development environment installation
+
+```
+conda env create -f environment.yml
+```
+
 ## tiktorch specification
 
 Models saved for tiktorch must follow this specification:
