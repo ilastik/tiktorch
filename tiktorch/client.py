@@ -9,6 +9,7 @@ import threading as thr
 import torch
 import yaml
 import zmq
+import pickle
 from paramiko import SSHClient, AutoAddPolicy
 from socket import gethostbyname, timeout
 
@@ -365,6 +366,12 @@ class TikTorchClient(object):
         logger.info(f"return: {info['is_alive']}")
         return info['is_alive']
 
+    def get_binary_model_state(self):
+        logger = logging.getLogger('TikTorchClient.get_binary_model_state')
+        logger.info('Requesting model state dict...')
+        state_dict = self.request_model_state_dict()
+        return pickle.dumps(state_dict)
+
     def request_model_state_dict(self):
         logger = logging.getLogger('TikTorchClient.request_model_state_dict')
         logger.info("Waiting for lock...")
@@ -375,6 +382,15 @@ class TikTorchClient(object):
             state_dict = self._zmq_socket.recv()
             logger.info("Model state dict received.")
         return state_dict
+
+    def get_binary_optimizer_state(self):
+        logger = logging.getLogger('TikTorchClient.get_binary_optimizer_state')
+        logger.info('Requesting optimizer state dict...')
+        state_dict = self.request_optimizer_state_dict()
+        if state_dict is None:
+            return b''
+        else:
+            return pickle.dumps(state_dict)
 
     def request_optimizer_state_dict(self):
         pass
