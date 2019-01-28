@@ -1,281 +1,230 @@
-import torch
-import numpy as np
-
 import logging
+import os
+from importlib import util as imputils
 
+import numpy as np
+import torch
+import yaml
+
+from tiktorch.tio import TikIn, TikOut
+import tiktorch.utils as utils
+from tiktorch.device_handler import ModelHandler
 
 logger = logging.getLogger('TikTorch')
 
 
 class TikTorch(object):
-    """Wraps a torch model for use with LazyFlow and Ilastik."""
-    def __init__(self, model=None):
-        """
-        Parameters
-        ----------
-        model : torch.nn.Model
-            Torch model.
-        """
-        assert isinstance(model, torch.nn.Module), \
-            "Object must be a subclass of torch.nn.module."
+    def __init__(self, build_directory, device=None):
+        # Privates
+        self._build_directory = None
+        self._handler: ModelHandler = None
         self._model = None
-        self._configuration = {}
-        self._preprocessors = None
-        # Setter does the validation
-        self.model = model
-        if model is not None:
-            logger.debug("Initialized with model. On GPU?: {}.".format(self.is_cuda))
+        self._config = {}
+        if device is None:
+            # The default behaviour is to select a GPU if one is availabe.
+            # This can be overriden by providing device in the constructor.
+            self._device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         else:
-            logger.debug("Initialized without model")
+            self._device = device
+        # Publics
+        self.build_directory = build_directory
+        self.read_config()
+
+    @property
+    def output_shape(self):
+        return self.get('output_shape')
+
+    @property
+    def halo(self):
+        """
+        Returns the halo in dynamic base shape blocks
+        """
+        assert self.handler is not None
+        halo_block = self.handler.halo_in_blocks
+        base_shape = self.handler.dynamic_shape.base_shape
+        return [shape*block for shape, block in zip(base_shape, halo_block)]
+
+    @property
+    def build_directory(self):
+        if self._build_directory is not None:
+            return self._build_directory
+        else:
+            raise ValueError("Trying to access `build_directory`, but it's not set yet.")
+
+    @build_directory.setter
+    def build_directory(self, value):
+        if not os.path.exists(value):
+            raise FileNotFoundError(f"Build directory does not exist: {value}")
+        self._build_directory = value
 
     @property
     def model(self):
-        assert self._model is not None
-        return self._model
+        return self.handler.model
 
-    @model.setter
-    def model(self, value):
-        assert isinstance(value, torch.nn.Module)
-        self._model = value.float()
+    @property
+    def device(self):
+        return self.handler.device
 
-    def bind_model(self, model):
-        self.model = model
+    @property
+    def handler(self):
+        if self._handler is None:
+            self.load_model()
+        return self._handler
+
+    def train(self, data, labels):
+        assert self.handler is not None
+        self.handler.train(data, labels)
+        pass
+
+    def dry_run(self, image_shape, train=False):
+        """
+        Initiates dry run.
+        Parameters
+        ----------
+        image_shape: list or tuple
+        shape of an image in the dataset (e.g `HW` for 2D or `DHW` for 3D)
+        """
+        assert self.handler is not None
+        return self.handler.binary_dry_run(list(image_shape), train_flag=train)
+
+    def read_config(self):
+        config_file_name = os.path.join(self.build_directory, 'tiktorch_config.yml')
+        if not os.path.exists(config_file_name):
+            raise FileNotFoundError(f"Config file not found in "
+                                    f"build_directory: {self.build_directory}.")
+        with open(config_file_name, 'r') as f:
+            self._config.update(yaml.load(f))
         return self
 
-    def get(self, key, default=None):
-        return self._configuration.get(key, default)
+    def _set_handler(self, model):
+        assert self.get('input_shape') is not None
+        # Pass
+        self._handler = ModelHandler(model=model,
+                                     device_names=self._device,
+                                     channels=self.get('input_shape')[0],
+                                     dynamic_shape_code=self.get('dynamic_input_shape'))
 
-    def set(self, key, value):
-        self._configuration.update({key: value})
-        return self
+    def get(self, tag, default=None, assert_exist=False):
+        if assert_exist:
+            assert tag in self._config, f"Tag '{tag}' not found in configuration."
+        return self._config.get(tag, default)
 
-    def increment(self, key):
+    def load_model(self):
+        # Dynamically import file.
+        model_file_name = os.path.join(self.build_directory, 'model.py')
+        module_spec = imputils.spec_from_file_location('model', model_file_name)
+        module = imputils.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        # Build model from file
+        model: torch.nn.Module = \
+            getattr(module, self.get('model_class_name'))(**self.get('model_init_kwargs'))
+        # Load parameters
+        state_path = os.path.join(self.build_directory, 'state.nn')
         try:
-            if key in self._configuration and isinstance(self._configuration[key], int):
-                self._configuration[key] += 1
-        except TypeError:
+            state_dict = torch.load(state_path, map_location=lambda storage, loc: storage)
+            model.load_state_dict(state_dict)
+        except:
+            raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
+        # Build handler
+        self._set_handler(model)
+        return self
+
+    def batch_inputs(self, inputs):
+        input_shapes = self.get('input_shape', assert_exist=True)
+        assert isinstance(input_shapes, (list, tuple))
+        # input_shapes can either be a list of shapes or a shape. Make sure it's the latter
+        if isinstance(input_shapes[0], int):
+            input_shapes = [input_shapes] * len(inputs)
+        elif isinstance(input_shapes[0], (list, tuple)):
             pass
-
-    def assert_defined(self, key, allow_none=False):
-        key_in_configuration = key in self._configuration
-        key_not_none = key_in_configuration and self._configuration[key] is not None
-        assert key_in_configuration, \
-            "Key {} not found in configuration.".format(key)
-        if not allow_none:
-            assert key_not_none, \
-                "Key {} is defined in configuration, but maps to a None.".format(key)
-
-    @property
-    def is_cuda(self):
-        try:
-            return next(self.model.parameters()).is_cuda
-        except StopIteration:
-            # FIXME: Assuming that if a network has no parameters, it doesn't use CUDA
-            return False
-
-    def cuda(self, *args):
-        """Transfers model to the GPU. Arguments specify the ids of the GPU devices to use."""
-        self.model.cuda()
-        if len(args) > 0:
-            self.set('devices', list(args))
-        return self
-
-    def cpu(self):
-        """Transfers model to the CPU."""
-        self.model.cpu()
-        return self
-
-    def wrap_input_batch(self, input_batch):
-        """Wraps numpy array as a torch variable on the right device."""
-        # Convert to tensor
-        assert isinstance(input_batch, np.ndarray)
-        logger.debug("Converting input_batch to torch tensor.")
-        input_batch_tensor = torch.from_numpy(input_batch).float()
-        # Transfer to device
-        if self.is_cuda:
-            logger.debug("Transfering input_batch to GPU.")
-            input_batch_tensor = input_batch_tensor.cuda()
         else:
-            logger.debug("Using CPU.")
-        logger.debug("Making variable from tensor.")
-        # Make variable
-        input_batch_variable = torch.autograd.Variable(input_batch_tensor,
-                                                       volatile=True,
-                                                       requires_grad=False)
-        # Done
-        return input_batch_variable
+            raise TypeError(f"`input_shapes` must be a list/tuple of ints or "
+                            f"lists/tuples or ints. Got list/tuple of {type(input_shapes[0])}.")
+        utils.assert_(len(input_shapes) == len(inputs),
+                      f"Expecting {len(inputs)} inputs, got {len(input_shapes)} input shapes.",
+                      ValueError)
+        batches = [input.batcher(input_shape)
+                   for input, input_shape in zip(inputs, input_shapes)]
+        return batches
 
-    def unwrap_output_batch(self, output_batch):
-        """Unwraps torch variables to a numpy array."""
-        assert isinstance(output_batch, torch.autograd.Variable)
-        output_batch_tensor = output_batch.data
-        # Transfer to CPU and convert to numpy array
-        if self.is_cuda:
-            logger.debug("Transferring output back to CPU from GPU.")
-            output_batch_array = output_batch_tensor.cpu().numpy()
+    def parse_inputs(self, inputs):
+        if isinstance(inputs, TikIn):
+            inputs = [inputs]
+        elif isinstance(inputs, (np.ndarray, torch.Tensor)):
+            inputs = [TikIn([inputs])]
+        elif isinstance(inputs, (list, tuple)):
+            utils.assert_(all(isinstance(input, TikIn) for input in inputs),
+                          "Inputs must all be TikIn objects.")
         else:
-            logger.debug("Output is already on the CPU..")
-            output_batch_array = output_batch_tensor.numpy()
-        return output_batch_array
+            raise TypeError("Inputs must be list TikIn objects.")
+        return inputs
 
-    def forward_through_model(self, *inputs):
-        """
-        Wrapper around the model's forward method. We might need this later for
-        data-parallelism over multiple GPUs.
-        """
-        input_batch = inputs[0]
-        # FIXME: Unhack
-        # Normalize input batch
-        logger.debug("Normalizing input batch.")
-        logger.debug("Statistics before input normalization: mean = {}, min = {}, max = {}"
-                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
-        input_batch = (input_batch - input_batch.mean()) / (input_batch.std() + 0.000001)
-        logger.debug("Statistics after input normalization: mean = {}, min = {}, max = {}, std = {}"
-                     .format(input_batch.mean(),
-                             input_batch.min(),
-                             input_batch.max(),
-                             input_batch.std()))
-        logger.debug("Wrapping input_batch.")
-        input_variable = self.wrap_input_batch(input_batch)
-        # TODO Multi-GPU stuff goes here:
-        logger.debug("Forward through model.")
-        if self.get('devices') is None or not self.is_cuda:
-            logger.debug("No devices specified or model is on the CPU.")
-            output_variable = self.model(input_variable)
-        else:
-            logger.debug("Using devices: {}.".format(self.get('devices')))
-            output_variable = torch.nn.parallel.data_parallel(self.model,
-                                                              inputs=input_variable,
-                                                              device_ids=self.get('devices'))
-        logger.debug("Unwrapping output_variable.")
-        output_batch = self.unwrap_output_batch(output_variable)
-        logger.debug("Unwrapped output_variable.")
-        logger.debug("Statistics of output array: mean = {}, min = {}, max = {}"
-                     .format(input_batch.mean(), input_batch.min(), input_batch.max()))
-        return output_batch
-
-    @property
-    def expected_input_shape(self):
-        """Gets the input shape as expected from Lazyflow."""
-        return (self.get('num_input_channels'),) + tuple(self.get('window_size'))
-
-    @property
-    def expected_output_shape(self):
-        """Gets the output shape to be expected by Lazyflow."""
-        return (self.get('num_output_channels'),) + tuple(self.get('window_size'))
-
-    def change_shape(self, batch):
-        """Changes the shape when it gets smaller than the expected output shape."""
-        print(batch.shape,"batch")
-        zero_arr = np.zeros((batch.shape[0],) + self.expected_output_shape)
-        border = int((self.expected_output_shape[1] - batch.shape[2])/2)
-        zero_arr[:, :, border:(border+batch.shape[2]), border:(border+batch.shape[3])] = batch
-        return zero_arr
-
-    def forward(self, inputs):
+    def forward(self, inputs: list):
         """
         Parameters
         ----------
-        inputs : list
-            List of input batches, i.e. len(inputs) == number of batches.
-            In 3D:
-                If the object was configured with (say) window_size = [3, 512, 512],
-                and num_input_channels = 5, inputs must be a list of numpy arrays of shape
-                [5, 3, 512, 512].
-            In 2D:
-               If the object was configured with window_size = [512, 512] and
-               num_input_channels = 1, inputs must be a list of numpy arrays of shape
-               [1, 512, 512].
-
-        Returns
-        -------
-        list
-            List of outputs. Note that len(outputs) == len(inputs), and the contents of outputs
-            have the same shape as that of inputs.
+        inputs: list of TikIn
+            List of TikIn objects.
         """
-        # We need CZYX (in ilastik-speak), or CDHW (in NN-speak)
-        # We have a batch of inputs
-        assert isinstance(inputs, (list, tuple)), \
-            "Was expecting a list or tuple as `inputs`, got {} instead."\
-                .format(inputs.__class__.__name__)
-        logger.debug("Received input list of length {}.".format(len(inputs)))
-        # Convert to a single numpy array
-        input_batch = np.array(inputs)
-        logger.debug("Shape of the input batch: {}.".format(input_batch.shape))
-        assert input_batch.shape[1:] == self.expected_input_shape, \
-            "Was expecting an input of shape {}, got one of shape {} instead."\
-                .format(self.expected_input_shape, input_batch.shape[1:])  
-        logger.debug("Feeding through model.")
-        # Torch magic goes here:
-        output_batch = self.forward_through_model(input_batch)
-        # We expect an output of the same shape (which can be cropped
-        # according to halo downstream). We still leave it flexible enough.
-        if output_batch.shape[1:] != self.expected_output_shape:
-            output_batch = self.change_shape(output_batch)
+        inputs = self.parse_inputs(TikIn(inputs))
+        # Batch inputs
+        batches = self.batch_inputs(inputs)
+        # Send batch to the right device
+        batches = [batch for batch in batches]
+        # Make sure model is in right device and feedforward
+        # throws an error if inputs is a TikIn list with more than 1 element!
+        output_batches = self.handler.forward(*batches)
+        return output_batches.numpy()
 
-        logger.debug("Received output batch of shape {} from model.".format(output_batch.shape))
-        assert output_batch.shape[1:] == self.expected_output_shape, \
-            "Was expecting an output of shape {}, got one of shape {} instead." \
-                .format(self.expected_output_shape, output_batch.shape[1:])
-        # Separate outputs to list of batches
-        outputs = list(output_batch)
-        logger.debug("Returning list of {} array(s).".format(len(outputs)))
-        return outputs
 
-    def configure(self, *, window_size=None, output_size=None, num_input_channels=None, num_output_channels=None,
-                  serialize_to_path=None, devices=None):
-        """
-        Configure the object.
+def test_full_pipeline():
+    import h5py
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    from inferno.io.transform import Compose
+    from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
+    #tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+    tiktorch = TikTorch('/home/jo/config/')
 
-        Parameters
-        ----------
-        window_size : list
-            A length specifying the spatial shape of the input. Must be a list of
-            length 2 for 2D images, or one of length 3 for 3D volumes.
+    #with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
+    with h5py.File('/home/jo/sfb1129/sample_C_20160501.hdf') as f:
+        cremi_raw = f['volumes']['raw'][:, 0:512, 0:512]
 
-        output_size : list
-            A length specifying the spatial shape of the ouput. Must be a list of
-            length 2 for 2D images, or one of length 3 for 3D volumes.
+    transform = Compose(Normalize(), Cast('float32'))
+    inputs = [transform(cremi_raw[i: i+1]) for i in range(1)]
 
-        num_input_channels : int
-            Number of input channels. Must be an int >= 1.
+    halo = tiktorch.halo
+    max_shape = tiktorch.dry_run([512, 512])
 
-        num_output_channels : int
-            Number of output channels (the num classes the net predicts). Must be an int >= 1.
+    print(f'Halo: {halo}')
+    print(f'max_shape: {max_shape}')
 
-        serialize_to_path : str
-            Where to serialize to. Must be a valid path.
+    out = tiktorch.forward(inputs)
 
-        devices : list
-            List of devices to use. By default, TikTorch will only use GPU0 if CUDA is available.
+    return 0
 
-        Returns
-        -------
-        TikTorch
-            self.
+def test_dunet():
+    import h5py
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    from inferno.io.transform import Compose
+    from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
+    #tiktorch = TikTorch('/export/home/jhugger/sfb1129/test_configs_tiktorch/config/')
+    tiktorch = TikTorch('/home/jo/config/')
 
-        """
-        self.set('window_size', window_size)
-        self.set('output_size', output_size)
-        self.set('num_input_channels', num_input_channels)
-        self.set('num_output_channels', num_output_channels)
-        self.set('serialize_to_path', serialize_to_path)
-        self.set('devices', devices)
-        # TODO What else do we need?
-        return self
+    #with h5py.File('/export/home/jhugger/sfb1129/sample_C_20160501.hdf') as f:
+    with h5py.File('/home/jo/sfb1129/sample_C_20160501.hdf') as f:
+        cremi_raw = f['volumes']['raw'][:, 0:1024, 0:1024]
 
-    def serialize(self, to_path=None):
-        to_path = self.get('serialize_to_path') if to_path is None else to_path
-        assert to_path is not None, "Nowhere to serialize."
-        torch.save(self, to_path)
-        return self
+    transform = Compose(Normalize(), Cast('float32'))
+    tikin_list = [TikIn([transform(cremi_raw[i: i+1]) for i in range(1)])]
+    inputs = [transform(cremi_raw[i: i+1]) for i in range(2)]
 
-    @classmethod
-    def unserialize(cls, from_path):
-        object_ = torch.load(from_path)
-        assert isinstance(object_, cls), \
-            "Object must be an instance of {}, " \
-            "got an instance of {} instead.".format(cls.__name__,
-                                                    object_.__class__.__name__)
-        return object_
+    out = tiktorch.forward(inputs)
+    return 0
 
+if __name__ == '__main__':
+    # test_TikTorch_init()
+    # test_forward()
+    # test_dunet()
+    test_full_pipeline()

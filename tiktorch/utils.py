@@ -1,6 +1,7 @@
 import signal
 import torch
 from torch.autograd import Variable
+from importlib import util as imputils
 
 
 class delayed_keyboard_interrupt(object):
@@ -23,6 +24,18 @@ class delayed_keyboard_interrupt(object):
         signal.signal(signal.SIGINT, self.old_handler)
         if self.signal_received:
             self.old_handler(*self.signal_received)
+
+
+def assert_(condition, message='', exception_type=Exception):
+    if not condition:
+        raise exception_type(message)
+
+
+def to_list(x):
+    if isinstance(x, (list, tuple)):
+        return list(x)
+    else:
+        return [x]
 
 
 class WannabeConvNet3D(torch.nn.Module):
@@ -53,3 +66,49 @@ class TinyConvNet2D(torch.nn.Module):
 
     def forward(self, *input):
         return self.conv2d(input[0])
+
+
+def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
+    # Dynamically import file.
+    module_spec = imputils.spec_from_file_location('model', model_file_name)
+    module = imputils.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    # Build model from file
+    model: torch.nn.Module = \
+        getattr(module, model_class_name)(**model_init_kwargs)
+    # Monkey patch
+    model._model_file_name = model_file_name
+    model._model_class_name = model_class_name
+    model._model_init_kwargs = model_init_kwargs
+    return model
+
+
+class DynamicShape(object):
+    def __init__(self, code):
+        self.code = code
+        self.formatters = self.strip_to_components(code)
+
+    @property
+    def dimension(self):
+        return len(self)
+
+    def __len__(self):
+        return len(self.formatters)
+
+    @staticmethod
+    def strip_to_components(code):
+        components = code[1:-1].replace(', ', ',').split(',')
+        # Replace components with lambdas
+        fmt_strings = [component.replace('nH', '{}').replace('nW', '{}').replace('nD', '{}')
+                       for component in components]
+        return fmt_strings
+
+    def evaluate(self, *integers):
+        return [eval(formatter.format(integer), {}, {})
+                for integer, formatter in zip(integers, self.formatters)]
+
+    @property
+    def base_shape(self):
+        return self.evaluate(*([0]*len(self)))
+
+    __call__ = evaluate
