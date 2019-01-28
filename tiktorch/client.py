@@ -311,6 +311,21 @@ class TikTorchClient(object):
         response = self.meta_recv()
         return response['id'] == f'DISPATCHING.{mode.upper()}'
 
+    def dry_run(self, image_shape, train_flag):
+        logger = logging.getLogger('TikTorchClient.dry_run')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Requesting dispatch...")
+            assert self.request_dispatch('DRYRUN')
+            logger.info("Request successful.")
+
+            info = {'id': 'DRYRUN.SPEC',
+                    'shape': image_shape,
+                    'flag': train_flag}
+            logger.info('Sending Dry_Run_Spec')
+            self.meta_send(info)
+
+
     def forward(self, inputs: list):
         logger = logging.getLogger('TikTorchClient.forward')
         logger.info("Waiting for lock...")
