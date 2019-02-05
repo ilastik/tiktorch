@@ -61,7 +61,29 @@ def deserialize(type_: type, frames: Iterator[zmq.Frame]) -> Any:
         raise NotImplementedError(f"Serialization protocol not implemented for {type_}")
     logger.debug("Using %r serializer", serializer)
 
-    return serializer.deserialize(frames)
+    return serializer.deserialize(IteratorWrapper(type_, frames))
+
+
+
+class DeserializationError(Exception):
+    pass
+
+
+class IteratorWrapper(Iterator[zmq.Frame]):
+    def __init__(self, type_: T, iter_: Iterator[zmq.Frame]) -> None:
+        self._iter = iter_
+        self._type = type_
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> zmq.Frame:
+        try:
+            return next(self._iter)
+        except StopIteration:
+            raise DeserializationError(
+                f'Not enought frames to deserialize {self._type}'
+            ) from None
 
 
 #: Registry of type serialziers
@@ -122,3 +144,4 @@ class MemoryViewSerializer(ISerializer[memoryview]):
     @classmethod
     def serialize(cls, obj: memoryview) -> Iterator[zmq.Frame]:
         yield zmq.Frame(obj)
+
