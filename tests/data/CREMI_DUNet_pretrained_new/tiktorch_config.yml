@@ -1,8 +1,0 @@
-dynamic_input_shape: (32 * (nH + 1), 32 * (nW + 1))
-halo: !!python/tuple [0, 0]
-input_shape: !!python/tuple [1, 256, 256]
-min_input_shape: !!python/tuple [1, 320, 320]
-model_class_name: DUNet2D
-model_init_kwargs: {in_channels: 1, out_channels: 1}
-output_shape: !!python/tuple [1, 256, 256]
-torch_version: 0.4.1.post2
