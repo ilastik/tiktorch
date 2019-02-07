@@ -438,7 +438,7 @@ class ModelHandler(Processor):
                 roi_shape.append(slice(None))
         return tensor[[slice(None)] * num_channel_axes + roi_shape]
 
-    def forward(self, input_tensor):
+    def forward(self, input_tensor: torch.Tensor):
         """
         Parameters
         ----------
