@@ -1,51 +1,50 @@
 import inspect
 import logging
 
-from typing import Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict
+from typing import (
+    Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+)
 
 import zmq
 
 from .serialization import serialize, deserialize
 
 
+logger = logging.getLogger(__name__)
+
+
 def serialize_args(
     func: Callable,
-    args: List[Any],
-    kwargs: Dict[str, Any]
+    args: Tuple[Any, ...],
+    kwargs: Optional[Dict[str, Any]] = None
 ) -> Iterator[zmq.Frame]:
 
-    spec = inspect.getfullargspec(func)
-    bound_args = inspect.getcallargs(func, None, *args, **kwargs)
+    kwargs = kwargs or {}
+    ismethod = inspect.ismethod(func)
 
-    for arg_name in spec.args:
-        if arg_name == 'self':
-            # TODO: Better way to skip self attribute (self naming is a convention)
-            continue
-        type_ = spec.annotations[arg_name]
-        call_arg = bound_args[arg_name]
-        yield from serialize(type_, call_arg)
-
-
-def deserialize_return(
-    func: Callable,
-    frames: Iterator[zmq.Frame],
-) -> Any:
     sig = inspect.signature(func)
-    return deserialize(sig.return_annotation, frames)
+
+    # Ensure that we only handle class methods
+    if not ismethod:
+        raise ValueError(f'{func} should be bound instance method')
+
+    bound_args = sig.bind(*args, **kwargs).arguments
+
+    for arg in sig.parameters.values():
+        type_ = arg.annotation
+        call_arg = bound_args[arg.name]
+        yield from serialize(type_, call_arg)
 
 
 def deserialize_args(
     func: Callable,
     frames: Iterator[zmq.Frame],
 ) -> List[Any]:
-    spec = inspect.getfullargspec(func)
+    sig = inspect.signature(func)
     args = []
 
-    for arg_name in spec.args:
-        if arg_name == 'self':
-            # TODO: Better way to skip self attribute (self naming is a convention)
-            continue
-        type_ = spec.annotations[arg_name]
+    for arg in sig.parameters.values():
+        type_ = arg.annotation
         args.append(deserialize(type_, frames))
 
     return args
@@ -58,7 +57,13 @@ def serialize_return(
     sig = inspect.signature(func)
     return serialize(sig.return_annotation, value)
 
-logger = logging.getLogger(__name__)
+
+def deserialize_return(
+    func: Callable,
+    frames: Iterator[zmq.Frame],
+) -> Any:
+    sig = inspect.signature(func)
+    return deserialize(sig.return_annotation, frames)
 
 
 def get_exposed_methods(obj):
@@ -82,7 +87,7 @@ def get_exposed_methods(obj):
     for attr_name in public_attrs:
         attr = getattr(obj, attr_name)
         if callable(attr):
-            exposed_methods[attr_name.encode('ascii')] = attr
+            exposed_methods[attr_name] = attr
 
     return exposed_methods
 
@@ -111,7 +116,7 @@ class Client:
         self._socket = socket
 
     def __getattr__(self, name) -> Any:
-        method = self._methods_by_name.get(name.encode('ascii'))
+        method = self._methods_by_name.get(name)
         if method is None:
             raise AttributeError(name)
         return MethodDispatcher(name, method, self)
@@ -120,6 +125,11 @@ class Client:
         # TODO: Timeout
         frames = self._socket.send_multipart(frames, copy=False)
         return self._socket.recv_multipart(copy=False)
+
+    def __dir__(self):
+        own_methods = self.__dict__.keys()
+        iface_methods = self._methods_by_name.keys()
+        return iface_methods ^ own_methods
 
 
 class Shutdown(Exception):
@@ -136,7 +146,7 @@ class Server:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
         ret = func(*args)
-        return serialize_return(func, ret)
+        return list(serialize_return(func, ret))
 
     def listen(self):
         while True:
@@ -144,7 +154,7 @@ class Server:
             method_frm, *args = frames
 
             method_name = method_frm.bytes
-            method = self._method_by_name.get(method_name)
+            method = self._method_by_name.get(method_name.decode('ascii'))
 
             if method is None:
                 raise Exception(f'Unknown method {method_name}')

@@ -7,8 +7,7 @@ from typing import Iterator
 
 import zmq
 
-from tiktorch.rpc.serialization import serializer_for, ISerializer, serialize, deserialize, DeserializationError
-from tiktorch.rpc.serialization import _serializer_by_type
+from tiktorch.rpc.serialization import ISerializer, DeserializationError, SerializerRegistry
 
 
 class Foo:
@@ -31,10 +30,9 @@ class Bar:
         )
 
 
-@pytest.fixture(autouse=True)
-def clean_registry():
-    # Implementation detail, reset registry for each test
-    _serializer_by_type.clear()
+@pytest.fixture()
+def ser():
+    return SerializerRegistry()
 
 
 class FooSerializer(ISerializer[Foo]):
@@ -66,7 +64,7 @@ class BarSerializer(ISerializer[Bar]):
         )
 
 
-def test_undefinined_serializer_raises():
+def test_undefinined_serializer_raises(ser):
     with pytest.raises(NotImplementedError):
         res = list(serialize(Foo, Foo(a=1)))
 
@@ -74,53 +72,60 @@ def test_undefinined_serializer_raises():
         res = list(deserialize(Foo, zmq.Frame(b'{"a": 1}')))
 
 
-def test_defining_serializer():
-    serializer_for(Foo)(FooSerializer)
+def test_defining_serializer(ser):
+    ser.register(Foo)(FooSerializer)
 
-    frame, *rest = list(serialize(Foo, Foo(a=42)))
+    frame, *rest = list(ser.serialize(Foo, Foo(a=42)))
     assert len(rest) == 0
     assert frame.bytes == b'{"a": 42}'
 
-    foo = deserialize(Foo, iter([frame]))
+    foo = ser.deserialize(Foo, iter([frame]))
     assert foo.a == 42
 
 
-def test_multiframe_parser():
-    serializer_for(Bar)(BarSerializer)
+def test_multiframe_parser(ser):
+    ser.register(Bar)(BarSerializer)
 
-    frames = list(serialize(Bar, Bar(b=42, c=21)))
+    frames = list(ser.serialize(Bar, Bar(b=42, c=21)))
     assert len(frames) == 2
     assert frames[0].bytes == b'*'
     assert frames[1].bytes == b'\x15'
 
 
-def test_deserializing_multiple_objects_from_frame_stream():
-    serializer_for(Foo)(FooSerializer)
-    serializer_for(Bar)(BarSerializer)
+def test_deserializing_multiple_objects_from_frame_stream(ser):
+    ser.register(Foo)(FooSerializer)
+    ser.register(Bar)(BarSerializer)
 
     expected_bar = Bar(b=42, c=21)
     expected_foo = Foo(a=1)
-    bar_frames = serialize(Bar, expected_bar)
-    foo_frames = serialize(Foo, expected_foo)
+    bar_frames = ser.serialize(Bar, expected_bar)
+    foo_frames = ser.serialize(Foo, expected_foo)
     tail = ('ok' for _ in range(1))
     # foo = deserialize(Foo, iter([frame]))
 
     frames = chain(bar_frames, foo_frames, tail)
 
 
-    bar = deserialize(Bar, frames)
+    bar = ser.deserialize(Bar, frames)
     assert bar == expected_bar
     assert bar is not expected_bar
 
-    foo = deserialize(Foo, frames)
+    foo = ser.deserialize(Foo, frames)
     assert foo == expected_foo
     assert foo is not expected_foo
 
     assert next(frames) == 'ok', "Iterator should consumed"
 
 
-def test_deserializing_from_empty_iterator_should_raise():
-    serializer_for(Foo)(FooSerializer)
+def test_deserializing_from_empty_iterator_should_raise(ser):
+    ser.register(Foo)(FooSerializer)
 
     with pytest.raises(DeserializationError):
-        foo = deserialize(Foo, iter([]))
+        foo = ser.deserialize(Foo, iter([]))
+
+
+def test_deserializing_from_empty_iterator_should_raise(ser):
+    ser.register(Foo)(FooSerializer)
+
+    with pytest.raises(DeserializationError):
+        foo = ser.deserialize(Foo, iter([]))
