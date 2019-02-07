@@ -1,5 +1,6 @@
 import inspect
 import logging
+import enum
 
 from typing import (
     Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
@@ -11,6 +12,12 @@ from .serialization import serialize, deserialize
 
 
 logger = logging.getLogger(__name__)
+
+
+@enum.unique
+class State(enum.Enum):
+    Return = b'0'
+    Error = b'1'
 
 
 def serialize_args(
@@ -98,12 +105,21 @@ class MethodDispatcher:
         self._client = client
         self._method = method
 
+    def _raise(self, frames):
+        msg = next(frames, None)
+        raise Exception(msg)
+
     def __call__(self, *args, **kwargs) -> Any:
         method_name = self._method_name.encode('ascii')
         frames = [method_name, *serialize_args(self._method, args, kwargs)]
         return_frames = self._client.dispatch(frames)
-        it = iter(return_frames)
-        return deserialize_return(self._method, it)
+        ctrl_frm, *rest = return_frames
+
+        it = iter(rest)
+        if ctrl_frm.bytes == State.Error.value:
+            self._raise(it)
+        elif ctrl_frm.bytes == State.Return.value:
+            return deserialize_return(self._method, it)
 
 
 class RPCInterface:
@@ -156,13 +172,23 @@ class Server:
             method_name = method_frm.bytes
             method = self._method_by_name.get(method_name.decode('ascii'))
 
-            if method is None:
-                raise Exception(f'Unknown method {method_name}')
-
             try:
-                resp_frames = self._call(method, args)
+                if method is None:
+                    raise Exception(f'Unknown method {method_name}')
+
+                resp_frames = [State.Return.value, *self._call(method, args)]
+
             except Shutdown:
                 self._socket.send(b'')
                 break
 
-            self._socket.send_multipart(list(resp_frames))
+            except Exception as e:
+                logger.exception('Exception during method %s call', method)
+                # TODO: Better exception serialization
+                self._socket.send_multipart([
+                    State.Error.value, str(e).encode('ascii')
+                ])
+
+            else:
+                self._socket.send_multipart(list(resp_frames))
+

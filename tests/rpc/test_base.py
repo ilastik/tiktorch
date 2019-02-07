@@ -3,6 +3,7 @@ from time import sleep
 from threading import Thread
 from functools import wraps
 
+import pytest
 import zmq
 
 from tiktorch.rpc.base import (
@@ -108,7 +109,6 @@ class IConcatRPC(RPCInterface):
         raise NotImplementedError
 
     def none_return(self) -> None:
-        print('called')
         return None
 
     def shutdown(self) -> None:
@@ -167,7 +167,7 @@ def test_method_returning_none():
     def _target():
         api = ConcatRPCSrv()
         socket = ctx.socket(zmq.PAIR)
-        socket.bind(f'tcp://127.0.0.1:9998')
+        socket.bind(f'inproc://test')
         srv = Server(api, socket)
         srv.listen()
 
@@ -175,8 +175,62 @@ def test_method_returning_none():
     t.start()
 
     socket = ctx.socket(zmq.PAIR)
-    socket.connect(f'tcp://127.0.0.1:9998')
+    socket.connect(f'inproc://test')
     cl = Client(IConcatRPC(), socket)
 
     res = cl.none_return()
-    assert False
+
+
+def test_error_doesnt_stop_server():
+    class Foo:
+        pass
+
+    class SomeRPC(RPCInterface):
+        def ping(self) -> bytes:
+            return b'pong'
+
+        def raise_exc(self) -> None:
+            raise Exception('fail')
+
+        def unknown_return_type(self) -> Foo:
+            return Foo()
+
+        def unknown_arg_type(self, f: Foo) -> bytes:
+            return 'ok'
+
+        def shutdown(self):
+            raise Shutdown()
+
+
+    ctx = zmq.Context()
+
+    def _target():
+        api = SomeRPC()
+        socket = ctx.socket(zmq.PAIR)
+        socket.bind(f'inproc://test')
+        srv = Server(api, socket)
+        srv.listen()
+
+    t = Thread(target=_target)
+    t.start()
+
+    socket = ctx.socket(zmq.PAIR)
+    # TODO: Check if socket is connected
+    socket.connect('inproc://test')
+    cl = Client(SomeRPC(), socket)
+
+    assert cl.ping() == b'pong'
+    assert t.is_alive()
+
+    with pytest.raises(Exception):
+        cl.raise_exc()
+
+    assert t.is_alive()
+    assert cl.ping() == b'pong'
+
+    with pytest.raises(Exception):
+        cl.unknown_return_type()
+
+    assert t.is_alive()
+    assert cl.ping() == b'pong'
+
