@@ -234,3 +234,6 @@ def test_error_doesnt_stop_server():
     assert t.is_alive()
     assert cl.ping() == b'pong'
 
+    cl.shutdown()
+    assert not t.is_alive()
+

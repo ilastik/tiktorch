@@ -158,11 +158,11 @@ class Server:
         self._socket = socket
         self._method_by_name = get_exposed_methods(api)
 
-    def _call(self, func: Callable, frames: List[zmq.Frame]) -> List[zmq.Frame]:
+    def _call(self, func: Callable, frames: List[zmq.Frame]) -> Iterator[zmq.Frame]:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
         ret = func(*args)
-        return list(serialize_return(func, ret))
+        return serialize_return(func, ret)
 
     def listen(self):
         while True:
@@ -190,5 +190,5 @@ class Server:
                 ])
 
             else:
-                self._socket.send_multipart(list(resp_frames))
+                self._socket.send_multipart(list(resp_frames), copy=False)
 
