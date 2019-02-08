@@ -128,7 +128,7 @@ def test_server():
 
     def _target():
         api = ConcatRPCSrv()
-        socket = ctx.socket(zmq.PAIR)
+        socket = ctx.socket(zmq.REP)
         socket.bind(f'inproc://test')
         srv = Server(api, socket)
         srv.listen()
@@ -136,9 +136,7 @@ def test_server():
     t = Thread(target=_target)
     t.start()
 
-    socket = ctx.socket(zmq.PAIR)
-    socket.connect(f'inproc://test')
-    cl = Client(IConcatRPC(), socket)
+    cl = Client(IConcatRPC(), f'inproc://test', ctx)
 
     resp = cl.concat(b'foo', b'bar')
     assert resp == b'foobar'
@@ -149,7 +147,7 @@ def test_server():
 
 
 def test_client_dir():
-    ctx = zmq.Context()
+    ctx = zmq.Context.instance()
     socket = ctx.socket(zmq.PAIR)
     cl = Client(IConcatRPC(), socket)
 
@@ -166,7 +164,7 @@ def test_method_returning_none():
 
     def _target():
         api = ConcatRPCSrv()
-        socket = ctx.socket(zmq.PAIR)
+        socket = ctx.socket(zmq.REP)
         socket.bind(f'inproc://test')
         srv = Server(api, socket)
         srv.listen()
@@ -174,9 +172,7 @@ def test_method_returning_none():
     t = Thread(target=_target)
     t.start()
 
-    socket = ctx.socket(zmq.PAIR)
-    socket.connect(f'inproc://test')
-    cl = Client(IConcatRPC(), socket)
+    cl = Client(IConcatRPC(), 'inproc://test', ctx)
 
     res = cl.none_return()
 
@@ -206,7 +202,7 @@ def test_error_doesnt_stop_server():
 
     def _target():
         api = SomeRPC()
-        socket = ctx.socket(zmq.PAIR)
+        socket = ctx.socket(zmq.REP)
         socket.bind(f'inproc://test')
         srv = Server(api, socket)
         srv.listen()
@@ -214,10 +210,7 @@ def test_error_doesnt_stop_server():
     t = Thread(target=_target)
     t.start()
 
-    socket = ctx.socket(zmq.PAIR)
-    # TODO: Check if socket is connected
-    socket.connect('inproc://test')
-    cl = Client(SomeRPC(), socket)
+    cl = Client(SomeRPC(), 'inproc://test', ctx)
 
     assert cl.ping() == b'pong'
     assert t.is_alive()
@@ -237,3 +230,40 @@ def test_error_doesnt_stop_server():
     cl.shutdown()
     assert not t.is_alive()
 
+
+def test_multithreaded():
+    class SomeRPC(RPCInterface):
+        def ping(self) -> bytes:
+            sleep(0.1)
+            return b'pong'
+
+    ctx = zmq.Context()
+
+    def _target():
+        api = SomeRPC()
+        socket = ctx.socket(zmq.REP)
+        socket.bind(f'inproc://test')
+        srv = Server(api, socket)
+        srv.listen()
+
+    t = Thread(target=_target)
+    t.start()
+
+    cl = Client(SomeRPC(), 'inproc://test', ctx)
+
+    res = []
+    def _client():
+        res.append(cl.ping() == b'pong')
+
+    clients = []
+    for _ in range(5):
+        t = Thread(target=_client)
+        t.start()
+        clients.append(t)
+
+    for c in clients:
+        c.join(timeout=1)
+        assert not c.is_alive()
+
+    assert len(res) == 5
+    assert all(res)

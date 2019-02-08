@@ -1,5 +1,6 @@
 import inspect
 import logging
+import threading
 import enum
 
 from typing import (
@@ -127,9 +128,28 @@ class RPCInterface:
 
 
 class Client:
-    def __init__(self, api: type, socket: zmq.Socket) -> None:
+    def __init__(
+        self, api: type,
+        conn_str: str,
+        ctx: Optional[zmq.Context] = None
+    ) -> None:
         self._methods_by_name = get_exposed_methods(api)
-        self._socket = socket
+        self._conn_str = conn_str
+
+        self._local = threading.local()
+        self._ctx = ctx or zmq.Context.instance()
+
+    @property
+    def _socket(self):
+        sock = getattr(self._local, 'sock', None)
+
+        if sock is None:
+            ctx = self._ctx
+            sock = ctx.socket(zmq.REQ)
+            sock.connect(self._conn_str)
+            setattr(self._local, 'sock', sock)
+
+        return sock
 
     def __getattr__(self, name) -> Any:
         method = self._methods_by_name.get(name)
@@ -170,6 +190,8 @@ class Server:
             method_frm, *args = frames
 
             method_name = method_frm.bytes
+            logger.debug("Invoking %s method", method_name)
+
             method = self._method_by_name.get(method_name.decode('ascii'))
 
             try:
@@ -191,4 +213,3 @@ class Server:
 
             else:
                 self._socket.send_multipart(list(resp_frames), copy=False)
-

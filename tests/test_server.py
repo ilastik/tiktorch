@@ -6,7 +6,7 @@ import numpy as np
 
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc_interface import INeuralNetworkAPI
-from tiktorch.rpc import Client, Server
+from tiktorch.rpc import Client, Server, RPCInterface
 from tiktorch.types import NDArray, NDArrayBatch
 
 
@@ -22,7 +22,7 @@ def ctx():
 def srv(ctx):
     api_provider = TikTorchServer(device='cpu')
 
-    socket = ctx.socket(zmq.PAIR)
+    socket = ctx.socket(zmq.REP)
     socket.bind(SOCKET_ADDR)
 
     srv = Server(api_provider, socket)
@@ -32,16 +32,17 @@ def srv(ctx):
 
     t = Thread(target=_target)
     t.start()
+
     yield api_provider
+
     t.join(timeout=2)
     assert not t.is_alive()
 
 
 @pytest.fixture
 def client(ctx):
-    sock = ctx.socket(zmq.PAIR)
-    sock.connect(SOCKET_ADDR)
-    cl = Client(INeuralNetworkAPI(), sock)
+    cl = Client(INeuralNetworkAPI(), SOCKET_ADDR, ctx)
+
     yield cl
 
     cl.shutdown()
