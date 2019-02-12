@@ -414,6 +414,35 @@ class TikTorchClient(object):
     def request_optimizer_state_dict(self):
         pass
 
+    def binary_dry_run(self, image_volume_shape, train_flag=False):
+        """
+        Sends a request to initiate a binary dry run to the server.
+        :param image_volume_shape (list or tuple in order (t,c,z,y,x)) as upper bound for the binary search.
+        :return: valid block shape (list)
+        """
+        assert len(image_volume_shape) == 5
+        logger = logging.getLogger('TikTorchClient.binary_dry_run')
+        logger.info("Waiting for lock...")
+        with self._main_lock:
+            logger.info("Request dispatch...")
+            assert self.request_dispatch('BINARY_DRY_RUN')
+            logger.info("Request successful.")
+            logger.info("Sending shape of the image volume...")
+            self._zmq_socket.send_json({'train': train_flag,
+                                        'upper_bound': image_volume_shape})
+            logger.info("Sent. Waiting for dry run result...")
+            valid_shape = self._zmq_socket.recv()
+            logger.info("Valid shape received.")
+        return valid_shape
+
+
+def test_client_dry_run():
+    client = TikTorchClient(tiktorch_config=INIT_DATA[0],
+                            binary_model_file=INIT_DATA[1],
+                            binary_model_state=INIT_DATA[2],
+                            port=np.random.randint(1, 100000))
+    logging.info("Obtained client. Sending request for dry run...")
+    valid_shape = client.binary_dry_run(image_volume_shape=(1, 1, 125, 1250, 2040))
 
 def test_client_forward():
     TikTorchClient._START_PROCESS = False
@@ -596,4 +625,4 @@ if __name__ == '__main__':
         with open(os.path.join(BUILD_DIR, fn), 'rb') as file:
             INIT_DATA.append(file.read())
 
-    test_client_state_request()
+    test_client_dry_run()

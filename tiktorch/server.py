@@ -367,6 +367,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 self.meta_send({'id': 'DISPATCHING.MODEL_STATE_DICT_REQUEST'})
                 logger.info('Dispatch confirmed.')
                 self.request_model_state_dict()
+            elif request['id'] == 'DISPATCH.BINARY_DRY_RUN':
+                logger.info("Received a request to initiate a binary dry run.")
+                self.meta_send({'id': 'DISPATCHING.BINARY_DRY_RUN'})
+                logger.info('Dispatch confirmed.')
+                self.binary_dry_run()
             else:
                 # Bad id
                 raise RuntimeError(request)
@@ -382,10 +387,18 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         logger.info('Sent state dict.')
         state_dict.close()
 
-
     def request_optimizer_state_dict(self):
         pass
 
+    def binary_dry_run(self):
+        logger = logging.getLogger('TikTorchServer.binary_dry_run')
+        logger.info("Receiving shape of the image volume.")
+        meta = self._zmq_socket.recv_json()
+        train_flag = meta['train']
+        upper_bound = meta['upper_bound']
+        logger.info('Initiating dry run...')
+        valid_shape = self.handler.binary_dry_run(image_shape=upper_bound,
+                                                  train_flag=train_flag)
 
     def poll_training_process(self):
         logger = logging.getLogger('TikTorchServer.poll_training_process')

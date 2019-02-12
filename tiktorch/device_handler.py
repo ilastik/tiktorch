@@ -237,8 +237,7 @@ class ModelHandler(Processor):
             return self._train_trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
                                                     device_id=device_id)
         else:
-            return self._trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
-                                              device_id=device_id)
+            return self._trial_run_successful(self.channels, *block_size, device_id=device_id)
 
     def _dry_run_on_device(self, device_id=0):
         # Sweep diagonals to find where it crashes.
@@ -318,42 +317,95 @@ class ModelHandler(Processor):
         """
         Parameters
         ----------
-        image_shape: list or tuple
+        :param image_volume_shape (list or tuple in order (t,c,z,y,x)) as upper bound for the binary search.
+        :return: valid block shape (list)
         """
+        import torch.nn as nn
+        self._model = nn.Sequential(nn.Conv3d(1, 12, 3),
+                                    nn.Sigmoid(),
+                                    nn.Conv3d(12, 24, 3),
+                                    nn.ReLU())
         image_shape = list(image_shape) # in case image_shape is a tuple
-        assert len(image_shape) == len(self.dynamic_shape.base_shape)
-        
-        if self.devices[0] == torch.device('cpu'):
-            default_shape = [256, 256] if len(image_shape) == 2 else [96, 96, 96]
-            image_shape = [default_shape[i] if image_shape[i] > default_shape[i] else image_shape[i]
-                           for i in range(len(image_shape))]
-
-        logger.debug(f'Dry run with upper bound: {image_shape}')
-            
-        max_shape = []
+        logger.info(f'Dry run with upper bound: {image_shape}')
+        max_shape = None
         for device_id in range(self.num_devices):
             logger.debug(f'Dry running on device: {self.devices[device_id]}')
-            self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape, device_id, train_flag=train_flag)
+            self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape,
+                                                                           device_id,
+                                                                           train_flag)
             max_device_shape = self.dynamic_shape(*self._device_specs[device_id].num_blocks)
-            if len(max_shape) == 0:
+            if max_shape is None:
                 max_shape = max_device_shape
             elif max_shape < max_device_shape:
                 max_shape = max_device_shape
         logger.debug(f'Dry run finished. Max shape / upper bound: {max_shape} / {image_shape}')
         return max_shape
 
+    def _is_3d_model(self, channels):
+        import torch.nn as nn
+        import multiprocessing as mp
+        import time
+        import queue
+        from tiktorch.utils import define_patched_model
+
+        model_state = self.model.state_dict()
+        #model_config = (self.model._model_file_name,
+        #                self.model._model_class_name,
+        #                self.model._model_init_kwargs)
+        model_config = None
+
+        def _forward(pipe: mp.Pipe, state, config, depth, size):
+            logger = logging.getLogger('Subprocess')
+            #model = define_patched_model(*config)
+            model = nn.Sequential(nn.Conv3d(1, 12, 3),
+                                  nn.Sigmoid(),
+                                  nn.Conv3d(12, 24, 3),
+                                  nn.ReLU())
+            model.load_state_dict(state)
+            try:
+                out = self.model(torch.zeros(1, channels, depth, size, size))
+                pipe.put(out.shape)
+            except RuntimeError:
+                logger.info(f'Testing if model is 3D with shape {[1, channels, depth, size, size]}.')
+
+        for depth in range(6, 19, 3):
+            for size in range(100, 257, 3):
+                q = mp.Queue()
+                process = mp.Process(target=_forward, args=(q, model_state, model_config, depth, size))
+                process.start()
+                time.sleep(.1)
+                process.terminate()
+                time.sleep(.05)
+                try:
+                    val = q.get_nowait()
+                    print(val)
+                    return True, [depth, size, size]
+                except queue.Empty:
+                    logger.debug('Queue is empty.')
+                    continue
+        return False, None
+
+
     def _binary_dry_run_on_device(self, image_shape, device_id, train_flag=False):
-        """
-        Parameters
-        ----------
-        max_shape: list in base shape units
-        """
-        ndim_image = len(image_shape)
-        previous_spatial_shape = [0 for i in range(ndim_image)]
-        device_capacity = [0 for i in range(ndim_image)]
+        import time
+        # check if network takes 2D or 3D inputs
+        logger.info('Testing if model is 3D...')
+        _start = time.time()
+        is_3d, _3d_start_shape = self._is_3d_model(channels=image_shape[1])
+        print(time.time() - _start)
+        print(f'upper-bound {image_shape}')
+        logger.info(f'Is model 3D? {is_3d}')
+
+        min = np.min(np.array(image_shape[2:]))
+        ratios = [image_shape[i] // min for i in range(2, 5 if is_3d else 4)]
+        print(ratios)
+        return 0
+
+        ndim_image = 3 if is_3d else 2
+        previous_spatial_shape = [0 for _ in range(ndim_image)]
+        device_capacity = [0 for _ in range(ndim_image)]
         l = [0 for _ in range(ndim_image)]
-        r = [int(np.ceil(size / base_shape))
-             for size, base_shape in zip(image_shape, self.dynamic_shape.base_shape)]
+        r = [size for size in image_shape[2:]]
         m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
         bark = False
         break_flag = False
@@ -361,12 +413,13 @@ class ModelHandler(Processor):
         while sum(l) <= sum(r):
             for i in range(ndim_image):
                 m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
-                spatial_shape = self.dynamic_shape(*m)
+                #spatial_shape = self.dynamic_shape(*m)
+                spatial_shape = m
                 
-                logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
-                print(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
+                logger.info(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
 
-                if spatial_shape > image_shape:
+                #if spatial_shape > image_shape[2:]:
+                if m > image_shape[2:]:
                     break_flag = True
                     break
                 else:
