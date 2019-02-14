@@ -75,24 +75,14 @@ def deserialize_return(
 
 
 def get_exposed_methods(obj):
-    if not isinstance(obj, type):
-        cls = type(obj)
-    else:
-        cls = obj
+    exposed = getattr(obj, '__exposedmethods__', None)
 
-    iface = None
-
-    for base in inspect.getmro(cls):
-        if issubclass(base, RPCInterface) and base is not RPCInterface:
-            iface = base
-
-    if iface is None:
+    if not exposed:
         raise ValueError(f"Class doesn't provide public API")
 
-    public_attrs = [attr for attr in dir(iface) if not attr.startswith('_')]
     exposed_methods = {}
 
-    for attr_name in public_attrs:
+    for attr_name in exposed:
         attr = getattr(obj, attr_name)
         if callable(attr):
             exposed_methods[attr_name] = attr
@@ -123,21 +113,61 @@ class MethodDispatcher:
             return deserialize_return(self._method, it)
 
 
-class RPCInterface:
+class RPCInterfaceMeta(type):
+    def __new__(mcls, name, bases, namespace, **kwargs):
+        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+        exposed = {
+            name
+            for name, value in namespace.items()
+            if getattr(value, "__exposed__", False)
+        }
+
+        for base in bases:
+            if issubclass(base, RPCInterface):
+                 exposed ^= getattr(base, "__exposedmethods__", set())
+
+        cls.__exposedmethods__ = frozenset(exposed)
+        return cls
+
+
+class RPCInterface(metaclass=RPCInterfaceMeta):
     pass
+
+
+def exposed(method):
+    method.__exposed__ = True
+    return method
+
+
+class ConnConfig:
+    def __init__(
+        self,
+        addr: str,
+        port: str,
+        timeout: int, # ms
+        ctx: Optional[zmq.Context] = None
+    ) -> None:
+
+        self.addr = addr
+        self.port = port
+        self.ctx = ctx or zmq.Context.instance()
+        self.timeout = timeout
 
 
 class Client:
     def __init__(
         self, api: type,
         conn_str: str,
-        ctx: Optional[zmq.Context] = None
+        ctx: Optional[zmq.Context] = None,
+        timeout: int = 1000, # ms
     ) -> None:
         self._methods_by_name = get_exposed_methods(api)
         self._conn_str = conn_str
 
         self._local = threading.local()
         self._ctx = ctx or zmq.Context.instance()
+        self._poller = zmq.Poller()
+        self._timeout = 1000
 
     @property
     def _socket(self):
@@ -146,6 +176,8 @@ class Client:
         if sock is None:
             ctx = self._ctx
             sock = ctx.socket(zmq.REQ)
+            sock.setsockopt(zmq.LINGER, 0)
+            sock.RCVTIMEO = self._timeout
             sock.connect(self._conn_str)
             setattr(self._local, 'sock', sock)
 
@@ -158,8 +190,16 @@ class Client:
         return MethodDispatcher(name, method, self)
 
     def dispatch(self, frames: List[zmq.Frame]):
-        # TODO: Timeout
+        evt = self._socket.poll(self._timeout, flags=zmq.POLLOUT)
+        if not evt:
+            raise TimeoutError()
+
         frames = self._socket.send_multipart(frames, copy=False)
+
+        evt = self._socket.poll(self._timeout, flags=zmq.POLLIN)
+        if not evt:
+            raise TimeoutError()
+
         return self._socket.recv_multipart(copy=False)
 
     def __dir__(self):
@@ -172,10 +212,25 @@ class Shutdown(Exception):
     pass
 
 
+class TimeoutError(Exception):
+    pass
+
+
 class Server:
-    def __init__(self, api, socket: zmq.Socket) -> None:
+    def __init__(
+        self,
+        api: RPCInterface,
+        conn_str: str,
+        ctx: Optional[zmq.Context] = None
+    ) -> None:
         self._api = api
-        self._socket = socket
+
+        self._ctx = ctx or zmq.Context.instance()
+        sock = self._ctx.socket(zmq.REP)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.bind(conn_str)
+
+        self._socket = sock
         self._method_by_name = get_exposed_methods(api)
 
     def _call(self, func: Callable, frames: List[zmq.Frame]) -> Iterator[zmq.Frame]:
@@ -202,6 +257,7 @@ class Server:
 
             except Shutdown:
                 self._socket.send(b'')
+                self._socket.close()
                 break
 
             except Exception as e:

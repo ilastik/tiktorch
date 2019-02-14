@@ -1,4 +1,3 @@
-# TODO: Timeout tests
 from time import sleep
 from threading import Thread
 from functools import wraps
@@ -7,7 +6,7 @@ import pytest
 import zmq
 
 from tiktorch.rpc.base import (
-    RPCInterface, get_exposed_methods,
+    RPCInterface, exposed, get_exposed_methods,
     serialize_args, deserialize_args,
     deserialize_return, serialize_return,
     Server, Client, Shutdown
@@ -15,6 +14,7 @@ from tiktorch.rpc.base import (
 
 
 class Iface(RPCInterface):
+    @exposed
     def foo(self):
         raise NotImplementedError
 
@@ -105,12 +105,15 @@ def test_serialize_deserialize_decoratedd_method_return():
 
 
 class IConcatRPC(RPCInterface):
+    @exposed
     def concat(self, a: bytes, b: bytes) -> bytes:
         raise NotImplementedError
 
+    @exposed
     def none_return(self) -> None:
         return None
 
+    @exposed
     def shutdown(self) -> None:
         raise Shutdown()
 
@@ -128,9 +131,7 @@ def test_server():
 
     def _target():
         api = ConcatRPCSrv()
-        socket = ctx.socket(zmq.REP)
-        socket.bind(f'inproc://test')
-        srv = Server(api, socket)
+        srv = Server(api, 'inproc://test', ctx)
         srv.listen()
 
     t = Thread(target=_target)
@@ -147,9 +148,7 @@ def test_server():
 
 
 def test_client_dir():
-    ctx = zmq.Context.instance()
-    socket = ctx.socket(zmq.PAIR)
-    cl = Client(IConcatRPC(), socket)
+    cl = Client(IConcatRPC(), 'inproc://test')
 
     methods = dir(cl)
 
@@ -164,9 +163,7 @@ def test_method_returning_none():
 
     def _target():
         api = ConcatRPCSrv()
-        socket = ctx.socket(zmq.REP)
-        socket.bind(f'inproc://test')
-        srv = Server(api, socket)
+        srv = Server(api, 'inproc://test', ctx)
         srv.listen()
 
     t = Thread(target=_target)
@@ -175,6 +172,7 @@ def test_method_returning_none():
     cl = Client(IConcatRPC(), 'inproc://test', ctx)
 
     res = cl.none_return()
+    cl.shutdown()
 
 
 def test_error_doesnt_stop_server():
@@ -182,18 +180,23 @@ def test_error_doesnt_stop_server():
         pass
 
     class SomeRPC(RPCInterface):
+        @exposed
         def ping(self) -> bytes:
             return b'pong'
 
+        @exposed
         def raise_exc(self) -> None:
             raise Exception('fail')
 
+        @exposed
         def unknown_return_type(self) -> Foo:
             return Foo()
 
+        @exposed
         def unknown_arg_type(self, f: Foo) -> bytes:
             return 'ok'
 
+        @exposed
         def shutdown(self):
             raise Shutdown()
 
@@ -202,9 +205,7 @@ def test_error_doesnt_stop_server():
 
     def _target():
         api = SomeRPC()
-        socket = ctx.socket(zmq.REP)
-        socket.bind(f'inproc://test')
-        srv = Server(api, socket)
+        srv = Server(api, 'inproc://test', ctx)
         srv.listen()
 
     t = Thread(target=_target)
@@ -233,17 +234,20 @@ def test_error_doesnt_stop_server():
 
 def test_multithreaded():
     class SomeRPC(RPCInterface):
+        @exposed
         def ping(self) -> bytes:
             sleep(0.1)
             return b'pong'
+
+        @exposed
+        def shutdown(self) -> None:
+            raise Shutdown()
 
     ctx = zmq.Context()
 
     def _target():
         api = SomeRPC()
-        socket = ctx.socket(zmq.REP)
-        socket.bind(f'inproc://test')
-        srv = Server(api, socket)
+        srv = Server(api, f'inproc://test', ctx)
         srv.listen()
 
     t = Thread(target=_target)
@@ -265,5 +269,28 @@ def test_multithreaded():
         c.join(timeout=1)
         assert not c.is_alive()
 
+    cl.shutdown()
+
     assert len(res) == 5
     assert all(res)
+
+
+def test_rpc_interface_metaclass():
+    class IBar(RPCInterface):
+        @exposed
+        def bar(self) -> None:
+            return
+
+    class IFoo(RPCInterface):
+        @exposed
+        def foo(self) -> None:
+            return
+
+    class Foo(IFoo, IBar):
+        def foo(self):
+            return None
+
+        def foobar(self):
+            return None
+
+    assert Foo.__exposedmethods__ == {'foo', 'bar'}

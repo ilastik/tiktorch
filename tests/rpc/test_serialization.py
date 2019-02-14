@@ -7,7 +7,9 @@ from typing import Iterator
 
 import zmq
 
-from tiktorch.rpc.serialization import ISerializer, DeserializationError, SerializerRegistry
+from tiktorch.rpc.serialization import (
+    ISerializer, DeserializationError, SerializerRegistry, serialize, deserialize
+)
 
 
 class Foo:
