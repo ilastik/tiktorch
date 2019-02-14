@@ -1,6 +1,8 @@
 # ignore
 __pycache__/
 .idea/
+.mypy_cache/
+*.egg-info/
 tiktorch/.idea
 tiktorch/__pycache/
 /#wrapper.py#
