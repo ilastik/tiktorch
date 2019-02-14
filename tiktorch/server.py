@@ -1,3 +1,4 @@
+import argparse
 import logging
 import io
 import os
@@ -19,7 +20,7 @@ from tiktorch.device_handler import ModelHandler
 from tiktorch import serializers
 from tiktorch.types import NDArray, NDArrayBatch
 
-from .rpc_interface import INeuralNetworkAPI
+from .rpc_interface import INeuralNetworkAPI, IFlightControl
 from typing import List, Any
 
 
@@ -68,7 +69,7 @@ def expect_state(*allowed):
     return decorator
 
 
-class TikTorchServer(INeuralNetworkAPI):
+class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     RANK = 1
     SIZE = 2
 
@@ -279,46 +280,13 @@ class TikTorchServer(INeuralNetworkAPI):
         self._set_handler(model)
 
     def forward(self, batch: NDArrayBatch) -> NDArrayBatch:
-        #logger = logging.getLogger('TikTorchServer.forward')
-        #logger.info("Receiving BatchSpec...")
-        #batch_spec = self.meta_recv()
-        #assert batch_spec['id'] == 'FORWARD.BATCHSPEC'
-        #logger.info("Received BatchSpec.")
-        #batches = [torch.zeros(*shape) for shape in batch_spec['shapes']]
-        #for idx in range(batch_spec['len']):
-        #    logger.info("Receiving batch from chief.")
-        #    batches[idx] = self.tensor_recv(f'FORWARD_IN_{idx}', framework='torch')
-        # Forward
-        #logger.info("Feedforward.")
-        import inspect
-        print(inspect.signature(self.handler.forward))
+        # TODO: Use TikIO for batching
         tensors = [torch.from_numpy(a) for a in batch.as_numpy()]
-        logger.debug("Call forward")
         res = self.handler.forward(*tensors)
         logger.debug("Send forward result")
         return NDArrayBatch([NDArray(res.numpy())])
-        # Send output spec
-        # logger.info("Sending OutSpec.")
-        # self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
-        logger.info("Sending output.")
-        self.tensor_send(output_batches, 'FORWARD_OUT')
-        logger.info("Sent output.")
 
     def train(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
-        logger = logging.getLogger('TikTorchServer.train')
-        logger.info("Receiving BatchSpec")
-        # batch_spec = self.meta_recv()
-        # assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
-        # assert batch_spec['len'] == len(batch_spec['data.shapes']) == len(batch_spec['labels.shapes']) == \
-        #        len(batch_spec['sample_ids'])
-        # logger.info("Receiving data and labels from chief.")
-        # Receive tensors
-        # data, labels = [], []
-        # for id in batch_spec['sample_ids']:
-        #     # assert isinstance(id, tuple)  # todo: make sure sample_ids only contains tuples 
-        #     id = tuple(id)
-        #     data.append(torch.from_numpy(self.tensor_recv(f'TRAIN_DATA_{id}')))
-        #     labels.append(torch.from_numpy(self.tensor_recv(f'TRAIN_LABEL_{id}')))
         torch_data = [
             torch.from_numpy(arr) for arr in data.as_numpy()
         ]
@@ -436,12 +404,12 @@ class TikTorchServer(INeuralNetworkAPI):
         return b'pong'
 
     def shutdown(self):
-        raise Shutdown()
         logger = logging.getLogger('TikTorchServer.shutdown')
         logger.info("Stopping training...")
-        self.handler.stop_training()
-        logger.info("Training stop.")
-        self._zmq_socket.close()
+        if self._handler:
+            self._handler.stop_training()
+        logger.info("Training has stopped")
+        raise Shutdown()
 
 
 def debug_server():
@@ -464,18 +432,14 @@ class ServerProcess:
 
     def listen(self):
         api_provider = TikTorchServer(device=self._device)
-
-        ctx = zmq.Context()
-        socket = ctx.socket(zmq.PAIR)
-        socket.bind(f'tcp://{self._addr}:{self._port}')
-
-        srv = Server(api_provider, socket)
+        srv = Server(api_provider, f'tcp://{self._addr}:{self._port}')
         srv.listen()
 
 
-
 if __name__ == '__main__':
-    import argparse
+    # Output pid for process tracking
+    print(os.getpid(), flush=True)
+
     parsey = argparse.ArgumentParser()
     parsey.add_argument('--addr', type=str, default='127.0.0.1')
     parsey.add_argument('--port', type=str, default='29500')
@@ -488,11 +452,3 @@ if __name__ == '__main__':
         port=args.port,
     )
     srv.listen()
-
-    # Go!
-    # if args.debug:
-    #     server = debug_server()
-    # else:
-    #     server = TikTorchServer(address=args.addr, port=args.port, meta_port=args.meta_port)
-    # server.listen()
-

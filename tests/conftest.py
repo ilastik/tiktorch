@@ -1,7 +1,8 @@
 import zipfile
 
 from collections import namedtuple
-from os import path
+from os import path, getenv
+from random import randint
 
 import pytest
 import yaml
@@ -49,3 +50,8 @@ def nn_sample(tmpdir, datadir):
             file_contents.append(file.read())
 
     return NNModel(*file_contents)
+
+
+@pytest.fixture
+def srv_port():
+    return getenv("TEST_TIKTORCH_PORT", randint(5500, 9999))
