@@ -6,6 +6,7 @@ import enum
 from typing import (
     Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 )
+from typing_extensions import Protocol
 
 import zmq
 
@@ -19,6 +20,65 @@ logger = logging.getLogger(__name__)
 class State(enum.Enum):
     Return = b'0'
     Error = b'1'
+
+
+class IConnConf:
+    def get_conn_str(self) -> str:
+        """
+        :returns str: valid connection string for zmq.Socket
+        """
+        raise NotImplementedError()
+
+    def get_ctx(self) -> zmq.Context:
+        """
+        :returns zmq.Context: same ctx for each class instance
+        """
+        return self._ctx
+
+    def get_timeout(self) -> int:
+        """
+        timeout in seconds to use with zmq
+        -1 indefinite
+        >= 0 ms
+        """
+        if self._timeout is None:
+            return -1
+        else:
+            return self._timeout
+
+
+class InprocConnConf(IConnConf):
+    def __init__(
+        self, name: str,
+        ctx: zmq.Context,
+        timeout: Optional[int] = None,
+    ) -> None:
+        """
+        Inproc config is dependent on sharing *same context instance*
+        """
+        self._ctx = ctx
+        self._timeout = timeout
+        self.name = name
+
+    def get_conn_str(self) -> str:
+        return f'inproc://{self.name}'
+
+
+class TCPConnConf(IConnConf):
+    def __init__(
+        self,
+        addr: str,
+        port: str,
+        timeout: Optional[int] = None,
+        ctx: Optional[zmq.Context] = None,
+    ) -> None:
+        self.port = port
+        self.addr = addr
+        self._timeout = timeout
+        self._ctx = ctx or zmq.Context.instance()
+
+    def get_conn_str(self) -> str:
+        return f'tcp://{self.addr}:{self.port}'
 
 
 def serialize_args(
@@ -139,46 +199,29 @@ def exposed(method):
     return method
 
 
-class ConnConfig:
-    def __init__(
-        self,
-        addr: str,
-        port: str,
-        timeout: int, # ms
-        ctx: Optional[zmq.Context] = None
-    ) -> None:
-
-        self.addr = addr
-        self.port = port
-        self.ctx = ctx or zmq.Context.instance()
-        self.timeout = timeout
-
-
 class Client:
     def __init__(
-        self, api: type,
-        conn_str: str,
-        ctx: Optional[zmq.Context] = None,
-        timeout: int = 1000, # ms
+        self,
+        api: type,
+        conn_conf: IConnConf,
     ) -> None:
         self._methods_by_name = get_exposed_methods(api)
-        self._conn_str = conn_str
+        self._conn_conf = conn_conf
 
         self._local = threading.local()
-        self._ctx = ctx or zmq.Context.instance()
         self._poller = zmq.Poller()
-        self._timeout = 1000
+        self._timeout = conn_conf.get_timeout()
 
     @property
     def _socket(self):
         sock = getattr(self._local, 'sock', None)
 
         if sock is None:
-            ctx = self._ctx
+            ctx = self._conn_conf.get_ctx()
             sock = ctx.socket(zmq.REQ)
             sock.setsockopt(zmq.LINGER, 0)
             sock.RCVTIMEO = self._timeout
-            sock.connect(self._conn_str)
+            sock.connect(self._conn_conf.get_conn_str())
             setattr(self._local, 'sock', sock)
 
         return sock
@@ -220,15 +263,14 @@ class Server:
     def __init__(
         self,
         api: RPCInterface,
-        conn_str: str,
-        ctx: Optional[zmq.Context] = None
+        conn_conf: IConnConf,
     ) -> None:
         self._api = api
 
-        self._ctx = ctx or zmq.Context.instance()
-        sock = self._ctx.socket(zmq.REP)
+        ctx = conn_conf.get_ctx()
+        sock = ctx.socket(zmq.REP)
         sock.setsockopt(zmq.LINGER, 0)
-        sock.bind(conn_str)
+        sock.bind(conn_conf.get_conn_str())
 
         self._socket = sock
         self._method_by_name = get_exposed_methods(api)
@@ -267,5 +309,7 @@ class Server:
                     State.Error.value, str(e).encode('ascii')
                 ])
 
+            # TODO: rearm socket after timeout to avoid being stuck in sending state
+            # in case of client missing (dead)
             else:
                 self._socket.send_multipart(list(resp_frames), copy=False)

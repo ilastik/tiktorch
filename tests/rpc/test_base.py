@@ -9,7 +9,7 @@ from tiktorch.rpc.base import (
     RPCInterface, exposed, get_exposed_methods,
     serialize_args, deserialize_args,
     deserialize_return, serialize_return,
-    Server, Client, Shutdown
+    Server, Client, Shutdown, InprocConnConf
 )
 
 
@@ -125,19 +125,21 @@ class ConcatRPCSrv(IConcatRPC):
     def not_exposed(self) -> None:
         pass
 
-
-def test_server():
+@pytest.fixture
+def conn_conf():
     ctx = zmq.Context()
+    return InprocConnConf('test', ctx)
 
+def test_server(conn_conf):
     def _target():
         api = ConcatRPCSrv()
-        srv = Server(api, 'inproc://test', ctx)
+        srv = Server(api, conn_conf)
         srv.listen()
 
     t = Thread(target=_target)
     t.start()
 
-    cl = Client(IConcatRPC(), f'inproc://test', ctx)
+    cl = Client(IConcatRPC(), conn_conf)
 
     resp = cl.concat(b'foo', b'bar')
     assert resp == b'foobar'
@@ -147,8 +149,8 @@ def test_server():
     assert not t.is_alive()
 
 
-def test_client_dir():
-    cl = Client(IConcatRPC(), 'inproc://test')
+def test_client_dir(conn_conf):
+    cl = Client(IConcatRPC(), conn_conf)
 
     methods = dir(cl)
 
@@ -158,24 +160,22 @@ def test_client_dir():
     assert 'not_exposed' not in methods
 
 
-def test_method_returning_none():
-    ctx = zmq.Context()
-
+def test_method_returning_none(conn_conf):
     def _target():
         api = ConcatRPCSrv()
-        srv = Server(api, 'inproc://test', ctx)
+        srv = Server(api, conn_conf)
         srv.listen()
 
     t = Thread(target=_target)
     t.start()
 
-    cl = Client(IConcatRPC(), 'inproc://test', ctx)
+    cl = Client(IConcatRPC(), conn_conf)
 
     res = cl.none_return()
     cl.shutdown()
 
 
-def test_error_doesnt_stop_server():
+def test_error_doesnt_stop_server(conn_conf):
     class Foo:
         pass
 
@@ -200,18 +200,15 @@ def test_error_doesnt_stop_server():
         def shutdown(self):
             raise Shutdown()
 
-
-    ctx = zmq.Context()
-
     def _target():
         api = SomeRPC()
-        srv = Server(api, 'inproc://test', ctx)
+        srv = Server(api, conn_conf)
         srv.listen()
 
     t = Thread(target=_target)
     t.start()
 
-    cl = Client(SomeRPC(), 'inproc://test', ctx)
+    cl = Client(SomeRPC(), conn_conf)
 
     assert cl.ping() == b'pong'
     assert t.is_alive()
@@ -232,7 +229,7 @@ def test_error_doesnt_stop_server():
     assert not t.is_alive()
 
 
-def test_multithreaded():
+def test_multithreaded(conn_conf):
     class SomeRPC(RPCInterface):
         @exposed
         def ping(self) -> bytes:
@@ -243,17 +240,15 @@ def test_multithreaded():
         def shutdown(self) -> None:
             raise Shutdown()
 
-    ctx = zmq.Context()
-
     def _target():
         api = SomeRPC()
-        srv = Server(api, f'inproc://test', ctx)
+        srv = Server(api, conn_conf)
         srv.listen()
 
     t = Thread(target=_target)
     t.start()
 
-    cl = Client(SomeRPC(), 'inproc://test', ctx)
+    cl = Client(SomeRPC(), conn_conf)
 
     res = []
     def _client():
