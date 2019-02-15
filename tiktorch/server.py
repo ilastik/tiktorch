@@ -15,7 +15,7 @@ import shutil
 import tempfile
 
 import tiktorch.utils as utils
-from tiktorch.rpc import Server, Shutdown
+from tiktorch.rpc import Server, Shutdown, TCPConnConf
 from tiktorch.device_handler import ModelHandler
 from tiktorch import serializers
 from tiktorch.types import NDArray, NDArrayBatch
@@ -432,7 +432,7 @@ class ServerProcess:
 
     def listen(self):
         api_provider = TikTorchServer(device=self._device)
-        srv = Server(api_provider, f'tcp://{self._addr}:{self._port}')
+        srv = Server(api_provider, TCPConnConf(self._addr, self._port))
         srv.listen()
 
 
@@ -443,8 +443,8 @@ if __name__ == '__main__':
     parsey = argparse.ArgumentParser()
     parsey.add_argument('--addr', type=str, default='127.0.0.1')
     parsey.add_argument('--port', type=str, default='29500')
-    parsey.add_argument('--meta_port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
+
     args = parsey.parse_args()
 
     srv = ServerProcess(

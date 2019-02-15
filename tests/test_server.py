@@ -6,11 +6,8 @@ import numpy as np
 
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.rpc import Client, Server, RPCInterface
+from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf
 from tiktorch.types import NDArray, NDArrayBatch
-
-
-SOCKET_ADDR = 'inproc://test'
 
 
 @pytest.fixture
@@ -19,10 +16,15 @@ def ctx():
 
 
 @pytest.fixture
-def srv(ctx, client_control):
+def conn_conf(ctx):
+    return InprocConnConf('test', ctx)
+
+
+@pytest.fixture
+def srv(conn_conf, client_control):
     api_provider = TikTorchServer(device='cpu')
 
-    srv = Server(api_provider, SOCKET_ADDR, ctx)
+    srv = Server(api_provider, conn_conf)
 
     def _target():
         srv.listen()
@@ -34,18 +36,20 @@ def srv(ctx, client_control):
 
     client_control.shutdown()
     t.join(timeout=2)
+
     assert not t.is_alive()
 
 
 @pytest.fixture
-def client_control(ctx):
-    cl_fl = Client(IFlightControl(), SOCKET_ADDR, ctx)
+def client_control(conn_conf):
+    cl_fl = Client(IFlightControl(), conn_conf)
 
     yield cl_fl
 
+
 @pytest.fixture
-def client(ctx):
-    cl = Client(INeuralNetworkAPI(), SOCKET_ADDR, ctx)
+def client(conn_conf):
+    cl = Client(INeuralNetworkAPI(), conn_conf)
 
     yield cl
 

@@ -8,7 +8,7 @@ from socket import timeout
 
 from paramiko import SSHClient, AutoAddPolicy
 
-from .rpc import Client, TimeoutError
+from .rpc import Client, TimeoutError, TCPConnConf
 from .rpc_interface import IFlightControl
 
 
@@ -17,13 +17,29 @@ class AlreadyRunningError(Exception):
 
 
 class IServerLauncher:
+    __conn_conf = None
+
     @property
     def logger(self):
         return logging.getLogger(self.__class__.__qualname__)
 
+    @property
+    def _conn_conf(self) -> TCPConnConf:
+        if self.__conn_conf is None:
+            raise Exception('Please set self._conn_conf')
+
+        return self.__conn_conf
+
+    @_conn_conf.setter
+    def _conn_conf(self, value: TCPConnConf) -> None:
+        if not isinstance(value, TCPConnConf):
+            raise ValueError('Should be instance of TCPConnConf')
+
+        self.__conn_conf = value
+
     def is_server_running(self):
         try:
-            c = Client(IFlightControl(), f'tcp://{self._addr}:{self._port}', timeout=200)
+            c = Client(IFlightControl(), self._conn_conf)
             return c.ping() == b'pong'
         except TimeoutError:
             return False
@@ -32,7 +48,7 @@ class IServerLauncher:
         raise NotImplementedError
 
     def stop(self):
-        c = Client(IFlightControl(), f'tcp://{self._addr}:{self._port}', timeout=200)
+        c = Client(IFlightControl(), self._conn_conf)
         c.shutdown()
 
 
@@ -51,19 +67,21 @@ def wait(done, interval=0.1, max_wait=10):
 
 
 class LocalServerLauncher(IServerLauncher):
-    def __init__(self):
+    def __init__(self, conn_conf: TCPConnConf):
+        self._conn_conf = conn_conf
         self._process = None
 
-    def start(self, addr, port):
+    def start(self):
+        addr, port = self._conn_conf.addr, self._conn_conf.port
+
         if addr != '127.0.0.1':
             raise ValueError('LocalServerHandler only possible to run on localhost')
-
-        self._addr, self._port = addr, port
 
         if self._process:
             raise AlreadyRunningError(f'Local server is already running (pid:{self._process.pid})')
 
         self.logger.info('Starting local TikTorchServer on %s:%s', addr, port)
+
         self._process = subprocess.Popen(
             [sys.executable, '-m', 'tiktorch.server', '--port',  str(port), '--addr', addr],
             stdout=sys.stdout, stderr=sys.stderr
@@ -76,11 +94,12 @@ class LocalServerLauncher(IServerLauncher):
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, *, user: str, password: str, ssh_port: int = 22) -> None:
+    def __init__(self, conn_conf, *, user: str, password: str, ssh_port: int = 22) -> None:
         self._user = user
         self._password = password
         self._ssh_port = ssh_port
         self._channel = None
+        self._conn_conf = conn_conf
 
         self._setup_ssh_client()
 
@@ -89,11 +108,11 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._ssh_client.set_missing_host_key_policy(AutoAddPolicy())
         self._ssh_client.load_system_host_keys()
 
-    def start(self, addr, port):
+    def start(self):
         if self._channel:
             raise RuntimeError('SSH server is already running')
 
-        self._addr, self._port = addr, port
+        addr, port = self._conn_conf.addr, self._conn_conf.port
 
         ssh_params = {
             'hostname': addr,
@@ -126,6 +145,8 @@ class RemoteSSHServerLauncher(IServerLauncher):
                     while channel.recv_ready():
                         buf += channel.recv(2048)
 
+                    buf_rdy.clear()
+
                     if buf:
                         print(buf.decode('utf-8'))
 
@@ -134,9 +155,10 @@ class RemoteSSHServerLauncher(IServerLauncher):
 
         t = threading.Thread(target=_monitor_and_report)
         t.start()
+
         self._channel = channel
 
         try:
-            channel.exec_command(f'/home/novikov/bin/tiktorch --addr {addr} --port {port}')
+            channel.exec_command(f'tiktorch --addr {addr} --port {port}')
         except timeout as e:
             raise RuntimeError('Failed to start TiktorchServer')

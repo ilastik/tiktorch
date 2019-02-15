@@ -98,8 +98,8 @@ class LocalServerHandler(IServerHandler):
             self.logger.warn('Local server is not running')
 
 
-class RemoteSshServerHandler(IServerHandler):
-    def __init__(self, *, user: str, password: str, ssh_port: int = 22):
+class RemoteSSHServerHandler(IServerHandler):
+    def __init__(self, *, user: str, password: str, ssh_port: int = 22) -> None:
         self._user = user
         self._password = password
         self._ssh_port = ssh_port
