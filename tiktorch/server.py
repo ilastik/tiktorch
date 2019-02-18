@@ -103,8 +103,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         shutil.rmtree(self.tmp_dir)
 
     def recv_init(self, config, binary_model_file, binary_model_state, binary_optimizer_state):
-        print('call here')
-        print(config)
         self._config = config
         logger.info("tiktorch config received.")
         self.binary_model_file = binary_model_file
