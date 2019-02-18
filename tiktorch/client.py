@@ -10,6 +10,7 @@ import torch
 import yaml
 import zmq
 import pickle
+import warnings
 
 from zmq.utils import jsonapi
 from paramiko import SSHClient, AutoAddPolicy
@@ -27,125 +28,6 @@ if torch.cuda.is_available():
     torch.multiprocessing.set_start_method('spawn', force=True)
 
 
-class TimeoutError(Exception):
-    pass
-
-
-class AlreadyRunningError(Exception):
-    pass
-
-
-class IServerHandler:
-    @property
-    def logger(self):
-        return logging.getLogger(self.__class__.__qualname__)
-
-    @property
-    def is_running(self):
-        raise NotImplementedError
-
-    def start(self, addr, port, meta_port):
-        raise NotImplementedError
-
-    def stop(self):
-        raise NotImplementedError
-
-
-def wait(done, interval=0.1, max_wait=10):
-    total = 0
-    while True:
-        if done():
-            break
-
-        total += interval
-        time.sleep(interval)
-        if total > max_wait:
-            raise TimeoutError()
-
-
-class LocalServerHandler(IServerHandler):
-    def __init__(self):
-        self._process = None
-
-    @property
-    def is_running(self):
-        return self._process and self._process.poll() is None
-
-    def start(self, addr, port, meta_port):
-        if addr != '127.0.0.1':
-            raise ValueError('LocalServerHandler only possible to run on localhost')
-
-        if self._process:
-            raise AlreadyRunningError(f'Local server is already running (pid:{self._process.pid})')
-
-        self.logger.info('Starting local TikTorchServer on %s:%s', addr, port)
-        self._process = subprocess.Popen(
-            [sys.executable, '-c',
-                f'from tiktorch.server import ServerProcess;ServerProcess(address="{addr}", '
-                f'port={port}).listen()'],
-            stdout=sys.stdout, stderr=sys.stderr)
-
-        try:
-            wait(lambda: self.is_running)
-        except TimeoutError:
-            raise Exception('Failed to start local TikTorchServer')
-
-    def stop(self):
-        if self.is_running:
-            self._process.kill()
-            wait(lambda: not self.is_running)
-        else:
-            self.logger.warn('Local server is not running')
-
-
-class RemoteSSHServerHandler(IServerHandler):
-    def __init__(self, *, user: str, password: str, ssh_port: int = 22) -> None:
-        self._user = user
-        self._password = password
-        self._ssh_port = ssh_port
-        self._channel = None
-
-        self._setup_ssh_client()
-
-    def _setup_ssh_client(self):
-        self._ssh_client = SSHClient()
-        self._ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        self._ssh_client.load_system_host_keys()
-
-    def start(self, addr, port, meta_port):
-        if self._channel:
-            raise RuntimeError('SSH server is already running')
-
-        ssh_params = {
-            'hostname': addr,
-            'port': self._ssh_port,
-            'username': self._username,
-            'password': self._password,
-            'timeout': 10
-        }
-
-        try:
-            self._ssh_client.connect(**ssh_params)
-        except timeout as e:
-            raise RuntimeError('Failed to establish SSH connection')
-
-        self._channel = self._ssh_client.invoke_shell()
-        self._channel.settimeout(10)
-
-        try:
-            self._channel.send('source .bashrc\n')
-            time.sleep(1)
-            self._channel.send('conda activate ilastikTiktorchServer\n')
-            time.sleep(1)
-            self.logger.info('Starting remote TikTorchServer...')
-            self._channel.send(
-                f'python -c \'from tiktorch.server import TikTorchServer;TikTorchServer(address="{self.addr}", '
-                f'port={self.port}, meta_port={self.meta_port}).listen()\'\n'
-            )
-        except timeout as e:
-            raise RuntimeError('Failed to start TiktorchServer')
-
-
 class TikTorchClient(object):
     RANK = 0
     SIZE = 2
@@ -155,6 +37,7 @@ class TikTorchClient(object):
     def __init__(self, tiktorch_config, binary_model_file, binary_model_state=b'', binary_optimizer_state=b'',
                  address='localhost', ssh_port=22, port='5556', meta_port='5557', start_server=True, username=None,
                  password=None):
+        warnings.warn("Deprecated class, please use: Client(INeuralNetworkAPI(), ...)")
         # todo: actually use meta_port
         logger = logging.getLogger()
         self.ssh_connect = {
