@@ -1,7 +1,8 @@
 import signal
+from importlib import util as imputils
+from contextlib import contextmanager
 import torch
 from torch.autograd import Variable
-from importlib import util as imputils
 
 
 class delayed_keyboard_interrupt(object):
@@ -112,3 +113,118 @@ class DynamicShape(object):
         return self.evaluate(*([0]*len(self)))
 
     __call__ = evaluate
+
+
+class BinaryTree:
+
+    class Node:
+        def __init__(self, key, data):
+            self.key = key
+            self.data = data
+            self.left = None
+            self.right = None
+
+        def __str__(self):
+            return f"({self.key}: {self.data})"
+
+        def printTree(self):
+            if self.left:
+                self.left.printTree()
+            print(self)
+            if self.right:
+                self.right.printTree()
+
+    def __init__(self, input_data: dict=None):
+        self._model = None
+        self.root = None
+        if input_data:
+            self._build(input_data)
+
+    @property
+    def model(self):
+        return self._model
+    
+    @contextmanager
+    def attach(self, model):
+        self._model = model
+        yield
+        self._model = None
+
+    def _build(self, inputs):
+        k, v = inputs.popitem()
+        self.root = self.Node(k, v)
+        while inputs:
+            k, v = inputs.popitem()
+            self.insert(self.Node(k, v))
+
+    def insert(self, z):
+        y = None
+        x = self.root
+        while x is not None:
+            y = x
+            x = x.left if z.key < x.key else x.right
+        if y is None:
+            self.root = z
+        elif z.key < y.key:
+            y.left = z
+        else:
+            y.right = z
+
+    def search(self):
+        assert self.model is not None
+        if not self.root:
+            raise Exception("Tree is empty!")
+        # traverse tree
+        def recursive_search(x, last_valid_node=None):
+            if x is None:
+                return
+            try:
+                # data to torch.tensor
+                _input = x.data + [x.data[-1]]
+                _input = torch.zeros(1, 1, *_input)
+                _out = self.model(_input)
+
+                if last_valid_node:
+                    if last_valid_node.key < x.key:
+                        last_valid_node = x
+                else:
+                    last_valid_node = x
+                if x.right:
+                    return recursive_search(x.right, last_valid_node)
+                else:
+                    return last_valid_node
+            except RuntimeError:
+                if x.left:
+                    return recursive_search(x.left, last_valid_node)
+                else:
+                    return last_valid_node
+
+        return recursive_search(self.root)
+
+
+def test_binary_search_tree():
+    import torch.nn as nn
+    inputs = [[6, 32], [6, 112], [6, 272], [9, 32], [9, 192],
+              [12, 32], [12, 432], [15, 256], [150, 2000]]
+    inputs_dict = {}
+    for entry in inputs:
+        key = entry[0]*entry[1]
+        inputs_dict.update({key: entry})
+
+    tree = BinaryTree(inputs_dict)
+    model = nn.Sequential(nn.Conv3d(1, 12, 3),
+                          nn.Sigmoid(),
+                          nn.Conv3d(12, 24, 3),
+                          nn.ReLU())
+
+    with tree.attach(model):
+        print('Tree:')
+        tree.root.printTree()
+        print('------------Searching for optimal shape------------------')
+        optimalNode = tree.search()
+        optimalShape = optimalNode.data + [optimalNode.data[-1]]
+        print(f'Search result: {optimalShape}')
+
+
+if __name__ == '__main__':
+    test_binary_search_tree()
