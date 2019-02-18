@@ -95,7 +95,7 @@ def test_serialize_deserialize_decorated_method_args():
     assert deserialized == [data, a]
 
 
-def test_serialize_deserialize_decoratedd_method_return():
+def test_serialize_deserialize_decorated_method_return():
     f = Foo()
     serialized = list(serialize_return(f.func_dec, b'bytes'))
 
