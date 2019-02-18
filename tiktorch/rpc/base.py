@@ -23,6 +23,9 @@ class State(enum.Enum):
 
 
 class IConnConf:
+    _ctx: zmq.Context
+    _timeout: Optional[int]
+
     def get_conn_str(self) -> str:
         """
         :returns str: valid connection string for zmq.Socket
