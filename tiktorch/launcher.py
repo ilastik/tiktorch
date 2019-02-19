@@ -5,6 +5,7 @@ import subprocess
 import threading
 
 from socket import timeout
+from typing import Optional
 
 from paramiko import SSHClient, AutoAddPolicy
 
@@ -93,13 +94,34 @@ class LocalServerLauncher(IServerLauncher):
             raise Exception('Failed to start local TikTorchServer')
 
 
+class SSHCred:
+    def __init__(
+        self,
+        user: str,
+        password: Optional[str] = None,
+        key_path: Optional[str] = None,
+    ) -> None:
+        self.user = user
+        self.password = password
+        self.key_path = key_path
+
+    def __repr__(self) -> str:
+        return f'<SSHCred({self.user}, has_pwd={bool(self.password)}, key={self.key_path})>'
+
+
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf, *, user: str, password: str, ssh_port: int = 22) -> None:
-        self._user = user
-        self._password = password
+    def __init__(
+        self,
+        conn_conf: TCPConnConf,
+        *,
+        cred: SSHCred,
+        ssh_port: int = 22
+    ) -> None:
+
         self._ssh_port = ssh_port
         self._channel = None
         self._conn_conf = conn_conf
+        self._cred = cred
 
         self._setup_ssh_client()
 
@@ -117,8 +139,9 @@ class RemoteSSHServerLauncher(IServerLauncher):
         ssh_params = {
             'hostname': addr,
             'port': self._ssh_port,
-            'username': self._user,
-            'password': self._password,
+            'username': self._cred.user,
+            'password': self._cred.password,
+            'key_filename': self._cred.key_path,
             'timeout': 10
         }
 
