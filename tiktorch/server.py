@@ -1,8 +1,10 @@
+import argparse
 import logging
 import io
 import os
 from importlib import util as imputils
 import zmq
+from zmq.utils import jsonapi
 
 import numpy as np
 import torch
@@ -13,7 +15,13 @@ import shutil
 import tempfile
 
 import tiktorch.utils as utils
+from tiktorch.rpc import Server, Shutdown, TCPConnConf
 from tiktorch.device_handler import ModelHandler
+from tiktorch import serializers
+from tiktorch.types import NDArray, NDArrayBatch
+
+from .rpc_interface import INeuralNetworkAPI, IFlightControl
+from typing import List, Any
 
 
 if torch.cuda.is_available():
@@ -23,12 +31,49 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('TikTorchServer')
 
 
-class TikTorchServer(object):
+
+from functools import wraps
+
+
+class State:
+    INIT = 'init'
+    WORKING = 'working'
+
+    STATES = {
+        INIT: [WORKING],
+        WORKING: [INIT],
+    }
+    def __init__(self):
+        self.current = self.INIT
+
+    def next(self, state):
+        allowed = self.STATES.get(self.current)
+        if state not in allowed:
+            raise Exception(f'Transition from {self._current} to {state} not allowed')
+
+    def __repr__(self):
+        return f'State({self.current})'
+
+
+def expect_state(*allowed):
+    def decorator(func):
+        return func
+        @wraps(func)
+        def wrapped(self, *args, **kwargs):
+            if self.state.current not in allowed:
+                raise Exception(f'Call to {func} not allowed in {self.state}')
+
+            func(*args, **kwargs)
+
+        return wrapped
+    return decorator
+
+
+class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     RANK = 1
     SIZE = 2
 
-    def __init__(self, address='127.0.0.1', port='29500',
-                 meta_port='29501', device=None):
+    def __init__(self, device=None):
         logger = logging.getLogger("TikTorchServer.__init__")
         # Privates
         self._build_directory = None
@@ -36,8 +81,6 @@ class TikTorchServer(object):
         self._model = None
         self._log_directory = None
         # Set up queues
-        self._zmq_context: zmq.Context = None
-        self._zmq_socket: zmq.Socket = None
         if device is None:
             # The default behaviour is to select a GPU if one is availabe.
             # This can be overriden by providing device in the constructor.
@@ -47,14 +90,29 @@ class TikTorchServer(object):
         logger.info(f"Using device: {self._device}")
         # Publics
         self.ilp_directory = None
-        self.addr = address
-        self.port = port
-        self.meta_port = meta_port
-        self.init()
+        self.state = State()
+        #self.init()
         self.tmp_dir = tempfile.mkdtemp()  # todo: get rid of tmp dir!
+
+        self.binary_model_file = None
+        self.binary_model_state = None
+        self._config = None
+
 
     def __del__(self):
         shutil.rmtree(self.tmp_dir)
+
+    def recv_init(self, config, binary_model_file, binary_model_state, binary_optimizer_state):
+        self._config = config
+        logger.info("tiktorch config received.")
+        self.binary_model_file = binary_model_file
+        logger.info("model file received.")
+        self.binary_model_state = binary_model_state
+        logger.info("model state received.")
+        self.binary_optimizer_state = binary_optimizer_state
+        logger.info("Init data received.")
+        self.load_model()
+        self.state.next(State.WORKING)
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
@@ -64,18 +122,14 @@ class TikTorchServer(object):
         self._zmq_context = zmq.Context()
         logger.info("Setting up ZMQ Socket...")
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
-        logger.info("Binding to socket...")
+        logger.info("Binding to socket tcp://%s:%s", self.addr, self.port)
         self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
         # Receive build directory
+        # ping = self._zmq_socket.recv_json()
+        # assert ping['id'] == 'PING'
+        # self._zmq_socket.send_json({'id': 'PONG'})
+        #self.recv_init()
         logger.info("Waiting for init data...")
-        self._config = self._zmq_socket.recv_json()
-        logger.info("tiktorch config received.")
-        self.binary_model_file = self._zmq_socket.recv()
-        logger.info("model file received.")
-        self.binary_model_state = self._zmq_socket.recv()
-        logger.info("model state received.")
-        self.binary_optimizer_state = self._zmq_socket.recv()
-        logger.info("Init data received.")
 
     def meta_send(self, info_dict, flags=0):
         self._zmq_socket.send_json(info_dict, flags=flags)
@@ -140,8 +194,7 @@ class TikTorchServer(object):
 
     @property
     def handler(self):
-        if self._handler is None:
-            self.load_model()
+        assert self._handler
         return self._handler
 
     def dry_run(self, image_shape, train=False):
@@ -184,10 +237,20 @@ class TikTorchServer(object):
         model.__model_init_kwargs = model_init_kwargs
         return model
 
-    def load_model(self):
+    def load_model(
+        self,
+        config: dict,
+        model_file: bytes,
+        model_state: bytes,
+        optimizer_state: bytes,
+    ) -> None:
         # Dynamically import file.
         # hack to keep current impl: safe binary_model_file to tmp file
         # todo: load model.py without tmp directory
+        self.binary_model_file = model_file
+        self.binary_model_state = model_state
+        self._config = config
+
         tmp_dir = self.tmp_dir
         model_file_path = os.path.join(tmp_dir, 'model.py')
         with open(model_file_path, 'wb') as f:
@@ -214,55 +277,37 @@ class TikTorchServer(object):
         # Build handler
         self._set_handler(model)
 
-        return self
+    def forward(self, batch: NDArrayBatch) -> NDArrayBatch:
+        # TODO: Use TikIO for batching
+        tensors = [torch.from_numpy(a) for a in batch.as_numpy()]
+        res = self.handler.forward(*tensors)
+        logger.debug("Send forward result")
+        return NDArrayBatch([NDArray(res.numpy())])
 
-    def forward(self):
-        logger = logging.getLogger('TikTorchServer.forward')
-        logger.info("Receiving BatchSpec...")
-        batch_spec = self.meta_recv()
-        assert batch_spec['id'] == 'FORWARD.BATCHSPEC'
-        logger.info("Received BatchSpec.")
-        batches = [torch.zeros(*shape) for shape in batch_spec['shapes']]
-        for idx in range(batch_spec['len']):
-            logger.info("Receiving batch from chief.")
-            batches[idx] = self.tensor_recv(f'FORWARD_IN_{idx}', framework='torch')
-        # Forward
-        logger.info("Feedforward.")
-        output_batches = self.handler.forward(*batches)
-        # Send output spec
-        # logger.info("Sending OutSpec.")
-        # self.meta_send({'id': 'FORWARD.OUTSPEC', 'shape': tuple(output_batches.shape)})
-        logger.info("Sending output.")
-        self.tensor_send(output_batches, 'FORWARD_OUT')
-        logger.info("Sent output.")
-
-    def train(self):
-        logger = logging.getLogger('TikTorchServer.train')
-        logger.info("Receiving BatchSpec")
-        batch_spec = self.meta_recv()
-        assert batch_spec['id'] == 'TRAIN.BATCHSPEC'
-        assert batch_spec['len'] == len(batch_spec['data.shapes']) == len(batch_spec['labels.shapes']) == \
-               len(batch_spec['sample_ids'])
-        logger.info("Receiving data and labels from chief.")
-        # Receive tensors
-        data, labels = [], []
-        for id in batch_spec['sample_ids']:
-            # assert isinstance(id, tuple)  # todo: make sure sample_ids only contains tuples 
-            id = tuple(id)
-            data.append(torch.from_numpy(self.tensor_recv(f'TRAIN_DATA_{id}')))
-            labels.append(torch.from_numpy(self.tensor_recv(f'TRAIN_LABEL_{id}')))
+    def train(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
+        torch_data = [
+            torch.from_numpy(arr) for arr in data.as_numpy()
+        ]
+        torch_labels = [
+            torch.from_numpy(arr) for arr in labels.as_numpy()
+        ]
         logger.info("Received data and labels from chief.")
         logger.info("Sending to handler.")
-        self.handler.train(data, labels)
+        self.handler.train(torch_data, torch_labels)
         logger.info("Sent to handler.")
 
-    def set_hparams(self):
-        logger = logging.getLogger('TikTorchServer.set_hparams')
-        logger.info("Receiving new hyperparameters from client.")
-        hparams = self.meta_recv()
-        assert hparams['id'] == 'TRAIN.HYPERPARAMETERS'
+    def training_process_is_running(self) -> bool:
+        return self.handler.training_process_is_alive()
+
+    def pause(self) -> None:
+        self.handler.pause_training()
+
+    def resume(self) -> None:
+        self.handler.resume_training()
+
+    def set_hparams(self, params: dict) -> None:
         logger.info("Sending to handler.")
-        self.handler.set_hparams(hparams['parameters'])
+        self.handler.set_hparams(params)
         logger.info("Sent to handler.")
 
     def listen(self):
@@ -270,9 +315,14 @@ class TikTorchServer(object):
         logger.info('Waiting...')
         # Listen for requests
         while True:
-            request = self.meta_recv()
+            request, args = self._zmq_socket.recv_serialized(deserialize, copy=False)
+            #request = self.meta_recv()
             logger.info("Request Received.")
-            if request['id'] == 'DISPATCH.FORWARD':
+            if request['id'] == 'INIT':
+                self.recv_init(*args)
+            elif request['id'] == 'PING':
+                self.meta_send({'id': 'PONG'})
+            elif request['id'] == 'DISPATCH.FORWARD':
                 logger.info("Received request to dispatch forward.")
                 # Confirm dispatch
                 self.meta_send({'id': 'DISPATCHING.FORWARD'})
@@ -319,7 +369,7 @@ class TikTorchServer(object):
                 self.request_model_state_dict()
             else:
                 # Bad id
-                raise RuntimeError
+                raise RuntimeError(request)
 
     def request_model_state_dict(self):
         logger = logging.getLogger('TikTorchServer.request_model_state_dict')
@@ -348,12 +398,16 @@ class TikTorchServer(object):
         self.meta_send(info)
         logger.info("Poll response sent.")
 
+    def ping(self) -> bytes:
+        return b'pong'
+
     def shutdown(self):
         logger = logging.getLogger('TikTorchServer.shutdown')
         logger.info("Stopping training...")
-        self.handler.stop_training()
-        logger.info("Training stop.")
-        self._zmq_socket.close()
+        if self._handler:
+            self._handler.stop_training()
+        logger.info("Training has stopped")
+        raise Shutdown()
 
 
 def debug_server():
@@ -367,19 +421,32 @@ def debug_server():
     return server
 
 
+class ServerProcess:
+    def __init__(self, address='127.0.0.1', port='29500', device=None, **kwargs):
+        # TODO: Remove metaport
+        self._addr = address
+        self._port = port
+        self._device = device
+
+    def listen(self):
+        api_provider = TikTorchServer(device=self._device)
+        srv = Server(api_provider, TCPConnConf(self._addr, self._port))
+        srv.listen()
+
+
 if __name__ == '__main__':
-    import argparse
+    # Output pid for process tracking
+    print(os.getpid(), flush=True)
+
     parsey = argparse.ArgumentParser()
     parsey.add_argument('--addr', type=str, default='127.0.0.1')
     parsey.add_argument('--port', type=str, default='29500')
-    parsey.add_argument('--meta_port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
+
     args = parsey.parse_args()
 
-    # Go!
-    if args.debug:
-        server = debug_server()
-    else:
-        server = TikTorchServer(address=args.addr, port=args.port, meta_port=args.meta_port)
-    server.listen()
-
+    srv = ServerProcess(
+        address=args.addr,
+        port=args.port,
+    )
+    srv.listen()

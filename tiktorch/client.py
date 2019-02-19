@@ -10,11 +10,15 @@ import torch
 import yaml
 import zmq
 import pickle
+import warnings
+
+from zmq.utils import jsonapi
 from paramiko import SSHClient, AutoAddPolicy
 from socket import gethostbyname, timeout
 
 from typing import Sequence
 
+from tiktorch import serializers
 import tiktorch.utils as utils
 from tiktorch.tio import TikIn
 
@@ -33,6 +37,7 @@ class TikTorchClient(object):
     def __init__(self, tiktorch_config, binary_model_file, binary_model_state=b'', binary_optimizer_state=b'',
                  address='localhost', ssh_port=22, port='5556', meta_port='5557', start_server=True, username=None,
                  password=None):
+        warnings.warn("Deprecated class, please use: Client(INeuralNetworkAPI(), ...)")
         # todo: actually use meta_port
         logger = logging.getLogger()
         self.ssh_connect = {
@@ -116,6 +121,11 @@ class TikTorchClient(object):
                 self._remote_server_channel = channel
                 self.log_server_report()
 
+    def ping(self):
+        self._zmq_socket.send_json({'id': 'PING'})
+        resp = self._zmq_socket.recv_json()
+        return resp['id'] == 'PONG'
+
     def log_server_report(self, delay: int=2):
         if self._local_server_process is not None:
             logger = logging.getLogger('TikTorchClient.local_server_process')
@@ -172,12 +182,21 @@ class TikTorchClient(object):
         info = logger.info("Connect to socket...")
         self._zmq_socket.connect(f'tcp://{self.addr}:{self.port}')
         # Send build directory
+
+    def load_model(self, tiktorch_config, binary_model_file, binary_model_state, binary_optimizer_state):
+        logger = logging.getLogger('TikTorchClient.init')
         logger.info("Sending init data...")
-        with self._main_lock:
-            self._zmq_socket.send_json(tiktorch_config)
-            self._zmq_socket.send(binary_model_file)
-            self._zmq_socket.send(binary_model_state)
-            self._zmq_socket.send(binary_optimizer_state)
+        self._zmq_socket.send_multipart([
+            jsonapi.dumps({'id': 'INIT'}),
+            jsonapi.dumps(tiktorch_config),
+            binary_model_file,
+            binary_model_state,
+            binary_optimizer_state,
+        ])
+            # self._zmq_socket.send_json(tiktorch_config)
+            # self._zmq_socket.send(binary_model_file)
+            # self._zmq_socket.send(binary_model_state)
+            # self._zmq_socket.send(binary_optimizer_state)
 
         logger.info("Init data sent.")
         return self
@@ -548,6 +567,7 @@ def test_client_state_request():
     state_dict = torch.load(file, map_location=lambda storage, loc: storage)
 
     client.shutdown()
+
 
 if __name__ == '__main__':
     import argparse
