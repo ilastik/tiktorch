@@ -445,6 +445,8 @@ if __name__ == '__main__':
 
     args = parsey.parse_args()
 
+    logger.info('Starting server on %s:%s', args.addr, args.port)
+
     srv = ServerProcess(
         address=args.addr,
         port=args.port,
