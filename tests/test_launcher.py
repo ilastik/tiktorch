@@ -1,9 +1,10 @@
 import os
 
 import pytest
+import socket
 
 from tiktorch.launcher import LocalServerLauncher, RemoteSSHServerLauncher, wait
-from tiktorch.rpc import Client, TimeoutError, TCPConnConf
+from tiktorch.rpc import Client, TCPConnConf
 from tiktorch.rpc_interface import IFlightControl
 
 SSH_HOST_VAR = "TEST_SSH_HOST"
@@ -12,12 +13,8 @@ SSH_USER_VAR = "TEST_SSH_USER"
 SSH_PWD_VAR = "TEST_SSH_PWD"
 
 
-@pytest.fixture
-def conn_conf(srv_port) -> TCPConnConf:
-    return TCPConnConf('127.0.0.1', srv_port, timeout=2)
-
-
-def test_start_local_server(conn_conf):
+def test_start_local_server(srv_port):
+    conn_conf = TCPConnConf('127.0.0.1', srv_port, timeout=20)
     launcher = LocalServerLauncher(conn_conf)
     launcher.start()
 
@@ -32,12 +29,14 @@ def test_start_local_server(conn_conf):
     launcher.is_server_running()
 
 
-def test_start_remote_server(conn_conf):
-    host, port = os.getenv(SSH_HOST_VAR), os.getenv(SSH_PORT_VAR, 22)
+def test_start_remote_server(srv_port):
+    print(os.environ)
+    host, ssh_port = os.getenv(SSH_HOST_VAR), os.getenv(SSH_PORT_VAR, 22)
+    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, timeout=20)
     user, pwd = os.getenv(SSH_USER_VAR), os.getenv(SSH_PWD_VAR)
 
-    if not all([host, port, user, pwd]):
-        print([host, port, user, pwd])
+    if not all([host, ssh_port, user, pwd]):
+        print([host, ssh_port, user, pwd])
         pytest.skip(
             "To run this test specify "
             f"{SSH_HOST_VAR}, {SSH_USER_VAR} {SSH_PWD_VAR} and optionaly {SSH_PORT_VAR}"

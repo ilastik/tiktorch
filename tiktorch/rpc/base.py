@@ -6,7 +6,6 @@ import enum
 from typing import (
     Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 )
-from typing_extensions import Protocol
 
 import zmq
 
