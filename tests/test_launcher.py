@@ -32,7 +32,7 @@ def test_start_local_server(srv_port):
 
 def test_start_remote_server(srv_port):
     host, ssh_port = os.getenv(SSH_HOST_VAR), os.getenv(SSH_PORT_VAR, 22)
-    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, timeout=20)
+    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, timeout=10)
     user, pwd = os.getenv(SSH_USER_VAR), os.getenv(SSH_PWD_VAR)
     key = os.getenv(SSH_KEY_VAR)
 
@@ -44,14 +44,14 @@ def test_start_remote_server(srv_port):
 
     cred = SSHCred(user=user, password=pwd, key_path=key)
     launcher = RemoteSSHServerLauncher(conn_conf, cred=cred)
-    launcher.start()
-
-    wait(launcher.is_server_running, max_wait=2)
-
     client = Client(IFlightControl(), conn_conf)
+    try:
+        launcher.start()
 
-    assert client.ping() == b'pong'
+        assert launcher.is_server_running()
 
-    client.shutdown()
+        assert client.ping() == b'pong'
+    finally:
+        client.shutdown()
 
-    wait(lambda: not launcher.is_server_running(), max_wait=1)
+    assert not launcher.is_server_running()

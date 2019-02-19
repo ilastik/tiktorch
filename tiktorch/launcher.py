@@ -54,17 +54,18 @@ class IServerLauncher:
 
 
 def wait(done, interval=0.1, max_wait=10):
-    total = 0
+    start = time.time()
 
     while True:
         if done():
             break
 
-        total += interval
-        time.sleep(interval)
+        passed = time.time() - start
 
-        if total > max_wait:
+        if passed > max_wait:
             raise TimeoutError()
+        else:
+            time.sleep(interval)
 
 
 class LocalServerLauncher(IServerLauncher):

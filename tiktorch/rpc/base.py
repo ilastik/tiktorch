@@ -241,7 +241,7 @@ class Client:
 
         frames = self._socket.send_multipart(frames, copy=False)
 
-        evt = self._socket.poll(self._timeout, flags=zmq.POLLIN)
+        evt = self._socket.poll(1000* self._timeout, flags=zmq.POLLIN)
         if not evt:
             raise TimeoutError()
 
