@@ -170,10 +170,15 @@ class BinaryTree:
         else:
             y.right = z
 
-    def search(self):
+    def search(self, channels: int, device: torch.device, train_flag=False):
         assert self.model is not None
+        
+        if train_flag:
+            raise NotImplemented
+
         if not self.root:
             raise Exception("Tree is empty!")
+        
         # traverse tree
         def recursive_search(x, last_valid_node=None):
             if x is None:
@@ -181,8 +186,9 @@ class BinaryTree:
             try:
                 # data to torch.tensor
                 _input = x.data + [x.data[-1]]
-                _input = torch.zeros(1, 1, *_input)
-                _out = self.model(_input)
+                _input = torch.zeros(1, channels, *_input).to(device)
+                with torch.no_grad():
+                    _out = self.model.to(device)(_input)
 
                 if last_valid_node:
                     if last_valid_node.key < x.key:
