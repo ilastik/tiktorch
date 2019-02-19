@@ -44,5 +44,9 @@ class INeuralNetworkAPI(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def binary_dry_run(self, conf: dict) -> dict:
+        raise NotImplementedError
+
+    @exposed
     def train(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         raise NotImplementedError
