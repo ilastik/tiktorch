@@ -3,6 +3,7 @@ import logging
 import time
 import multiprocessing as mp
 import queue
+import random
 from copy import deepcopy
 
 import torch
@@ -189,143 +190,15 @@ class ModelHandler(Processor):
         torch.save(state_dict, filename)
         return self
 
-    def _train_trial_run_successful(self, *input_shape, device_id=None):
-        if device_id is None:
-            return [self._trial_run_successful(*input_shape, device_id=_device_id)
-                    for _device_id in range(len(self.devices))]
-        try:
-            if device_id not in self.__num_trial_runs_on_device:
-                self.__num_trial_runs_on_device[device_id] = 1
-            else:
-                self.__num_trial_runs_on_device[device_id] += 1
-            device = self.devices[device_id]
-            self.model.to(device)(torch.zeros(1, *input_shape).to(device))
-            return True
-        except RuntimeError:
-            # FIXME Investigate
-            # Unexplained torch weirdness: new device can be "out of memory" for no reason,
-            # so we give it another chance
-            if self.__num_trial_runs_on_device[device_id] == 1:
-                # second chance
-                return self._trial_run_successful(*input_shape, device_id=device_id)
-            else:
-                # Nope
-                return False
-
-    def _trial_run_successful(self, *input_shape, device_id=None):
-        if device_id is None:
-            return [self._trial_run_successful(*input_shape, device_id=_device_id)
-                    for _device_id in range(len(self.devices))]
-        try:
-            if device_id not in self.__num_trial_runs_on_device:
-                self.__num_trial_runs_on_device[device_id] = 1
-            else:
-                self.__num_trial_runs_on_device[device_id] += 1
-            with torch.no_grad():
-                device = self.devices[device_id]
-                self.model.to(device)(torch.zeros(1, *input_shape).to(device))
-            return True
-        except RuntimeError:
-            # FIXME Investigate
-            # Unexplained torch weirdness: new device can be "out of memory" for no reason,
-            # so we give it another chance
-            if self.__num_trial_runs_on_device[device_id] == 1:
-                # second chance
-                return self._trial_run_successful(*input_shape, device_id=device_id)
-            else:
-                # Nope
-                return False
-
-    def _try_running_on_blocksize(self, *block_size, device_id, train_flag=False):
-        if train_flag:
-            return self._train_trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
-                                                    device_id=device_id)
-        else:
-            return self._trial_run_successful(self.channels, *block_size, device_id=device_id)
-
-    def _dry_run_on_device(self, device_id=0):
-        # Sweep diagonals to find where it crashes.
-        max_diagonal_count = 0
-        previous_spatial_shape = []
-        for diagonal_count in count():
-            # Check if the spatial shape has not changed. If it hasn't, it means the user doesn't
-            # want dynamic shapes.
-            spatial_shape = self.dynamic_shape(*([diagonal_count] * len(self.dynamic_shape)))
-            logger.debug(f"Diagonal sweep (GPU{device_id}) iteration {diagonal_count}; "
-                         f"shape = {spatial_shape}.")
-            if previous_spatial_shape == spatial_shape:
-                break
-            else:
-                previous_spatial_shape = spatial_shape
-            success = self._try_running_on_blocksize(*([diagonal_count] * len(self.dynamic_shape)),
-                                                     device_id=device_id)
-            if not success:
-                # GPU borked, no more
-                logger.debug(f"GPU{device_id} borked at diagonal iteration {diagonal_count}; "
-                             f"shape = {spatial_shape}.")
-                break
-            else:
-                # moar!
-                max_diagonal_count = diagonal_count
-        # So the GPU whines at say (n + 1, n + 1, n + 1) for n = max_diagonal_count.
-        # We try to figure out which dimension is responsible by:
-        # (a) keeping (n, n, n) as the diagonals, but
-        # (b) for each dimension increment the number of blocks till it breaks.
-        # We're looking for the number of extra blocks (in addition to the diagonals) required
-        # to bork the GPU.
-        num_extra_blocks = [0] * len(self.dynamic_shape)
-        for dim_num in range(len(self.dynamic_shape)):
-            previous_spatial_shape = []
-            for block_count in count():
-                if block_count == 0:
-                    continue
-                logger.debug(f'Non-diagonal sweep (GPU{device_id}): '
-                             f'dimension: {dim_num}; block num: {block_count}')
-                num_blocks = [max_diagonal_count] * len(self.dynamic_shape)
-                num_blocks[dim_num] += block_count
-                spatial_shape = self.dynamic_shape(*num_blocks)
-                # Check if the shape has actually changed
-                if previous_spatial_shape == spatial_shape:
-                    # Nope - nothing to do then.
-                    break
-                else:
-                    # Yep - update previous spatial shape just to be sure
-                    previous_spatial_shape = spatial_shape
-                success = self._try_running_on_blocksize(*num_blocks, device_id=device_id)
-                if success:
-                    # okidokie, we can do more
-                    num_extra_blocks[dim_num] = block_count
-                else:
-                    # GPU is borked, no more
-                    logger.debug(f'GPU{device_id} borked at non-diagonal sweep: dimension: '
-                                 f'{dim_num}; block num: {block_count}')
-                    break
-        # Get total size supported by the GPU. For this, we only retain the extras
-        device_capacity = [max_diagonal_count] * len(self.dynamic_shape)
-        for _extra_block_dim, _extra_blocks in enumerate(num_extra_blocks):
-            if _extra_blocks == max(num_extra_blocks):
-                device_capacity[_extra_block_dim] += _extra_blocks
-                break
-            else:
-                continue
-        # Done
-        return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
-
-    def dry_run(self):
-        for device_id in range(self.num_devices):
-            logger.debug(f'Dry running on device: {device_id}')
-            self._device_specs[device_id] = self._dry_run_on_device(device_id)
-        return self
-
-    def binary_dry_run(self, image_shape, train_flag=False):
+    def dry_run(self, image_shape, train_flag=False):
         """
+        Dry run to determine blockshape.
         Parameters
         ----------
-        :param image_volume_shape (list or tuple in order (t,c,z,y,x)) as upper bound for the binary search.
-        :return: valid block shape (list)
+        :param image_volume_shape (list or tuple in order (t, c, z, y, x)) as upper bound for the binary search.
+        :return: valid block shape (dict): {'shape': [1, c, z_opt, y_opt, x_opt]} (z_opt == 1 for 2d networks!)
         """
-        t, c, z, y, x = list(image_shape) # in case image_shape is a tuple
-        start = time.time()
+        t, c, z, y, x = image_shape
         if not self.valid_shape_tree:
             logger.info('Creating search space....')
             self.create_search_space(c, z, y, x)
@@ -333,13 +206,19 @@ class ModelHandler(Processor):
         logger.info('Searching for optimal shape...')
         with self.valid_shape_tree.attach(self.model):
             optimalNode = self.valid_shape_tree.search(c, self.device, train_flag)
-            optimalShape = optimalNode.data + [optimalNode.data[-1]]
-        logger.info(f'Optimal shape found: {optimalShape}')
+            if len(optimalNode.data) == 1:
+                optimalShape = {'shape': [1, c, 1] + optimalNode.data + [optimalNode.data[-1]]}
+            else:
+                optimalShape = {'shape': [1, c] + optimalNode.data + [optimalNode.data[-1]]}
+        logger.info(f"Optimal shape found: {optimalShape['shape']}")
         
         return optimalShape
 
 
     def create_search_space(self, c, z, y, x):
+        """
+        Generates a binary search tree of shapes which self.model can process.
+        """
         # check if model is 3d
         def _is_3d(is_3d_queue: mp.Queue):
             # checks if model can process 3d input
@@ -371,7 +250,7 @@ class ModelHandler(Processor):
                     with torch.no_grad():
                         _out = self._model.to(self.device)(torch.zeros(1, c, *args).to(self.device))
                     del _out
-                    if time.time() - start > 3:
+                    if time.time() - start > 5:
                         return True
                     else:
                         logger.debug(f'Add shape {[*args]} to search space')
@@ -389,7 +268,7 @@ class ModelHandler(Processor):
                             with torch.no_grad():
                                 _out = self._model.to(self.device)(_input.to(self.device))
                             del _input, _out
-                            if time.time() - start > 3:
+                            if time.time() - start > 5:
                                 return True
                             else:
                                 if is_3d:
@@ -420,14 +299,21 @@ class ModelHandler(Processor):
         search_space_process.join()
 
         # insert valid shape into a binary search tree for efficient lookup
-        self.valid_shape_tree = BinaryTree()
+        l = []
         while True:
             try:
-                value = tree_queue.get_nowait()
-                key = value[0]*value[1] if is_3d else value[0]
-                self.valid_shape_tree.insert(BinaryTree.Node(key, value))
+                val = tree_queue.get_nowait()
+                l.append(val)
             except queue.Empty:
                 break
+
+        random.shuffle(l)
+
+        self.valid_shape_tree = BinaryTree()
+        while l:
+            shape = l.pop()
+            key = shape[0]*shape[1] if is_3d else shape[0]
+            self.valid_shape_tree.insert(BinaryTree.Node(key, shape))
            
     @property
     def num_parallel_jobs(self):
