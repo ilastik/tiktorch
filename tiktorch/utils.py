@@ -116,13 +116,33 @@ class DynamicShape(object):
 
 
 class BinaryTree:
-
+    """
+    Binary search tree for quick valid shape lookup.
+    """
     class Node:
         def __init__(self, key, data):
             self.key = key
             self.data = data
-            self.left = None
-            self.right = None
+            self._left = None
+            self._right = None
+
+        @property
+        def left(self):
+            return self._left
+
+        @left.setter
+        def left(self, val):
+            assert isinstance(val, BinaryTree.Node)
+            self._left = val
+
+        @property
+        def right(self):
+            return self._right
+
+        @right.setter
+        def right(self, val):
+            assert isinstance(val, BinaryTree.Node)
+            self._right = val
 
         def __str__(self):
             return f"({self.key}: {self.data})"
@@ -171,15 +191,21 @@ class BinaryTree:
             y.right = z
 
     def search(self, channels: int, device: torch.device, train_flag=False):
+        """
+        Tree search with neural network.
+
+        Method implements a recursive search for the largest valid shape
+        that the attached model can process.
+
+        """
         assert self.model is not None
-        
+
         if train_flag:
             raise NotImplemented
 
         if not self.root:
             raise Exception("Tree is empty!")
-        
-        # traverse tree
+
         def recursive_search(x, last_valid_node=None):
             if x is None:
                 return
