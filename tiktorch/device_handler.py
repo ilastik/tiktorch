@@ -4,13 +4,14 @@ import time
 import multiprocessing as mp
 import queue
 import random
+import bisect
 
 from copy import deepcopy
 
 import torch
 import numpy as np
 
-from tiktorch.utils import BinaryTree, DynamicShape, assert_, to_list, define_patched_model
+from tiktorch.utils import DynamicShape, assert_, to_list, define_patched_model
 from tiktorch.blockinator import Blockinator, th_pad
 from tiktorch.trainy import Trainer
 # from .dataloader import get_dataloader
@@ -61,7 +62,7 @@ class ModelHandler(Processor):
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
-        self.valid_shape_tree: BinaryTree = None
+        self.valid_shape: list = []
         # Set
         self._set_model(model)
         self._set_trainer(training_hyperparams, log_directory)
@@ -196,29 +197,28 @@ class ModelHandler(Processor):
         Dry run to determine blockshape.
         Parameters
         ----------
-        :param image_volume_shape (list or tuple in order (t, c, z, y, x)) as upper bound for the binary search.
+        :param image_volume_shape (list or tuple in order (t, c, z, y, x)) as upper bound for the search space.
         :return: valid block shape (dict): {'shape': [1, c, z_opt, y_opt, x_opt]} (z_opt == 1 for 2d networks!)
         """
         t, c, z, y, x = image_shape
-        if not self.valid_shape_tree:
+        if not self.valid_shape:
             logger.info('Creating search space....')
-            self.create_search_space(c, z, y, x)
+            self.create_search_space(c, z, y, x, max_processing_time=2.5)
 
         logger.info('Searching for optimal shape...')
-        with self.valid_shape_tree.attach(self.model):
-            optimalNode = self.valid_shape_tree.search(c, self.device, train_flag)
-            if len(optimalNode.data) == 1:
-                optimalShape = {'shape': [1, c, 1] + optimalNode.data + [optimalNode.data[-1]]}
-            else:
-                optimalShape = {'shape': [1, c] + optimalNode.data + [optimalNode.data[-1]]}
-        logger.info(f"Optimal shape found: {optimalShape['shape']}")
-        
-        return optimalShape
 
+        optEntry =  self.find(c, train_flag=train_flag)[1]
+        if len(optEntry) == 1:
+            optShape = {'shape': [1, c, 1] + optEntry + [optEntry[-1]]}
+        else:
+            optShape = {'shape': [1, c] + optEntry + [optEntry[-1]]}
+        logger.info(f"Optimal shape found: {optShape['shape']}")
 
-    def create_search_space(self, c, z, y, x):
+        return optShape
+
+    def create_search_space(self, c, z, y, x, max_processing_time=3):
         """
-        Generates a binary search tree of shapes which self.model can process.
+        Generates a sorted list of shapes which self.model can process.
         """
         # check if model is 3d
         def _is_3d(is_3d_queue: mp.Queue):
@@ -235,6 +235,7 @@ class ModelHandler(Processor):
                     except RuntimeError:
                         logger.debug(f'Model can not process tensors of shape {[1, c, _z, _s, _s]}')
             is_3d_queue.put(False)
+
         is_3d_queue = mp.Queue()
         _3d_check_process = mp.Process(target=_is_3d, args=(is_3d_queue,))
         _3d_check_process.start()
@@ -244,21 +245,21 @@ class ModelHandler(Processor):
         ndim = 3 if is_3d else 2
 
         # create a search space of valid shapes
-        def _create_search_space(tree_queue: mp.Queue):
+        def _create_search_space(shape_queue: mp.Queue):
             def _forward(*args):
                 try:
                     start = time.time()
                     with torch.no_grad():
                         _out = self._model.to(self.device)(torch.zeros(1, c, *args).to(self.device))
                     del _out
-                    if time.time() - start > 5:
+                    if time.time() - start > max_processing_time:
                         return True
                     else:
                         logger.debug(f'Add shape {[*args]} to search space')
                         if is_3d:
-                            tree_queue.put([args[0], args[-1]])
+                            shape_queue.put([args[0], args[-1]])
                         else:
-                            tree_queue.put([args[-1]])
+                            shape_queue.put([args[-1]])
                         return False
                 except RuntimeError:
                     logger.debug(f'Model can not process tensors of shape {[1, c, *args]}. Vary size!')
@@ -269,21 +270,21 @@ class ModelHandler(Processor):
                             with torch.no_grad():
                                 _out = self._model.to(self.device)(_input.to(self.device))
                             del _input, _out
-                            if time.time() - start > 5:
+                            if time.time() - start > max_processing_time:
                                 return True
                             else:
                                 if is_3d:
                                     logger.debug(f'Add shape {[args[0], __s, __s]} to search space')
-                                    tree_queue.put([args[0], __s])
+                                    shape_queue.put([args[0], __s])
                                 else:
                                     logger.debug(f'Add shape {[__s, __s]} to search space')
-                                    tree_queue.put([__s])
+                                    shape_queue.put([__s])
                                 return False
                         except RuntimeError:
                             del _input
                             _var_msg = [1, c, args[0], __s, __s] if is_3d else [1, c, __s, __s]
                             logger.debug(f'Model can not process tensors of shape {_var_msg}.')
-            
+
             if is_3d:
                 for _z in range(np.min([1, z]), np.min([20, z]), 1):
                     for _s in range(np.min([32, x, y]), np.min([512, x, y]), 85):
@@ -294,28 +295,85 @@ class ModelHandler(Processor):
                     if _forward(_s, _s):
                         break
 
-        tree_queue = mp.Queue()
-        search_space_process = mp.Process(target=_create_search_space, args=(tree_queue,))
+        shape_queue = mp.Queue()
+        search_space_process = mp.Process(target=_create_search_space, args=(shape_queue,))
         search_space_process.start()
         search_space_process.join()
 
-        # insert valid shape into a binary search tree for efficient lookup
-        l = []
         while True:
             try:
-                val = tree_queue.get_nowait()
-                l.append(val)
+                shape = shape_queue.get_nowait()
+                key = shape[0]*shape[1] if is_3d else shape[0]
+                bisect.insort(self.valid_shape, [key, shape])
             except queue.Empty:
                 break
 
-        random.shuffle(l)
 
-        self.valid_shape_tree = BinaryTree()
-        while l:
-            shape = l.pop()
-            key = shape[0]*shape[1] if is_3d else shape[0]
-            self.valid_shape_tree.insert(BinaryTree.Node(key, shape))
-           
+    def find(self, c, lo=0, hi=None, train_flag=False):
+        """
+        Recursive search for the largest valid shape that self.model can process.
+
+        """
+        assert self.model is not None
+        if not self.valid_shape:
+            raise ValueError()
+
+        if hi is None:
+            hi = len(self.valid_shape)
+
+        if lo > hi:
+            raise ValueError()
+
+        mid = lo + (hi - lo) // 2
+
+        def _forward(i: int, q: mp.Queue):
+            # data to torch.tensor
+            x = self.valid_shape[i][1] + [self.valid_shape[i][1][-1]]
+            x = torch.zeros(1, c, *x).to(self.device)
+            try:
+                if train_flag:
+                    y = self.model.to(self.device)(x)
+                    target = torch.randn(*y.shape)
+                    loss = torch.nn.MSELoss()
+                    loss(y, target).backward()
+                else:
+                    with torch.no_grad():
+                        y = self.model.to(self.device)(x)
+                q.put(True)
+            except RuntimeError:
+                q.put(False)
+
+        q = mp.Queue()
+
+        if hi - lo <= 1:
+            p = mp.Process(target=_forward, args=(lo, q))
+            p.start()
+            p.join()
+            try:
+                shape_found = q.get_nowait()
+            except queue.Empty:
+                logger.debug('Queue is empty!')
+                raise RuntimeError('No valid shapes found.')
+            if shape_found:
+                return self.valid_shape[lo]
+            else:
+                raise RuntimeError('No valid shape found.')
+
+        p = mp.Process(target=_forward, args=(mid, q))
+        p.start()
+        p.join()
+
+        try:
+            processable_shape = q.get_nowait()
+        except queue.Empty:
+            logger.debug('Queue is empty!')
+            return self.find(c, lo, mid, train_flag)
+
+        if processable_shape:
+            return self.find(c, mid, hi, train_flag)
+        else:
+            return self.find(c, lo, mid, train_flag)
+
     @property
     def num_parallel_jobs(self):
         return self.num_devices

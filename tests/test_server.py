@@ -86,6 +86,12 @@ def test_forward_pass(datadir, srv, client, nn_sample):
 
 def test_client_dry_run(srv, client, nn_sample):
     client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b'')
+
+    client.dry_run({
+        'train': True,
+        'upper_bound': [1, 1, 125, 1250, 2040],
+    })
+
     valid_shape = client.dry_run({
         'train': False,
         'upper_bound': [1, 1, 125, 1250, 2040],
