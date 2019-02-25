@@ -1,7 +1,8 @@
 import signal
+from importlib import util as imputils
+from contextlib import contextmanager
 import torch
 from torch.autograd import Variable
-from importlib import util as imputils
 
 
 class delayed_keyboard_interrupt(object):

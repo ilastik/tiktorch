@@ -1,11 +1,17 @@
 from itertools import count
 import logging
+import time
+import multiprocessing as mp
+import queue
+import random
+import bisect
+
 from copy import deepcopy
 
 import torch
 import numpy as np
 
-from tiktorch.utils import DynamicShape, assert_, to_list
+from tiktorch.utils import DynamicShape, assert_, to_list, define_patched_model
 from tiktorch.blockinator import Blockinator, th_pad
 from tiktorch.trainy import Trainer
 # from .dataloader import get_dataloader
@@ -56,6 +62,7 @@ class ModelHandler(Processor):
         # Publics
         self.device_names = to_list(device_names)
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
+        self.valid_shape: list = []
         # Set
         self._set_model(model)
         self._set_trainer(training_hyperparams, log_directory)
@@ -185,216 +192,188 @@ class ModelHandler(Processor):
         torch.save(state_dict, filename)
         return self
 
-    def _train_trial_run_successful(self, *input_shape, device_id=None):
-        if device_id is None:
-            return [self._trial_run_successful(*input_shape, device_id=_device_id)
-                    for _device_id in range(len(self.devices))]
-        try:
-            if device_id not in self.__num_trial_runs_on_device:
-                self.__num_trial_runs_on_device[device_id] = 1
-            else:
-                self.__num_trial_runs_on_device[device_id] += 1
-            device = self.devices[device_id]
-            self.model.to(device)(torch.zeros(1, *input_shape).to(device))
-            return True
-        except RuntimeError:
-            # FIXME Investigate
-            # Unexplained torch weirdness: new device can be "out of memory" for no reason,
-            # so we give it another chance
-            if self.__num_trial_runs_on_device[device_id] == 1:
-                # second chance
-                return self._trial_run_successful(*input_shape, device_id=device_id)
-            else:
-                # Nope
-                return False
+    def dry_run(self, image_shape, train_flag=False):
+        """
+        Dry run to determine blockshape.
+        Parameters
+        ----------
+        :param image_volume_shape (list or tuple in order (t, c, z, y, x)) as upper bound for the search space.
+        :return: valid block shape (dict): {'shape': [1, c, z_opt, y_opt, x_opt]} (z_opt == 1 for 2d networks!)
+        """
+        t, c, z, y, x = image_shape
+        if not self.valid_shape:
+            logger.info('Creating search space....')
+            self.create_search_space(c, z, y, x, max_processing_time=2.5)
 
-    def _trial_run_successful(self, *input_shape, device_id=None):
-        if device_id is None:
-            return [self._trial_run_successful(*input_shape, device_id=_device_id)
-                    for _device_id in range(len(self.devices))]
-        try:
-            if device_id not in self.__num_trial_runs_on_device:
-                self.__num_trial_runs_on_device[device_id] = 1
-            else:
-                self.__num_trial_runs_on_device[device_id] += 1
-            with torch.no_grad():
-                device = self.devices[device_id]
-                self.model.to(device)(torch.zeros(1, *input_shape).to(device))
-            return True
-        except RuntimeError:
-            # FIXME Investigate
-            # Unexplained torch weirdness: new device can be "out of memory" for no reason,
-            # so we give it another chance
-            if self.__num_trial_runs_on_device[device_id] == 1:
-                # second chance
-                return self._trial_run_successful(*input_shape, device_id=device_id)
-            else:
-                # Nope
-                return False
+        logger.info('Searching for optimal shape...')
 
-    def _try_running_on_blocksize(self, *block_size, device_id, train_flag=False):
-        if train_flag:
-            return self._train_trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
-                                                    device_id=device_id)
+        optEntry =  self.find(c, train_flag=train_flag)[1]
+        if len(optEntry) == 1:
+            optShape = {'shape': [1, c, 1] + optEntry + [optEntry[-1]]}
         else:
-            return self._trial_run_successful(self.channels, *self.dynamic_shape(*block_size),
-                                              device_id=device_id)
+            optShape = {'shape': [1, c] + optEntry + [optEntry[-1]]}
+        logger.info(f"Optimal shape found: {optShape['shape']}")
 
-    def _dry_run_on_device(self, device_id=0):
-        # Sweep diagonals to find where it crashes.
-        max_diagonal_count = 0
-        previous_spatial_shape = []
-        for diagonal_count in count():
-            # Check if the spatial shape has not changed. If it hasn't, it means the user doesn't
-            # want dynamic shapes.
-            spatial_shape = self.dynamic_shape(*([diagonal_count] * len(self.dynamic_shape)))
-            logger.debug(f"Diagonal sweep (GPU{device_id}) iteration {diagonal_count}; "
-                         f"shape = {spatial_shape}.")
-            if previous_spatial_shape == spatial_shape:
-                break
-            else:
-                previous_spatial_shape = spatial_shape
-            success = self._try_running_on_blocksize(*([diagonal_count] * len(self.dynamic_shape)),
-                                                     device_id=device_id)
-            if not success:
-                # GPU borked, no more
-                logger.debug(f"GPU{device_id} borked at diagonal iteration {diagonal_count}; "
-                             f"shape = {spatial_shape}.")
-                break
-            else:
-                # moar!
-                max_diagonal_count = diagonal_count
-        # So the GPU whines at say (n + 1, n + 1, n + 1) for n = max_diagonal_count.
-        # We try to figure out which dimension is responsible by:
-        # (a) keeping (n, n, n) as the diagonals, but
-        # (b) for each dimension increment the number of blocks till it breaks.
-        # We're looking for the number of extra blocks (in addition to the diagonals) required
-        # to bork the GPU.
-        num_extra_blocks = [0] * len(self.dynamic_shape)
-        for dim_num in range(len(self.dynamic_shape)):
-            previous_spatial_shape = []
-            for block_count in count():
-                if block_count == 0:
-                    continue
-                logger.debug(f'Non-diagonal sweep (GPU{device_id}): '
-                             f'dimension: {dim_num}; block num: {block_count}')
-                num_blocks = [max_diagonal_count] * len(self.dynamic_shape)
-                num_blocks[dim_num] += block_count
-                spatial_shape = self.dynamic_shape(*num_blocks)
-                # Check if the shape has actually changed
-                if previous_spatial_shape == spatial_shape:
-                    # Nope - nothing to do then.
-                    break
-                else:
-                    # Yep - update previous spatial shape just to be sure
-                    previous_spatial_shape = spatial_shape
-                success = self._try_running_on_blocksize(*num_blocks, device_id=device_id)
-                if success:
-                    # okidokie, we can do more
-                    num_extra_blocks[dim_num] = block_count
-                else:
-                    # GPU is borked, no more
-                    logger.debug(f'GPU{device_id} borked at non-diagonal sweep: dimension: '
-                                 f'{dim_num}; block num: {block_count}')
-                    break
-        # Get total size supported by the GPU. For this, we only retain the extras
-        device_capacity = [max_diagonal_count] * len(self.dynamic_shape)
-        for _extra_block_dim, _extra_blocks in enumerate(num_extra_blocks):
-            if _extra_blocks == max(num_extra_blocks):
-                device_capacity[_extra_block_dim] += _extra_blocks
-                break
-            else:
-                continue
-        # Done
-        return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
+        return optShape
 
-    def dry_run(self):
-        for device_id in range(self.num_devices):
-            logger.debug(f'Dry running on device: {device_id}')
-            self._device_specs[device_id] = self._dry_run_on_device(device_id)
-        return self
-
-    def binary_dry_run(self, image_shape, train_flag=False):
+    def create_search_space(self, c, z, y, x, max_processing_time=3):
         """
-        Parameters
-        ----------
-        image_shape: list or tuple
+        Generates a sorted list of shapes which self.model can process.
         """
-        image_shape = list(image_shape) # in case image_shape is a tuple
-        assert len(image_shape) == len(self.dynamic_shape.base_shape)
-        
-        if self.devices[0] == torch.device('cpu'):
-            default_shape = [256, 256] if len(image_shape) == 2 else [96, 96, 96]
-            image_shape = [default_shape[i] if image_shape[i] > default_shape[i] else image_shape[i]
-                           for i in range(len(image_shape))]
+        # check if model is 3d
+        def _is_3d(is_3d_queue: mp.Queue):
+            # checks if model can process 3d input
+            logger = logging.getLogger('is_3d')
+            for _z in range(1, 19, 1):
+                for _s in range(32, 300, 1):
+                    _input = torch.zeros(1, c, _z, _s, _s).to(self.device)
+                    try:
+                        with torch.no_grad():
+                            _out = self.model.to(self.device)(_input)
+                        is_3d_queue.put(True)
+                        return
+                    except RuntimeError:
+                        logger.debug(f'Model can not process tensors of shape {[1, c, _z, _s, _s]}')
+            is_3d_queue.put(False)
 
-        logger.debug(f'Dry run with upper bound: {image_shape}')
-            
-        max_shape = []
-        for device_id in range(self.num_devices):
-            logger.debug(f'Dry running on device: {self.devices[device_id]}')
-            self._device_specs[device_id] = self._binary_dry_run_on_device(image_shape, device_id, train_flag=train_flag)
-            max_device_shape = self.dynamic_shape(*self._device_specs[device_id].num_blocks)
-            if len(max_shape) == 0:
-                max_shape = max_device_shape
-            elif max_shape < max_device_shape:
-                max_shape = max_device_shape
-        logger.debug(f'Dry run finished. Max shape / upper bound: {max_shape} / {image_shape}')
-        return max_shape
+        is_3d_queue = mp.Queue()
+        _3d_check_process = mp.Process(target=_is_3d, args=(is_3d_queue,))
+        _3d_check_process.start()
+        _3d_check_process.join()
+        is_3d = is_3d_queue.get_nowait()
+        logger.debug(f'Is model 3d? {is_3d}')
+        ndim = 3 if is_3d else 2
 
-    def _binary_dry_run_on_device(self, image_shape, device_id, train_flag=False):
-        """
-        Parameters
-        ----------
-        max_shape: list in base shape units
-        """
-        ndim_image = len(image_shape)
-        previous_spatial_shape = [0 for i in range(ndim_image)]
-        device_capacity = [0 for i in range(ndim_image)]
-        l = [0 for _ in range(ndim_image)]
-        r = [int(np.ceil(size / base_shape))
-             for size, base_shape in zip(image_shape, self.dynamic_shape.base_shape)]
-        m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
-        bark = False
-        break_flag = False
+        # create a search space of valid shapes
+        def _create_search_space(shape_queue: mp.Queue):
+            def _forward(*args):
+                try:
+                    start = time.time()
+                    with torch.no_grad():
+                        _out = self._model.to(self.device)(torch.zeros(1, c, *args).to(self.device))
+                    del _out
+                    if time.time() - start > max_processing_time:
+                        return True
+                    else:
+                        logger.debug(f'Add shape {[*args]} to search space')
+                        if is_3d:
+                            shape_queue.put([args[0], args[-1]])
+                        else:
+                            shape_queue.put([args[-1]])
+                        return False
+                except RuntimeError:
+                    logger.debug(f'Model can not process tensors of shape {[1, c, *args]}. Vary size!')
+                    for __s in range(np.max(args[-1]-15, 0), np.min([args[-1]+15, x, y])):
+                        try:
+                            _input = torch.zeros(1, c, args[0], __s, __s) if is_3d else torch.zeros(1, c, __s, __s)
+                            start = time.time()
+                            with torch.no_grad():
+                                _out = self._model.to(self.device)(_input.to(self.device))
+                            del _input, _out
+                            if time.time() - start > max_processing_time:
+                                return True
+                            else:
+                                if is_3d:
+                                    logger.debug(f'Add shape {[args[0], __s, __s]} to search space')
+                                    shape_queue.put([args[0], __s])
+                                else:
+                                    logger.debug(f'Add shape {[__s, __s]} to search space')
+                                    shape_queue.put([__s])
+                                return False
+                        except RuntimeError:
+                            del _input
+                            _var_msg = [1, c, args[0], __s, __s] if is_3d else [1, c, __s, __s]
+                            logger.debug(f'Model can not process tensors of shape {_var_msg}.')
 
-        while sum(l) <= sum(r):
-            for i in range(ndim_image):
-                m = [int(np.floor((l[i] + r[i]) / 2)) for i in range(ndim_image)]
-                spatial_shape = self.dynamic_shape(*m)
-                
-                logger.debug(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
-                print(f"Dry run on ({self.devices[device_id]}) with shape = {spatial_shape}.")
-
-                if spatial_shape > image_shape:
-                    break_flag = True
-                    break
-                else:
-                    device_capacity = m
-                
-                success = self._try_running_on_blocksize(*m, device_id=device_id, train_flag=train_flag)
-
-                if not success:
-                    logger.debug(f"{self.devices[device_id]} barked at shape = {spatial_shape}.")
-                    bark = True
-                    r[i] = m[i] - 1 if m[i] - 1 > 0 else m[i]
-                elif success and bark is False:
-                    l[i] = m[i] + 1
-                else:
-                    device_capacity = m
-                    break_flag = True
-                    break
-
-            if previous_spatial_shape == spatial_shape:
-                break
+            if is_3d:
+                for _z in range(np.min([1, z]), np.min([20, z]), 1):
+                    for _s in range(np.min([32, x, y]), np.min([512, x, y]), 85):
+                        if _forward(_z, _s, _s):
+                            break
             else:
-                previous_spatial_shape = spatial_shape
+                for _s in range(np.min([32, x, y]), np.min([2000, x, y]), 80):
+                    if _forward(_s, _s):
+                        break
 
-            if break_flag == True:
+        shape_queue = mp.Queue()
+        search_space_process = mp.Process(target=_create_search_space, args=(shape_queue,))
+        search_space_process.start()
+        search_space_process.join()
+
+        while True:
+            try:
+                shape = shape_queue.get_nowait()
+                key = shape[0]*shape[1] if is_3d else shape[0]
+                bisect.insort(self.valid_shape, [key, shape])
+            except queue.Empty:
                 break
 
-        return DeviceMemoryCapacity(device_capacity, self.dynamic_shape, device_id=device_id)
-           
+
+    def find(self, c, lo=0, hi=None, train_flag=False):
+        """
+        Recursive search for the largest valid shape that self.model can process.
+
+        """
+        assert self.model is not None
+        if not self.valid_shape:
+            raise ValueError()
+
+        if hi is None:
+            hi = len(self.valid_shape)
+
+        if lo > hi:
+            raise ValueError()
+
+        mid = lo + (hi - lo) // 2
+
+        def _forward(i: int, q: mp.Queue):
+            # data to torch.tensor
+            x = self.valid_shape[i][1] + [self.valid_shape[i][1][-1]]
+            x = torch.zeros(1, c, *x).to(self.device)
+            try:
+                if train_flag:
+                    y = self.model.to(self.device)(x)
+                    target = torch.randn(*y.shape)
+                    loss = torch.nn.MSELoss()
+                    loss(y, target).backward()
+                else:
+                    with torch.no_grad():
+                        y = self.model.to(self.device)(x)
+                q.put(True)
+            except RuntimeError:
+                q.put(False)
+
+        q = mp.Queue()
+
+        if hi - lo <= 1:
+            p = mp.Process(target=_forward, args=(lo, q))
+            p.start()
+            p.join()
+            try:
+                shape_found = q.get_nowait()
+            except queue.Empty:
+                logger.debug('Queue is empty!')
+                raise RuntimeError('No valid shapes found.')
+            if shape_found:
+                return self.valid_shape[lo]
+            else:
+                raise RuntimeError('No valid shape found.')
+
+        p = mp.Process(target=_forward, args=(mid, q))
+        p.start()
+        p.join()
+
+        try:
+            processable_shape = q.get_nowait()
+        except queue.Empty:
+            logger.debug('Queue is empty!')
+            return self.find(c, lo, mid, train_flag)
+
+        if processable_shape:
+            return self.find(c, mid, hi, train_flag)
+        else:
+            return self.find(c, lo, mid, train_flag)
+
     @property
     def num_parallel_jobs(self):
         return self.num_devices

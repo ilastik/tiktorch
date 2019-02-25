@@ -197,17 +197,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         assert self._handler
         return self._handler
 
-    def dry_run(self, image_shape, train=False):
-        """
-        Initiates dry run.
-        Parameters
-        ----------
-        image_shape: list or tuple
-        shape of an image in the dataset (e.g `HW` for 2D or `DHW` for 3D)
-        """
-        assert self.handler is not None
-        return self.handler.binary_dry_run(list(image_shape), train_flag=train)
-
     def _set_handler(self, model):
         assert self.get('input_shape') is not None
         # Pass
@@ -367,6 +356,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 self.meta_send({'id': 'DISPATCHING.MODEL_STATE_DICT_REQUEST'})
                 logger.info('Dispatch confirmed.')
                 self.request_model_state_dict()
+            elif request['id'] == 'DISPATCH.DRY_RUN':
+                logger.info("Received a request to initiate a dry run.")
+                self.meta_send({'id': 'DISPATCHING.DRY_RUN'})
+                logger.info('Dispatch confirmed.')
+                self.dry_run()
             else:
                 # Bad id
                 raise RuntimeError(request)
@@ -382,10 +376,18 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         logger.info('Sent state dict.')
         state_dict.close()
 
-
     def request_optimizer_state_dict(self):
         pass
 
+    def dry_run(self, conf: dict) -> dict:
+        assert 'train' in conf
+        assert 'upper_bound' in conf
+        logger = logging.getLogger('TikTorchServer.dry_run')
+        logger.info('Initiating dry run...')
+        valid_shape = self.handler.dry_run(conf['upper_bound'], conf['train'])
+        return {
+            'shape': valid_shape,
+        }
 
     def poll_training_process(self):
         logger = logging.getLogger('TikTorchServer.poll_training_process')

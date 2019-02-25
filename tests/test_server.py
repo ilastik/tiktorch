@@ -82,3 +82,19 @@ def test_forward_pass(datadir, srv, client, nn_sample):
     res = client.forward(NDArrayBatch([NDArray(input_arr)]))
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
+
+
+def test_client_dry_run(srv, client, nn_sample):
+    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b'')
+
+    client.dry_run({
+        'train': True,
+        'upper_bound': [1, 1, 125, 1250, 2040],
+    })
+
+    valid_shape = client.dry_run({
+        'train': False,
+        'upper_bound': [1, 1, 125, 1250, 2040],
+    })
+    assert isinstance(valid_shape, dict)
+    assert 'shape' in valid_shape
