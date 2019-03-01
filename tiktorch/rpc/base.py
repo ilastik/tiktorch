@@ -3,6 +3,8 @@ import logging
 import threading
 import enum
 
+from concurrent.futures import Future
+from uuid import uuid4
 from typing import (
     Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 )
@@ -31,6 +33,12 @@ class IConnConf:
         """
         raise NotImplementedError()
 
+    def get_pubsub_conn_str(self) -> str:
+        """
+        :returns str: valid connection string for PUB/SUB zmq.Socket
+        """
+        raise NotImplementedError()
+
     def get_ctx(self) -> zmq.Context:
         """
         :returns zmq.Context: same ctx for each class instance
@@ -51,7 +59,9 @@ class IConnConf:
 
 class InprocConnConf(IConnConf):
     def __init__(
-        self, name: str,
+        self,
+        name: str,
+        pubsub: str,
         ctx: zmq.Context,
         timeout: Optional[int] = None,
     ) -> None:
@@ -61,9 +71,13 @@ class InprocConnConf(IConnConf):
         self._ctx = ctx
         self._timeout = timeout
         self.name = name
+        self.pubsub = pubsub
 
     def get_conn_str(self) -> str:
         return f'inproc://{self.name}'
+
+    def get_pubsub_conn_str(self) -> str:
+        return f'inproc://{self.pubsub}'
 
 
 class TCPConnConf(IConnConf):
@@ -71,6 +85,7 @@ class TCPConnConf(IConnConf):
         self,
         addr: str,
         port: str,
+        pubsub_port: str,
         timeout: Optional[int] = None,
         ctx: Optional[zmq.Context] = None,
     ) -> None:
@@ -78,9 +93,13 @@ class TCPConnConf(IConnConf):
         self.addr = addr
         self._timeout = timeout
         self._ctx = ctx or zmq.Context.instance()
+        self.pubsub_port = pubsub_port
 
     def get_conn_str(self) -> str:
         return f'tcp://{self.addr}:{self.port}'
+
+    def get_pubsub_conn_str(self) -> str:
+        return f'tcp://{self.addr}:{self.pubsub_port}'
 
 
 def serialize_args(
@@ -152,29 +171,6 @@ def get_exposed_methods(obj):
     return exposed_methods
 
 
-class MethodDispatcher:
-    def __init__(self, method_name, method, client):
-        self._method_name = method_name
-        self._client = client
-        self._method = method
-
-    def _raise(self, frames):
-        msg = next(frames, None)
-        raise Exception(msg)
-
-    def __call__(self, *args, **kwargs) -> Any:
-        method_name = self._method_name.encode('ascii')
-        frames = [method_name, *serialize_args(self._method, args, kwargs)]
-        return_frames = self._client.dispatch(frames)
-        ctrl_frm, *rest = return_frames
-
-        it = iter(rest)
-        if ctrl_frm.bytes == State.Error.value:
-            self._raise(it)
-        elif ctrl_frm.bytes == State.Return.value:
-            return deserialize_return(self._method, it)
-
-
 class RPCInterfaceMeta(type):
     def __new__(mcls, name, bases, namespace, **kwargs):
         cls = super().__new__(mcls, name, bases, namespace, **kwargs)
@@ -201,6 +197,30 @@ def exposed(method):
     return method
 
 
+class MethodDispatcher:
+    def __init__(self, method_name, method, client):
+        self._method_name = method_name
+        self._client = client
+        self._method = method
+        self._id = uuid4().bytes
+
+    def _raise(self, frames):
+        msg = next(frames, None)
+        raise Exception(msg)
+
+    def __call__(self, *args, **kwargs) -> Any:
+        method_name = self._method_name.encode('ascii')
+        frames = [method_name, self._id, *serialize_args(self._method, args, kwargs)]
+        return_frames = self._client.dispatch(frames)
+        ctrl_frm, *rest = return_frames
+
+        it = iter(rest)
+        if ctrl_frm.bytes == State.Error.value:
+            self._raise(it)
+        elif ctrl_frm.bytes == State.Return.value:
+            return deserialize_return(self._method, it)
+
+
 class Client:
     def __init__(
         self,
@@ -213,6 +233,7 @@ class Client:
         self._local = threading.local()
         self._poller = zmq.Poller()
         self._timeout = conn_conf.get_timeout()
+        self._futures = {}
 
     @property
     def _socket(self):
@@ -274,22 +295,44 @@ class Server:
         sock.setsockopt(zmq.LINGER, 0)
         sock.bind(conn_conf.get_conn_str())
 
+        pub = ctx.socket(zmq.PAIR)
+        pub.setsockopt(zmq.LINGER, 2000)
+        pub.bind(conn_conf.get_pubsub_conn_str())
+
+        self._futures = {}
+
         self._socket = sock
+        self._pub_sock = pub
         self._method_by_name = get_exposed_methods(api)
 
-    def _call(self, func: Callable, frames: List[zmq.Frame]) -> Iterator[zmq.Frame]:
+    def _done_callback(self, fut: Future) -> None:
+        # TODO: handle exceptions
+        result = fut.result()
+        d = [fut.id.encode('ascii'), result]
+        print('done callback', d)
+        self._pub_sock.send_multipart(d)
+        print('sent multipart')
+
+    def _call(self, func: Callable, id_: bytes, frames: List[zmq.Frame]) -> Iterator[zmq.Frame]:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
         ret = func(*args)
+
+        if isinstance(ret, Future):
+            ret.id = uuid4().hex
+            self._futures[ret] = func
+            ret.add_done_callback(self._done_callback)
+
         return serialize_return(func, ret)
 
     def listen(self):
         while True:
             frames = self._socket.recv_multipart(copy=False)
-            method_frm, *args = frames
+            method_frm, method_id_frm, *args = frames
 
             method_name = method_frm.bytes
-            logger.debug("Invoking %s method", method_name)
+            method_id = method_id_frm.bytes
+            logger.debug("Invoking %s method with req id %s", method_name, method_id)
 
             method = self._method_by_name.get(method_name.decode('ascii'))
 
@@ -297,7 +340,7 @@ class Server:
                 if method is None:
                     raise Exception(f'Unknown method {method_name}')
 
-                resp_frames = [State.Return.value, *self._call(method, args)]
+                resp_frames = [State.Return.value, *self._call(method, method_id, args)]
 
             except Shutdown:
                 self._socket.send(b'')
