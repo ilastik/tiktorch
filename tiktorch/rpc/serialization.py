@@ -1,5 +1,6 @@
 from logging import getLogger
 from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable
+from concurrent.futures import Future
 
 import zmq
 

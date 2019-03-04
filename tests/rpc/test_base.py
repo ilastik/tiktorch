@@ -1,16 +1,19 @@
 from time import sleep
-from threading import Thread
+from threading import Thread, enumerate as tenum
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import zmq
 
 from tiktorch.rpc.base import (
-    RPCInterface, exposed, get_exposed_methods,
     serialize_args, deserialize_args,
     deserialize_return, serialize_return,
-    Server, Client, Shutdown, InprocConnConf
+    Server, Client, RPCFuture, isfutureret
 )
+from tiktorch.rpc.connections import InprocConnConf
+from tiktorch.rpc.interface import exposed, RPCInterface, get_exposed_methods
+from tiktorch.rpc.exceptions import Shutdown, Timeout, Canceled, CallException
 
 
 class Iface(RPCInterface):
@@ -43,6 +46,63 @@ class Foo:
     def func_dec(self, data: dict, a: bytes) -> bytes:
         raise NotImplementedError
 
+
+import logging
+import logging.config
+
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def log_debug():
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'default': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+                'stream': 'ext://sys.stdout',
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': 'DEBUG',
+                'propagate': True
+            },
+        }
+    })
+
+
+@pytest.fixture
+def spawn(conn_conf):
+    d = {
+        'client': None,
+        'thread': None,
+    }
+
+    def _spawn(iface, service):
+        def _target():
+            api = service()
+            srv = Server(api, conn_conf)
+            srv.listen()
+
+        t = Thread(target=_target, name='TestServerThread')
+        t.start()
+
+        d['thread'] = t
+        d['client'] = Client(iface(), conn_conf)
+
+        return d['client']
+
+    yield _spawn
+
+    if d['client']:
+        with pytest.raises(Shutdown):
+            d['client'].shutdown()
+
+        d['thread'].join()
 
 def test_get_exposed_methods():
     api = API()
@@ -110,6 +170,18 @@ class IConcatRPC(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def concat_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+        raise NotImplementedError
+
+    @exposed
+    def concat_broken_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+        raise NotImplementedError
+
+    @exposed
+    def raise_outside_future(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+        raise NotImplementedError
+
+    @exposed
     def none_return(self) -> None:
         return None
 
@@ -119,8 +191,28 @@ class IConcatRPC(RPCInterface):
 
 
 class ConcatRPCSrv(IConcatRPC):
+    def __init__(self):
+        self.executor = ThreadPoolExecutor()
+
     def concat(self, a: bytes, b: bytes) -> bytes:
         return a + b
+
+    def concat_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+
+        def _slow_concat(a, b):
+            sleep(0.4)
+            return a + b
+
+        return self.executor.submit(_slow_concat, a, b)
+
+    def concat_broken_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+        def _broken(a, b):
+            raise Exception('broken')
+
+        return self.executor.submit(_broken, a, b)
+
+    def raise_outside_future(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
+        raise Exception('broken')
 
     def not_exposed(self) -> None:
         pass
@@ -128,25 +220,14 @@ class ConcatRPCSrv(IConcatRPC):
 @pytest.fixture
 def conn_conf():
     ctx = zmq.Context()
-    return InprocConnConf('test', ctx)
+    return InprocConnConf('test', 'pubsub_test', ctx)
 
-def test_server(conn_conf):
-    def _target():
-        api = ConcatRPCSrv()
-        srv = Server(api, conn_conf)
-        srv.listen()
 
-    t = Thread(target=_target)
-    t.start()
-
-    cl = Client(IConcatRPC(), conn_conf)
+def test_server(spawn):
+    cl = spawn(IConcatRPC, ConcatRPCSrv)
 
     resp = cl.concat(b'foo', b'bar')
     assert resp == b'foobar'
-
-    resp = cl.shutdown()
-    t.join(timeout=2)
-    assert not t.is_alive()
 
 
 def test_client_dir(conn_conf):
@@ -160,22 +241,13 @@ def test_client_dir(conn_conf):
     assert 'not_exposed' not in methods
 
 
-def test_method_returning_none(conn_conf):
-    def _target():
-        api = ConcatRPCSrv()
-        srv = Server(api, conn_conf)
-        srv.listen()
-
-    t = Thread(target=_target)
-    t.start()
-
-    cl = Client(IConcatRPC(), conn_conf)
+def test_method_returning_none(spawn):
+    cl = spawn(IConcatRPC, ConcatRPCSrv)
 
     res = cl.none_return()
-    cl.shutdown()
 
 
-def test_error_doesnt_stop_server(conn_conf):
+def test_error_doesnt_stop_server(spawn):
     class Foo:
         pass
 
@@ -200,36 +272,23 @@ def test_error_doesnt_stop_server(conn_conf):
         def shutdown(self):
             raise Shutdown()
 
-    def _target():
-        api = SomeRPC()
-        srv = Server(api, conn_conf)
-        srv.listen()
 
-    t = Thread(target=_target)
-    t.start()
-
-    cl = Client(SomeRPC(), conn_conf)
+    cl = spawn(SomeRPC, SomeRPC)
 
     assert cl.ping() == b'pong'
-    assert t.is_alive()
 
     with pytest.raises(Exception):
         cl.raise_exc()
 
-    assert t.is_alive()
     assert cl.ping() == b'pong'
 
     with pytest.raises(Exception):
         cl.unknown_return_type()
 
-    assert t.is_alive()
     assert cl.ping() == b'pong'
 
-    cl.shutdown()
-    assert not t.is_alive()
 
-
-def test_multithreaded(conn_conf):
+def test_multithreaded(spawn):
     class SomeRPC(RPCInterface):
         @exposed
         def ping(self) -> bytes:
@@ -240,15 +299,8 @@ def test_multithreaded(conn_conf):
         def shutdown(self) -> None:
             raise Shutdown()
 
-    def _target():
-        api = SomeRPC()
-        srv = Server(api, conn_conf)
-        srv.listen()
 
-    t = Thread(target=_target)
-    t.start()
-
-    cl = Client(SomeRPC(), conn_conf)
+    cl = spawn(SomeRPC, SomeRPC)
 
     res = []
     def _client():
@@ -263,8 +315,6 @@ def test_multithreaded(conn_conf):
     for c in clients:
         c.join(timeout=1)
         assert not c.is_alive()
-
-    cl.shutdown()
 
     assert len(res) == 5
     assert all(res)
@@ -289,3 +339,65 @@ def test_rpc_interface_metaclass():
             return None
 
     assert Foo.__exposedmethods__ == {'foo', 'bar'}
+
+
+def test_futures(spawn):
+    executor = ThreadPoolExecutor()
+
+    class SomeRPC(RPCInterface):
+        def __init__(self):
+            self.count = 2
+
+        @exposed
+        def compute(self) -> RPCFuture[bytes]:
+            def _compute():
+                logger.debug('Computing')
+                sleep(0.5)
+                logger.debug('Computed')
+                res = b'4%d' % self.count
+                self.count += 1
+                return res
+
+            return executor.submit(_compute)
+
+        @exposed
+        def shutdown(self):
+            raise Shutdown()
+
+
+    cl = spawn(SomeRPC, SomeRPC)
+
+    f = cl.compute()
+    f2 = cl.compute()
+    assert f.result(timeout=5) == b'42'
+    assert f2.result(timeout=5) == b'43'
+
+
+def test_futures_concat(spawn):
+    cl = spawn(IConcatRPC, ConcatRPCSrv)
+
+    f = cl.concat_async(b'4', b'2')
+    f2 = cl.concat_async(b'hello, ', b'world')
+
+    assert f.result(timeout=5) == b'42'
+    assert f2.result(timeout=5) == b'hello, world'
+
+
+def test_futures_with_exception(spawn):
+    cl = spawn(IConcatRPC, ConcatRPCSrv)
+
+    f = cl.concat_broken_async(b'4', b'2')
+
+    with pytest.raises(CallException):
+        assert f.result(timeout=5) == b'42'
+
+    f = cl.raise_outside_future(b'4', b'2')
+    with pytest.raises(CallException):
+        assert f.result(timeout=5) == b'42'
+
+
+def test_isfutureret():
+    def foo() -> None:
+        return
+
+    isfutureret(foo)

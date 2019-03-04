@@ -3,103 +3,46 @@ import logging
 import threading
 import enum
 
+from functools import partial
 from concurrent.futures import Future
 from uuid import uuid4
 from typing import (
-    Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+    Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple, Set
 )
 
 import zmq
+import typing_inspect
 
+from .interface import RPCInterface, get_exposed_methods
 from .serialization import serialize, deserialize
+from .connections import IConnConf
+from .exceptions import Timeout, Shutdown, Canceled, CallException
 
 
 logger = logging.getLogger(__name__)
+
+
+T = TypeVar('T')
+
+@enum.unique
+class Mode(enum.Enum):
+    Normal = b'0'
+    Shutdown = b'1'
 
 
 @enum.unique
 class State(enum.Enum):
     Return = b'0'
     Error = b'1'
+    Ack = b'2'
 
 
-class IConnConf:
-    _ctx: zmq.Context
-    _timeout: Optional[int]
-
-    def get_conn_str(self) -> str:
-        """
-        :returns str: valid connection string for zmq.Socket
-        """
-        raise NotImplementedError()
-
-    def get_pubsub_conn_str(self) -> str:
-        """
-        :returns str: valid connection string for PUB/SUB zmq.Socket
-        """
-        raise NotImplementedError()
-
-    def get_ctx(self) -> zmq.Context:
-        """
-        :returns zmq.Context: same ctx for each class instance
-        """
-        return self._ctx
-
-    def get_timeout(self) -> int:
-        """
-        timeout in seconds to use with zmq
-        -1 indefinite
-        >= 0 ms
-        """
-        if self._timeout is None:
-            return -1
-        else:
-            return self._timeout
+class RPCFuture(Future, Generic[T]):
+    pass
 
 
-class InprocConnConf(IConnConf):
-    def __init__(
-        self,
-        name: str,
-        pubsub: str,
-        ctx: zmq.Context,
-        timeout: Optional[int] = None,
-    ) -> None:
-        """
-        Inproc config is dependent on sharing *same context instance*
-        """
-        self._ctx = ctx
-        self._timeout = timeout
-        self.name = name
-        self.pubsub = pubsub
-
-    def get_conn_str(self) -> str:
-        return f'inproc://{self.name}'
-
-    def get_pubsub_conn_str(self) -> str:
-        return f'inproc://{self.pubsub}'
-
-
-class TCPConnConf(IConnConf):
-    def __init__(
-        self,
-        addr: str,
-        port: str,
-        pubsub_port: str,
-        timeout: Optional[int] = None,
-        ctx: Optional[zmq.Context] = None,
-    ) -> None:
-        self.port = port
-        self.addr = addr
-        self._timeout = timeout
-        self._ctx = ctx or zmq.Context.instance()
-        self.pubsub_port = pubsub_port
-
-    def get_conn_str(self) -> str:
-        return f'tcp://{self.addr}:{self.port}'
-
-    def get_pubsub_conn_str(self) -> str:
-        return f'tcp://{self.addr}:{self.pubsub_port}'
+def isfuture(obj):
+    return isinstance(obj, (RPCFuture, Future))
 
 
 def serialize_args(
@@ -144,7 +87,23 @@ def serialize_return(
     value: Any,
 ) -> Iterator[zmq.Frame]:
     sig = inspect.signature(func)
-    return serialize(sig.return_annotation, value)
+
+    if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
+        type_, *rest = typing_inspect.get_args(sig.return_annotation)
+        if rest:
+            raise ValueError("Tuple returns are not supported")
+        return serialize(type_, value)
+
+    else:
+        return serialize(sig.return_annotation, value)
+
+
+def isfutureret(func: Callable):
+    sig = inspect.signature(func)
+    return (
+        sig.return_annotation is not None
+        and issubclass(sig.return_annotation, RPCFuture)
+    )
 
 
 def deserialize_return(
@@ -152,49 +111,85 @@ def deserialize_return(
     frames: Iterator[zmq.Frame],
 ) -> Any:
     sig = inspect.signature(func)
-    return deserialize(sig.return_annotation, frames)
+
+    if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
+        type_, *rest = typing_inspect.get_args(sig.return_annotation)
+        if rest:
+            raise ValueError("Tuple returns are not supported")
+
+        return deserialize(type_, frames)
+
+    else:
+        return deserialize(sig.return_annotation, frames)
 
 
-def get_exposed_methods(obj):
-    exposed = getattr(obj, '__exposedmethods__', None)
+class Result:
+    __slots__ = ('_value', '_exc')
 
-    if not exposed:
-        raise ValueError(f"Class doesn't provide public API")
+    def __init__(
+        self,
+        value: Optional[Any] = None,
+        exc: Optional[Exception] = None
+    ) -> None:
+        self._value = value
+        self._exc = exc
 
-    exposed_methods = {}
+    def result(self) -> Any:
+        if self._exc:
+            raise self._exc
 
-    for attr_name in exposed:
-        attr = getattr(obj, attr_name)
-        if callable(attr):
-            exposed_methods[attr_name] = attr
+        return self._value
 
-    return exposed_methods
+    def to_future(self, future: RPCFuture) -> None:
+        if self._exc:
+            future.set_exception(self._exc)
 
-
-class RPCInterfaceMeta(type):
-    def __new__(mcls, name, bases, namespace, **kwargs):
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
-        exposed = {
-            name
-            for name, value in namespace.items()
-            if getattr(value, "__exposed__", False)
-        }
-
-        for base in bases:
-            if issubclass(base, RPCInterface):
-                 exposed ^= getattr(base, "__exposedmethods__", set())
-
-        cls.__exposedmethods__ = frozenset(exposed)
-        return cls
+        future.set_result(self._value)
 
 
-class RPCInterface(metaclass=RPCInterfaceMeta):
-    pass
+class Ack:
+    __slots__ = ('_exc')
+
+    def __init__(
+        self,
+        exc: Optional[Exception] = None,
+    ):
+        self._exc = exc
+
+    def to_future(self, future: RPCFuture) -> None:
+        if self._exc:
+            future.set_exception(self._exc)
 
 
-def exposed(method):
-    method.__exposed__ = True
-    return method
+def deserialize_result(
+    method: Callable,
+    frames: Iterator[zmq.Frame],
+):
+
+    ctrl_frm = next(frames)
+
+    if ctrl_frm.bytes == State.Error.value:
+        msg = next(frames, None)
+        return Result(exc=CallException(msg))
+
+    elif ctrl_frm.bytes == State.Return.value:
+        value = deserialize_return(method, frames)
+        return Result(value=value)
+
+    raise Exception('Unexpected control frame %s' % ctrl_frm)
+
+
+def deserialize_ack(frames: Iterator[zmq.Frame]):
+    ctrl_frm = next(frames)
+
+    if ctrl_frm.bytes == State.Error.value:
+        msg = next(frames, None)
+        return Ack(exc=CallException(msg))
+
+    elif ctrl_frm.bytes == State.Ack.value:
+        return Ack()
+
+    raise Exception('Unexpected control frame %s' % ctrl_frm)
 
 
 class MethodDispatcher:
@@ -202,38 +197,87 @@ class MethodDispatcher:
         self._method_name = method_name
         self._client = client
         self._method = method
-        self._id = uuid4().bytes
-
-    def _raise(self, frames):
-        msg = next(frames, None)
-        raise Exception(msg)
+        self._id = uuid4().hex.encode('ascii')
 
     def __call__(self, *args, **kwargs) -> Any:
-        method_name = self._method_name.encode('ascii')
+        method_name = self._method_name.encode('utf-8')
         frames = [method_name, self._id, *serialize_args(self._method, args, kwargs)]
-        return_frames = self._client.dispatch(frames)
-        ctrl_frm, *rest = return_frames
+        is_future = isfutureret(self._method)
+        if is_future:
+            fut = self._client.create_future(self._id, self._method)
 
-        it = iter(rest)
-        if ctrl_frm.bytes == State.Error.value:
-            self._raise(it)
-        elif ctrl_frm.bytes == State.Return.value:
-            return deserialize_return(self._method, it)
+        # temporal dep,
+        # postbox (future) should be created before address is known by remote
+        return_frames = iter(self._client.dispatch(frames))
+
+        if is_future:
+            ack = deserialize_ack(return_frames)
+            ack.to_future(fut)
+            return fut
+        else:
+            res = deserialize_result(self._method, return_frames)
+            return res.result()
 
 
 class Client:
     def __init__(
         self,
-        api: type,
+        api: RPCInterface,
         conn_conf: IConnConf,
     ) -> None:
+
         self._methods_by_name = get_exposed_methods(api)
         self._conn_conf = conn_conf
 
+        self._name = api.__class__.__name__
         self._local = threading.local()
         self._poller = zmq.Poller()
         self._timeout = conn_conf.get_timeout()
         self._futures = {}
+        self._shutdown = threading.Event()
+        self._listener = None
+
+    def create_future(self, id_, method):
+        if self._listener is None:
+            self._start_listener()
+
+        f = RPCFuture()
+        self._futures[id_] = (f, method)
+        return f
+
+    def _start_listener(self):
+        def _listen():
+            ctx = self._conn_conf.get_ctx()
+            sock = ctx.socket(zmq.PAIR)
+            sock.setsockopt(zmq.LINGER, 0)
+            sock.RCVTIMEO = self._timeout
+            sock.SNDTIMEO = self._timeout
+            sock.connect(self._conn_conf.get_pubsub_conn_str())
+
+            while True:
+                events = sock.poll(flags=zmq.POLLIN, timeout=500)
+
+                if events == zmq.POLLIN:
+                    id_frm, *return_frames = sock.recv_multipart(copy=False)
+                    id_ = id_frm.bytes
+                    fut, method = self._futures.pop(id_, (None, None))
+                    if fut is not None:
+                        try:
+                            result = deserialize_result(method, iter(return_frames))
+                        except Exception as e:
+                            fut.set_exception(e)
+                        else:
+                            result.to_future(fut)
+
+                if self._shutdown.is_set():
+                    sock.close()
+                    break
+
+        self._listener = threading.Thread(
+            target=_listen,
+            name=f'ClientNotificationsThread[{self._name}]'
+        )
+        self._listener.start()
 
     @property
     def _socket(self):
@@ -244,6 +288,7 @@ class Client:
             sock = ctx.socket(zmq.REQ)
             sock.setsockopt(zmq.LINGER, 0)
             sock.RCVTIMEO = self._timeout
+            sock.SNDTIMEO = self._timeout
             sock.connect(self._conn_conf.get_conn_str())
             setattr(self._local, 'sock', sock)
 
@@ -258,15 +303,21 @@ class Client:
     def dispatch(self, frames: List[zmq.Frame]):
         evt = self._socket.poll(self._timeout, flags=zmq.POLLOUT)
         if not evt:
-            raise TimeoutError()
+            raise Timeout()
 
         frames = self._socket.send_multipart(frames, copy=False)
 
         evt = self._socket.poll(self._timeout, flags=zmq.POLLIN)
         if not evt:
-            raise TimeoutError()
+            raise Timeout()
 
-        return self._socket.recv_multipart(copy=False)
+        mode_frm, *resp = self._socket.recv_multipart(copy=False)
+
+        if mode_frm.bytes == Mode.Shutdown.value:
+            self._shutdown.set()
+            raise Shutdown()
+
+        return resp
 
     def __dir__(self):
         own_methods = self.__dict__.keys()
@@ -274,56 +325,77 @@ class Client:
         return iface_methods ^ own_methods
 
 
-class Shutdown(Exception):
-    pass
-
-
-class TimeoutError(Exception):
-    pass
-
-
 class Server:
+
     def __init__(
         self,
         api: RPCInterface,
         conn_conf: IConnConf,
     ) -> None:
+
         self._api = api
 
         ctx = conn_conf.get_ctx()
         sock = ctx.socket(zmq.REP)
-        sock.setsockopt(zmq.LINGER, 0)
+        sock.setsockopt(zmq.LINGER, 2000)
+        sock.RCVTIMEO = 2000
+        sock.SNDTIMEO = 2000
         sock.bind(conn_conf.get_conn_str())
 
         pub = ctx.socket(zmq.PAIR)
         pub.setsockopt(zmq.LINGER, 2000)
+        pub.RCVTIMEO = 2000
+        pub.SNDTIMEO = 2000
         pub.bind(conn_conf.get_pubsub_conn_str())
 
-        self._futures = {}
+        self._futures: Set[Future[Any]] = set()
 
         self._socket = sock
         self._pub_sock = pub
         self._method_by_name = get_exposed_methods(api)
+        self._pub_lock = threading.Lock()
 
-    def _done_callback(self, fut: Future) -> None:
-        # TODO: handle exceptions
-        result = fut.result()
-        d = [fut.id.encode('ascii'), result]
-        print('done callback', d)
-        self._pub_sock.send_multipart(d)
-        print('sent multipart')
+    def _make_done_callback(
+        self,
+        id_: bytes,
+        func: Callable[..., Any]
+    ) -> Callable[[Future], None]:
 
-    def _call(self, func: Callable, id_: bytes, frames: List[zmq.Frame]) -> Iterator[zmq.Frame]:
+        def _done_callback(fut: Future) -> None:
+            self._futures.discard(fut)
+
+            try:
+                result = fut.result()
+            except Exception as e:
+                resp = [id_, State.Error.value, str(e).encode('utf-8')]
+            else:
+                resp = [id_, State.Return.value, *serialize_return(func, result)]
+
+            logger.debug('Call[id: %s]. Sending result', id_)
+
+            with self._pub_lock:
+                self._pub_sock.send_multipart(resp)
+                logger.debug('Call[id: %s]. Result sent', id_)
+
+        return _done_callback
+
+    def _call(self, func: Callable, id_: bytes, frames: List[zmq.Frame]) -> List[zmq.Frame]:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
+
+        logger.debug('Call[id: %s]. Invoking method %s', id_, func)
         ret = func(*args)
+        logger.debug('Call[id: %s]. Returned %r', id_, ret)
 
-        if isinstance(ret, Future):
-            ret.id = uuid4().hex
-            self._futures[ret] = func
-            ret.add_done_callback(self._done_callback)
+        if isfuture(ret):
+            logger.debug('Call[id: %s]. Handling future', id_)
 
-        return serialize_return(func, ret)
+            self._futures.add(ret)
+            ret.add_done_callback(self._make_done_callback(id_, func))
+
+            return [State.Ack.value]
+
+        return [State.Return.value, *serialize_return(func, ret)]
 
     def listen(self):
         while True:
@@ -332,18 +404,18 @@ class Server:
 
             method_name = method_frm.bytes
             method_id = method_id_frm.bytes
-            logger.debug("Invoking %s method with req id %s", method_name, method_id)
+            logger.debug("Invoking %s method", method_name)
 
-            method = self._method_by_name.get(method_name.decode('ascii'))
+            method = self._method_by_name.get(method_name.decode('utf-8'))
 
             try:
                 if method is None:
                     raise Exception(f'Unknown method {method_name}')
 
-                resp_frames = [State.Return.value, *self._call(method, method_id, args)]
+                resp_frames = self._call(method, method_id, args)
 
             except Shutdown:
-                self._socket.send(b'')
+                self._socket.send_multipart([Mode.Shutdown.value])
                 self._socket.close()
                 break
 
@@ -351,10 +423,10 @@ class Server:
                 logger.exception('Exception during method %s call', method)
                 # TODO: Better exception serialization
                 self._socket.send_multipart([
-                    State.Error.value, str(e).encode('ascii')
+                    Mode.Normal.value, State.Error.value, str(e).encode('ascii')
                 ])
 
             # TODO: rearm socket after timeout to avoid being stuck in sending state
             # in case of client missing (dead)
             else:
-                self._socket.send_multipart(list(resp_frames), copy=False)
+                self._socket.send_multipart([Mode.Normal.value, *resp_frames], copy=False)
