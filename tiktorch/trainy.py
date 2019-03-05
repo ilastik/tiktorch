@@ -153,7 +153,7 @@ class Trainer(object):
             while server_thread.is_alive():
                 time.sleep(1)
                 kill_attempts += 1
-                logger.info("Attempt %d of %d.", (kill_attempts, num_kill_attempts))
+                logger.info("Attempt %d of %d.", kill_attempts, num_kill_attempts)
                 if kill_attempts > num_kill_attempts:
                     break
             if server_thread.is_alive():
@@ -249,7 +249,7 @@ class Trainer(object):
                     pass
                 sample = 0
                 while len(batch) < hparams.batch_size:
-                    logger.info("Trying to Fetch sample %d of %d...", (sample, hparams.batch_size))
+                    logger.info("Trying to Fetch sample %d of %d...", sample + 1, hparams.batch_size)
                     # Try to fetch from data queue
                     data, labels = data_queue.get(block=False)
                     try:
@@ -257,7 +257,10 @@ class Trainer(object):
                     except NotImplementedError:
                         _q_size_now = None
                     logger.info(
-                        "Fetched sample %d of %d. Remaining items in queue: ", (sample, hparams.batch_size, _q_size_now)
+                        "Fetched sample %d of %d. Remaining items in queue: %d",
+                        sample + 1,
+                        hparams.batch_size,
+                        _q_size_now,
                     )
                     if use_cache_keeping:
                         if _cache_keeping((data, labels)):
@@ -287,7 +290,7 @@ class Trainer(object):
                         batch.append(data_sample)
                         data_cache.append(data_sample)
                 else:
-                    logger.error("LOLWTF: len(batch) = %d, " f"len(data_cache) = %d", (len(batch), len(data_cache)))
+                    logger.error("LOLWTF: len(batch) = %d, " f"len(data_cache) = %d", len(batch), len(data_cache))
                     # Stop state server before throwing up error
                     _kill_state_server()
                     raise RuntimeError
@@ -300,7 +303,9 @@ class Trainer(object):
                 data, labels, weights = zip(*augmented_batch)
                 logger.debug(
                     "data.shapes = %s, label.shapes = %s, weights.shapes = %s",
-                    [[list(a.shape) for a in d] for d in (data, labels, weights)],
+                    [list(t.shape) for t in data],
+                    [list(t.shape) for t in labels],
+                    [list(t.shape) for t in weights],
                 )
                 data, labels, weights = (
                     torch.stack(data, dim=0),
