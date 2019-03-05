@@ -27,21 +27,21 @@ class IServerLauncher:
     @property
     def _conn_conf(self) -> TCPConnConf:
         if self.__conn_conf is None:
-            raise Exception('Please set self._conn_conf')
+            raise Exception("Please set self._conn_conf")
 
         return self.__conn_conf
 
     @_conn_conf.setter
     def _conn_conf(self, value: TCPConnConf) -> None:
         if not isinstance(value, TCPConnConf):
-            raise ValueError('Should be instance of TCPConnConf')
+            raise ValueError("Should be instance of TCPConnConf")
 
         self.__conn_conf = value
 
     def is_server_running(self):
         try:
             c = Client(IFlightControl(), self._conn_conf)
-            return c.ping() == b'pong'
+            return c.ping() == b"pong"
         except TimeoutError:
             return False
 
@@ -76,48 +76,38 @@ class LocalServerLauncher(IServerLauncher):
     def start(self):
         addr, port = self._conn_conf.addr, self._conn_conf.port
 
-        if addr != '127.0.0.1':
-            raise ValueError('LocalServerHandler only possible to run on localhost')
+        if addr != "127.0.0.1":
+            raise ValueError("LocalServerHandler only possible to run on localhost")
 
         if self._process:
-            raise AlreadyRunningError(f'Local server is already running (pid:{self._process.pid})')
+            raise AlreadyRunningError(f"Local server is already running (pid:{self._process.pid})")
 
-        self.logger.info('Starting local TikTorchServer on %s:%s', addr, port)
+        self.logger.info("Starting local TikTorchServer on %s:%s", addr, port)
 
         self._process = subprocess.Popen(
-            [sys.executable, '-m', 'tiktorch.server', '--port',  str(port), '--addr', addr],
-            stdout=sys.stdout, stderr=sys.stderr
+            [sys.executable, "-m", "tiktorch.server", "--port", str(port), "--addr", addr],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
 
         try:
             wait(self.is_server_running)
         except TimeoutError:
-            raise Exception('Failed to start local TikTorchServer')
+            raise Exception("Failed to start local TikTorchServer")
 
 
 class SSHCred:
-    def __init__(
-        self,
-        user: str,
-        password: Optional[str] = None,
-        key_path: Optional[str] = None,
-    ) -> None:
+    def __init__(self, user: str, password: Optional[str] = None, key_path: Optional[str] = None) -> None:
         self.user = user
         self.password = password
         self.key_path = key_path
 
     def __repr__(self) -> str:
-        return f'<SSHCred({self.user}, has_pwd={bool(self.password)}, key={self.key_path})>'
+        return f"<SSHCred({self.user}, has_pwd={bool(self.password)}, key={self.key_path})>"
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(
-        self,
-        conn_conf: TCPConnConf,
-        *,
-        cred: SSHCred,
-        ssh_port: int = 22
-    ) -> None:
+    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22) -> None:
 
         self._ssh_port = ssh_port
         self._channel = None
@@ -133,23 +123,23 @@ class RemoteSSHServerLauncher(IServerLauncher):
 
     def start(self):
         if self._channel:
-            raise RuntimeError('SSH server is already running')
+            raise RuntimeError("SSH server is already running")
 
         addr, port = self._conn_conf.addr, self._conn_conf.port
 
         ssh_params = {
-            'hostname': addr,
-            'port': self._ssh_port,
-            'username': self._cred.user,
-            'password': self._cred.password,
-            'key_filename': self._cred.key_path,
-            'timeout': 10
+            "hostname": addr,
+            "port": self._ssh_port,
+            "username": self._cred.user,
+            "password": self._cred.password,
+            "key_filename": self._cred.key_path,
+            "timeout": 10,
         }
 
         try:
             self._ssh_client.connect(**ssh_params)
         except timeout as e:
-            raise RuntimeError('Failed to establish SSH connection')
+            raise RuntimeError("Failed to establish SSH connection")
 
         transport = self._ssh_client.get_transport()
 
@@ -165,17 +155,17 @@ class RemoteSSHServerLauncher(IServerLauncher):
                     should_continue = False
 
                 if buf_rdy.wait(timeout=1):
-                    buf = b''
+                    buf = b""
                     while channel.recv_ready():
                         buf += channel.recv(2048)
 
                     buf_rdy.clear()
 
                     if buf:
-                        print(buf.decode('utf-8'))
+                        print(buf.decode("utf-8"))
 
                 if not should_continue:
-                    print('Server exited with status: %s' % channel.recv_exit_status())
+                    print("Server exited with status: %s" % channel.recv_exit_status())
 
         t = threading.Thread(target=_monitor_and_report)
         t.start()
@@ -183,6 +173,6 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            channel.exec_command(f'tiktorch --addr {addr} --port {port}')
+            channel.exec_command(f"tiktorch --addr {addr} --port {port}")
         except timeout as e:
-            raise RuntimeError('Failed to start TiktorchServer')
+            raise RuntimeError("Failed to start TiktorchServer")

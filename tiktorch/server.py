@@ -4,11 +4,9 @@ import io
 import os
 from importlib import util as imputils
 import zmq
-from zmq.utils import jsonapi
 
 import numpy as np
 import torch
-import yaml
 from datetime import datetime
 import socket
 import shutil
@@ -17,7 +15,6 @@ import tempfile
 import tiktorch.utils as utils
 from tiktorch.rpc import Server, Shutdown, TCPConnConf
 from tiktorch.device_handler import ModelHandler
-from tiktorch import serializers
 from tiktorch.types import NDArray, NDArrayBatch
 
 from .rpc_interface import INeuralNetworkAPI, IFlightControl
@@ -98,21 +95,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.binary_model_state = None
         self._config = None
 
-
     def __del__(self):
         shutil.rmtree(self.tmp_dir)
-
-    def recv_init(self, config, binary_model_file, binary_model_state, binary_optimizer_state):
-        self._config = config
-        logger.info("tiktorch config received.")
-        self.binary_model_file = binary_model_file
-        logger.info("model file received.")
-        self.binary_model_state = binary_model_state
-        logger.info("model state received.")
-        self.binary_optimizer_state = binary_optimizer_state
-        logger.info("Init data received.")
-        self.load_model()
-        self.state.next(State.WORKING)
 
     def init(self):
         logger = logging.getLogger('TikTorchServer.init')
@@ -124,39 +108,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
         logger.info("Binding to socket tcp://%s:%s", self.addr, self.port)
         self._zmq_socket.bind(f'tcp://{self.addr}:{self.port}')
-        # Receive build directory
-        # ping = self._zmq_socket.recv_json()
-        # assert ping['id'] == 'PING'
-        # self._zmq_socket.send_json({'id': 'PONG'})
-        #self.recv_init()
         logger.info("Waiting for init data...")
-
-    def meta_send(self, info_dict, flags=0):
-        self._zmq_socket.send_json(info_dict, flags=flags)
-        return self
-
-    def meta_recv(self):
-        return self._zmq_socket.recv_json()
-
-    def tensor_send(self, x, key):
-        assert torch.is_tensor(x) or isinstance(x, np.ndarray)
-        # Send meta data
-        self.meta_send({'id': f"{key.upper()}.TENSORSPEC",
-                        'shape': tuple(x.shape),
-                        'dtype': str(x.dtype).lstrip('torch.'),
-                        'device': str(x.device) if torch.is_tensor(x) else 'cpu'})
-        # Make sure x is on the CPU and send
-        self._zmq_socket.send((x.cpu().numpy() if torch.is_tensor(x) else x), copy=False)
-
-    def tensor_recv(self, key, framework='numpy'):
-        tensor_spec = self.meta_recv()
-        assert tensor_spec['id'] == f"{key.upper()}.TENSORSPEC", (tensor_spec['id'], f"{key.upper()}.TENSORSPEC")
-        # Receive the buffer
-        buf = memoryview(self._zmq_socket.recv())
-        x = np.frombuffer(buf, dtype=tensor_spec['dtype'].lstrip('torch.')).reshape(tensor_spec['shape'])
-        if framework == 'torch':
-            x = torch.from_numpy(x).to(tensor_spec['device'])
-        return x
 
     @property
     def output_shape(self):
@@ -250,6 +202,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             model_state_path = os.path.join(tmp_dir, 'state.nn')
             with open(model_state_path, 'wb') as f:
                 f.write(self.binary_model_state)
+                # todo: implement like 'import io; f = io.BytesIO(binary_model_state) torch.load(f) # in same context
 
         # todo: optimizer state
 
@@ -299,72 +252,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.handler.set_hparams(params)
         logger.info("Sent to handler.")
 
-    def listen(self):
-        logger = logging.getLogger('TikTorchServer.listen')
-        logger.info('Waiting...')
-        # Listen for requests
-        while True:
-            request, args = self._zmq_socket.recv_serialized(deserialize, copy=False)
-            #request = self.meta_recv()
-            logger.info("Request Received.")
-            if request['id'] == 'INIT':
-                self.recv_init(*args)
-            elif request['id'] == 'PING':
-                self.meta_send({'id': 'PONG'})
-            elif request['id'] == 'DISPATCH.FORWARD':
-                logger.info("Received request to dispatch forward.")
-                # Confirm dispatch
-                self.meta_send({'id': 'DISPATCHING.FORWARD'})
-                logger.info("Dispatch confirmed.")
-                self.forward()
-                logger.info("Forward successful; waiting...")
-            elif request['id'] == 'DISPATCH.TRAIN':
-                logger.info("Received request to dispatch train.")
-                # Confirm dispatch
-                self.meta_send({'id': 'DISPATCHING.TRAIN'})
-                logger.info('Dispatch confirmed.')
-                self.train()
-                logger.info("Train successful; waiting...")
-            elif request['id'] == 'DISPATCH.SHUTDOWN':
-                logger.info("Received request to shutdown.")
-                self.meta_send({'id': 'DISPATCHING.SHUTDOWN'})
-                logger.info("Dispatch confirmed.")
-                self.shutdown()
-                break
-            elif request['id'] == 'DISPATCH.PAUSE':
-                logger.info("Received request to pause training.")
-                self.meta_send({'id': 'DISPATCHING.PAUSE'})
-                logger.info("Dispatch confirmed, pausing training...")
-                self.handler.pause_training()
-            elif request['id'] == 'DISPATCH.RESUME':
-                logger.info("Received request to resume training.")
-                self.meta_send({'id': 'DISPATCHING.RESUME'})
-                logger.info("Dispatch confirmed, resuming...")
-                self.handler.resume_training()
-            elif request['id'] == 'DISPATCH.POLL_TRAIN':
-                logger.info("Received request to poll training process.")
-                self.meta_send({'id': 'DISPATCHING.POLL_TRAIN'})
-                logger.info("Dispatch confirmed, polling...")
-                self.poll_training_process()
-            elif request['id'] == 'DISPATCH.HYPERPARAMETERS':
-                logger.info("Received request to dispatch hyperparameters.")
-                self.meta_send({'id': 'DISPATCHING.HYPERPARAMETERS'})
-                logger.info("Dispatch confirmed, changing hyperparameters...")
-                self.set_hparams()
-            elif request['id'] == 'DISPATCH.MODEL_STATE_DICT_REQUEST':
-                logger.info("Received a request for the model state dict.")
-                self.meta_send({'id': 'DISPATCHING.MODEL_STATE_DICT_REQUEST'})
-                logger.info('Dispatch confirmed.')
-                self.request_model_state_dict()
-            elif request['id'] == 'DISPATCH.DRY_RUN':
-                logger.info("Received a request to initiate a dry run.")
-                self.meta_send({'id': 'DISPATCHING.DRY_RUN'})
-                logger.info('Dispatch confirmed.')
-                self.dry_run()
-            else:
-                # Bad id
-                raise RuntimeError(request)
-
     def request_model_state_dict(self):
         logger = logging.getLogger('TikTorchServer.request_model_state_dict')
         logger.info('Requesting model state dict from handler....')
@@ -410,17 +297,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             self._handler.stop_training()
         logger.info("Training has stopped")
         raise Shutdown()
-
-
-def debug_server():
-    TikTorchServer.read_config = lambda self: self
-    server = TikTorchServer(address='127.0.0.1', port='29500',
-                            meta_port='29501')
-    server._model = torch.nn.Conv2d(1, 1, 1)
-    server._config = {'input_shape': [1, 512, 512],
-                      'dynamic_input_shape': '(32 * (nH + 1), 32 * (nW + 1))'}
-    server._set_handler(server._model)
-    return server
 
 
 class ServerProcess:
