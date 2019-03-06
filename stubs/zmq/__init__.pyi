@@ -43,6 +43,9 @@ class Poller:
 
 POLLIN: int
 POLLOUT: int
+
+LINGER: int
+
 REP: int
 REQ: int
-LINGER: int
+PAIR: int
