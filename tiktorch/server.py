@@ -422,15 +422,24 @@ def debug_server():
 
 
 class ServerProcess:
-    def __init__(self, address='127.0.0.1', port='29500', device=None, **kwargs):
-        # TODO: Remove metaport
+    def __init__(
+        self,
+        address: str,
+        port: str,
+        notify_port: str,
+        device=None,
+        **kwargs
+    ):
         self._addr = address
         self._port = port
+        self._notify_port = notify_port
         self._device = device
 
     def listen(self):
         api_provider = TikTorchServer(device=self._device)
-        srv = Server(api_provider, TCPConnConf(self._addr, self._port))
+        srv = Server(api_provider, TCPConnConf(
+            self._addr, self._port, self._notify_port
+        ))
         srv.listen()
 
 
@@ -441,6 +450,7 @@ if __name__ == '__main__':
     parsey = argparse.ArgumentParser()
     parsey.add_argument('--addr', type=str, default='127.0.0.1')
     parsey.add_argument('--port', type=str, default='29500')
+    parsey.add_argument('--notify-port', type=str, default='29501')
     parsey.add_argument('--debug', type=bool, default=False)
 
     args = parsey.parse_args()
@@ -450,5 +460,6 @@ if __name__ == '__main__':
     srv = ServerProcess(
         address=args.addr,
         port=args.port,
+        notify_port=args.notify_port,
     )
     srv.listen()

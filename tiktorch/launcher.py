@@ -9,7 +9,7 @@ from typing import Optional
 
 from paramiko import SSHClient, AutoAddPolicy
 
-from .rpc import Client, TimeoutError, TCPConnConf
+from .rpc import Client, Timeout, TCPConnConf, Shutdown
 from .rpc_interface import IFlightControl
 
 
@@ -42,7 +42,7 @@ class IServerLauncher:
         try:
             c = Client(IFlightControl(), self._conn_conf)
             return c.ping() == b'pong'
-        except TimeoutError:
+        except Timeout:
             return False
 
     def start(self, addr):
@@ -50,7 +50,10 @@ class IServerLauncher:
 
     def stop(self):
         c = Client(IFlightControl(), self._conn_conf)
-        c.shutdown()
+        try:
+            c.shutdown()
+        except Shutdown:
+            pass
 
 
 def wait(done, interval=0.1, max_wait=10):
@@ -64,7 +67,7 @@ def wait(done, interval=0.1, max_wait=10):
         time.sleep(interval)
 
         if total > max_wait:
-            raise TimeoutError()
+            raise Timeout()
 
 
 class LocalServerLauncher(IServerLauncher):
@@ -73,7 +76,7 @@ class LocalServerLauncher(IServerLauncher):
         self._process = None
 
     def start(self):
-        addr, port = self._conn_conf.addr, self._conn_conf.port
+        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
 
         if addr != '127.0.0.1':
             raise ValueError('LocalServerHandler only possible to run on localhost')
@@ -84,13 +87,18 @@ class LocalServerLauncher(IServerLauncher):
         self.logger.info('Starting local TikTorchServer on %s:%s', addr, port)
 
         self._process = subprocess.Popen(
-            [sys.executable, '-m', 'tiktorch.server', '--port',  str(port), '--addr', addr],
+            [
+                sys.executable, '-m', 'tiktorch.server',
+                '--port',  str(port),
+                '--notify-port', str(notify_port),
+                '--addr', addr
+            ],
             stdout=sys.stdout, stderr=sys.stderr
         )
 
         try:
             wait(self.is_server_running)
-        except TimeoutError:
+        except Timeout:
             raise Exception('Failed to start local TikTorchServer')
 
 
@@ -134,7 +142,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         if self._channel:
             raise RuntimeError('SSH server is already running')
 
-        addr, port = self._conn_conf.addr, self._conn_conf.port
+        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
 
         ssh_params = {
             'hostname': addr,
@@ -182,6 +190,6 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            channel.exec_command(f'tiktorch --addr {addr} --port {port}')
+            channel.exec_command(f'tiktorch --addr {addr} --port {port} --notify-port {notify_port}')
         except timeout as e:
             raise RuntimeError('Failed to start TiktorchServer')
