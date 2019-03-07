@@ -220,7 +220,7 @@ class ConcatRPCSrv(IConcatRPC):
 @pytest.fixture
 def conn_conf():
     ctx = zmq.Context()
-    return InprocConnConf('test', 'pubsub_test', ctx)
+    return InprocConnConf('test', 'pubsub_test', ctx, timeout=2000)
 
 
 def test_server(spawn):
@@ -341,8 +341,8 @@ def test_rpc_interface_metaclass():
     assert Foo.__exposedmethods__ == {'foo', 'bar'}
 
 
-def test_futures(spawn):
-    executor = ThreadPoolExecutor()
+def test_futures(spawn, log_debug):
+    executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='superexecutor')
 
     class SomeRPC(RPCInterface):
         def __init__(self):
@@ -367,10 +367,13 @@ def test_futures(spawn):
 
     cl = spawn(SomeRPC, SomeRPC)
 
-    f = cl.compute()
-    f2 = cl.compute()
-    assert f.result(timeout=5) == b'42'
-    assert f2.result(timeout=5) == b'43'
+    try:
+        f = cl.compute()
+        f2 = cl.compute()
+        assert f.result(timeout=5) == b'42'
+        assert f2.result(timeout=5) == b'43'
+    finally:
+        executor.shutdown()
 
 
 def test_futures_concat(spawn):

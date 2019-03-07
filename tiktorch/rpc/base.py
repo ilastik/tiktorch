@@ -1,5 +1,6 @@
 import inspect
 import logging
+import queue
 import threading
 import enum
 
@@ -236,6 +237,7 @@ class Client:
         self._futures = {}
         self._shutdown = threading.Event()
         self._listener = None
+        self._ctx = self._conn_conf.get_ctx()
 
     def create_future(self, id_, method):
         if self._listener is None:
@@ -247,9 +249,9 @@ class Client:
 
     def _start_listener(self):
         def _listen():
-            ctx = self._conn_conf.get_ctx()
+            ctx = self._ctx
             sock = ctx.socket(zmq.PAIR)
-            sock.setsockopt(zmq.LINGER, 0)
+            sock.setsockopt(zmq.LINGER, 2000)
             sock.RCVTIMEO = self._timeout
             sock.SNDTIMEO = self._timeout
             sock.connect(self._conn_conf.get_pubsub_conn_str())
@@ -286,7 +288,7 @@ class Client:
         if sock is None:
             ctx = self._conn_conf.get_ctx()
             sock = ctx.socket(zmq.REQ)
-            sock.setsockopt(zmq.LINGER, 0)
+            sock.setsockopt(zmq.LINGER, 2000)
             sock.RCVTIMEO = self._timeout
             sock.SNDTIMEO = self._timeout
             sock.connect(self._conn_conf.get_conn_str())
@@ -314,7 +316,13 @@ class Client:
         mode_frm, *resp = self._socket.recv_multipart(copy=False)
 
         if mode_frm.bytes == Mode.Shutdown.value:
+            self._socket.close()
+
+            for f, _ in self._futures.values():
+                f.set_exception(Shutdown())
+
             self._shutdown.set()
+
             raise Shutdown()
 
         return resp
@@ -335,31 +343,53 @@ class Server:
 
         self._api = api
 
-        ctx = conn_conf.get_ctx()
+        self._ctx = ctx = conn_conf.get_ctx()
+        self._conn_conf = conn_conf
         sock = ctx.socket(zmq.REP)
-        sock.setsockopt(zmq.LINGER, 2000)
+        sock.setsockopt(zmq.LINGER, 0)
         sock.RCVTIMEO = 2000
         sock.SNDTIMEO = 2000
         sock.bind(conn_conf.get_conn_str())
 
-        pub = ctx.socket(zmq.PAIR)
-        pub.setsockopt(zmq.LINGER, 2000)
-        pub.RCVTIMEO = 2000
-        pub.SNDTIMEO = 2000
-        pub.bind(conn_conf.get_pubsub_conn_str())
-
         self._futures: Set[Future[Any]] = set()
 
         self._socket = sock
-        self._pub_sock = pub
         self._method_by_name = get_exposed_methods(api)
         self._pub_lock = threading.Lock()
+        self._results_queue = queue.Queue()
+        self._shutdown_event = threading.Event()
+        self._result_sender = None
+
+    def _start_result_sender(self):
+        def _sender():
+            pub = self._ctx.socket(zmq.PAIR)
+            pub.setsockopt(zmq.LINGER, 0)
+            pub.RCVTIMEO = 2000
+            pub.SNDTIMEO = 2000
+            pub.bind(self._conn_conf.get_pubsub_conn_str())
+
+            while True:
+                try:
+                    result = self._results_queue.get(timeout=0.5)
+                    pub.send_multipart(result)
+                except queue.Empty:
+                    pass
+
+                if self._shutdown_event.is_set():
+                    pub.close()
+                    break
+
+        t = threading.Thread(target=_sender, name='ResultSender')
+        t.start()
+        return t
 
     def _make_done_callback(
         self,
         id_: bytes,
         func: Callable[..., Any]
     ) -> Callable[[Future], None]:
+        if self._result_sender is None:
+            self._result_sender = self._start_result_sender()
 
         def _done_callback(fut: Future) -> None:
             self._futures.discard(fut)
@@ -373,9 +403,7 @@ class Server:
 
             logger.debug('Call[id: %s]. Sending result', id_)
 
-            with self._pub_lock:
-                self._pub_sock.send_multipart(resp)
-                logger.debug('Call[id: %s]. Result sent', id_)
+            self._results_queue.put(resp)
 
         return _done_callback
 
@@ -415,6 +443,9 @@ class Server:
                 resp_frames = self._call(method, method_id, args)
 
             except Shutdown:
+                self._shutdown_event.set()
+                for f in self._futures:
+                    f.cancel()
                 self._socket.send_multipart([Mode.Shutdown.value])
                 self._socket.close()
                 break
@@ -425,7 +456,6 @@ class Server:
                 self._socket.send_multipart([
                     Mode.Normal.value, State.Error.value, str(e).encode('ascii')
                 ])
-
             # TODO: rearm socket after timeout to avoid being stuck in sending state
             # in case of client missing (dead)
             else:

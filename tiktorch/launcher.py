@@ -183,8 +183,9 @@ class RemoteSSHServerLauncher(IServerLauncher):
 
                 if not should_continue:
                     print('Server exited with status: %s' % channel.recv_exit_status())
+                    transport.close()
 
-        t = threading.Thread(target=_monitor_and_report)
+        t = threading.Thread(target=_monitor_and_report, name='LauncherSSHMonitoring')
         t.start()
 
         self._channel = channel
