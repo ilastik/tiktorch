@@ -12,6 +12,8 @@ from .base import ProcessComm, SHUTDOWN_ANSWER
 from .datasets import DynamicDataset
 
 logger = logging.getLogger(__name__)
+TRAINING = "train"  # same name as used in inferno
+VALIDATION = "validate"  # same name as used in inferno
 
 
 class TrainingProcess(Process):
@@ -28,10 +30,11 @@ class TrainingProcess(Process):
         self.handler_comm = handler_comm
         self.keep_training = None
 
-        self.training_dataset = DynamicDataset()
-        self.training_loader_kwargs = {"dataset": self.training_dataset}
-        self.validation_dataset = DynamicDataset()
-        self.validation_loader_kwargs = {"dataset": self.validation_dataset}
+        self.datasets = {TRAINING: DynamicDataset(), VALIDATION: DynamicDataset()}
+        self.loader_kwargs = {
+            TRAINING: {"dataset": self.datasets[TRAINING]},
+            VALIDATION: {"dataset": self.datasets[VALIDATION]},
+        }
 
     def run(self):
         def handle_incoming_msgs():
@@ -45,7 +48,7 @@ class TrainingProcess(Process):
             except Empty:
                 pass
 
-        self.trainer = Trainer.build()  # todo: configure (create/load) inferno trainer
+        self.trainer = Trainer.build(logger_config={'name': 'InfernoTrainer'})  # todo: configure (create/load) inferno trainer
 
         # listen periodically while training/validation is running
         self.trainer.register_callback(handle_incoming_msgs, trigger="end_of_training_iteration")
@@ -74,24 +77,23 @@ class TrainingProcess(Process):
     def pause_train(self) -> None:
         self.keep_training = False
 
-    def update_training_dataset(self, keys: Iterable, values: Iterable) -> None:
-        self.training_dataset.update(keys=keys, values=values)
+    def update_dataset(self, name: str, keys: Iterable, values: Iterable) -> None:
+        assert name in (TRAINING, VALIDATION)
+        self.datasets[name].update(keys=keys, values=values)
 
-    def update_validation_dataset(self, keys: Iterable, values: Iterable) -> None:
-        self.validation_dataset.update(keys=keys, values=values)
-
-    def update_hparams(self, hparams: dict):
-        update_training_data_loader = False
-        # update_validation_data_loader = False  # todo: validation data loader
+    def update_hparams(self, name: str, hparams: dict):
+        assert name in (TRAINING, VALIDATION)
+        update_loader = {}
+        update_loader[name] = False
         for key, value in hparams.items():
             if key in "batch_size":
-                update_training_data_loader = True
-                self.training_loader_kwargs[key] = value
+                update_loader[name] = True
+                self.loader_kwargs[name][key] = value
             else:
                 raise NotImplementedError(f"How to set {key} as a hyper parameter?")
 
-        if update_training_data_loader:  # need to bind new training data loader
-            new_training_loader = DataLoader(**self.training_loader_kwargs)
+        if update_loader:  # need to bind new data loader
+            self.trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
 
     def request_state(self):
         # model state
