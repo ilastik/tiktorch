@@ -1,1 +1,1 @@
-from .base import Handler
+from .base import HandlerProcess

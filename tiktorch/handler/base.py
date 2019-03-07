@@ -1,66 +1,24 @@
+import io
 import logging
-import time
-import torch
+import os.path
+import pickle
+import tempfile
+import torch.nn
 
-from torch.multiprocessing import Queue, Process, TimeoutError
-from queue import Empty, Full
+from contextlib import closing
+from importlib.util import spec_from_file_location, module_from_spec
+from multiprocessing.connection import Connection
+from multiprocessing.connection import wait
+from torch.multiprocessing import Process, Pipe
 
 from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from ..types import NDArrayBatch
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER
 from .training import TrainingProcess
 from .inference import InferenceProcess
 
 logger = logging.getLogger(__name__)
-
-
-MAX_QUEUE_SIZE = 1000
-SHUTDOWN = "shutdown"
-SHUTDOWN_ANSWER = "shutting_down"
-
-
-class ProcessComm:
-    """
-    Process Communication maintains two queues for bidirectional communication
-    """
-
-    def __init__(
-        self, send_queue: Queue, recv_queue: Queue, send_timeout: float = 1, recv_timeout: float = 0, name: str = ""
-    ) -> None:
-        self.send_queue = send_queue
-        self.recv_queue = recv_queue
-        self.send_timeout = send_timeout
-        self.recv_timeout = recv_timeout
-        if name is None:
-            name = self.__name__
-
-        self.logger = logging.getLogger(name)
-
-    def send(self, call: str, kwargs: dict = {}, timeout: float = None) -> None:
-        """
-        :param call: method name of receiver
-        :param kwargs: key word arguments for call
-        :param timeout: block at most this long to send
-        :raises: queue.Full
-        """
-        if timeout is None:
-            timeout = self.send_timeout
-
-        try:
-            self.send_queue.put(call, block=False)
-        except Full:
-            self.logger.error("Send queue full")
-            self.send_queue.put(call, block=True, timeout=timeout)
-
-    def recv(self, timeout: float = None) -> Tuple[str, dict]:
-        """
-        :param timeout: block at most this long to receive
-        :raises: queue.Empty
-        """
-        if timeout is None:
-            timeout = self.recv_timeout
-
-        self.recv_queue.get(block=bool(timeout), timeout=timeout)
 
 
 class HandlerProcess(Process):
@@ -68,94 +26,93 @@ class HandlerProcess(Process):
     Process to orchestrate the interplay of training/validation and inference
     """
 
-    def __init__(self, server_comm: ProcessComm):
+    def __init__(
+        self, server_conn: Connection, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes
+    ):
         """
-        :param from_server_queue: downstream communication
-        :param to_server_queue: upstream communication
-        :param timeout: log a warning if no message has been received for this many seconds
+        :param server_conn: Connection to communicate with server
+        :param config: configuration dict
+        :param model_file: bytes of file describing the neural network model
+        :param model_state: binarized model state dict
+        :param optimizer_state: binarized optimizer state dict
         """
+        assert model_file
+        for required in ["model_class_name"]:
+            if required not in config:
+                raise ValueError(f"{required} missing in config")
+
         super().__init__(name="HandlerProcess")
-        self.server_comm = server_comm
+        self.server_conn = server_conn
+        self.config = config
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            module_name = "model.py"
+            with open(os.path.join(tempdir, module_name), "w") as f:
+                f.write(pickle.loads(model_file))
+
+            module_spec = spec_from_file_location(module_name, os.path.join(tempdir, module_name))
+            module = module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+
+        self.model: torch.nn.Module = getattr(module, config["model_class_name"])(**config.get("model_init_kwargs", {}))
+        # model._model_class_name = config['model_class_name']
+        # model._model_init_kwargs = config['model_init_kwargs']
+
+        if model_state:
+            with closing(io.BytesIO(model_state)) as f:
+                self.model.load_state_dict(torch.load(f))
+
+        self.optimizer_state = optimizer_state  # to be deserialized in training process
 
     def run(self):
         # set up training process
-        training_comm = ProcessComm(Queue(MAX_QUEUE_SIZE), Queue(MAX_QUEUE_SIZE))
-        training_proc = TrainingProcess(ProcessComm(training_comm.recv_queue, training_comm.send_queue))
-        self.training_comm = training_comm
-        self.training_proc = training_proc
-        # set up inference process
-        inference_comm = ProcessComm(Queue(MAX_QUEUE_SIZE), Queue(MAX_QUEUE_SIZE))
-        inference_proc = InferenceProcess(ProcessComm(inference_comm.recv_queue, inference_comm.send_queue))
-        self.inference_comm = inference_comm
-        self.inference_proc = inference_proc
+        self.training_conn, handler_conn_training = Pipe()
+        self.training_proc = TrainingProcess(
+            handler_conn=handler_conn_training,
+            config=self.config,
+            model=self.model,
+            optimizer_state=self.optimizer_state,
+        )
+        self.inference_conn, handler_conn_inference = Pipe()
+        self.inference_proc = InferenceProcess(handler_conn=handler_conn_inference, model=self.model)
 
         try:
             while True:
-                try:
-                    call, kwargs = self.server_comm.recv()  # server communication has priority
-                except Empty:
-                    try:
-                        call, kwargs = inference_comm.recv()  # inference has priority over training
-                    except Empty:
-                        try:
-                            call, kwargs = training_comm.recv(timeout=0.01)
-                        except:
-                            continue
+                for call, kwargs in wait([self.server_conn, self.inference_conn, self.training_conn]):
+                    meth = getattr(self, call, None)
+                    if meth is None:
+                        raise NotImplementedError(call)
 
-                meth = getattr(self, call, None)
-                if meth is None:
-                    raise NotImplementedError(call)
-
-                meth(**kwargs)
+                    meth(**kwargs)
         finally:
             self.shutdown()
 
     # general
     def shutdown(self):
-        # initiate shutdown in parallel
-        resend_shutdown_to_inference = True
-        try:
-            self.inference_comm.send(SHUTDOWN, timeout=0)
-            resend_shutdown_to_inference = False
-        except Exception:
-            pass
+        self.inference_conn.send((SHUTDOWN, {}))
+        self.training_conn.send((SHUTDOWN, {}))
 
-        resend_shutdown_to_training = True
-        try:
-            self.training_comm.send(SHUTDOWN, timeout=0)
-            resend_shutdown_to_training = False
-        except Exception:
-            pass
+        shutdown_time = 60
 
-        def shutdown_child(comm, proc, resend_shutdown):
+        def shutdown_child(conn, proc):
             while proc.is_alive():
-                if resend_shutdown:
-                    try:
-                        comm.send(SHUTDOWN, timeout=0)
-                        resend_shutdown = False
-                    except Exception:
-                        pass
-
                 # look for shutting down answer
-                while True:
-                    try:
-                        call, kwargs = comm.recv(timeout=2)
-                        if call == "shutting_down":
-                            proc.join(timeout=5)
-                            if proc.exitcode is None:
-                                # proc.join timed out, process is still running
-                                raise TimeoutError
+                if conn.poll(timeout=2):
+                    call, kwargs = conn.recv()
+                    if call == SHUTDOWN_ANSWER:
+                        # give child process extra time to shutdown
+                        proc.join(timeout=shutdown_time)
+                        continue
 
-                            break
-                    except Exception:
-                        # could not shutdown gracefully
-                        logger.error("Failed to shutdown %s gracefully", proc.name)
-                        proc.kill()
-                        proc.join()
-                        break
+                logger.error(
+                    "Failed to shutdown %s gracefully in %d seconds. Sending kill...", proc.name, shutdown_time
+                )
+                proc.kill()
 
-        shutdown_child(self.inference_comm, self.inference_proc, resend_shutdown_to_inference)
-        shutdown_child(self.training_comm, self.training_proc, resend_shutdown_to_training)
+            logger.debug("%s has shutdown", proc.name)
+
+        shutdown_child(self.inference_conn, self.inference_proc)
+        shutdown_child(self.training_conn, self.training_proc)
 
     def update_hparams(self, hparams: dict):
         pass
