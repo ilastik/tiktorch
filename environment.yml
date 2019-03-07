@@ -1,0 +1,15 @@
+name: test-env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - lapack
+  - python=3.6.3
+  - paramiko=2.4.2
+  - inferno=v0.3.1
+  - pyzmq=18.0.1
+  - pyyaml=3.13
+  - pytest=4.3.0
+  - pip:
+    - typing-inspect==0.4.0

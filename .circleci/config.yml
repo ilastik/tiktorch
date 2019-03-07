@@ -1,0 +1,52 @@
+version: 2
+jobs:
+  build:
+    environment:
+      TEST_ENV_NAME: test-env
+      TEST_ENV_PREFIX: /opt/conda/envs/test-env
+    docker:
+      - image: continuumio/miniconda3
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v4-dependencies-{{ checksum "environment.yml" }}
+            # fallback to using the latest cache if no exact match is found
+            - v4-dependencies-
+
+      - run:
+          name: install dependencies
+          command: |
+            if [ ! -d ${TEST_ENV_PREFIX} ]; then
+                echo "Creating new environment ${TEST_ENV_NAME}"
+                conda env create -n ${TEST_ENV_NAME} -f environment.yml
+            else
+                echo "Updating environment ${TEST_ENV_NAME}"
+                conda env update -n ${TEST_ENV_NAME} -f environment.yml
+            fi
+
+      - save_cache:
+          paths:
+            - /opt/conda/envs
+          key: v4-dependencies-{{ checksum "environment.yml" }}
+
+      # run tests!
+      # this example uses Django's built-in test-runner
+      # other common Python testing frameworks include pytest and nose
+      # https://pytest.org
+      # https://nose.readthedocs.io
+      - run:
+          name: run tests
+          command: |
+            . /opt/conda/etc/profile.d/conda.sh
+            conda activate "${TEST_ENV_NAME}"
+            python -m pytest
+
+      - store_artifacts:
+          path: test-reports
+          destination: test-reports
