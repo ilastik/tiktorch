@@ -5,6 +5,8 @@ channels:
   - defaults
 dependencies:
   - lapack
+  - black
+  - mypy
   - python=3.6.3
   - paramiko=2.4.2
   - inferno=v0.3.1

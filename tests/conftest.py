@@ -54,4 +54,14 @@ def nn_sample(tmpdir, datadir):
 
 @pytest.fixture
 def srv_port():
-    return getenv("TEST_TIKTORCH_PORT", randint(5500, 9999))
+    return getenv("TEST_TIKTORCH_PORT", randint(5500, 8000))
+
+@pytest.fixture
+def pub_port():
+    return getenv("TEST_TIKTORCH_PUB_PORT", randint(8000, 9999))
+
+
+import sys
+import faulthandler
+import signal
+faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)

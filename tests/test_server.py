@@ -6,7 +6,7 @@ import numpy as np
 
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf
+from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
 
 
@@ -17,7 +17,7 @@ def ctx():
 
 @pytest.fixture
 def conn_conf(ctx):
-    return InprocConnConf('test', ctx)
+    return InprocConnConf('test', 'test_pub', ctx)
 
 
 @pytest.fixture
@@ -34,7 +34,8 @@ def srv(conn_conf, client_control):
 
     yield api_provider
 
-    client_control.shutdown()
+    with pytest.raises(Shutdown):
+        client_control.shutdown()
     t.join(timeout=2)
 
     assert not t.is_alive()

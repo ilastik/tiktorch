@@ -14,8 +14,8 @@ SSH_PWD_VAR = "TEST_SSH_PWD"
 SSH_KEY_VAR = "TEST_SSH_KEY"
 
 
-def test_start_local_server(srv_port):
-    conn_conf = TCPConnConf('127.0.0.1', srv_port, timeout=20)
+def test_start_local_server(srv_port, pub_port):
+    conn_conf = TCPConnConf('127.0.0.1', srv_port, pub_port, timeout=20)
     launcher = LocalServerLauncher(conn_conf)
     launcher.start()
 
@@ -25,14 +25,13 @@ def test_start_local_server(srv_port):
 
     assert client.ping() == b'pong'
 
-    client.shutdown()
+    launcher.stop()
 
     launcher.is_server_running()
 
 
-def test_start_remote_server(srv_port):
+def test_start_remote_server(srv_port, pub_port):
     host, ssh_port = os.getenv(SSH_HOST_VAR), os.getenv(SSH_PORT_VAR, 22)
-    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, timeout=20)
     user, pwd = os.getenv(SSH_USER_VAR), os.getenv(SSH_PWD_VAR)
     key = os.getenv(SSH_KEY_VAR)
 
@@ -42,6 +41,7 @@ def test_start_remote_server(srv_port):
             f"{SSH_HOST_VAR}, {SSH_USER_VAR} {SSH_PWD_VAR} or {SSH_KEY_VAR} and optionaly {SSH_PORT_VAR}"
         )
 
+    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, pub_port, timeout=20)
     cred = SSHCred(user=user, password=pwd, key_path=key)
     launcher = RemoteSSHServerLauncher(conn_conf, cred=cred)
     launcher.start()
@@ -52,6 +52,6 @@ def test_start_remote_server(srv_port):
 
     assert client.ping() == b'pong'
 
-    client.shutdown()
+    launcher.stop()
 
     wait(lambda: not launcher.is_server_running(), max_wait=1)
