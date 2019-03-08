@@ -1,4 +1,6 @@
 # tiktorch
+[![CircleCI](https://circleci.com/gh/ilastik/tiktorch.svg?style=svg)](https://circleci.com/gh/ilastik/tiktorch)
+
 Wrappers for Pytorch
 
 ## tiktorch specification
