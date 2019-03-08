@@ -16,7 +16,8 @@ from inferno.trainers import Trainer
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER
 from .datasets import DynamicDataset
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
 TRAINING = "train"  # same name as used in inferno
 VALIDATION = "validate"  # same name as used in inferno
 
@@ -64,14 +65,14 @@ class TrainingProcess(Process):
 
         trainer_config.update(deepcopy(config))
 
-        set_loaded_optimizer = False
+
+        optimizer = False
         if optimizer_state:
             try:
                 optimizer = self._create_optimizer_from_binary_state(
                     trainer_config["optimizer_config"]["method"], optimizer_state
                 )
                 del trainer_config["optimizer_config"]
-                set_loaded_optimizer = True
             except Exception as e:
                 logger.warning(
                     "Could not load optimizer state due to %s.\nCreating new optimizer from %s",
@@ -79,8 +80,8 @@ class TrainingProcess(Process):
                     config["optimizer_config"],
                 )
 
-        self.trainer = Trainer.build(**trainer_config)  # todo: configure (create/load) inferno trainer fully
-        if set_loaded_optimizer:
+        self.trainer = Trainer.build(model=model, **trainer_config)  # todo: configure (create/load) inferno trainer fully
+        if optimizer:
             self.trainer.optimizer = optimizer
 
     # internal
@@ -92,6 +93,8 @@ class TrainingProcess(Process):
         return optimizer
 
     def run(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info('Starting')
         def handle_incoming_msgs():
             try:
                 call, kwargs = self.handler_conn.recv()

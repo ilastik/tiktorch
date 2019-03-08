@@ -7,11 +7,9 @@ from queue import Empty, Full
 from torch.multiprocessing import Process
 from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
-from ..types import NDArrayBatch
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER
 
-logger = logging.getLogger(__name__)
-
+logging.basicConfig(level=logging.DEBUG)
 
 class InferenceProcess(Process):
     """
@@ -40,13 +38,21 @@ class InferenceProcess(Process):
             pass
 
     def run(self) -> None:
+        self.logger = logging.getLogger(__name__)
+        self.logger.info('Starting')
         while True:
             self.handle_incoming_msgs()
             time.sleep(0.01)
 
-    def forward(self, data: NDArrayBatch) -> NDArrayBatch:
+    def forward(self, keys: Iterable, data: torch.Tensor, answer_to: Connection = None) -> None:
         """
         :param data: input data to neural network
         :return: predictions
         """
         callback = self.handle_incoming_msgs()
+        answer = ('forward_answer', {keys: keys, data: self.model(data)})
+
+        if answer_to:
+            answer_to.send(answer)
+        else:
+            self.handler_conn.send(answer)

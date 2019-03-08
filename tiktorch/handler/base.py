@@ -1,9 +1,10 @@
 import io
 import logging
+import logging.config
 import os.path
 import pickle
 import tempfile
-import torch.nn
+import torch
 
 from contextlib import closing
 from importlib.util import spec_from_file_location, module_from_spec
@@ -18,7 +19,26 @@ from .constants import SHUTDOWN, SHUTDOWN_ANSWER
 from .training import TrainingProcess
 from .inference import InferenceProcess
 
-logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.DEBUG)
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'default': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'DEBUG',
+            'propagate': True
+        },
+    }
+})
+
 
 
 class HandlerProcess(Process):
@@ -44,41 +64,53 @@ class HandlerProcess(Process):
         super().__init__(name="HandlerProcess")
         self.server_conn = server_conn
         self.config = config
+        self.model_file = model_file  # to be deserialized in 'load_model'
+        self.model_state = model_state  # to be deserialized in 'load_model'
+        self.optimizer_state = optimizer_state  # to be deserialized in training process
 
+    def load_model(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            module_name = "model.py"
+            module_name = "usermodel.py"
             with open(os.path.join(tempdir, module_name), "w") as f:
-                f.write(pickle.loads(model_file))
+                f.write(pickle.loads(self.model_file))
 
-            module_spec = spec_from_file_location(module_name, os.path.join(tempdir, module_name))
+            module_spec = spec_from_file_location(module_name.replace(".py", ""), os.path.join(tempdir, module_name))
             module = module_from_spec(module_spec)
             module_spec.loader.exec_module(module)
 
-        self.model: torch.nn.Module = getattr(module, config["model_class_name"])(**config.get("model_init_kwargs", {}))
-        # model._model_class_name = config['model_class_name']
-        # model._model_init_kwargs = config['model_init_kwargs']
+        self.training_model: torch.nn.Module = getattr(module, self.config["model_class_name"])(
+            **self.config.get("model_init_kwargs", {})
+        )
+        self.inference_model: torch.nn.Module = getattr(module, self.config["model_class_name"])(
+            **self.config.get("model_init_kwargs", {})
+        )
 
-        if model_state:
-            with closing(io.BytesIO(model_state)) as f:
-                self.model.load_state_dict(torch.load(f))
-
-        self.optimizer_state = optimizer_state  # to be deserialized in training process
+        if self.model_state:
+            with closing(io.BytesIO(self.model_state)) as f:
+                self.training_model.load_state_dict(torch.load(f))
 
     def run(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Starting")
+        self._shutting_down = False
+        self.load_model()
         # set up training process
         self.training_conn, handler_conn_training = Pipe()
         self.training_proc = TrainingProcess(
             handler_conn=handler_conn_training,
             config=self.config,
-            model=self.model,
+            model=self.training_model,
             optimizer_state=self.optimizer_state,
         )
+        self.training_proc.start()
         self.inference_conn, handler_conn_inference = Pipe()
-        self.inference_proc = InferenceProcess(handler_conn=handler_conn_inference, model=self.model)
+        self.inference_proc = InferenceProcess(handler_conn=handler_conn_inference, model=self.inference_model)
+        self.inference_proc.start()
 
         try:
             while True:
-                for call, kwargs in wait([self.server_conn, self.inference_conn, self.training_conn]):
+                for ready in wait([self.server_conn, self.inference_conn, self.training_conn]):
+                    call, kwargs = ready.recv()
                     meth = getattr(self, call, None)
                     if meth is None:
                         raise NotImplementedError(call)
@@ -89,6 +121,7 @@ class HandlerProcess(Process):
 
     # general
     def shutdown(self):
+        self._shutting_down = True
         self.inference_conn.send((SHUTDOWN, {}))
         self.training_conn.send((SHUTDOWN, {}))
 
@@ -118,8 +151,23 @@ class HandlerProcess(Process):
         pass
 
     # inference
-    def forward(self, data: NDArrayBatch):
-        raise NotImplementedError()
+    def update_inference_model(self):
+        with io.BytesIO() as bytes_io:
+            torch.save(self.training_model.state_dict(), bytes_io)
+            bytes_io.seek(0)
+            self.inference_model.load_state_dict(torch.load(bytes_io))
+
+        self.inference_model.eval()
+
+    def forward(self, keys: Iterable, data: torch.Tensor) -> None:
+        self.logger.debug('forward')
+        self.update_inference_model()
+        self.inference_conn.send(("forward", {"keys": keys, "data": data}))
+
+    def forward_answer(self, keys: Iterable, data: torch.Tensor) -> None:
+        self.logger.debug('forward_answer')
+        if not self._shutting_down:
+            self.server_conn.send((self.forward_answer.__name__, {"keys": keys, "data": data}))
 
     # training
     def resume_train(self):

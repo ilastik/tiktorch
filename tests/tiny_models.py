@@ -9,6 +9,8 @@ class TestModel0(torch.nn.Module):
         super().__init__()
         self.linear1 = torch.nn.Linear(D_in, H)
         self.linear2 = torch.nn.Linear(H, D_out)
+
+        torch.manual_seed(0)
         self.x = torch.randn(N, D_in)
         self.y = torch.randn(N, D_out)
 
