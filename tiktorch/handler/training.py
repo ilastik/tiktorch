@@ -13,10 +13,29 @@ from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Cal
 
 from inferno.trainers import Trainer
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
 from .datasets import DynamicDataset
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+# logging.config.dictConfig({
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'default': {
+#             'level': 'INFO',
+#             'class': 'logging.StreamHandler',
+#             'stream': 'ext://sys.stdout',
+#         },
+#     },
+#     'loggers': {
+#         '': {
+#             'handlers': ['default'],
+#             'level': 'DEBUG',
+#             'propagate': True
+#         },
+#     }
+# })
+
 
 TRAINING = "train"  # same name as used in inferno
 VALIDATION = "validate"  # same name as used in inferno
@@ -28,9 +47,9 @@ class TrainingProcess(Process):
     """
 
     def __init__(self, handler_conn: Connection, config: dict, model: torch.nn.Module, optimizer_state: bytes):
+        assert hasattr(self, SHUTDOWN[0])
         super().__init__(name="TrainingProcess")
-
-        self._shutting_down = False
+        logger = logging.getLogger(__name__)
         self.handler_conn = handler_conn
         self.is_training = False
         self.max_num_iterations = 0
@@ -65,7 +84,6 @@ class TrainingProcess(Process):
 
         trainer_config.update(deepcopy(config))
 
-
         optimizer = False
         if optimizer_state:
             try:
@@ -80,7 +98,9 @@ class TrainingProcess(Process):
                     config["optimizer_config"],
                 )
 
-        self.trainer = Trainer.build(model=model, **trainer_config)  # todo: configure (create/load) inferno trainer fully
+        self.trainer = Trainer.build(
+            model=model, **trainer_config
+        )  # todo: configure (create/load) inferno trainer fully
         if optimizer:
             self.trainer.optimizer = optimizer
 
@@ -93,8 +113,10 @@ class TrainingProcess(Process):
         return optimizer
 
     def run(self):
-        self.logger = logging.getLogger(__name__)
-        self.logger.info('Starting')
+        self._shutting_down = False
+        self.logger = logging.getLogger(self.name)
+        self.logger.info("Starting")
+
         def handle_incoming_msgs():
             try:
                 call, kwargs = self.handler_conn.recv()
@@ -111,17 +133,19 @@ class TrainingProcess(Process):
         self.trainer.register_callback(handle_incoming_msgs, trigger="end_of_validation_iteration")
 
         try:
-            while True:
+            while not self._shutting_down:
                 handle_incoming_msgs()
                 time.sleep(0.01)
-        finally:
+        except Exception as e:
+            self.logger.error(e)
+            self.handler_conn.send((REPORT_EXCEPTION, {"proc_name": self.name, "exception": e}))
             self.shutdown()
 
     def shutdown(self):
-        if not self._shutting_down:
-            self._shutting_down = True
-            self.handler_conn.send(SHUTDOWN_ANSWER)
-            raise StopIteration
+        assert not self._shutting_down
+        self._shutting_down = True
+        self.handler_conn.send(SHUTDOWN_ANSWER)
+        self.logger.debug("Shutdown complete")
 
     def resume_train(self) -> None:
         if not self.is_training:

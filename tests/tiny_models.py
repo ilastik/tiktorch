@@ -12,7 +12,7 @@ class TestModel0(torch.nn.Module):
 
         torch.manual_seed(0)
         self.x = torch.randn(N, D_in)
-        self.y = torch.randn(N, D_out)
+        self.y = self.forward(self.x).detach()
 
     def forward(self, x):
         h_relu = self.linear1(x).clamp(min=0)
@@ -33,3 +33,12 @@ def train(model, x, y):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+
+if __name__ == "__main__":
+    test = TestModel0()
+    # test.to(dtype=torch.float)
+    print(test.x.dtype)
+    y = test(test.x)
+    assert y.allclose(test.y)
+
