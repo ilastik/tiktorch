@@ -13,7 +13,7 @@ from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Cal
 
 from inferno.trainers import Trainer
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION
 from .datasets import DynamicDataset
 
 logging.basicConfig(level=logging.INFO)
@@ -35,10 +35,6 @@ logging.basicConfig(level=logging.INFO)
 #         },
 #     }
 # })
-
-
-TRAINING = "train"  # same name as used in inferno
-VALIDATION = "validate"  # same name as used in inferno
 
 
 class TrainingProcess(Process):

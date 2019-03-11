@@ -44,6 +44,7 @@ class InferenceProcess(Process):
         assert hasattr(self, SHUTDOWN[0])
         super().__init__(name=self.name)
         self.handler_conn = handler_conn
+        assert 'inferene_batch_size' in config
         self.config = config
         self.model = model
 
@@ -77,9 +78,21 @@ class InferenceProcess(Process):
         self.logger.debug("Shutdown complete")
 
     def forward(self, keys: Iterable, data: torch.Tensor) -> None:
+        # todo: correct keys type from Iterable to something with a fixed size.. or solve len(keys) otherwise
         """
         :param data: input data to neural network
         :return: predictions
         """
-        callback = self.handle_incoming_msgs()
-        self.handler_conn.send(("forward_answer", {"keys": keys, "data": self.model(data).detach()}))
+        def process_batch(batch_keys, batch_data):
+            self.handler_conn.send(("forward_answer", {"keys": batch_keys, "data": self.model(batch_data).detach()}))
+
+        batch_size = self.config['inference_batch_size']
+        start, end = 0, 0
+        for end in range(batch_size, len(keys), batch_size):
+            process_batch(batch_keys=keys[start:end], batch_data=data[start:end])
+            start = end
+            self.handle_incoming_msgs()
+
+        if end < len(keys):
+            end = len(keys)
+            process_batch(batch_keys=keys[start:end], batch_data=data[start:end])

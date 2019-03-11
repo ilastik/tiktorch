@@ -17,7 +17,7 @@ from torch.multiprocessing import Process, Pipe, active_children
 from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from ..types import NDArrayBatch
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION
 from .training import TrainingProcess
 from .inference import InferenceProcess
 
@@ -227,12 +227,15 @@ class HandlerProcess(Process):
     def forward(self, keys: Iterable, data: torch.Tensor) -> None:
         self.logger.debug("forward")
         self.update_inference_model()
+        # todo: update inference devices
         self.inference_conn.send(("forward", {"keys": keys, "data": data}))
 
     # training
     def resume_training(self):
         device = 'cpu'
         if self.devices['training']:
+            raise NotImplementedError('gpu training')
+            # todo: update training devices
             os.environ['CUDA_VISIBLE_DEVICES'] = self.devices['training']
             device = 'gpu'
 
@@ -245,8 +248,8 @@ class HandlerProcess(Process):
         self.devices['idle'] = self.devices['training']
         self.devices['training'] = []
 
-    def update_training_dataset(self):
-        pass
+    def update_training_dataset(self, keys: Iterable, data: torch.Tensor):
+        self.training_conn.send(('update_dataset', {'name': TRAINING, 'keys': keys, 'data': data}))
 
     def request_state(self):
         # model state
@@ -255,8 +258,8 @@ class HandlerProcess(Process):
         pass
 
     # validation
-    def update_validation_dataset(self):
-        pass
+    def update_validation_dataset(self, keys: Iterable, data: torch.Tensor):
+        self.training_conn.send(('update_dataset', {'name': VALIDATION, 'keys': keys, 'data': data}))
 
     def validate(self):
         pass
