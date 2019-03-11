@@ -62,7 +62,12 @@ class ModelHandler(Processor):
         self.__num_trial_runs_on_device = {}
         self._parameter_copy = None
         # Publics
-        self.device_names = to_list(device_names)
+        if isinstance(device_names, (list, tuple)):
+            device_names = list(device_names)
+        else:
+            device_names = [device_names]
+
+        self.device_names = device_names
         self.dynamic_shape = DynamicShape(dynamic_shape_code)
         self.valid_shape: list = []
         # Set
