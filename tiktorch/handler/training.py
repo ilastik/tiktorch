@@ -46,9 +46,11 @@ class TrainingProcess(Process):
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
     """
 
+    name = "TrainingProcess"
+
     def __init__(self, handler_conn: Connection, config: dict, model: torch.nn.Module, optimizer_state: bytes):
         assert hasattr(self, SHUTDOWN[0])
-        super().__init__(name="TrainingProcess")
+        super().__init__(name=self.name)
         logger = logging.getLogger(__name__)
         self.handler_conn = handler_conn
         self.is_training = False
@@ -70,7 +72,7 @@ class TrainingProcess(Process):
         if "max_num_iterations" in config:
             raise ValueError(
                 "max_num_iterations is reserved for internal use."
-                "The user should set max_num_iterations_per_tile instead"
+                "The user should set max_num_iterations_per_update instead"
             )
 
         # Catch all forbidden keys we might have forgotten to implement an Exception for
@@ -83,6 +85,8 @@ class TrainingProcess(Process):
             raise ValueError("Missing optimizer configuration!")
 
         trainer_config.update(deepcopy(config))
+        if "max_num_iterations_per_update" not in config:
+            config["max_num_iterations_per_update"] = 10
 
         optimizer = False
         if optimizer_state:
@@ -147,19 +151,21 @@ class TrainingProcess(Process):
         self.handler_conn.send(SHUTDOWN_ANSWER)
         self.logger.debug("Shutdown complete")
 
-    def resume_train(self) -> None:
+    def resume_training(self) -> None:
         if not self.is_training:
             self.is_training = True
             self.trainer.set_max_num_iterations(self.max_num_iterations)
             self.trainer.fit()
 
-    def pause_train(self) -> None:
+    def pause_training(self) -> None:
         self.is_training = False
         self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, keys: Iterable, values: Iterable) -> None:
         assert name in (TRAINING, VALIDATION)
         self.datasets[name].update(keys=keys, values=values)
+        if name == TRAINING:
+            self.max_num_iterations += self.config["max_num_iterations_per_update"] * len(keys)
 
     def update_hparams(self, name: str, hparams: dict):
         assert name in (TRAINING, VALIDATION)

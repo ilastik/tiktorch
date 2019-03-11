@@ -34,13 +34,15 @@ class InferenceProcess(Process):
     Process for neural network inference
     """
 
+    name = "InferenceProcess"
+
     def __init__(self, handler_conn: Connection, config: dict, model: torch.nn.Module) -> None:
         """
         :param from_handler_queue: downstream communication
         :param to_handler_queue: upstream communication
         """
         assert hasattr(self, SHUTDOWN[0])
-        super().__init__(name="InferenceProcess")
+        super().__init__(name=self.name)
         self.handler_conn = handler_conn
         self.config = config
         self.model = model

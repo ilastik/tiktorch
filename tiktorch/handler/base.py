@@ -71,6 +71,9 @@ class HandlerProcess(Process):
         self.model_state = model_state  # to be deserialized in 'load_model'
         self.optimizer_state = optimizer_state  # to be deserialized in training process
 
+        devices = self.config.get("devices", default=[])
+        self.devices = {"training": [], "inference": [], "idle": devices}
+
     def load_model(self):
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
@@ -137,10 +140,10 @@ class HandlerProcess(Process):
 
     def report_exception(self, proc_name: str, exception: Exception):
         self.logger.error("Received exception report from %s: %s", proc_name, exception)
-        if proc_name == "TrainingProcess":
+        if proc_name == TrainingProcess.name:
             # todo: restart training proess
             pass
-        elif proc_name == "InferenceProcess":
+        elif proc_name == InferenceProcess.name:
             # todo: restart inference process
             pass
         else:
@@ -203,6 +206,15 @@ class HandlerProcess(Process):
         else:
             raise AttributeError(method_name)
 
+    def report_idle(self, proc_name):
+        # todo: report idle
+        if proc_name == TrainingProcess.name:
+            pass
+        elif proc_name == InferenceProcess.name:
+            pass
+        else:
+            raise NotImplementedError(proc_name)
+
     # inference
     def update_inference_model(self):
         with io.BytesIO() as bytes_io:
@@ -218,11 +230,20 @@ class HandlerProcess(Process):
         self.inference_conn.send(("forward", {"keys": keys, "data": data}))
 
     # training
-    def resume_train(self):
-        pass
+    def resume_training(self):
+        device = 'cpu'
+        if self.devices['training']:
+            os.environ['CUDA_VISIBLE_DEVICES'] = self.devices['training']
+            device = 'gpu'
 
-    def pause_train(self):
-        pass
+        self.training_conn.send((self.resume_training.__name__, {'device': 'cpu'}))
+
+    def pause_training(self):
+        self.training_conn.send((self.pause_training.__name__, {}))
+
+    def pause_training_answer(self):
+        self.devices['idle'] = self.devices['training']
+        self.devices['training'] = []
 
     def update_training_dataset(self):
         pass
