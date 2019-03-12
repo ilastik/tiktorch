@@ -71,6 +71,22 @@ class HandlerProcess(Process):
         self.model_state = model_state  # to be deserialized in 'load_model'
         self.optimizer_state = optimizer_state  # to be deserialized in training process
 
+    @property
+    def devices(self):
+        return self.devices
+
+    @devices.setter
+    def devices(self, devices: list):
+        for device in devices:
+            try:
+                torch_device = torch.device(device)
+                self.dry_run_on_device(torch_device)
+            except TypeError as e:
+                self.logger.debug(e)
+
+    def dry_run_on_device(self, device: torch.device):
+        pass
+
     def load_model(self):
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
