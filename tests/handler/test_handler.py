@@ -51,14 +51,8 @@ class DummyServer(INeuralNetworkAPI, IFlightControl):
         assert got_shutdown_answer
 
 
-def test_initialization():
-    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
-    with open("../tiny_models.py", "r") as f:
-        kwargs["model_file"] = pickle.dumps(f.read())
-
-    kwargs["config"] = {"model_class_name": "TestModel0", "optimizer_config": {"method": "Adam"}}
-
-    ts = DummyServer(**kwargs)
+def test_initialization(tiny_model):
+    ts = DummyServer(**tiny_model)
     ts.active_children()
     active_children = ts.listen()
     ts.shutdown()
@@ -68,15 +62,8 @@ def test_initialization():
     assert "InferenceProcess" in active_children
 
 
-def test_forward():
-    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
-
-    with open("../tiny_models.py", "r") as f:
-        kwargs["model_file"] = pickle.dumps(f.read())
-
-    kwargs["config"] = {"model_class_name": "TestModel0", "optimizer_config": {"method": "Adam"}}
-
-    ts = DummyServer(**kwargs)
+def test_forward(tiny_model):
+    ts = DummyServer(**tiny_model)
     C, X = 3, 5
     numpy.random.seed(0)
     keys = [(0,), (1,), (2,), (3,)]
