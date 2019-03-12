@@ -71,9 +71,6 @@ class HandlerProcess(Process):
         self.model_state = model_state  # to be deserialized in 'load_model'
         self.optimizer_state = optimizer_state  # to be deserialized in training process
 
-        devices = self.config.get("devices", default=[])
-        self.devices = {"training": [], "inference": [], "idle": devices}
-
     def load_model(self):
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
@@ -102,6 +99,10 @@ class HandlerProcess(Process):
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
         try:
+            devices = self.config.get("devices", default=[])
+            # check devices for validity
+            self.devices = {"training": [], "inference": [], "idle": devices}
+
             self.load_model()
 
             # set up training process
@@ -206,7 +207,7 @@ class HandlerProcess(Process):
         else:
             raise AttributeError(method_name)
 
-    def report_idle(self, proc_name):
+    def report_idle(self, proc_name: str, devices: Iterable):
         # todo: report idle
         if proc_name == TrainingProcess.name:
             pass
@@ -231,25 +232,28 @@ class HandlerProcess(Process):
         self.inference_conn.send(("forward", {"keys": keys, "data": data}))
 
     # training
-    def resume_training(self):
-        device = 'cpu'
-        if self.devices['training']:
-            raise NotImplementedError('gpu training')
-            # todo: update training devices
-            os.environ['CUDA_VISIBLE_DEVICES'] = self.devices['training']
-            device = 'gpu'
+    def free_gpu(self):
+        self.training_conn.send(('free_gpu', {}))
 
-        self.training_conn.send((self.resume_training.__name__, {'device': 'cpu'}))
+    def resume_training(self):
+        device = "cpu"
+        if self.devices["training"]:
+            raise NotImplementedError("gpu training")
+            # todo: update training devices (probably we should not use CUDA_VISIBLE_DEVICES due to the process already running)
+            os.environ["CUDA_VISIBLE_DEVICES"] = self.devices["training"]
+            device = "gpu"
+
+        self.training_conn.send((self.resume_training.__name__, {"device": "cpu"}))
 
     def pause_training(self):
         self.training_conn.send((self.pause_training.__name__, {}))
 
     def pause_training_answer(self):
-        self.devices['idle'] = self.devices['training']
-        self.devices['training'] = []
+        self.devices["idle"] = self.devices["training"]
+        self.devices["training"] = []
 
     def update_training_dataset(self, keys: Iterable, data: torch.Tensor):
-        self.training_conn.send(('update_dataset', {'name': TRAINING, 'keys': keys, 'data': data}))
+        self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
 
     def request_state(self):
         # model state
@@ -259,7 +263,7 @@ class HandlerProcess(Process):
 
     # validation
     def update_validation_dataset(self, keys: Iterable, data: torch.Tensor):
-        self.training_conn.send(('update_dataset', {'name': VALIDATION, 'keys': keys, 'data': data}))
+        self.training_conn.send(("update_dataset", {"name": VALIDATION, "keys": keys, "data": data}))
 
     def validate(self):
         pass
