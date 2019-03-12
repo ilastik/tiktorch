@@ -1,4 +1,5 @@
 import zipfile
+import pickle
 
 from collections import namedtuple
 from os import path, getenv
@@ -55,3 +56,22 @@ def nn_sample(tmpdir, datadir):
 @pytest.fixture
 def srv_port():
     return getenv("TEST_TIKTORCH_PORT", randint(5500, 9999))
+
+
+@pytest.fixture
+def tiny_model(datadir):
+    with open(path.join(datadir, "tiny_models.py"), "r") as f:
+        model_file = pickle.dumps(f.read())
+
+    return {
+        "model_file": model_file,
+        "model_state": b"",
+        "optimizer_state": b"",
+        "config": {
+            "model_class_name": "TestModel0",
+            "inference_batch_size": 100,
+            "optimizer_config": {
+                "method": "Adam"
+            }
+        }
+    }
