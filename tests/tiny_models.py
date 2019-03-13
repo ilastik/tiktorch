@@ -19,7 +19,41 @@ class TestModel0(torch.nn.Module):
         y_pred = self.linear2(h_relu)
         return y_pred
 
+class TinyConvNet2d(torch.nn.Module):
+    def __init__(self, in_channels=1, out_channels=1):
+        super().__init__()
+        self.conv1 = torch.nn.Conv2d(in_channels, 16, 3)
+        self.nlin1 = torch.nn.ReLU()
+        self.conv2 = torch.nn.Conv2d(16, 64, 3)
+        self.nlin2 = torch.nn.ReLU()
+        self.conv3 = torch.nn.Conv2d(64, out_channels, 3)
+        self.nlin3 = torch.nn.Sigmoid()
 
+    def forward(self, x):
+        return torch.nn.Sequential(self.conv1,
+                                   self.nlin1,
+                                   self.conv2,
+                                   self.nlin2,
+                                   self.conv3,
+                                   self.nlin3)(x)
+
+class TinyConvNet3d(torch.nn.Module):
+    def __init__(self, in_channels=1, out_channels=1):
+        super().__init__()
+        self.conv1 = torch.nn.Conv3d(in_channels, 16, 3)
+        self.nlin1 = torch.nn.ReLU()
+        self.conv2 = torch.nn.Conv3d(16, 64, 3)
+        self.nlin2 = torch.nn.ReLU()
+        self.conv3 = torch.nn.Conv3d(64, out_channels, 3)
+        self.nlin3 = torch.nn.Sigmoid()
+
+    def forward(self, x):
+        return torch.nn.Sequential(self.conv1,
+                                   self.nlin1,
+                                   self.conv2,
+                                   self.nlin2,
+                                   self.conv3,
+                                   self.nlin3)(x)
 def train(model, x, y):
     loss_fn = torch.nn.MSELoss(reduction="sum")
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
