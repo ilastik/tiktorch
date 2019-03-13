@@ -93,7 +93,7 @@ class HandlerProcess(Process):
             except TypeError as e:
                 self.logger.debug(e)
                 devices.remove(device)
-                print(devices)
+
         self._devices = devices
 
     def dry_run_on_device(self, device: torch.device, upper_bound, train_mode=False):
