@@ -8,11 +8,15 @@ import shutil
 import sys
 import tempfile
 import torch
+import time
+import numpy as np
+import bisect
+import queue
 
 from contextlib import closing
 from functools import partial
 from multiprocessing.connection import Connection, wait
-from torch.multiprocessing import Process, Pipe, active_children
+from torch.multiprocessing import Process, Pipe, active_children, Queue
 
 from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
@@ -70,22 +74,211 @@ class HandlerProcess(Process):
         self.model_file = model_file  # to be deserialized in 'load_model'
         self.model_state = model_state  # to be deserialized in 'load_model'
         self.optimizer_state = optimizer_state  # to be deserialized in training process
+        self.valid_shapes: list = []
 
     @property
     def devices(self):
-        return self.devices
+        return self._devices
 
     @devices.setter
     def devices(self, devices: list):
         for device in devices:
             try:
                 torch_device = torch.device(device)
-                self.dry_run_on_device(torch_device)
+                with torch.no_grad():
+                    model = torch.nn.Conv2d(1, 1, 1).to(torch_device)
+                    x = torch.zeros(1, 1, 1, 1).to(torch_device)
+                    model(x)
+                    del model, x
             except TypeError as e:
                 self.logger.debug(e)
+                devices.remove(device)
+                print(devices)
+        self._devices = devices
 
-    def dry_run_on_device(self, device: torch.device):
-        pass
+    def dry_run_on_device(self, device: torch.device, upper_bound, train_mode=False):
+        """
+        Dry run on device to determine blockshape.
+        Parameters
+        ----------
+        :param upper_bound (list or tuple in order (t, c, z, y, x)) upper bound for the search space.
+        :return: valid block shape (dict): {'shape': [1, c, z_opt, y_opt, x_opt]} (z_opt == 1 for 2d networks!)
+        """
+        self.logger = logging.getLogger(self.name)
+        self.load_model()
+        t, c, z, y, x = upper_bound
+        if not self.valid_shapes:
+            self.logger.info("Creating search space....")
+            self.create_search_space(c, z, y, x, device, max_processing_time=2.5)
+
+        self.logger.info("Searching for optimal shape...")
+
+        optimal_entry = self.find(c, device=device, train_mode=train_mode)[1]
+        if len(optimal_entry) == 1:
+            optimal_shape = {"shape": [1, c, 1] + optimal_entry + [optimal_entry[-1]]}
+        else:
+            optimal_shape = {"shape": [1, c] + optimal_entry + [optimal_entry[-1]]}
+
+        self.logger.info("Optimal shape found: %s", optimal_shape["shape"])
+
+        return optimal_shape
+
+    def create_search_space(self, c, z, y, x, device, max_processing_time=3):
+        """
+        Generates a sorted list of shapes which self.inference_model can process.
+        """
+        # check if model is 3d
+        def _is_3d(is_3d_queue: Queue):
+            # checks if model can process 3d input
+            logger = logging.getLogger("is_3d")
+            for _z in range(1, 19, 1):
+                for _s in range(32, 300, 1):
+                    _input = torch.zeros(1, c, _z, _s, _s)
+                    try:
+                        with torch.no_grad():
+                            _out = self.inference_model.to(device)(_input.to(device))
+                        is_3d_queue.put(True)
+                        return
+                    except RuntimeError:
+                        logger.debug("Model cannot process tensors of shape %s", (1, c, _z, _s, _s))
+            is_3d_queue.put(False)
+
+        is_3d_queue = Queue()
+        _3d_check_process = Process(target=_is_3d, args=(is_3d_queue,))
+        _3d_check_process.start()
+        _3d_check_process.join()
+        is_3d = is_3d_queue.get_nowait()
+        self.logger.debug("Is model 3d? %s", is_3d)
+
+        # create a search space of valid shapes
+        def _create_search_space(shape_queue: Queue):
+            def _forward(*args):
+                try:
+                    start = time.time()
+                    with torch.no_grad():
+                        _out = self.inference_model.to(device)(torch.zeros(1, c, *args).to(device))
+                    del _out
+                    if time.time() - start > max_processing_time:
+                        return True
+                    else:
+                        self.logger.debug("Add shape %s to search space", args)
+                        if is_3d:
+                            shape_queue.put([args[0], args[-1]])
+                        else:
+                            shape_queue.put([args[-1]])
+                        return False
+                except RuntimeError:
+                    self.logger.debug("Model cannot process tensors of shape %s. Vary size!", [1, c, *args])
+                    for __s in range(np.max(args[-1] - 15, 0), np.min([args[-1] + 15, x, y])):
+                        try:
+                            _input = torch.zeros(1, c, args[0], __s, __s) if is_3d else torch.zeros(1, c, __s, __s)
+                            start = time.time()
+                            with torch.no_grad():
+                                _out = self.inference_model.to(device)(_input.to(device))
+                            del _input, _out
+                            if time.time() - start > max_processing_time:
+                                return True
+                            else:
+                                if is_3d:
+                                    self.logger.debug("Add shape %s to search space", (args[0], __s, __s))
+                                    shape_queue.put([args[0], __s])
+                                else:
+                                    self.logger.debug("Add shape %s to search space", (__s, __s))
+                                    shape_queue.put([__s])
+                                return False
+                        except RuntimeError:
+                            del _input
+                            _var_msg = [1, c, args[0], __s, __s] if is_3d else [1, c, __s, __s]
+                            self.logger.debug("Model cannot process tensors of shape %s", _var_msg)
+
+            if is_3d:
+                for _z in range(np.min([1, z]), np.min([20, z]), 1):
+                    for _s in range(np.min([32, x, y]), np.min([512, x, y]), 85):
+                        if _forward(_z, _s, _s):
+                            break
+            else:
+                for _s in range(np.min([32, x, y]), np.min([2000, x, y]), 80):
+                    if _forward(_s, _s):
+                        break
+
+        shape_queue = Queue()
+        search_space_process = Process(target=_create_search_space, args=(shape_queue,))
+        search_space_process.start()
+        search_space_process.join()
+
+        while True:
+            try:
+                shape = shape_queue.get_nowait()
+                key = shape[0] * shape[1] if is_3d else shape[0]
+                bisect.insort(self.valid_shapes, [key, shape])
+            except queue.Empty:
+                break
+
+    def find(self, c, lo=0, hi=None, device=torch.device('cpu'), train_mode=False):
+        """
+        Recursive search for the largest valid shape that self.infernce_model can process.
+
+        """
+        assert self.inference_model is not None
+        if not self.valid_shapes:
+            raise ValueError()
+
+        if hi is None:
+            hi = len(self.valid_shapes)
+
+        if lo > hi:
+            raise ValueError()
+
+        mid = lo + (hi - lo) // 2
+
+        def _forward(i: int, q: Queue):
+            # data to torch.tensor
+            x = self.valid_shapes[i][1] + [self.valid_shapes[i][1][-1]]
+            x = torch.zeros(1, c, *x).to(device)
+            try:
+                if train_mode:
+                    y = self.inference_model.to(self.device)(x)
+                    target = torch.randn(*y.shape)
+                    loss = torch.nn.MSELoss()
+                    loss(y, target).backward()
+                else:
+                    with torch.no_grad():
+                        y = self.inference_model.to(device)(x)
+                del y
+                q.put(True)
+            except RuntimeError:
+                q.put(False)
+
+        q = Queue()
+
+        if hi - lo <= 1:
+            p = Process(target=_forward, args=(lo, q))
+            p.start()
+            p.join()
+            try:
+                shape_found = q.get_nowait()
+            except queue.Empty:
+                self.logger.debug("Queue is empty!")
+                raise RuntimeError("No valid shapes found.")
+            if shape_found:
+                return self.valid_shapes[lo]
+            else:
+                raise RuntimeError("No valid shape found.")
+
+        p = Process(target=_forward, args=(mid, q))
+        p.start()
+        p.join()
+
+        try:
+            processable_shape = q.get_nowait()
+        except queue.Empty:
+            self.logger.debug("Queue is empty!")
+            return self.find(c, lo, mid, device, train_mode)
+
+        if processable_shape:
+            return self.find(c, mid, hi, device, train_mode)
+        else:
+            return self.find(c, lo, mid, device, train_mode)
 
     def load_model(self):
         self.tempdir = tempfile.mkdtemp()
@@ -115,10 +308,6 @@ class HandlerProcess(Process):
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
         try:
-            devices = self.config.get("devices", default=[])
-            # check devices for validity
-            self.devices = {"training": [], "inference": [], "idle": devices}
-
             self.load_model()
 
             # set up training process
