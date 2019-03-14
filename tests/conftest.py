@@ -84,7 +84,7 @@ def tiny_model(datadir):
         }
     }
 
-@pytest.fixute(scope='session', autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def register_faulthandler():
     if not sys.platform.startswith('win'):
         faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
