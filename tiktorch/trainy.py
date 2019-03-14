@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 import threading as thr
 
 if torch.cuda.is_available():
-    mp.set_start_method('spawn', force=True)
+    mp.set_start_method("spawn", force=True)
 
 import numpy as np
 from inferno.io.transform import Compose
@@ -21,7 +21,7 @@ import tiktorch.utils as utils
 import tiktorch.fast_augment as aug
 import tensorboardX as tX
 
-logger = logging.getLogger('Trainy')
+logger = logging.getLogger("Trainy")
 
 
 # Globals
@@ -57,14 +57,15 @@ class Trainer(object):
         # Publics
         # Sane default hparams
         if hyperparameters is None:
-            self.hparams = Namespace(optimizer_kwargs=dict(lr=0.0003, weight_decay=0.0001,
-                                                           amsgrad=True),
-                                     optimizer_name='Adam',
-                                     criterion_kwargs=dict(reduce=False),
-                                     criterion_name='BCEWithLogitsLoss',
-                                     batch_size=1,
-                                     cache_size=self.CACHE_SIZE,
-                                     augmentor_kwargs={'invert_binary_labels': self.INVERT_BINARY_LABELS})
+            self.hparams = Namespace(
+                optimizer_kwargs=dict(lr=0.0003, weight_decay=0.0001, amsgrad=True),
+                optimizer_name="Adam",
+                criterion_kwargs=dict(reduce=False),
+                criterion_name="BCEWithLogitsLoss",
+                batch_size=1,
+                cache_size=self.CACHE_SIZE,
+                augmentor_kwargs={"invert_binary_labels": self.INVERT_BINARY_LABELS},
+            )
         else:
             self.hparams: Namespace = hyperparameters
         self.log_directory = log_directory
@@ -88,20 +89,22 @@ class Trainer(object):
         return self._handler.device
 
     @staticmethod
-    def _train_process(model_state: dict,
-                       model_config: tuple,
-                       device: torch.device,
-                       data_queue: mp.Queue,
-                       augmentor: aug.AugmentationSuite,
-                       state_queue: mp.Queue,
-                       abort: mp.Event,
-                       pause: mp.Event,
-                       change_hparams: mp.Event,
-                       state_request: mp.Event,
-                       use_cache_keeping: bool,
-                       hparams_queue: mp.Queue,
-                       log_directory: str):
-        logger = logging.getLogger('Trainer._train_process')
+    def _train_process(
+        model_state: dict,
+        model_config: tuple,
+        device: torch.device,
+        data_queue: mp.Queue,
+        augmentor: aug.AugmentationSuite,
+        state_queue: mp.Queue,
+        abort: mp.Event,
+        pause: mp.Event,
+        change_hparams: mp.Event,
+        state_request: mp.Event,
+        use_cache_keeping: bool,
+        hparams_queue: mp.Queue,
+        log_directory: str,
+    ):
+        logger = logging.getLogger("Trainer._train_process")
         # Build the model
         model = utils.define_patched_model(*model_config)
         # Load state dict
@@ -110,7 +113,7 @@ class Trainer(object):
         # Build tensorboard logger
         if log_directory is not None:
             tensorboard = tX.SummaryWriter(log_dir=log_directory)
-            logger.info(f"Writing tensorboard logs to {log_directory}")
+            logger.info("Writing tensorboard logs to %s", log_directory)
         else:
             tensorboard = None
             logger.warning("Not writing tensorboard logs.")
@@ -150,15 +153,15 @@ class Trainer(object):
             while server_thread.is_alive():
                 time.sleep(1)
                 kill_attempts += 1
-                logger.info(f"Attempt {kill_attempts} of {num_kill_attempts}.")
+                logger.info("Attempt %d of %d.", kill_attempts, num_kill_attempts)
                 if kill_attempts > num_kill_attempts:
                     break
             if server_thread.is_alive():
-                logger.warning(f"Failed to kill state server after {num_kill_attempts} attempts.")
+                logger.warning("Failed to kill state server after %d attempts.", num_kill_attempts)
             else:
                 logger.info("State server killed.")
 
-        logger.info(f"Initializing Loss and Optimizer.")
+        logger.info("Initializing Loss and Optimizer.")
         # Set up what's needed for training
         hparams = hparams_queue.get()
         criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
@@ -195,8 +198,10 @@ class Trainer(object):
             # Clean out the dirties yeet
             if dirty_indices:
                 # Make a new, clean cache
-                data_cache = deque([_sample for _idx, _sample in enumerate(data_cache)
-                                    if _idx not in dirty_indices], maxlen=hparams.cache_size)
+                data_cache = deque(
+                    [_sample for _idx, _sample in enumerate(data_cache) if _idx not in dirty_indices],
+                    maxlen=hparams.cache_size,
+                )
             # So if we're still updating the batch, we should also update the cache
             data_cache.append(sample)
             # Done-o
@@ -210,12 +215,12 @@ class Trainer(object):
                 try:
                     hparams = hparams_queue.get_nowait()
                 except queue.Empty:
-                    logger.info(f"Hyperparameter queue is empty.")
+                    logger.info("Hyperparameter queue is empty.")
                     pass
-                logger.info(f"Changing hyperparameters: initializing loss and optimizer.")
+                logger.info("Changing hyperparameters: initializing loss and optimizer.")
                 criterion = getattr(torch.nn, hparams.criterion_name)(**hparams.criterion_kwargs)
                 optim = getattr(torch.optim, hparams.optimizer_name)(model.parameters(), **hparams.optimizer_kwargs)
-                    
+
             # Check if a new state is requested
             if state_request.is_set():
                 # First things first,
@@ -229,30 +234,34 @@ class Trainer(object):
             batch = []
             # Check if abort event is set
             if abort.is_set():
-                logger.info(f"Aborting...")
+                logger.info("Aborting...")
                 _kill_state_server()
                 break
             if pause.is_set():
-                logger.info(f"Waiting for resume...")
+                logger.info("Waiting for resume...")
                 time.sleep(1)
                 continue
             try:
                 try:
-                    logger.info(f"Currently {data_queue.qsize()} elements in data_queue.")
+                    logger.info("Currently %d elements in data_queue.", data_queue.qsize())
                 except NotImplementedError:
                     # This raises a Not Implemented Error on OSX
                     pass
                 sample = 0
                 while len(batch) < hparams.batch_size:
-                    logger.info(f"Trying to Fetch sample {sample} of {hparams.batch_size}...")
+                    logger.info("Trying to Fetch sample %d of %d...", sample + 1, hparams.batch_size)
                     # Try to fetch from data queue
                     data, labels = data_queue.get(block=False)
                     try:
                         _q_size_now = data_queue.qsize()
                     except NotImplementedError:
                         _q_size_now = None
-                    logger.info(f"Fetched sample {sample} of {hparams.batch_size}. "
-                                f"Remaining items in queue: {_q_size_now}...")
+                    logger.info(
+                        "Fetched sample %d of %d. Remaining items in queue: %d",
+                        sample + 1,
+                        hparams.batch_size,
+                        _q_size_now,
+                    )
                     if use_cache_keeping:
                         if _cache_keeping((data, labels)):
                             batch.append((data, labels))
@@ -264,10 +273,10 @@ class Trainer(object):
                         data_cache.append((data, labels))
                         sample += 1
             except queue.Empty:
-                logger.info(f"Queue Exhausted.")
+                logger.info("Queue Exhausted.")
                 if len(batch) == 0 and len(data_cache) == 0:
                     # Both batch and cache empty, try again
-                    logger.info(f"Trying to fetch again...")
+                    logger.info("Trying to fetch again...")
                     time.sleep(0.1)
                     continue
                 elif len(batch) == hparams.batch_size:
@@ -275,49 +284,53 @@ class Trainer(object):
                     pass
                 elif len(batch) < hparams.batch_size:
                     # Batch not full, try to top it up from the cache
-                    logger.info(f"Topping up batch, currently with {len(batch)} elements...")
+                    logger.info("Topping up batch, currently with %d elements...", len(batch))
                     while len(data_cache) > 0 and len(batch) < hparams.batch_size:
                         data_sample = data_cache.popleft()
                         batch.append(data_sample)
                         data_cache.append(data_sample)
                 else:
-                    logger.error(f"LOLWTF: len(batch) = {len(batch)}, "
-                                 f"len(data_cache) = {len(data_cache)}")
+                    logger.error("LOLWTF: len(batch) = %d, " f"len(data_cache) = %d", len(batch), len(data_cache))
                     # Stop state server before throwing up error
                     _kill_state_server()
                     raise RuntimeError
 
-            logger.info(f"Updating with {len(batch)} samples...")
+            logger.info("Updating with %d samples...", len(batch))
             # Make a batch
             logger.info("Augmenting...")
             try:
                 augmented_batch = [augmentor(*sample) for sample in batch]
                 data, labels, weights = zip(*augmented_batch)
-                logger.debug(f"data.shapes = {[list(t.shape) for t in data]}, "
-                             f"label.shapes = {[list(t.shape) for t in labels]}, "
-                             f"weights.shapes = {[list(t.shape) for t in weights]}")
-                data, labels, weights = (torch.stack(data, dim=0),
-                                         torch.stack(labels, dim=0),
-                                         torch.stack(weights, dim=0))
+                logger.debug(
+                    "data.shapes = %s, label.shapes = %s, weights.shapes = %s",
+                    [list(t.shape) for t in data],
+                    [list(t.shape) for t in labels],
+                    [list(t.shape) for t in weights],
+                )
+                data, labels, weights = (
+                    torch.stack(data, dim=0),
+                    torch.stack(labels, dim=0),
+                    torch.stack(weights, dim=0),
+                )
                 # Ship tensors to device
-                data, labels, weights = data.to(device), labels.to(device), weights.to(device)
-                logger.info(f"Transferred to device.")
+                data, labels, weights = (data.to(device), labels.to(device), weights.to(device))
+                logger.info("Transferred to device.")
                 # Train the model
                 prediction = model(data)
-                logger.info(f"Fed forward.")
+                logger.info("Fed forward.")
                 loss = criterion(prediction, labels).mul(weights).mean()
-                logger.info(f"Loss Evaluated. Waiting for state lock...")
+                logger.info("Loss Evaluated. Waiting for state lock...")
                 with _state_lock:
                     optim.zero_grad()
                     loss.backward()
-                    logger.info(f"Backproped.")
+                    logger.info("Backproped.")
                     optim.step()
-                    logger.info(f"Stepped.")
+                    logger.info("Stepped.")
                     iter_count += 1
                 # Logging
                 if tensorboard is not None:
-                    tensorboard.add_scalar('loss', loss.item(), global_step=(iter_count - 1))
-                    logger.info(f"Logged iteration {iter_count}.")
+                    tensorboard.add_scalar("loss", loss.item(), global_step=(iter_count - 1))
+                    logger.info("Logged iteration %d", iter_count)
             except Exception:
                 _kill_state_server()
                 raise
@@ -340,26 +353,32 @@ class Trainer(object):
         logger.info("Sharing Memory...")
         # self.share_memory()
         model_state = self.model.state_dict()
-        model_config = (self.model._model_file_name,
-                        self.model._model_class_name,
-                        self.model._model_init_kwargs)
-        self._training_process = mp.Process(target=self._train_process,
-                                            args=(model_state, model_config, self.device,
-                                                  self._data_queue, self.augmentor,
-                                                  self._state_queue,
-                                                  self._abort_event, self._pause_event,
-                                                  self._change_hparams_event,
-                                                  self._state_request_event,
-                                                  self.USE_CACHE_KEEPING,
-                                                  self._hparams_queue,
-                                                  self.log_directory))
+        model_config = (self.model._model_file_name, self.model._model_class_name, self.model._model_init_kwargs)
+        self._training_process = mp.Process(
+            target=self._train_process,
+            args=(
+                model_state,
+                model_config,
+                self.device,
+                self._data_queue,
+                self.augmentor,
+                self._state_queue,
+                self._abort_event,
+                self._pause_event,
+                self._change_hparams_event,
+                self._state_request_event,
+                self.USE_CACHE_KEEPING,
+                self._hparams_queue,
+                self.log_directory,
+            ),
+        )
         logger.info("3, 2, 1...")
         self._training_process.start()  # todo: fix bug: sometimes the training process does not start
         logger.info("We have lift off.")
         self._ignited = True
 
     def _drain_state_queue(self):
-        logger = logging.getLogger('Trainer._drain_state_queue')
+        logger = logging.getLogger("Trainer._drain_state_queue")
         state = None
         while True:
             try:
@@ -370,7 +389,7 @@ class Trainer(object):
         return state
 
     def update_handler_model_state(self):
-        logger = logging.getLogger('Trainer.update_handler_model_state')
+        logger = logging.getLogger("Trainer.update_handler_model_state")
         assert self._ignited, "Training process not ignited."
         logger.info("Requesting new state.")
         # Flush queue for residual states (e.g. from previously timed-out queue-get's)
@@ -416,9 +435,7 @@ class Trainer(object):
         if self._raw_preprocessor is None:
             self._raw_preprocessor = Normalize()
         if self._joint_preprocessor is None:
-            self._joint_preprocessor = Compose(RandomFlip(),
-                                               RandomRotate(),
-                                               ElasticTransform(alpha=2000., sigma=50.))
+            self._joint_preprocessor = Compose(RandomFlip(), RandomRotate(), ElasticTransform(alpha=2000.0, sigma=50.0))
         # Convert data and labels to torch tensors
         with torch.no_grad():
             # Apply transforms
@@ -458,7 +475,7 @@ class Trainer(object):
         logger = logging.getLogger("Trainer.push_hparams")
         # Done in this method:
         # If training process is running, push hparams into queue, else set as default
-        
+
         def _drain_hparams_queue():
             deprecated_hparams = None
             while True:
@@ -468,7 +485,7 @@ class Trainer(object):
                 except queue.Empty:
                     break
             return deprecated_hparams
-        
+
         hparams = Namespace(**hparams)
         if not self.is_ignited:
             logger.info("Setting new default hyperparameters")
@@ -481,7 +498,6 @@ class Trainer(object):
                 self._hparams_queue.put(hparams)
                 time.sleep(1)
             self._change_hparams_event.set()
-
 
     def pause(self):
         if self._ignited:

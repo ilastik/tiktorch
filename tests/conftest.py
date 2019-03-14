@@ -1,4 +1,8 @@
 import zipfile
+import pickle
+import faulthandler
+import sys
+import signal
 
 from collections import namedtuple
 from os import path, getenv
@@ -56,12 +60,28 @@ def nn_sample(tmpdir, datadir):
 def srv_port():
     return getenv("TEST_TIKTORCH_PORT", randint(5500, 8000))
 
+
 @pytest.fixture
 def pub_port():
     return getenv("TEST_TIKTORCH_PUB_PORT", randint(8000, 9999))
 
 
-import sys
-import faulthandler
-import signal
+@pytest.fixture
+def tiny_model(datadir):
+    with open(path.join(datadir, "tiny_models.py"), "r") as f:
+        model_file = pickle.dumps(f.read())
+
+    return {
+        "model_file": model_file,
+        "model_state": b"",
+        "optimizer_state": b"",
+        "config": {
+            "model_class_name": "TestModel0",
+            "inference_batch_size": 100,
+            "optimizer_config": {
+                "method": "Adam"
+            }
+        }
+    }
+
 faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)

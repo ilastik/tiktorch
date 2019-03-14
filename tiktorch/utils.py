@@ -1,7 +1,8 @@
 import signal
+from importlib import util as imputils
+from contextlib import contextmanager
 import torch
 from torch.autograd import Variable
-from importlib import util as imputils
 
 
 class delayed_keyboard_interrupt(object):
@@ -29,13 +30,6 @@ class delayed_keyboard_interrupt(object):
 def assert_(condition, message='', exception_type=Exception):
     if not condition:
         raise exception_type(message)
-
-
-def to_list(x):
-    if isinstance(x, (list, tuple)):
-        return list(x)
-    else:
-        return [x]
 
 
 class WannabeConvNet3D(torch.nn.Module):
@@ -82,33 +76,3 @@ def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
     model._model_init_kwargs = model_init_kwargs
     return model
 
-
-class DynamicShape(object):
-    def __init__(self, code):
-        self.code = code
-        self.formatters = self.strip_to_components(code)
-
-    @property
-    def dimension(self):
-        return len(self)
-
-    def __len__(self):
-        return len(self.formatters)
-
-    @staticmethod
-    def strip_to_components(code):
-        components = code[1:-1].replace(', ', ',').split(',')
-        # Replace components with lambdas
-        fmt_strings = [component.replace('nH', '{}').replace('nW', '{}').replace('nD', '{}')
-                       for component in components]
-        return fmt_strings
-
-    def evaluate(self, *integers):
-        return [eval(formatter.format(integer), {}, {})
-                for integer, formatter in zip(integers, self.formatters)]
-
-    @property
-    def base_shape(self):
-        return self.evaluate(*([0]*len(self)))
-
-    __call__ = evaluate

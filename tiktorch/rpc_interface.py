@@ -1,6 +1,8 @@
 from tiktorch.rpc import RPCInterface, exposed
 from tiktorch.types import NDArrayBatch
 
+from typing import Iterable
+
 
 class IFlightControl(RPCInterface):
     @exposed
@@ -14,13 +16,7 @@ class IFlightControl(RPCInterface):
 
 class INeuralNetworkAPI(RPCInterface):
     @exposed
-    def load_model(
-        self,
-        config: dict,
-        model_file: bytes,
-        model_state: bytes,
-        optimizer_state: bytes,
-    ) -> None:
+    def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes) -> None:
         raise NotImplementedError
 
     @exposed
@@ -44,5 +40,9 @@ class INeuralNetworkAPI(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def train(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
+    def dry_run(self, conf: dict) -> dict:
+        raise NotImplementedError
+
+    @exposed
+    def train(self, keys: Iterable, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         raise NotImplementedError

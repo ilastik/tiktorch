@@ -186,8 +186,8 @@ class Blockinator(object):
         # model = self.processor.model
         device = self.processor.device
         try:
-            logger.info(f"Processing on {device}")
-            logger.info(f"Data shape is: {self.data.shape}")
+            logger.info("Processing on %s", device)
+            logger.info("Data shape is %s", self.data.shape)
             with torch.no_grad():
                 output_tensor = self.processor.process_tensor(self.data).cpu()
             return self.processor.crop_halo(output_tensor)
