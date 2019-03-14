@@ -1,3 +1,4 @@
+import os
 import logging
 import numpy
 import pickle
@@ -9,7 +10,6 @@ from tiktorch.handler.constants import SHUTDOWN, SHUTDOWN_ANSWER
 from tiktorch.types import NDArray, NDArrayBatch
 from torch.multiprocessing import Pipe, set_start_method
 from typing import Union, Tuple
-
 
 logger = logging.getLogger(__name__)
 
@@ -108,23 +108,27 @@ def test_forward():
     assert keys == answer_dict["keys"]
 
 def test_devices():
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
     kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
 
-    with open("tiny_models.py", "r") as f:
+    with open("../tiny_models.py", "r") as f:
         kwargs["model_file"] = pickle.dumps(f.read())
 
     kwargs["config"] = {"model_class_name": "TinyConvNet2d", "optimizer_config": {"method": "Adam"}}
 
     ts = DummyServer(**kwargs)
-    ts.devices = ['cpu']
+    ts.devices = ['cuda:0', 'cuda:1', 'cuda:10000', 'fake_device']
+    assert len(ts.devices) == 2
 
 def test_dry_run():
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
 
-    with open("tiny_models.py", "r") as f:
+    with open("../tiny_models.py", "r") as f:
         kwargs["model_file"] = pickle.dumps(f.read())
 
     kwargs["config"] = {"model_class_name": "TinyConvNet3d", "optimizer_config": {"method": "Adam"}}
 
     ts = DummyServer(**kwargs)
-    ts.dry_run_on_device(torch.device('cpu'), (1, 1, 125, 1250, 1250))
+    ts.dry_run_on_device(torch.device('cuda:0'), (1, 1, 125, 1250, 1250))
+    assert ts.handler.valid_shapes is not None
