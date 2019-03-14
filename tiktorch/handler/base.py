@@ -45,7 +45,6 @@ logging.basicConfig(level=logging.DEBUG)
 #     }
 # })
 
-
 class HandlerProcess(Process):
     """
     Process to orchestrate the interplay of training/validation and inference
@@ -82,19 +81,38 @@ class HandlerProcess(Process):
 
     @devices.setter
     def devices(self, devices: list):
+        self.logger = logging.getLogger(self.name)
+        self._devices = []
+
         for device in devices:
             try:
                 torch_device = torch.device(device)
-                with torch.no_grad():
-                    model = torch.nn.Conv2d(1, 1, 1).to(torch_device)
-                    x = torch.zeros(1, 1, 1, 1).to(torch_device)
-                    model(x)
-                    del model, x
             except TypeError as e:
                 self.logger.debug(e)
                 devices.remove(device)
+                continue
 
-        self._devices = devices
+            parent_conn, child_conn = Pipe()
+            p = Process(target=self.device_test,
+                        args=(torch_device, child_conn))
+            p.start()
+            p.join()
+            p.terminate()
+            if parent_conn.recv():
+                self._devices.append(torch_device)
+
+    @staticmethod
+    def device_test(device, conn):
+        try:
+            with torch.no_grad():
+                model = torch.nn.Conv2d(1, 1, 1).to(device)
+                x = torch.zeros(1, 1, 1, 1).to(device)
+                y = model(x)
+                del model, x, y
+                conn.send(True)
+        except RuntimeError as e:
+            conn.send(False)
+            raise RuntimeError(e)
 
     def dry_run_on_device(self, device: torch.device, upper_bound, train_mode=False):
         """
@@ -127,6 +145,8 @@ class HandlerProcess(Process):
         """
         Generates a sorted list of shapes which self.inference_model can process.
         """
+        assert self.infernce_model is not None
+        
         # check if model is 3d
         def _is_3d(is_3d_queue: Queue):
             # checks if model can process 3d input
