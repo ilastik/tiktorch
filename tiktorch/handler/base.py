@@ -125,19 +125,23 @@ class HandlerProcess(Process):
         self.logger = logging.getLogger(self.name)
         self.load_model()
         t, c, z, y, x = upper_bound
+        
         if not self.valid_shapes:
             self.logger.info("Creating search space....")
             self.create_search_space(c, z, y, x, device, max_processing_time=2.5)
 
         self.logger.info("Searching for optimal shape...")
-
         optimal_entry = self.find(c, device=device, train_mode=train_mode)[1]
+        
         if len(optimal_entry) == 1:
             optimal_shape = {"shape": [1, c, 1] + optimal_entry + [optimal_entry[-1]]}
         else:
             optimal_shape = {"shape": [1, c] + optimal_entry + [optimal_entry[-1]]}
-
+            
         self.logger.info("Optimal shape found: %s", optimal_shape["shape"])
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         return optimal_shape
 
@@ -145,86 +149,30 @@ class HandlerProcess(Process):
         """
         Generates a sorted list of shapes which self.inference_model can process.
         """
-        assert self.infernce_model is not None
-        
-        # check if model is 3d
-        def _is_3d(is_3d_queue: Queue):
-            # checks if model can process 3d input
-            logger = logging.getLogger("is_3d")
-            for _z in range(1, 19, 1):
-                for _s in range(32, 300, 1):
-                    _input = torch.zeros(1, c, _z, _s, _s)
-                    try:
-                        with torch.no_grad():
-                            _out = self.inference_model.to(device)(_input.to(device))
-                        is_3d_queue.put(True)
-                        return
-                    except RuntimeError:
-                        logger.debug("Model cannot process tensors of shape %s", (1, c, _z, _s, _s))
-            is_3d_queue.put(False)
+        assert self.inference_model is not None
 
-        is_3d_queue = Queue()
-        _3d_check_process = Process(target=_is_3d, args=(is_3d_queue,))
-        _3d_check_process.start()
-        _3d_check_process.join()
-        is_3d = is_3d_queue.get_nowait()
+        # check if model is 3d
+        parent_conn, child_conn = Pipe()
+        process_3d = Process(target=self.is_model_3d,
+                             args=(self.inference_model, c, device, child_conn))
+        process_3d.start()
+        process_3d.join()
+        process_3d.terminate()
+        is_3d = parent_conn.recv()
         self.logger.debug("Is model 3d? %s", is_3d)
 
-        # create a search space of valid shapes
-        def _create_search_space(shape_queue: Queue):
-            def _forward(*args):
-                try:
-                    start = time.time()
-                    with torch.no_grad():
-                        _out = self.inference_model.to(device)(torch.zeros(1, c, *args).to(device))
-                    del _out
-                    if time.time() - start > max_processing_time:
-                        return True
-                    else:
-                        self.logger.debug("Add shape %s to search space", args)
-                        if is_3d:
-                            shape_queue.put([args[0], args[-1]])
-                        else:
-                            shape_queue.put([args[-1]])
-                        return False
-                except RuntimeError:
-                    self.logger.debug("Model cannot process tensors of shape %s. Vary size!", [1, c, *args])
-                    for __s in range(np.max(args[-1] - 15, 0), np.min([args[-1] + 15, x, y])):
-                        try:
-                            _input = torch.zeros(1, c, args[0], __s, __s) if is_3d else torch.zeros(1, c, __s, __s)
-                            start = time.time()
-                            with torch.no_grad():
-                                _out = self.inference_model.to(device)(_input.to(device))
-                            del _input, _out
-                            if time.time() - start > max_processing_time:
-                                return True
-                            else:
-                                if is_3d:
-                                    self.logger.debug("Add shape %s to search space", (args[0], __s, __s))
-                                    shape_queue.put([args[0], __s])
-                                else:
-                                    self.logger.debug("Add shape %s to search space", (__s, __s))
-                                    shape_queue.put([__s])
-                                return False
-                        except RuntimeError:
-                            del _input
-                            _var_msg = [1, c, args[0], __s, __s] if is_3d else [1, c, __s, __s]
-                            self.logger.debug("Model cannot process tensors of shape %s", _var_msg)
-
-            if is_3d:
-                for _z in range(np.min([1, z]), np.min([20, z]), 1):
-                    for _s in range(np.min([32, x, y]), np.min([512, x, y]), 85):
-                        if _forward(_z, _s, _s):
-                            break
-            else:
-                for _s in range(np.min([32, x, y]), np.min([2000, x, y]), 80):
-                    if _forward(_s, _s):
-                        break
-
+        # create search space by iterating through shapes
         shape_queue = Queue()
-        search_space_process = Process(target=_create_search_space, args=(shape_queue,))
+        search_space_process = Process(target=self.iterate_through_shapes,
+                                       args=(self.inference_model,
+                                             c, z, y, x,
+                                             device,
+                                             is_3d,
+                                             max_processing_time,
+                                             shape_queue))
         search_space_process.start()
         search_space_process.join()
+        search_space_process.terminate()
 
         while True:
             try:
@@ -234,12 +182,125 @@ class HandlerProcess(Process):
             except queue.Empty:
                 break
 
+
+    @staticmethod
+    def is_model_3d(model, channels, device, child_conn):
+        # checks if model can process 3d input
+        for z in range(6, 19, 1):
+            for s in range(32, 300, 1):
+                x = torch.zeros(1, channels, z, s, s)
+                try:
+                    with torch.no_grad():
+                        y = model.to(device)(x.to(device))
+                except RuntimeError:
+                    logging.debug("Model cannot process tensors of shape %s",
+                                 (1, channels, z, s, s))
+                else:
+                    child_conn.send(True)
+                    return
+                del x
+        child_conn.send(False)
+
+    @staticmethod
+    def iterate_through_shapes(model,
+                               c, z, y, x,
+                               device,
+                               is_3d,
+                               max_processing_time,
+                               shape_queue: Queue):
+        def _forward(*args):
+            _x = torch.zeros(1, c, *args).to(device)
+            start = time.time()
+            
+            try:
+                with torch.no_grad():
+                    _y = model.to(device)(_x)
+            except RuntimeError:
+                del _x
+                logging.debug("Model cannot process tensors of shape %s. Vary size!",
+                              [1, c, *args])
+                
+                for s in range(np.max(args[-1] - 15, 0), np.min([args[-1] + 15, x, y])):
+                    if is_3d:
+                        _x = torch.zeros(1, c, args[0], s, s).to(device)
+                    else:
+                        _x = torch.zeros(1, c, s, s).to(device)
+                    start = time.time()
+
+                    try:                        
+                        with torch.no_grad():
+                            _y = model.to(device)(_x)
+                    except RuntimeError:
+                            del _x
+                            if is_3d:
+                                msg = [1, c, args[0], s, s]
+                            else:
+                                msg = [1, c, s, s]
+                            logging.debug("Model cannot process tensors of shape %s", msg)
+                    else:
+                        del _y, _x
+                        
+                        if time.time() - start > max_processing_time:
+                            return True
+                        else:
+                            if is_3d:
+                                logging.debug("Add shape %s to search space",
+                                              (args[0], s, s))
+                                shape_queue.put([args[0], s])
+                            else:
+                                logging.debug("Add shape %s to search space",
+                                              (s, s))
+                                shape_queue.put([s])
+                            return False
+            else:
+                del _y, _x
+                
+                if time.time() - start > max_processing_time:
+                    return True
+                else:
+                    logging.debug("Add shape %s to search space", args)
+                    if is_3d:
+                        shape_queue.put([args[0], args[-1]])
+                    else:
+                        shape_queue.put([args[-1]])
+                    return False
+
+        if is_3d:
+            for _z in range(np.min([10, z]), np.min([80, z]), 3):
+                for _s in range(np.min([32, x, y]), np.min([512, x, y]), 85):
+                    if _forward(_z, _s, _s):
+                        break
+        else:
+            for _s in range(np.min([32, x, y]), np.min([2000, x, y]), 80):
+                if _forward(_s, _s):
+                    break
+
+    @staticmethod
+    def find_forward(model, valid_shapes, c, i, device, child_conn, train_mode):
+        x = valid_shapes[i][1] + [valid_shapes[i][1][-1]]
+        x = torch.zeros(1, c, *x).to(device)
+        try:
+            if train_mode:
+                y = model.to(device)(x)
+                target = torch.randn(*y.shape)
+                loss = torch.nn.MSELoss()
+                loss(y, target).backward()
+            else:
+                with torch.no_grad():
+                    y = model.to(device)(x)
+        except RuntimeError:
+            child_conn.send(False)
+        else:
+            del y
+            child_conn.send(True)
+
     def find(self, c, lo=0, hi=None, device=torch.device('cpu'), train_mode=False):
         """
         Recursive search for the largest valid shape that self.infernce_model can process.
 
         """
         assert self.inference_model is not None
+        
         if not self.valid_shapes:
             raise ValueError()
 
@@ -251,50 +312,40 @@ class HandlerProcess(Process):
 
         mid = lo + (hi - lo) // 2
 
-        def _forward(i: int, q: Queue):
-            # data to torch.tensor
-            x = self.valid_shapes[i][1] + [self.valid_shapes[i][1][-1]]
-            x = torch.zeros(1, c, *x).to(device)
-            try:
-                if train_mode:
-                    y = self.inference_model.to(self.device)(x)
-                    target = torch.randn(*y.shape)
-                    loss = torch.nn.MSELoss()
-                    loss(y, target).backward()
-                else:
-                    with torch.no_grad():
-                        y = self.inference_model.to(device)(x)
-                del y
-                q.put(True)
-            except RuntimeError:
-                q.put(False)
-
-        q = Queue()
+        parent_conn, child_conn = Pipe()
 
         if hi - lo <= 1:
-            p = Process(target=_forward, args=(lo, q))
+            p = Process(target=self.find_forward,
+                        args=(self.inference_model,
+                              self.valid_shapes,
+                              c,
+                              lo,
+                              device,
+                              child_conn,
+                              train_mode))
             p.start()
             p.join()
-            try:
-                shape_found = q.get_nowait()
-            except queue.Empty:
-                self.logger.debug("Queue is empty!")
-                raise RuntimeError("No valid shapes found.")
+            p.terminate()
+            
+            shape_found = parent_conn.recv()
             if shape_found:
                 return self.valid_shapes[lo]
             else:
                 raise RuntimeError("No valid shape found.")
 
-        p = Process(target=_forward, args=(mid, q))
+        p = Process(target=self.find_forward,
+                    args=(self.inference_model,
+                          self.valid_shapes,
+                          c,
+                          mid,
+                          device,
+                          child_conn,
+                          train_mode))
         p.start()
         p.join()
+        p.terminate()
 
-        try:
-            processable_shape = q.get_nowait()
-        except queue.Empty:
-            self.logger.debug("Queue is empty!")
-            return self.find(c, lo, mid, device, train_mode)
-
+        processable_shape = parent_conn.recv()
         if processable_shape:
             return self.find(c, mid, hi, device, train_mode)
         else:
