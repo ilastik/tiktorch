@@ -58,6 +58,7 @@ class HandlerProcess(Process):
         :param optimizer_state: binarized optimizer state dict
         """
         assert hasattr(self, SHUTDOWN[0]), "make sure the 'shutdown' method has the correct name"
+        assert hasattr(self, SHUTDOWN_ANSWER[0]), "make sure the 'shutdown_answer' method has the correct name"
         assert hasattr(self, REPORT_EXCEPTION), "make sure the 'report_exception' method has the correct name"
         assert model_file
         for required in ["model_class_name"]:
@@ -99,7 +100,7 @@ class HandlerProcess(Process):
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
         try:
-            devices = self.config.get("devices", default=[])
+            devices = self.config.get("devices", [])
             # check devices for validity
             self.devices = {"training": [], "inference": [], "idle": devices}
 
@@ -107,16 +108,21 @@ class HandlerProcess(Process):
 
             # set up training process
             self.training_conn, handler_conn_training = Pipe()
+            training_config = dict(self.config)
+            training_config['devices'] = self.devices['training']
             self.training_proc = TrainingProcess(
                 handler_conn=handler_conn_training,
-                config=self.config,
+                config=training_config,
                 model=self.training_model,
                 optimizer_state=self.optimizer_state,
             )
             self.training_proc.start()
+            # set up inference process
+            inference_config = dict(self.config)
+            inference_config['devices'] = self.devices['inference']
             self.inference_conn, handler_conn_inference = Pipe()
             self.inference_proc = InferenceProcess(
-                handler_conn=handler_conn_inference, config=self.config, model=self.inference_model
+                handler_conn=handler_conn_inference, config=inference_config, model=self.inference_model
             )
             self.inference_proc.start()
 
@@ -193,6 +199,9 @@ class HandlerProcess(Process):
 
         shutil.rmtree(self.tempdir)
         logger.debug("Shutdown complete")
+
+    def shutting_down(self):
+        self.logger.error('A child process is shutting down unscheduled.')
 
     def update_hparams(self, hparams: dict):
         pass

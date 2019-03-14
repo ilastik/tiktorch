@@ -4,7 +4,7 @@ import torch.nn
 
 from multiprocessing.connection import Connection
 from torch.multiprocessing import Process
-from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
 
@@ -41,10 +41,9 @@ class InferenceProcess(Process):
         :param from_handler_queue: downstream communication
         :param to_handler_queue: upstream communication
         """
-        assert hasattr(self, SHUTDOWN[0])
+        assert hasattr(self, SHUTDOWN[0]), "missing shutdown method"
         super().__init__(name=self.name)
         self.handler_conn = handler_conn
-        assert 'inferene_batch_size' in config
         self.config = config
         self.model = model
 
@@ -77,22 +76,59 @@ class InferenceProcess(Process):
         self.handler_conn.send(SHUTDOWN_ANSWER)
         self.logger.debug("Shutdown complete")
 
-    def forward(self, keys: Iterable, data: torch.Tensor) -> None:
-        # todo: correct keys type from Iterable to something with a fixed size.. or solve len(keys) otherwise
+    def forward(self, keys: Sequence, data: torch.Tensor) -> None:
         """
         :param data: input data to neural network
         :return: predictions
         """
-        def process_batch(batch_keys, batch_data):
-            self.handler_conn.send(("forward_answer", {"keys": batch_keys, "data": self.model(batch_data).detach()}))
+        batch_size: int = self.config.get("inference_batch_size", None)
+        if batch_size is None:
+            batch_size = 1
+            increase_batch_size = True
+        else:
+            increase_batch_size = False
 
-        batch_size = self.config['inference_batch_size']
-        start, end = 0, 0
-        for end in range(batch_size, len(keys), batch_size):
-            process_batch(batch_keys=keys[start:end], batch_data=data[start:end])
-            start = end
+        start = 0
+        last_batch_size = batch_size
+
+        def create_end_generator(start, batch_size):
+            return iter(range(start + batch_size, len(keys) + batch_size - 1, batch_size))
+
+        end_generator = create_end_generator(start, batch_size)
+        while start < len(keys):
             self.handle_incoming_msgs()
+            end = next(end_generator)
+            try:
+                pred = self.model(data[start:end]).detach()
+            except Exception as e:
+                if batch_size > last_batch_size:
+                    self.logger.info(
+                        "forward pass with batch size %d threw exception %s. Using previous batch size %d again.",
+                        batch_size,
+                        e,
+                        last_batch_size,
+                    )
+                    batch_size = last_batch_size
+                    increase_batch_size = False
+                else:
+                    last_batch_size = batch_size
+                    batch_size //= 2
+                    if batch_size == 0:
+                        self.logger.error("Forward pass failed. Processed %d/%d", start, len(keys))
+                        break
 
-        if end < len(keys):
-            end = len(keys)
-            process_batch(batch_keys=keys[start:end], batch_data=data[start:end])
+                    increase_batch_size = True
+                    self.logger.info(
+                        "forward pass with batch size %d threw exception %s. Trying again with smaller batch_size %d",
+                        last_batch_size,
+                        e,
+                        batch_size,
+                    )
+                end_generator = create_end_generator(start, batch_size)
+            else:
+                self.handler_conn.send(("forward_answer", {"keys": keys[start:end], "data": pred}))
+                start = end
+                last_batch_size = batch_size
+                if increase_batch_size:
+                    batch_size += 1
+                    end_generator = create_end_generator(start, batch_size)
