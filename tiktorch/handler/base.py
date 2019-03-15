@@ -82,14 +82,13 @@ class HandlerProcess(Process):
 
     @devices.setter
     def devices(self, devices: list):
-        self.logger = logging.getLogger(self.name)
         self._devices = []
 
         for device in devices:
             try:
                 torch_device = torch.device(device)
             except TypeError as e:
-                self.logger.debug(e)
+                self.logger.warning(e)
                 devices.remove(device)
                 continue
 
@@ -352,28 +351,31 @@ class HandlerProcess(Process):
         else:
             return self.find(c, lo, mid, device, train_mode)
 
-    def load_model(self):
+    # internal
+    def load_model(self, model_file: bytes, model_state: bytes, model_class_name: str, model_init_kwargs: dict):
+        if self.tempdir:
+            # remove previous usermodule folder
+            shutil.rmtree(self.tempdir)
+
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
         with open(os.path.join(self.tempdir, user_module_name + ".py"), "w") as f:
-            f.write(pickle.loads(self.model_file))
+            f.write(pickle.loads(model_file))
 
         sys.path.insert(0, self.tempdir)
         user_module = importlib.import_module(user_module_name)
 
-        self.training_model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(
+        self.model: torch.nn.Module = getattr(user_module, model_class_name)(
             **self.config.get("model_init_kwargs", {})
         )
-        self.inference_model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(
-            **self.config.get("model_init_kwargs", {})
-        )
-        self.logger.debug("created user models")
+        self.logger.debug("created user model")
 
-        if self.model_state:
-            with closing(io.BytesIO(self.model_state)) as f:
-                self.training_model.load_state_dict(torch.load(f))
+        if model_state:
+            self.model.load_state_dict(torch.load(pickle.loads(model_state)))
+            # with closing(io.BytesIO(model_state)) as f:
+            #     self.model.load_state_dict(torch.load(f))
 
-            self.logger.info("restored model state")
+            self.logger.info("restored model state")    
 
     def run(self):
         self._shutting_down = False
@@ -383,26 +385,26 @@ class HandlerProcess(Process):
             devices = self.config.get("devices", [])
             # check devices for validity
             self.devices = {"training": [], "inference": [], "idle": devices}
-
-            self.load_model()
+            self.tempdir = ""
+            self.load_model(self.model_file, self.model_state, )
 
             # set up training process
             self.training_conn, handler_conn_training = Pipe()
             training_config = dict(self.config)
-            training_config['devices'] = self.devices['training']
+            training_config["devices"] = self.devices["training"]
             self.training_proc = TrainingProcess(
                 handler_conn=handler_conn_training,
                 config=training_config,
-                model=self.training_model,
+                model=self.model,
                 optimizer_state=self.optimizer_state,
             )
             self.training_proc.start()
             # set up inference process
             inference_config = dict(self.config)
-            inference_config['devices'] = self.devices['inference']
+            inference_config["devices"] = self.devices["inference"]
             self.inference_conn, handler_conn_inference = Pipe()
             self.inference_proc = InferenceProcess(
-                handler_conn=handler_conn_inference, config=inference_config, model=self.inference_model
+                handler_conn=handler_conn_inference, config=inference_config, model=self.model
             )
             self.inference_proc.start()
 
@@ -425,16 +427,8 @@ class HandlerProcess(Process):
     def active_children(self):
         self.server_conn.send([child_proc.name for child_proc in active_children()])
 
-    def report_exception(self, proc_name: str, exception: Exception):
-        self.logger.error("Received exception report from %s: %s", proc_name, exception)
-        if proc_name == TrainingProcess.name:
-            # todo: restart training proess
-            pass
-        elif proc_name == InferenceProcess.name:
-            # todo: restart inference process
-            pass
-        else:
-            raise NotImplementedError("Did not expect exception report form %s", proc_name)
+    def update_hparams(self, hparams: dict):
+        pass
 
     def shutdown(self):
         logger = logging.getLogger(self.name + ".shutdown")
@@ -481,23 +475,22 @@ class HandlerProcess(Process):
         logger.debug("Shutdown complete")
 
     def shutting_down(self):
-        self.logger.error('A child process is shutting down unscheduled.')
+        self.logger.error("A child process is shutting down unscheduled.")
 
-    def update_hparams(self, hparams: dict):
-        pass
-
-    def generic_relay_to_server(self, method_name: str, **kwargs):
-        if not self._shutting_down:
-            self.server_conn.send((method_name, kwargs))
-
-    def __getattr__(self, method_name):
-        if method_name in ["forward_answer"]:
-            return partial(self.generic_relay_to_server, method_name=method_name)
+    def report_exception(self, proc_name: str, exception: Exception):
+        self.logger.error("Received exception report from %s: %s", proc_name, exception)
+        if proc_name == TrainingProcess.name:
+            # todo: restart training proess
+            pass
+        elif proc_name == InferenceProcess.name:
+            # todo: restart inference process
+            pass
         else:
-            raise AttributeError(method_name)
+            raise NotImplementedError("Did not expect exception report form %s", proc_name)
 
-    def report_idle(self, proc_name: str, devices: Iterable):
+    def report_idle(self, proc_name: str, devices: Sequence = tuple()):
         # todo: report idle
+        self.logger.debug("%s reported being idle", proc_name)
         if proc_name == TrainingProcess.name:
             pass
         elif proc_name == InferenceProcess.name:
@@ -505,24 +498,26 @@ class HandlerProcess(Process):
         else:
             raise NotImplementedError(proc_name)
 
+    def generic_relay_to_server(self, method_name: str, **kwargs):
+        if not self._shutting_down:
+            self.server_conn.send((method_name, kwargs))
+
+    def __getattr__(self, method_name):
+        if method_name in ["forward_answer", "pause_training_answer"]:
+            return partial(self.generic_relay_to_server, method_name=method_name)
+        else:
+            raise AttributeError(method_name)
+
     # inference
-    def update_inference_model(self):
-        with io.BytesIO() as bytes_io:
-            torch.save(self.training_model.state_dict(), bytes_io)
-            bytes_io.seek(0)
-            self.inference_model.load_state_dict(torch.load(bytes_io))
-
-        self.inference_model.eval()
-
     def forward(self, keys: Iterable, data: torch.Tensor) -> None:
         self.logger.debug("forward")
-        self.update_inference_model()
+        self.logger.debug("inference id %d", id(self.model))
         # todo: update inference devices
         self.inference_conn.send(("forward", {"keys": keys, "data": data}))
 
     # training
     def free_gpu(self):
-        self.training_conn.send(('free_gpu', {}))
+        self.training_conn.send(("free_gpu", {}))
 
     def resume_training(self):
         device = "cpu"
@@ -537,14 +532,13 @@ class HandlerProcess(Process):
     def pause_training(self):
         self.training_conn.send((self.pause_training.__name__, {}))
 
-    def pause_training_answer(self):
-        self.devices["idle"] = self.devices["training"]
-        self.devices["training"] = []
-
     def update_training_dataset(self, keys: Iterable, data: torch.Tensor):
         self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
 
     def request_state(self):
+        model_state = pickle.dumps(self.model.state_dict())
+        optimizer_state = pickle.dumps(self.model.optimizer.state_dict())
+
         # model state
         # optimizer state
         # current config dict
@@ -554,5 +548,5 @@ class HandlerProcess(Process):
     def update_validation_dataset(self, keys: Iterable, data: torch.Tensor):
         self.training_conn.send(("update_dataset", {"name": VALIDATION, "keys": keys, "data": data}))
 
-    def validate(self):
-        pass
+    # def validate(self):
+    #     pass

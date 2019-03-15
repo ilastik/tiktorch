@@ -8,25 +8,25 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Ma
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
 
-logging.basicConfig(level=logging.INFO)
-# logging.config.dictConfig({
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'default': {
-#             'level': 'INFO',
-#             'class': 'logging.StreamHandler',
-#             'stream': 'ext://sys.stdout',
-#         },
-#     },
-#     'loggers': {
-#         '': {
-#             'handlers': ['default'],
-#             'level': 'DEBUG',
-#             'propagate': True
-#         },
-#     }
-# })
+# logging.basicConfig(level=logging.DEBUG)
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'default': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'DEBUG',
+            'propagate': True
+        },
+    }
+})
 
 
 class InferenceProcess(Process):
@@ -45,22 +45,29 @@ class InferenceProcess(Process):
         super().__init__(name=self.name)
         self.handler_conn = handler_conn
         self.config = config
-        self.model = model
+        self.training_model = model
+        self.model = model.__class__()
+        self.model.eval()
 
     # internal
     def handle_incoming_msgs(self) -> None:
         if self.handler_conn.poll():
+            self.idle = False
             call, kwargs = self.handler_conn.recv()
             meth = getattr(self, call, None)
             if meth is None:
                 raise NotImplementedError(call)
 
             meth(**kwargs)
+        elif not self.idle:
+            self.idle = True
+            self.handler_conn.send(('report_idle', {'proc_name': self.name}))
 
     def run(self) -> None:
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
         self._shutting_down = False
+        self.devices = []
         try:
             while not self._shutting_down:
                 self.handle_incoming_msgs()
@@ -76,11 +83,16 @@ class InferenceProcess(Process):
         self.handler_conn.send(SHUTDOWN_ANSWER)
         self.logger.debug("Shutdown complete")
 
+    def update_inference_model(self):
+        self.model.load_state_dict(self.training_model.state_dict())
+        assert not self.model.training
+
     def forward(self, keys: Sequence, data: torch.Tensor) -> None:
         """
         :param data: input data to neural network
         :return: predictions
         """
+        assert len(keys) == data.shape[0]
         batch_size: int = self.config.get("inference_batch_size", None)
         if batch_size is None:
             batch_size = 1
@@ -97,9 +109,11 @@ class InferenceProcess(Process):
         end_generator = create_end_generator(start, batch_size)
         while start < len(keys):
             self.handle_incoming_msgs()
+            self.update_inference_model()
             end = next(end_generator)
             try:
-                pred = self.model(data[start:end]).detach()
+                with torch.no_grad():
+                    pred = self.model(data[start:end])
             except Exception as e:
                 if batch_size > last_batch_size:
                     self.logger.info(

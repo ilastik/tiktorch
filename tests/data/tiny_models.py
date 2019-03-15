@@ -70,9 +70,40 @@ def train(model, x, y):
 
 
 if __name__ == "__main__":
-    test = TestModel0()
+    test1 = TestModel0()
+    print('train', test1.training)
     # test.to(dtype=torch.float)
-    print(test.x.dtype)
-    y = test(test.x)
-    assert y.allclose(test.y)
+    y = test1(test1.x)
+    assert y.allclose(test1.y)
 
+    test2 = test1.__class__()
+    test2.eval()
+    test2.load_state_dict(test1.state_dict())
+    print('here train2', test2.training)
+    print(id(test1.state_dict()))
+    print(id(test2.state_dict()))
+
+
+    sd = test2.state_dict()
+    for key, value in sd.items():
+        sd[key] = torch.zeros_like(value)
+
+    print('train2', test2.training)
+
+    print(id(test1) == id(test2))
+    print(id(test1.state_dict()['linear1.weight']) == id(test2.state_dict()['linear1.weight']))
+    print(id(test1.state_dict()), test1.state_dict()['linear1.weight'])
+    print(id(test2.state_dict()), test2.state_dict()['linear1.weight'])
+    test2.load_state_dict(sd)
+    print(id(test1) == id(test2))
+    magic1 = test1.state_dict()
+    magic2 = test2.state_dict()
+    print(id(test1.state_dict()) == id(test2.state_dict()))
+    print(id(magic1) == id(magic2))
+    # print(id(magic1['linear1.weight']) == id(magic2['linear1.weight']))
+    # print(id(test1.state_dict()['linear1.weight']) == id(test2.state_dict()['linear1.weight']))
+    print(id(test1.state_dict()), test1.state_dict()['linear1.weight'])
+    print(id(test2.state_dict()), test2.state_dict()['linear1.weight'])
+
+
+    print('train2', test2.training)

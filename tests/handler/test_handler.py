@@ -1,14 +1,14 @@
 import os
 import logging
 import numpy
-import pickle
+import time
 import torch
 
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.handler import HandlerProcess
 from tiktorch.handler.constants import SHUTDOWN, SHUTDOWN_ANSWER
 from tiktorch.types import NDArray, NDArrayBatch
-from torch.multiprocessing import Pipe, set_start_method
+from torch.multiprocessing import Pipe
 from typing import Union, Tuple
 
 logger = logging.getLogger(__name__)
@@ -94,28 +94,39 @@ def test_forward(tiny_model):
     assert forward_answer == "forward_answer"
     assert keys == answer_dict["keys"]
 
-def test_devices():
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
-    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
 
-    with open("../tiny_models.py", "r") as f:
-        kwargs["model_file"] = pickle.dumps(f.read())
+def test_forward2(tiny_model):
+    ts = DummyServer(**tiny_model)
+    C, X = 3, 5
+    numpy.random.seed(0)
+    keys = [(0,), (1,), (2,), (3,)]
+    x = NDArrayBatch(
+        [
+            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[0]),
+            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[1]),
+            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[2]),
+            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[3]),
+        ]
+    )
 
-    kwargs["config"] = {"model_class_name": "TinyConvNet2d", "optimizer_config": {"method": "Adam"}}
+    ts.forward(x)
+    answer1 = ts.listen()
+    assert answer1 is not None, "Answer 1 timed out"
+    idle1 = ts.listen()
+    assert idle1 is not None, "Waiting for idle 1 timed out"
+    assert idle1[0] == 'report_idle', f'idle1: {idle1}'
 
-    ts = DummyServer(**kwargs)
-    ts.devices = ['cuda:0', 'cuda:1', 'cuda:10000', 'fake_device']
-    assert len(ts.devices) == 2
 
-def test_dry_run():
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
+    ts.forward(x)
+    answer2 = ts.listen()
+    assert answer2 is not None, "Answer 2 timed out"
+    ts.shutdown()
+    forward_answer1, answer1_dict = answer1
+    forward_answer2, answer2_dict = answer2
+    assert forward_answer1 == "forward_answer"
+    assert keys == answer1_dict["keys"]
+    assert forward_answer2 == "forward_answer"
+    assert keys == answer2_dict["keys"]
 
-    with open("../tiny_models.py", "r") as f:
-        kwargs["model_file"] = pickle.dumps(f.read())
+    assert answer1_dict['data'].equal(answer2_dict['data']), 'unequal data'
 
-    kwargs["config"] = {"model_class_name": "TinyConvNet3d", "optimizer_config": {"method": "Adam"}}
-
-    ts = DummyServer(**kwargs)
-    ts.dry_run_on_device(torch.device('cuda:0'), (1, 1, 125, 1250, 1250))
-    assert ts.handler.valid_shapes is not None
