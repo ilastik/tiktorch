@@ -1,3 +1,4 @@
+import os
 import logging
 import numpy
 import pickle
@@ -10,7 +11,6 @@ from tiktorch.types import NDArray, NDArrayBatch
 from torch.multiprocessing import Pipe, set_start_method
 from typing import Union, Tuple
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +19,17 @@ class DummyServer(INeuralNetworkAPI, IFlightControl):
         self.handler_conn, server_conn = Pipe()
         self.handler = HandlerProcess(server_conn=server_conn, **kwargs)
         self.handler.start()
+
+    @property
+    def devices(self):
+        return self.handler.devices
+
+    @devices.setter
+    def devices(self, devices: list):
+        self.handler.devices = devices
+
+    def dry_run_on_device(self, device, upper_bound):
+        return self.handler.dry_run_on_device(device, upper_bound)
 
     def forward(self, batch: NDArrayBatch) -> None:
         self.handler_conn.send(
@@ -82,3 +93,29 @@ def test_forward(tiny_model):
     forward_answer, answer_dict = answer
     assert forward_answer == "forward_answer"
     assert keys == answer_dict["keys"]
+
+def test_devices():
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
+
+    with open("../tiny_models.py", "r") as f:
+        kwargs["model_file"] = pickle.dumps(f.read())
+
+    kwargs["config"] = {"model_class_name": "TinyConvNet2d", "optimizer_config": {"method": "Adam"}}
+
+    ts = DummyServer(**kwargs)
+    ts.devices = ['cuda:0', 'cuda:1', 'cuda:10000', 'fake_device']
+    assert len(ts.devices) == 2
+
+def test_dry_run():
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    kwargs = {"model_file": b"", "model_state": b"", "optimizer_state": b""}
+
+    with open("../tiny_models.py", "r") as f:
+        kwargs["model_file"] = pickle.dumps(f.read())
+
+    kwargs["config"] = {"model_class_name": "TinyConvNet3d", "optimizer_config": {"method": "Adam"}}
+
+    ts = DummyServer(**kwargs)
+    ts.dry_run_on_device(torch.device('cuda:0'), (1, 1, 125, 1250, 1250))
+    assert ts.handler.valid_shapes is not None
