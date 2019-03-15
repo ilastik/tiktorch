@@ -6,30 +6,21 @@ from multiprocessing.connection import Connection
 from torch.multiprocessing import Process
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_DEVICES
+from .base import HandledChildProcess
 
 # logging.basicConfig(level=logging.DEBUG)
-logging.config.dictConfig({
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'default': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'stream': 'ext://sys.stdout',
-        },
-    },
-    'loggers': {
-        '': {
-            'handlers': ['default'],
-            'level': 'DEBUG',
-            'propagate': True
-        },
+logging.config.dictConfig(
+    {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
+        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
     }
-})
+)
 
 
-class InferenceProcess(Process):
+class InferenceProcess(HandledChildProcess):
     """
     Process for neural network inference
     """
@@ -41,58 +32,46 @@ class InferenceProcess(Process):
         :param from_handler_queue: downstream communication
         :param to_handler_queue: upstream communication
         """
-        assert hasattr(self, SHUTDOWN[0]), "missing shutdown method"
-        super().__init__(name=self.name)
-        self.handler_conn = handler_conn
+        assert hasattr(self, SHUTDOWN[0]), "make sure the 'shutdown' method has the correct name"
+        assert "inference_devices" in config, "'inference_devices' missing in config"
+        super().__init__(handler_conn=handler_conn, name=self.name)
         self.config = config
         self.training_model = model
         self.model = model.__class__()
         self.model.eval()
 
     # internal
-    def handle_incoming_msgs(self) -> None:
-        if self.handler_conn.poll():
-            self.idle = False
-            call, kwargs = self.handler_conn.recv()
-            meth = getattr(self, call, None)
-            if meth is None:
-                raise NotImplementedError(call)
-
-            meth(**kwargs)
-        elif not self.idle:
-            self.idle = True
-            self.handler_conn.send(('report_idle', {'proc_name': self.name}))
-
     def run(self) -> None:
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
         self._shutting_down = False
         self.devices = []
+
         try:
             while not self._shutting_down:
-                self.handle_incoming_msgs()
-                time.sleep(0.01)
+                self.handle_incoming_msgs(timeout=5)
         except Exception as e:
             self.logger.error(e)
             self.handler_conn.send((REPORT_EXCEPTION, {"proc_name": self.name, "exception": e}))
             self.shutdown()
 
     def shutdown(self):
-        assert not self._shutting_down
+        assert not self._shutting_down, "Shutdown should not be initiated twice!"
         self._shutting_down = True
         self.handler_conn.send(SHUTDOWN_ANSWER)
         self.logger.debug("Shutdown complete")
 
     def update_inference_model(self):
         self.model.load_state_dict(self.training_model.state_dict())
-        assert not self.model.training
+        assert not self.model.training, "Model switched back to training mode somehow???"
 
     def forward(self, keys: Sequence, data: torch.Tensor) -> None:
         """
         :param data: input data to neural network
         :return: predictions
         """
-        assert len(keys) == data.shape[0]
+        if len(keys) != data.shape[0]:
+            raise ValueError("'len(kens) != data.shape[0]' size mismatch!")
         batch_size: int = self.config.get("inference_batch_size", None)
         if batch_size is None:
             batch_size = 1
@@ -108,7 +87,7 @@ class InferenceProcess(Process):
 
         end_generator = create_end_generator(start, batch_size)
         while start < len(keys):
-            self.handle_incoming_msgs()
+            self.handle_incoming_msgs(timeout=5)
             self.update_inference_model()
             end = next(end_generator)
             try:

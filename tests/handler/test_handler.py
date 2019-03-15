@@ -117,16 +117,16 @@ def test_forward2(tiny_model):
     assert idle1[0] == 'report_idle', f'idle1: {idle1}'
 
 
-    ts.forward(x)
-    answer2 = ts.listen()
-    assert answer2 is not None, "Answer 2 timed out"
-    ts.shutdown()
-    forward_answer1, answer1_dict = answer1
-    forward_answer2, answer2_dict = answer2
-    assert forward_answer1 == "forward_answer"
-    assert keys == answer1_dict["keys"]
-    assert forward_answer2 == "forward_answer"
-    assert keys == answer2_dict["keys"]
-
-    assert answer1_dict['data'].equal(answer2_dict['data']), 'unequal data'
+    # ts.forward(x)
+    # answer2 = ts.listen()
+    # assert answer2 is not None, "Answer 2 timed out"
+    # ts.shutdown()
+    # forward_answer1, answer1_dict = answer1
+    # forward_answer2, answer2_dict = answer2
+    # assert forward_answer1 == "forward_answer"
+    # assert keys == answer1_dict["keys"]
+    # assert forward_answer2 == "forward_answer"
+    # assert keys == answer2_dict["keys"]
+    #
+    # assert answer1_dict['data'].equal(answer2_dict['data']), 'unequal data'
 

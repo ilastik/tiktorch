@@ -6,38 +6,27 @@ import torch.nn, torch.optim
 from contextlib import closing
 from copy import deepcopy
 from multiprocessing.connection import Connection
-from queue import Empty, Full
 from torch.utils.data import DataLoader
-from torch.multiprocessing import Process
 from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from inferno.trainers import Trainer
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION
+from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
 from .datasets import DynamicDataset
+from .base import HandledChildProcess
 
-logging.basicConfig(level=logging.INFO)
-# logging.config.dictConfig({
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'default': {
-#             'level': 'INFO',
-#             'class': 'logging.StreamHandler',
-#             'stream': 'ext://sys.stdout',
-#         },
-#     },
-#     'loggers': {
-#         '': {
-#             'handlers': ['default'],
-#             'level': 'DEBUG',
-#             'propagate': True
-#         },
-#     }
-# })
+# logging.basicConfig(level=logging.INFO)
+logging.config.dictConfig(
+    {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {"default": {"level": "INFO", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
+        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
+    }
+)
 
 
-class TrainingProcess(Process):
+class TrainingProcess(HandledChildProcess):
     """
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
     """
@@ -45,10 +34,10 @@ class TrainingProcess(Process):
     name = "TrainingProcess"
 
     def __init__(self, handler_conn: Connection, config: dict, model: torch.nn.Module, optimizer_state: bytes):
-        assert hasattr(self, SHUTDOWN[0])
-        super().__init__(name=self.name)
+        assert hasattr(self, SHUTDOWN[0]), "make sure the 'shutdown' method has the correct name"
+        assert "training_devices" in config, "'training_devices' missing in config"
+        super().__init__(handler_conn=handler_conn, name=self.name)
         logger = logging.getLogger(__name__)
-        self.handler_conn = handler_conn
         self.is_training = False
         self.max_num_iterations = 0
 
@@ -82,7 +71,9 @@ class TrainingProcess(Process):
 
         trainer_config.update(deepcopy(config))
         if "max_num_iterations_per_update" not in config:
-            config["max_num_iterations_per_update"] = 10
+            config["max_num_iterations_per_update"] = 100
+
+        self.config = config
 
         optimizer = False
         if optimizer_state:
@@ -116,33 +107,22 @@ class TrainingProcess(Process):
         self._shutting_down = False
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
-
-        def handle_incoming_msgs():
-            try:
-                call, kwargs = self.handler_conn.recv()
-                meth = getattr(self, call, None)
-                if meth is None:
-                    raise NotImplementedError(call)
-
-                meth(**kwargs)
-            except Empty:
-                pass
+        self.waiting_for_devices: List[Callable] = []  # to be executed after receiving devices
 
         # listen periodically while training/validation is running
-        self.trainer.register_callback(handle_incoming_msgs, trigger="end_of_training_iteration")
-        self.trainer.register_callback(handle_incoming_msgs, trigger="end_of_validation_iteration")
+        self.trainer.register_callback(self.handle_incoming_msgs_callback, trigger="end_of_training_iteration")
+        self.trainer.register_callback(self.handle_incoming_msgs_callback, trigger="end_of_validation_iteration")
 
         try:
             while not self._shutting_down:
-                handle_incoming_msgs()
-                time.sleep(0.01)
+                self.handle_incoming_msgs(timeout=5)
         except Exception as e:
             self.logger.error(e)
             self.handler_conn.send((REPORT_EXCEPTION, {"proc_name": self.name, "exception": e}))
             self.shutdown()
 
     def shutdown(self):
-        assert not self._shutting_down
+        assert not self._shutting_down, "Shutdown should not be initiated twice!"
         self._shutting_down = True
         self.handler_conn.send(SHUTDOWN_ANSWER)
         self.logger.debug("Shutdown complete")
@@ -158,13 +138,13 @@ class TrainingProcess(Process):
         self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, keys: Iterable, values: Iterable) -> None:
-        assert name in (TRAINING, VALIDATION)
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(keys=keys, values=values)
         if name == TRAINING:
             self.max_num_iterations += self.config["max_num_iterations_per_update"] * len(keys)
 
     def update_hparams(self, name: str, hparams: dict):
-        assert name in (TRAINING, VALIDATION)
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         update_loader = {}
         update_loader[name] = False
         for key, value in hparams.items():
@@ -177,8 +157,19 @@ class TrainingProcess(Process):
         if update_loader:  # need to bind new data loader
             self.trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
 
-    def request_state(self):
-        # model state
-        # optimizer state
-        # current config dict
-        raise NotImplementedError
+    def update_devices(self, devices: List[torch.device]):
+        if devices != self.devices:
+            # todo: switch devices for inferno trainer
+            if "cpu" in devices:
+                self.trainer.cpu()
+            else:
+                self.trainer.cuda(devices=devices)
+
+        now_idle = [d for d in self.devices if d not in devices]
+        if now_idle:
+            self.handler_conn.send(("report_idle", {"name": self.name, "devices": now_idle}))
+
+        self.devices = devices
+        if self.devices:
+            while self.waiting_for_devices:
+                self.waiting_for_devices.pop()()
