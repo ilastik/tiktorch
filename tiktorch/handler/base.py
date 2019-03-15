@@ -18,7 +18,7 @@ from functools import partial
 from multiprocessing.connection import Connection, wait
 from torch.multiprocessing import Process, Pipe, active_children, Queue
 
-from typing import Any, List, Generic, Iterator, Iterable, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from ..types import NDArrayBatch
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION
