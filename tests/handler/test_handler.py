@@ -42,8 +42,8 @@ class DummyServer(INeuralNetworkAPI, IFlightControl):
     def active_children(self):
         self.handler_conn.send(("active_children", {}))
 
-    def listen(self) -> Union[None, Tuple[str, dict]]:
-        if self.handler_conn.poll(timeout=10):
+    def listen(self, timeout: float = 10) -> Union[None, Tuple[str, dict]]:
+        if self.handler_conn.poll(timeout=timeout):
             answer = self.handler_conn.recv()
             logger.debug("got answer: %s", answer)
             return answer
@@ -108,25 +108,37 @@ def test_forward2(tiny_model):
             NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[3]),
         ]
     )
+    try:
+        # fetch inital idle reports for training and inference processes
+        # idle0 = ts.listen(timeout=15)
+        # assert idle0 is not None, "Waiting for idle 0 timed out"
+        # assert idle0[0] == "report_idle", f"idle0: {idle0}"
+        # idle0 = ts.listen(timeout=15)
+        # assert idle0 is not None, "Waiting for idle 0 timed out"
+        # assert idle0[0] == "report_idle", f"idle0: {idle0}"
 
-    ts.forward(x)
-    answer1 = ts.listen()
-    assert answer1 is not None, "Answer 1 timed out"
-    idle1 = ts.listen()
-    assert idle1 is not None, "Waiting for idle 1 timed out"
-    assert idle1[0] == 'report_idle', f'idle1: {idle1}'
+        ts.forward(x)
+        answer1 = ts.listen(timeout=15)
+        assert answer1 is not None, "Answer 1 timed out"
+        forward_answer1, answer1_dict = answer1
+        assert forward_answer1 == "forward_answer", f"answer1: {answer1}"
+        assert keys == answer1_dict["keys"]
 
+        # idle1 = ts.listen(timeout=15)
+        # assert idle1 is not None, "Waiting for idle 1 timed out"
+        # assert idle1[0] == "report_idle", f"idle1: {idle1}"
 
-    # ts.forward(x)
-    # answer2 = ts.listen()
-    # assert answer2 is not None, "Answer 2 timed out"
-    # ts.shutdown()
-    # forward_answer1, answer1_dict = answer1
-    # forward_answer2, answer2_dict = answer2
-    # assert forward_answer1 == "forward_answer"
-    # assert keys == answer1_dict["keys"]
-    # assert forward_answer2 == "forward_answer"
-    # assert keys == answer2_dict["keys"]
-    #
-    # assert answer1_dict['data'].equal(answer2_dict['data']), 'unequal data'
+        ts.forward(x)
+        answer2 = ts.listen(timeout=15)
+        assert answer2 is not None, "Answer 2 timed out"
+        forward_answer2, answer2_dict = answer2
+        assert forward_answer2 == "forward_answer"
+        assert keys == answer2_dict["keys"]
 
+        # idle2 = ts.listen(timeout=15)
+        # assert idle2 is not None, "Waiting for idle 2 timed out"
+        # assert idle2[0] == "report_idle", f"idle2: {idle2}"
+    finally:
+        ts.shutdown()
+
+    assert answer1_dict["data"].equal(answer2_dict["data"]), "unequal data"

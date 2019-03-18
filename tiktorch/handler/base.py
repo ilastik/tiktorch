@@ -33,15 +33,17 @@ logging.config.dictConfig(
     }
 )
 
+
 class HandledChildProcess(Process):
     def __init__(self, handler_conn: Connection, name: str):
         self.handler_conn = handler_conn
         self.devices = []
+        self.idle = False
         super().__init__(name=name)
 
     @property
     def handle_incoming_msgs_callback(self):
-        return partial(self.handle_incoming_msgs, self=self, timeout=0, callback=True)
+        return partial(self.handle_incoming_msgs, timeout=0, callback=True)
 
     def handle_incoming_msgs(self, timeout: float, callback: bool = False) -> None:
         """
@@ -352,7 +354,7 @@ class HandlerProcess(Process):
             return self.find(c, lo, mid, device, train_mode)
 
     # internal
-    def load_model(self, model_file: bytes, model_state: bytes, model_class_name: str, model_init_kwargs: dict):
+    def load_model(self, model_file: bytes, model_state: bytes, model_class_name: str, model_init_kwargs: dict) -> None:
         if self.tempdir:
             # remove previous usermodule folder
             shutil.rmtree(self.tempdir)
@@ -398,7 +400,7 @@ class HandlerProcess(Process):
         )
         self.inference_proc.start()
 
-    def run(self):
+    def run(self) -> None:
         self._shutting_down = False
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
@@ -433,10 +435,10 @@ class HandlerProcess(Process):
             self.shutdown()
 
     # general
-    def active_children(self):
+    def active_children(self) -> None:
         self.server_conn.send([child_proc.name for child_proc in active_children()])
 
-    def shutdown_children(self, conn_procs: Sequence[Tuple[Connection, Process]]):
+    def shutdown_children(self, conn_procs: Sequence[Tuple[Connection, Process]]) -> None:
         # initiate shutdown of children (to shut down in parallel)
         for conn, proc in conn_procs:
             if proc is None:
@@ -467,7 +469,7 @@ class HandlerProcess(Process):
 
             self.logger.debug("%s has shutdown", proc.name)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         logger = logging.getLogger(self.name + ".shutdown")
         logger.debug("Shutting down...")
         self._shutting_down = True
@@ -485,7 +487,7 @@ class HandlerProcess(Process):
     def shutting_down(self):
         self.logger.error("A child process is shutting down unscheduled.")
 
-    def report_exception(self, proc_name: str, exception: Exception):
+    def report_exception(self, proc_name: str, exception: Exception) -> None:
         self.logger.error("Received exception report from %s: %s", proc_name, exception)
         if proc_name == TrainingProcess.name:
             # todo: restart training proess
@@ -496,38 +498,43 @@ class HandlerProcess(Process):
         else:
             raise NotImplementedError("Did not expect exception report form %s", proc_name)
 
-    def report_idle(self, proc_name: str, devices: Sequence = tuple()):
+    def report_idle(self, proc_name: str, devices: Sequence = tuple()) -> None:
+        """
+        report idle devices. Note that the process might not be fully idle.
+        :param proc_name: child process name
+        :param devices: devices that are idle (given back to the handler)
+        """
         self.logger.debug("%s reported being idle", proc_name)
         if proc_name == TrainingProcess.name:
             assert all([d in self.training_devices for d in devices])
-            self.training_devices -= devices
+            self.training_devices = [d for d in self.training_devices if d not in devices]
             self.idle_devices += devices
             if self.inference_devices == REQUEST_FOR_DEVICES:
                 self.assign_inference_devices()
         elif proc_name == InferenceProcess.name:
             assert all([d in self.inference_devices for d in devices])
-            self.inference_devices -= devices
+            self.inference_devices = [d for d in self.inference_devices if d not in devices]
             self.idle_devices += devices
             if self.training_devices == REQUEST_FOR_DEVICES:
                 self.assign_training_devices()
         else:
             raise NotImplementedError(proc_name)
 
-        # todo: remove this idle report to server, only for debugging
-        self.server_conn.send(("report_idle", {"proc_name": proc_name, "devices": devices}))
+        # # todo: remove this idle report to server, only for debugging
+        # self.server_conn.send(("report_idle", {"proc_name": proc_name, "devices": devices}))
 
-    def generic_relay_to_server(self, method_name: str, **kwargs):
+    def generic_relay_to_server(self, method_name: str, **kwargs) -> None:
         if not self._shutting_down:
             self.server_conn.send((method_name, kwargs))
 
-    def __getattr__(self, method_name):
+    def __getattr__(self, method_name) -> Callable:
         if method_name in ["forward_answer", "pause_training_answer"]:
             return partial(self.generic_relay_to_server, method_name=method_name)
         else:
             raise AttributeError(method_name)
 
     # inference
-    def assign_inference_devices(self):
+    def assign_inference_devices(self) -> None:
         if not self.inference_devices and not self.idle_devices:
             # training is currently using all devices
             raise NotImplementedError(
@@ -551,7 +558,7 @@ class HandlerProcess(Process):
         self.inference_conn.send(("forward", {"keys": keys, "data": data}))
 
     # training
-    def assign_training_devices(self):
+    def assign_training_devices(self) -> None:
         if len(self.devices) == 1 and self.devices[0] == "cpu":
             # todo: remove training on cpu (only useful for debugging)
             self.training_conn.send(("update_devices", {"devices": ["cpu"]}))
@@ -564,22 +571,19 @@ class HandlerProcess(Process):
             else:
                 self.training_devices = REQUEST_FOR_DEVICES
 
-    def update_hparams(self, hparams: dict):
+    def update_hparams(self, hparams: dict) -> None:
         pass
 
-    def free_gpu(self):
-        self.training_conn.send(("free_gpu", {}))
+    def resume_training(self) -> None:
+        self.training_conn.send((TrainingProcess.resume_training.__name__, {}))
 
-    def resume_training(self):
-        self.training_conn.send((self.resume_training.__name__, {}))
+    def pause_training(self) -> None:
+        self.training_conn.send((TrainingProcess.pause_training.__name__, {}))
 
-    def pause_training(self):
-        self.training_conn.send((self.pause_training.__name__, {}))
-
-    def update_training_dataset(self, keys: Iterable, data: torch.Tensor):
+    def update_training_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
         self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
 
-    def request_state(self):
+    def request_state(self) -> None:
         model_state = pickle.dumps(self.model.state_dict())
         optimizer_state = pickle.dumps(self.model.optimizer.state_dict())
         current_config = pickle.dumps(self.config)
@@ -591,7 +595,7 @@ class HandlerProcess(Process):
         )
 
     # validation
-    def update_validation_dataset(self, keys: Iterable, data: torch.Tensor):
+    def update_validation_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
         self.training_conn.send(("update_dataset", {"name": VALIDATION, "keys": keys, "data": data}))
 
     # def validate(self):

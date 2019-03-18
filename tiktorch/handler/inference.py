@@ -70,6 +70,7 @@ class InferenceProcess(HandledChildProcess):
         :param data: input data to neural network
         :return: predictions
         """
+        self.logger.debug('this is forward')
         if len(keys) != data.shape[0]:
             raise ValueError("'len(kens) != data.shape[0]' size mismatch!")
         batch_size: int = self.config.get("inference_batch_size", None)
@@ -87,7 +88,7 @@ class InferenceProcess(HandledChildProcess):
 
         end_generator = create_end_generator(start, batch_size)
         while start < len(keys):
-            self.handle_incoming_msgs(timeout=5)
+            self.handle_incoming_msgs_callback()
             self.update_inference_model()
             end = next(end_generator)
             try:
