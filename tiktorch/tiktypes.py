@@ -50,7 +50,7 @@ class TikTensorBatch:
         return torch.stack([t.as_torch() for t in self._tensors])
 
 
-class BatchPointBase:
+class PointAndBatchPointBase:
     order: str = ""
     b: int
     t: int
@@ -90,6 +90,11 @@ class BatchPointBase:
         for a in self.order:
             yield getattr(self, a)
 
+
+class BatchPointBase(PointAndBatchPointBase):
+    def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+        super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
+
     def as_2d(self) -> "BatchPoint2D":
         return BatchPoint2D(b=self.b, c=self.c, y=self.y, x=self.x)
 
@@ -106,12 +111,18 @@ class BatchPoint2D(BatchPointBase):
     def __init__(self, b: int = 0, c: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, c=c, y=y, x=x)
 
+    def drop_batch(self) -> "Point2D":
+        return Point2D(c=self.c, y=self.y, x=self.x)
+
 
 class BatchPoint3D(BatchPointBase):
     order: str = "bczyx"
 
     def __init__(self, b: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, c=c, z=z, y=y, x=x)
+
+    def drop_batch(self) -> "Point3D":
+        return Point3D(c=self.c, z=self.z, y=self.y, x=self.x)
 
 
 class BatchPoint4D(BatchPointBase):
@@ -120,44 +131,14 @@ class BatchPoint4D(BatchPointBase):
     def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
 
+    def drop_batch(self):
+        return Point4D(t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
 
-class PointBase:
-    order: str = ""
-    t: int
-    c: int
-    z: int
-    y: int
-    x: int
 
+class PointBase(PointAndBatchPointBase):
     def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
-        self.t = t
-        self.c = c
-        self.z = z
-        self.y = y
-        self.x = x
-        super().__init__()
+        super().__init__(t=t, c=c, z=z, y=y, x=x)
 
-    def __getitem__(self, key: Union[int, str]):
-        if isinstance(key, int):
-            key = self.order[key]
-
-        return getattr(self, key)
-
-    def __setitem__(self, key: Union[int, str], item: int):
-        if isinstance(key, int):
-            key = self.order[key]
-
-        return setattr(self, key, item)
-
-    def __repr__(self):
-        return ", ".join([f"{a}:{getattr(self, a)}" for a in self.order])
-
-    def __len__(self):
-        return len(self.order)
-
-    def __iter__(self):
-        for a in self.order:
-            yield getattr(self, a)
 
     def as_2d(self) -> "Point2D":
         return Point2D(c=self.c, y=self.y, x=self.x)
@@ -175,6 +156,8 @@ class Point2D(PointBase):
     def __init__(self, c: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, y=y, x=x)
 
+    def add_batch(self) -> BatchPoint2D:
+        return BatchPoint2D(c=self.c, y=self.y, x=self.x)
 
 class Point3D(PointBase):
     order: str = "czyx"
@@ -182,9 +165,14 @@ class Point3D(PointBase):
     def __init__(self, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, z=z, y=y, x=x)
 
+    def add_batch(self) -> BatchPoint3D:
+        return BatchPoint3D(c=self.c, z=self.z, y=self.y, x=self.x)
 
 class Point4D(PointBase):
     order: str = "tczyx"
 
     def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(t=t, c=c, z=z, y=y, x=x)
+
+    def add_batch(self) -> BatchPoint4D:
+        return BatchPoint4D(t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
