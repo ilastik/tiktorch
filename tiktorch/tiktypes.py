@@ -3,7 +3,7 @@ Types defining interop between processes on the server
 """
 import torch
 
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional, Union, TypeVar
 
 
 class TikTensor:
@@ -50,8 +50,8 @@ class TikTensorBatch:
         return torch.stack([t.as_torch() for t in self._tensors])
 
 
-class BatchDataPoint:
-    order: str = "btczyx"
+class BatchPointBase:
+    order: str = ""
     b: int
     t: int
     c: int
@@ -66,6 +66,7 @@ class BatchDataPoint:
         self.z = z
         self.y = y
         self.x = x
+        super().__init__()
 
     def __getitem__(self, key: Union[int, str]):
         if isinstance(key, int):
@@ -89,49 +90,101 @@ class BatchDataPoint:
         for a in self.order:
             yield getattr(self, a)
 
-    def as_2d(self) -> "BatchDataPoint2D":
-        return BatchDataPoint2D(b=self.b, c=self.c, y=self.y, x=self.x)
+    def as_2d(self) -> "BatchPoint2D":
+        return BatchPoint2D(b=self.b, c=self.c, y=self.y, x=self.x)
 
-    def as_3d(self) -> "BatchDataPoint3D":
-        return BatchDataPoint3D(b=self.b, c=self.c, z=self.z, y=self.y, x=self.x)
+    def as_3d(self) -> "BatchPoint3D":
+        return BatchPoint3D(b=self.b, c=self.c, z=self.z, y=self.y, x=self.x)
+
+    def as_4d(self) -> "BatchPoint4D":
+        return BatchPoint4D(b=self.b, t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
 
 
-class BatchDataPoint2D(BatchDataPoint):
+class BatchPoint2D(BatchPointBase):
     order: str = "bcyx"
 
     def __init__(self, b: int = 0, c: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, c=c, y=y, x=x)
 
 
-class BatchDataPoint3D(BatchDataPoint):
+class BatchPoint3D(BatchPointBase):
     order: str = "bczyx"
 
     def __init__(self, b: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, c=c, z=z, y=y, x=x)
 
 
-class DataPoint(BatchDataPoint):
-    order: str = "tczyx"
+class BatchPoint4D(BatchPointBase):
+    order: str = "btczyx"
+
+    def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+        super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
+
+
+class PointBase:
+    order: str = ""
+    t: int
+    c: int
+    z: int
+    y: int
+    x: int
 
     def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
-        super().__init__(t=t, c=c, z=z, y=y, x=x)
+        self.t = t
+        self.c = c
+        self.z = z
+        self.y = y
+        self.x = x
+        super().__init__()
 
-    def as_2d(self) -> "DataPoint2D":
-        return DataPoint2D(c=self.c, y=self.y, x=self.x)
+    def __getitem__(self, key: Union[int, str]):
+        if isinstance(key, int):
+            key = self.order[key]
 
-    def as_3d(self) -> "DataPoint3D":
-        return DataPoint3D(c=self.c, z=self.z, y=self.y, x=self.x)
+        return getattr(self, key)
+
+    def __setitem__(self, key: Union[int, str], item: int):
+        if isinstance(key, int):
+            key = self.order[key]
+
+        return setattr(self, key, item)
+
+    def __repr__(self):
+        return ", ".join([f"{a}:{getattr(self, a)}" for a in self.order])
+
+    def __len__(self):
+        return len(self.order)
+
+    def __iter__(self):
+        for a in self.order:
+            yield getattr(self, a)
+
+    def as_2d(self) -> "Point2D":
+        return Point2D(c=self.c, y=self.y, x=self.x)
+
+    def as_3d(self) -> "Point3D":
+        return Point3D(c=self.c, z=self.z, y=self.y, x=self.x)
+
+    def as_4d(self) -> "Point4D":
+        return Point4D(t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
 
 
-class DataPoint2D(DataPoint):
+class Point2D(PointBase):
     order: str = "cyx"
 
     def __init__(self, c: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, y=y, x=x)
 
 
-class DataPoint3D(DataPoint):
+class Point3D(PointBase):
     order: str = "czyx"
 
     def __init__(self, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, z=z, y=y, x=x)
+
+
+class Point4D(PointBase):
+    order: str = "tczyx"
+
+    def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+        super().__init__(t=t, c=c, z=z, y=y, x=x)
