@@ -1,6 +1,5 @@
 import io
 import logging
-import time
 import torch.nn, torch.optim
 
 from contextlib import closing
@@ -13,7 +12,7 @@ from inferno.trainers import Trainer
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
 from .datasets import DynamicDataset
-from .base import HandledChildProcess
+from .handledchildprocess import HandledChildProcess
 
 # logging.basicConfig(level=logging.INFO)
 logging.config.dictConfig(

@@ -1,13 +1,11 @@
 import logging
-import time
 import torch.nn
 
 from multiprocessing.connection import Connection
-from torch.multiprocessing import Process
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_DEVICES
-from .base import HandledChildProcess
+from .handledchildprocess import HandledChildProcess
 
 # logging.basicConfig(level=logging.DEBUG)
 logging.config.dictConfig(

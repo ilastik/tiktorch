@@ -11,7 +11,7 @@ from copy import deepcopy
 import torch
 import numpy as np
 
-from tiktorch.utils import DynamicShape, assert_, to_list, define_patched_model
+from tiktorch.utils import assert_, define_patched_model
 from tiktorch.blockinator import Blockinator, th_pad
 from tiktorch.trainy import Trainer
 

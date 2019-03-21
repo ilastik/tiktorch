@@ -13,9 +13,10 @@ import shutil
 import tempfile
 
 import tiktorch.utils as utils
-from tiktorch.rpc import Server, Shutdown, TCPConnConf
+from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.device_handler import ModelHandler
 from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.handler import HandlerProcess
 
 from .rpc_interface import INeuralNetworkAPI, IFlightControl
 from typing import Iterable
@@ -211,6 +212,17 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             # raise FileNotFoundError(f"Model weights could not be found at location '{state_path}'!")
         # Build handler
         self._set_handler(model)
+
+    def forward(self, batch: NDArrayBatch) -> RPCFuture[NDArrayBatch]:
+        future = RPCFuture()
+        self.handler_conn.send((HandlerProcess.forward.__name__, {"batch": TikTensorBatch}))
+        future = self.handler_conn.recv()
+        RPCFuture
+
+        return future()
+
+    def forward_answer(self, ...):
+
 
     def forward(self, batch: NDArrayBatch) -> NDArrayBatch:
         # TODO: Use TikIO for batching

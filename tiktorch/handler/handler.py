@@ -1,5 +1,4 @@
 import importlib
-import io
 import logging
 import logging.config
 import os.path
@@ -13,60 +12,27 @@ import numpy as np
 import bisect
 import queue
 
-from contextlib import closing
 from functools import partial
 from multiprocessing.connection import Connection, wait
 from torch.multiprocessing import Process, Pipe, active_children, Queue
 
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple
 
-from ..types import NDArrayBatch
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
+from .dryrun import DryRunProcess
+from .training import TrainingProcess
+from .inference import InferenceProcess
+from ..tiktypes import *
 
 # logging.basicConfig(level=logging.DEBUG)
 logging.config.dictConfig(
     {
         "version": 1,
         "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "INFO", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
+        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
         "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
     }
 )
-
-
-class HandledChildProcess(Process):
-    def __init__(self, handler_conn: Connection, name: str):
-        self.handler_conn = handler_conn
-        self.devices = []
-        self.idle = False
-        super().__init__(name=name)
-
-    @property
-    def handle_incoming_msgs_callback(self):
-        return partial(self.handle_incoming_msgs, timeout=0, callback=True)
-
-    def handle_incoming_msgs(self, timeout: float, callback: bool = False) -> None:
-        """
-        :param timeout: wait for at most 'timeout' seconds for incoming messages
-        :param callback: do not send idle message when using as callback
-        """
-        assert callback == (not timeout), "Do not wait for messages when using as callback"
-        if self.handler_conn.poll(timeout=timeout):
-            self.idle = False
-            call, kwargs = self.handler_conn.recv()
-            meth = getattr(self, call, None)
-            if meth is None:
-                raise NotImplementedError(call)
-
-            meth(**kwargs)
-        elif not callback and not self.idle:
-            self.idle = True
-            # todo: make sure devices are actually free
-            self.handler_conn.send(("report_idle", {"proc_name": self.name, "devices": self.devices}))
-
-
-from .training import TrainingProcess
-from .inference import InferenceProcess
 
 
 class HandlerProcess(Process):
@@ -76,7 +42,7 @@ class HandlerProcess(Process):
 
     def __init__(
         self, server_conn: Connection, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes
-    ):
+    ) -> None:
         """
         :param server_conn: Connection to communicate with server
         :param config: configuration dict
@@ -98,32 +64,46 @@ class HandlerProcess(Process):
         self.model_file = model_file  # to be deserialized in 'load_model'
         self.model_state = model_state  # to be deserialized in 'load_model'
         self.optimizer_state = optimizer_state  # to be deserialized in training process
-        self.valid_shapes: list = []
 
     # device handling and dry run
     @property
     def devices(self):
-        return self._devices
+        return self.idle_devices + self.training_devices + self.inference_devices
 
-    @devices.setter
-    def devices(self, devices: list):
-        self._devices = []
-
-        for device in devices:
+    def set_devices(self, device_names: Sequence[str]) -> None:
+        self.waiting_for_dry_run = True
+        devices = []
+        for device in device_names:
             try:
                 torch_device = torch.device(device)
             except TypeError as e:
                 self.logger.warning(e)
-                devices.remove(device)
-                continue
+            else:
+                devices.append(torch_device)
 
-            parent_conn, child_conn = Pipe()
-            p = Process(target=self.device_test, args=(torch_device, child_conn))
-            p.start()
-            p.join()
-            p.terminate()
-            if parent_conn.recv():
-                self._devices.append(torch_device)
+        # todo: compare to previous devices
+        #   todo: free old devices, reset idle_devices, training_devices, inference_devices
+        previous_devices = list(self.devices)
+        if previous_devices:
+            pass
+        # for now hard reset all previous devices
+        self.idle_devices: Sequence[torch.device] = []
+        self.training_devices: Sequence[torch.device] = []
+        self.inference_devices: Sequence[torch.device] = []
+
+        if self.dryrun_conn is not None:
+            self.dryrun_conn.send(SHUTDOWN)
+
+        self.dryrun_conn, handler_conn = Pipe()
+        self.dryrun = DryRunProcess(handler_conn=handler_conn, config=self.config, model=self.model, devices=devices)
+        self.dryrun.start()
+
+    def set_devices_answer(self, devices: Sequence[torch.device] = tuple(), valid_shapes: Sequence[PointBase] = tuple(), shrinkage: PointBase = None, failure_msg: str = "") -> None:
+        if failure_msg:
+            self.server_conn.send(("set_devices_answer", {"failure_msg": failure_msg}))
+        else:
+            self.waiting_for_dry_run = False
+            self.server_conn.send(("set_devices_answer", {"device_names": [str(d) for d in devices]}))
 
     @staticmethod
     def device_test(device, conn):
@@ -147,7 +127,6 @@ class HandlerProcess(Process):
         :return: valid block shape (dict): {'shape': [1, c, z_opt, y_opt, x_opt]} (z_opt == 1 for 2d networks!)
         """
         self.logger = logging.getLogger(self.name)
-        self.load_model()
         t, c, z, y, x = upper_bound
 
         if not self.valid_shapes:
@@ -171,13 +150,13 @@ class HandlerProcess(Process):
 
     def create_search_space(self, c, z, y, x, device, max_processing_time: float):
         """
-        Generates a sorted list of shapes which self.inference_model can process.
+        Generates a sorted list of shapes which self.model can process.
         """
-        assert self.inference_model is not None
+        assert self.model is not None
 
         # check if model is 3d
         parent_conn, child_conn = Pipe()
-        process_3d = Process(target=self.is_model_3d, args=(self.inference_model, c, device, child_conn))
+        process_3d = Process(target=self.is_model_3d, args=(self.model, c, device, child_conn))
         process_3d.start()
         process_3d.join()
         process_3d.terminate()
@@ -188,7 +167,7 @@ class HandlerProcess(Process):
         shape_queue = Queue()
         search_space_process = Process(
             target=self.iterate_through_shapes,
-            args=(self.inference_model, c, z, y, x, device, is_3d, max_processing_time, shape_queue),
+            args=(self.model, c, z, y, x, device, is_3d, max_processing_time, shape_queue),
         )
         search_space_process.start()
         search_space_process.join()
@@ -306,7 +285,7 @@ class HandlerProcess(Process):
 
     def find(self, c, lo=0, hi=None, device=torch.device("cpu"), train_mode=False):
         """
-        Recursive search for the largest valid shape that self.inference_model can process.
+        Recursive search for the largest valid shape that self.model can process.
 
         """
         assert self.model is not None, "model needs to be loaded!"
@@ -326,8 +305,7 @@ class HandlerProcess(Process):
 
         if hi - lo <= 1:
             p = Process(
-                target=self.find_forward,
-                args=(self.inference_model, self.valid_shapes, c, lo, device, child_conn, train_mode),
+                target=self.find_forward, args=(self.model, self.valid_shapes, c, lo, device, child_conn, train_mode)
             )
             p.start()
             p.join()
@@ -340,8 +318,7 @@ class HandlerProcess(Process):
                 raise RuntimeError("No valid shape found.")
 
         p = Process(
-            target=self.find_forward,
-            args=(self.inference_model, self.valid_shapes, c, mid, device, child_conn, train_mode),
+            target=self.find_forward, args=(self.model, self.valid_shapes, c, mid, device, child_conn, train_mode)
         )
         p.start()
         p.join()
@@ -401,16 +378,18 @@ class HandlerProcess(Process):
         self.inference_proc.start()
 
     def run(self) -> None:
-        self._shutting_down = False
+        self._shutting_down: bool = False
         self.logger = logging.getLogger(self.name)
         self.logger.info("Starting")
+        self.valid_shapes: list = []
+        self.known_devices: dict = {}
+        self.tempdir: str = ""
+        self.idle_devices: List[torch.device] = []
+        self.training_devices: List[torch.device] = []
+        self.inference_devices: List[torch.device] = []
+        self.waiting_for_dry_run = True
+        self.dryrun_conn: Connection = None
         try:
-            self.devices = self.config.get("devices", ["cpu"])
-            self.idle_devices = list(self.devices)
-            self.training_devices = []
-            self.inference_devices = []
-
-            self.tempdir = ""
             self.inference_conn, self.inference_proc = None, None
             self.training_conn, self.training_proc = None, None
             self.load_model(
@@ -419,6 +398,8 @@ class HandlerProcess(Process):
                 self.config["model_class_name"],
                 self.config.get("model_init_kwargs", {}),
             )
+            self.set_devices(device_names=self.config.get("devices", ["cpu"]))
+
             while not self._shutting_down:
                 self.logger.debug("loop")
                 for ready in wait([self.server_conn, self.inference_conn, self.training_conn]):
@@ -433,6 +414,8 @@ class HandlerProcess(Process):
             self.logger.error(str(e))
             self.server_conn.send(("report_shutdown", {"name": self.name, "exception": e}))
             self.shutdown()
+            if self.logger.level == 0:
+                raise e
 
     # general
     def active_children(self) -> None:
@@ -481,7 +464,12 @@ class HandlerProcess(Process):
         except Exception as e:
             logger.error("Could not shut down children due to exception: %s", e)
 
-        shutil.rmtree(self.tempdir)
+        try:
+            if self.tempdir:
+                shutil.rmtree(self.tempdir)
+        except Exception as e:
+            logger.error(e)
+
         logger.debug("Shutdown complete")
 
     def shutting_down(self):
@@ -509,12 +497,19 @@ class HandlerProcess(Process):
             assert all([d in self.training_devices for d in devices])
             self.training_devices = [d for d in self.training_devices if d not in devices]
             self.idle_devices += devices
-            if self.inference_devices == REQUEST_FOR_DEVICES:
+            if self.inference_devices == REQUEST_FOR_DEVICES and not self.waiting_for_dry_run:
                 self.assign_inference_devices()
         elif proc_name == InferenceProcess.name:
             assert all([d in self.inference_devices for d in devices])
             self.inference_devices = [d for d in self.inference_devices if d not in devices]
             self.idle_devices += devices
+            if self.training_devices == REQUEST_FOR_DEVICES and not self.waiting_for_dry_run:
+                self.assign_training_devices()
+        elif proc_name == DryRunProcess.name:
+            self.idle_devices += devices
+            if self.inference_devices == REQUEST_FOR_DEVICES:
+                self.assign_inference_devices()
+
             if self.training_devices == REQUEST_FOR_DEVICES:
                 self.assign_training_devices()
         else:
@@ -572,6 +567,7 @@ class HandlerProcess(Process):
                 self.training_devices = REQUEST_FOR_DEVICES
 
     def update_hparams(self, hparams: dict) -> None:
+        # todo: check valid shapes if mini batch size changes
         pass
 
     def resume_training(self) -> None:

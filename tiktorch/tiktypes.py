@@ -3,7 +3,7 @@ Types defining interop between processes on the server
 """
 import torch
 
-from typing import List, Tuple, Optional, Union, TypeVar
+from typing import List, Tuple, Optional, Union, Sequence
 
 
 class TikTensor:
@@ -90,10 +90,94 @@ class PointAndBatchPointBase:
         for a in self.order:
             yield getattr(self, a)
 
+    def __bool__(self):
+        return bool(len(self))
+
+    @staticmethod
+    def upcast_dim(
+        a: "PointAndBatchPointBase", b: "PointAndBatchPointBase"
+    ) -> Tuple["PointAndBatchPointBase", "PointAndBatchPointBase"]:
+        space_dim_a = len(a) - 1
+        if a.__class__.__name__.startswith("Batch"):
+            space_dim_a -= 1
+
+        space_dim_b = len(b) - 1
+        if b.__class__.__name__.startswith("Batch"):
+            space_dim_b -= 1
+
+        if space_dim_a < space_dim_b:
+            a = a.as_d(space_dim_b)
+        elif space_dim_a > space_dim_b:
+            b = b.as_d(space_dim_a)
+
+        return a, b
+
+    def __lt__(self, other):
+        me, other = self.upcast_dim(self, other)
+        return all([m < o for m, o in zip(me, other)])
+
+    def __gt__(self, other):
+        me, other = self.upcast_dim(self, other)
+        return all([m > o for m, o in zip(me, other)])
+
+    def __eq__(self, other):
+        me, other = self.upcast_dim(self, other)
+        return all([m == o for m, o in zip(me, other)])
+
+    def __le__(self, other):
+        me, other = self.upcast_dim(self, other)
+        return all([m <= o for m, o in zip(me, other)])
+
+    def __ge__(self, other):
+        me, other = self.upcast_dim(self, other)
+        return all([m >= o for m, o in zip(me, other)])
+
+    def as_d(self, d: int) -> "PointAndBatchPointBase":
+        """
+        :param d: number of spacial dimensions
+        """
+        if d == 2:
+            return self.as_2d()
+        elif d == 3:
+            return self.as_3d()
+        elif d == 4:
+            return self.as_4d()
+        else:
+            raise NotImplementedError(f"Unclear number of dimensions d={d}")
+
+    def as_2d(self):
+        raise NotImplementedError("To be implemented in subclass!")
+
+    def as_3d(self):
+        raise NotImplementedError("To be implemented in subclass!")
+
+    def as_4d(self):
+        raise NotImplementedError("To be implemented in subclass!")
+
+    def drop_batch(self):
+        raise NotImplementedError("To be implemented in subclass!")
 
 class BatchPointBase(PointAndBatchPointBase):
     def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
+
+    @staticmethod
+    def from_spacetime(
+        b: int, c: int, spacetime: Sequence[int]
+    ) -> Union["BatchPoint2D", "BatchPoint3D", "BatchPoint4D"]:
+        """
+        :return: a suitable BatchPoint instance
+        :raises: ValueError
+        """
+        if len(spacetime) == 4:
+            t, z, y, x = spacetime
+            return BatchPoint4D(b, t, c, z, y, x)
+        elif len(spacetime) == 3:
+            return BatchPoint3D(b, c, *spacetime)
+        elif len(spacetime) == 2:
+            return BatchPoint2D(b, c, *spacetime)
+        else:
+            raise ValueError(f"Uninterpretable spacetime: {spacetime}")
 
     def as_2d(self) -> "BatchPoint2D":
         return BatchPoint2D(b=self.b, c=self.c, y=self.y, x=self.x)
@@ -139,6 +223,21 @@ class PointBase(PointAndBatchPointBase):
     def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(t=t, c=c, z=z, y=y, x=x)
 
+    @staticmethod
+    def from_spacetime(cls, c: int, spacetime: Sequence[int]) -> Union["Point2D", "Point3D", "Point4D"]:
+        """
+        :return: a suitable BatchPoint instance
+        :raises: ValueError
+        """
+        if len(spacetime) == 4:
+            t, z, y, x = spacetime
+            return Point4D(t, c, z, y, x)
+        elif len(spacetime) == 3:
+            return Point3D(c, *spacetime)
+        elif len(spacetime) == 2:
+            return Point2D(c, *spacetime)
+        else:
+            raise ValueError(f"Uninterpretable spacetime: {spacetime}")
 
     def as_2d(self) -> "Point2D":
         return Point2D(c=self.c, y=self.y, x=self.x)
@@ -149,6 +248,8 @@ class PointBase(PointAndBatchPointBase):
     def as_4d(self) -> "Point4D":
         return Point4D(t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
 
+    def drop_batch(self) -> "PointBase":
+        return self
 
 class Point2D(PointBase):
     order: str = "cyx"
@@ -159,6 +260,7 @@ class Point2D(PointBase):
     def add_batch(self) -> BatchPoint2D:
         return BatchPoint2D(c=self.c, y=self.y, x=self.x)
 
+
 class Point3D(PointBase):
     order: str = "czyx"
 
@@ -167,6 +269,7 @@ class Point3D(PointBase):
 
     def add_batch(self) -> BatchPoint3D:
         return BatchPoint3D(c=self.c, z=self.z, y=self.y, x=self.x)
+
 
 class Point4D(PointBase):
     order: str = "tczyx"
