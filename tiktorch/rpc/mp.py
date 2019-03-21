@@ -55,6 +55,10 @@ class MPMethodDispatcher:
         self._method_name = method_name
         self._client = client
 
+    def sync(self, *args, **kwargs):
+        f = self(*args, **kwargs)
+        return f.result()
+
     def __call__(self, *args, **kwargs) -> Any:
         return self._client._invoke(self._method_name, *args, **kwargs)
 

@@ -30,7 +30,7 @@ class ApiImpl(ITestApi):
         raise Shutdown()
 
 
-def test_ok():
+def test_async():
     def _srv(conn):
         srv = MPServer(ApiImpl(), conn)
         srv.listen()
@@ -47,5 +47,25 @@ def test_ok():
     with pytest.raises(NotImplementedError):
         f = client.broken(1, 2)
         f.result()
+
+    client.shutdown()
+
+
+def test_sync():
+    def _srv(conn):
+        srv = MPServer(ApiImpl(), conn)
+        srv.listen()
+
+    parent_conn, child_conn = mp.Pipe()
+
+    p = mp.Process(target=_srv, args=(child_conn,))
+    p.start()
+
+    client = MPClient(ITestApi(), parent_conn)
+    res = client.compute.sync(1, b=2)
+    assert res == 'test 3'
+
+    with pytest.raises(NotImplementedError):
+        f = client.broken.sync(1, 2)
 
     client.shutdown()
