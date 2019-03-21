@@ -77,12 +77,55 @@ def tiny_model(datadir):
         "optimizer_state": b"",
         "config": {
             "model_class_name": "TestModel0",
-            "inference_batch_size": 100,
+            "model_init_kwargs": {},
+            "batch_size": 10,
+            "input_channels": 1,
             "optimizer_config": {
                 "method": "Adam"
             }
         }
     }
+
+@pytest.fixture
+def tiny_model_2d(datadir):
+    with open(path.join(datadir, "tiny_models.py"), "r") as f:
+        model_file = pickle.dumps(f.read())
+
+    return {
+        "model_file": model_file,
+        "model_state": b"",
+        "optimizer_state": b"",
+        "config": {
+            "model_class_name": "TinyConvNet2d",
+            "model_init_kwargs": {},
+            "batch_size": 10,
+            "input_channels": 1,
+            "optimizer_config": {
+                "method": "Adam"
+            }
+        }
+    }
+
+@pytest.fixture
+def tiny_model_3d(datadir):
+    with open(path.join(datadir, "tiny_models.py"), "r") as f:
+        model_file = pickle.dumps(f.read())
+
+    return {
+        "model_file": model_file,
+        "model_state": b"",
+        "optimizer_state": b"",
+        "config": {
+            "model_class_name": "TinyConvNet3d",
+            "model_init_kwargs": {},
+            "batch_size": 10,
+            "input_channels": 1,
+            "optimizer_config": {
+                "method": "Adam"
+            }
+        }
+    }
+
 
 @pytest.fixture(scope='session', autouse=True)
 def register_faulthandler():
