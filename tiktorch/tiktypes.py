@@ -47,7 +47,7 @@ class TikTensorBatch:
             yield item
 
     def as_torch(self) -> List[torch.Tensor]:
-        return torch.stack([t.as_torch() for t in self._tensors])
+        return [t.as_torch() for t in self._tensors]
 
 
 class PointAndBatchPointBase:
