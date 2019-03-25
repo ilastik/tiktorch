@@ -1,11 +1,18 @@
 import logging
 import torch.nn
+import threading
+import os
+import queue
 
+from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_DEVICES
-from .handledchildprocess import HandledChildProcess
+from tiktorch.rpc import RPCInterface, exposed, Shutdown
+from tiktorch.rpc.mp import MPServer
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
+
 
 # logging.basicConfig(level=logging.DEBUG)
 logging.config.dictConfig(
@@ -18,94 +25,130 @@ logging.config.dictConfig(
 )
 
 
-class InferenceProcess(HandledChildProcess):
+class IInference(RPCInterface):
+    @exposed
+    def set_devices(self, device_names: Sequence[str]):
+        raise NotImplementedError()
+
+    @exposed
+    def shutdown(self):
+        raise NotImplementedError()
+
+    @exposed
+    def forward(self, data: TikTensorBatch):
+        raise NotImplementedError()
+
+
+def run(conn: Connection, config: dict, model: torch.nn.Module):
+    inference_proc = InferenceProcess(config, model)
+    srv = MPServer(inference_proc, conn)
+    srv.listen()
+
+
+class InferenceProcess(IInference):
     """
     Process for neural network inference
     """
 
     name = "InferenceProcess"
 
-    def __init__(self, handler_conn: Connection, config: dict, model: torch.nn.Module) -> None:
-        """
-        :param from_handler_queue: downstream communication
-        :param to_handler_queue: upstream communication
-        """
-        assert hasattr(self, SHUTDOWN[0]), "make sure the 'shutdown' method has the correct name"
-        assert "inference_devices" in config, "'inference_devices' missing in config"
-        super().__init__(handler_conn=handler_conn, name=self.name)
+    def __init__(self, config: dict, model: torch.nn.Module) -> None:
+        self.logger = logging.getLogger(self.name)
+        self.logger.info("Starting")
         self.config = config
         self.training_model = model
         self.model = model.__class__()
         self.model.eval()
+        self._shutdown_event = threading.Event()
 
-    # internal
-    def run(self) -> None:
-        self.logger = logging.getLogger(self.name)
-        self.logger.info("Starting")
-        self._shutting_down = False
         self.devices = []
+        self._forward_queue = queue.Queue()
+        self.batch_size: int = config.get("inference_batch_size", None)
+        if self.batch_size is None:
+            self.batch_size = 1
+            self.increase_batch_size = True
+        else:
+            self.increase_batch_size = False
 
-        try:
-            while not self._shutting_down:
-                self.handle_incoming_msgs(timeout=5)
-        except Exception as e:
-            self.logger.error(e)
-            self.handler_conn.send((REPORT_EXCEPTION, {"proc_name": self.name, "exception": e}))
-            self.shutdown()
+        self.forward_thread = threading.Thread(target=self._forward_worker)
+        self.forward_thread.start()
 
-    def shutdown(self):
-        assert not self._shutting_down, "Shutdown should not be initiated twice!"
-        self._shutting_down = True
-        self.handler_conn.send(SHUTDOWN_ANSWER)
+    def _forward_worker(self) -> None:
+        while not self._shutdown_event.is_set():
+            data_batch, fut_batch = [], []
+            while not self._forward_queue.empty() and len(data_batch) < self.batch_size:
+                data, fut = self._forward_queue.get()
+                data_batch.append(data)
+                fut_batch.append(fut)
+
+            if data_batch:
+                self._forward(TikTensorBatch(data_batch), fut_batch)
+
+    def shutdown(self) -> None:
+        self._shutdown_event.set()
+        self.forward_thread.join()
         self.logger.debug("Shutdown complete")
+        raise Shutdown
+
+    def set_devices(self, device_names: Sequence[str]):
+        raise NotImplementedError()
+        # todo: with lock
+        # torch.cuda.empty_cache()
+        # os.environ['CUDA_VISIBLE_DEVICES'] = ...
 
     def update_inference_model(self):
         self.model.load_state_dict(self.training_model.state_dict())
         assert not self.model.training, "Model switched back to training mode somehow???"
 
-    def forward(self, keys: Sequence, data: torch.Tensor) -> None:
+    def forward(self, data: TikTensor) -> Future:
+        fut = Future()
+        self._forward_queue.put((data, fut))
+        return fut
+
+    def _forward(self, data: TikTensorBatch, fut: List[Future]) -> None:
         """
         :param data: input data to neural network
         :return: predictions
         """
-        self.logger.debug('this is forward')
-        if len(keys) != data.shape[0]:
-            raise ValueError("'len(kens) != data.shape[0]' size mismatch!")
-        batch_size: int = self.config.get("inference_batch_size", None)
-        if batch_size is None:
-            batch_size = 1
-            increase_batch_size = True
-        else:
-            increase_batch_size = False
+        keys: List = [d.id for d in data]
+        data: List[torch.Tensor] = data.as_torch()
+
+        # TODO: fixT        return data
+
+        self.logger.debug("this is forward")
 
         start = 0
-        last_batch_size = batch_size
+        end = 0
+        last_batch_size = self.batch_size
 
-        def create_end_generator(start, batch_size):
-            return iter(range(start + batch_size, len(keys) + batch_size - 1, batch_size))
+        def create_end_generator(start, end, batch_size):
+            for batch_end in range(start + batch_size, end, batch_size):
+                yield batch_end
 
-        end_generator = create_end_generator(start, batch_size)
+            yield end
+
+        end_generator = create_end_generator(start, len(keys), self.batch_size)
         while start < len(keys):
-            self.handle_incoming_msgs_callback()
-            self.update_inference_model()
+            # todo: callback
             end = next(end_generator)
+            self.update_inference_model()
             try:
                 with torch.no_grad():
-                    pred = self.model(data[start:end])
+                    pred = self.model(torch.stack(data[start:end]))
             except Exception as e:
-                if batch_size > last_batch_size:
+                if self.batch_size > last_batch_size:
                     self.logger.info(
                         "forward pass with batch size %d threw exception %s. Using previous batch size %d again.",
-                        batch_size,
+                        self.batch_size,
                         e,
                         last_batch_size,
                     )
-                    batch_size = last_batch_size
+                    self.batch_size = last_batch_size
                     increase_batch_size = False
                 else:
-                    last_batch_size = batch_size
-                    batch_size //= 2
-                    if batch_size == 0:
+                    last_batch_size = self.batch_size
+                    self.batch_size //= 2
+                    if self.batch_size == 0:
                         self.logger.error("Forward pass failed. Processed %d/%d", start, len(keys))
                         break
 
@@ -114,13 +157,14 @@ class InferenceProcess(HandledChildProcess):
                         "forward pass with batch size %d threw exception %s. Trying again with smaller batch_size %d",
                         last_batch_size,
                         e,
-                        batch_size,
+                        self.batch_size,
                     )
-                end_generator = create_end_generator(start, batch_size)
+                end_generator = create_end_generator(start, len(keys), self.batch_size)
             else:
-                self.handler_conn.send(("forward_answer", {"keys": keys[start:end], "data": pred}))
+                for i in range(start, end):
+                    fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
                 start = end
-                last_batch_size = batch_size
-                if increase_batch_size:
-                    batch_size += 1
-                    end_generator = create_end_generator(start, batch_size)
+                last_batch_size = self.batch_size
+                if self.increase_batch_size:
+                    self.batch_size += 1
+                    end_generator = create_end_generator(start, len(keys), self.batch_size)
