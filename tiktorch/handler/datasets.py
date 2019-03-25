@@ -5,6 +5,8 @@ from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import Sampler
 from typing import Iterable
 
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
+
 
 class DynamicDataset(Dataset):
     """
@@ -13,15 +15,17 @@ class DynamicDataset(Dataset):
     Comparison to the current generator implementation at: https://stackoverflow.com/a/47202816
     """
 
-    def __init__(self, keys: Iterable = [], values: Iterable = [], transforms=None, gamma: float = .9) -> None:
-        assert len(keys) == len(values)
+    def __init__(self, data: TikTensorBatch = None, transforms=None, gamma: float = 0.9) -> None:
         assert transforms is None or callable(transforms), "Given 'transforms' is not callable"
         self.transforms = transforms
         # the data dict holds values for each key, these values are typically a tuple of (raw img, label img)
-        self.data = dict(zip(keys, values))
+        if data is None:
+            data = TikTensorBatch([])
+
+        self.data = dict(zip(data.ids, data.as_torch(with_label=True)))
         # update counts keeps track of how many times a specific key has been added/updated
-        self.weights = {key: 1. for key in keys}
-        self.update_counts = {key: 1 for key in keys}
+        self.weights = {key: 1.0 for key in data.ids}
+        self.update_counts = {key: 1 for key in data.ids}
         self.removed_in_this_epoch = set()
         self.gamma = gamma
 
@@ -39,14 +43,16 @@ class DynamicDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def update(self, keys : Iterable, values : Iterable) -> None:
+    def update(self, data: TikTensorBatch) -> None:
         """
         :param keys: list of keys to identify each value by
         :param values: list of new values. (remove from dataset if not bool(value). The count will be kept.)
         """
         # self.data.update(zip(keys, values))
         # update update counts
-        for key, value in zip(keys, values):
+
+        for d in data:
+            key, value = d.id, d.as_torch(with_label=True)
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
             # remove deleted samples (values)
             if value is None:
@@ -59,7 +65,7 @@ class DynamicDataset(Dataset):
                 self.data[key] = value
                 self.removed_in_this_epoch.discard(key)
 
-                self.weights[key] = 1. # todo: take update counts into account
+                self.weights[key] = 1.0  # todo: take update counts into account
 
     def reset_indices(self) -> torch.Tensor:
         """
