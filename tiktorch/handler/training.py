@@ -31,20 +31,20 @@ logging.config.dictConfig(
 
 
 class TikTrainer(InfernoTrainer):
-    def __init__(self, *args, break_event: Optional[threading.Event] = None, **kwargs):
-        self.break_event = break_event
+    def __init__(self, *args, break_events: Optional[List[threading.Event]] = None, **kwargs):
+        self.break_events = break_events
         super().__init__(*args, **kwargs)
 
     def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
-        if self.break_event is not None and self.break_event.is_set():
+        if self.break_events and any([e.is_set() for e in self.break_events]):
             return True
         else:
             return super().stop_fitting(max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs)
 
     @classmethod
-    def build(cls, *args, break_event: threading.Event = None, **kwargs):
+    def build(cls, *args, break_events: List[threading.Event] = None, **kwargs):
         trainer = super().build(*args, **kwargs)
-        trainer.break_event = break_event
+        trainer.break_events = break_events
         return trainer
 
 
@@ -69,6 +69,10 @@ class ITraining(RPCInterface):
     def update_dataset(self, name: str, data: TikTensorBatch):
         raise NotImplementedError()
 
+    @exposed
+    def update_hparams(self, hparams: Dict):
+        raise NotImplementedError
+
 
 def run(conn: Connection, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
     training_proc = TrainingProcess(config, model, optimizer_state)
@@ -85,6 +89,14 @@ class TrainingProcess(ITraining):
     """
 
     name = "TrainingProcess"
+    trainer_defaults = {
+        "criterion_config": {"method": "MSELoss"},
+        "logger_config": {"name": "InfernoTrainer"},
+        "max_num_iterations": 0,
+        "max_num_iterations_per_update": 100,
+        "max_num_epochs": "inf",
+        "optimizer_config": {"method": "Adam"},
+    }
 
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
         self.logger = logging.getLogger(self.name)
@@ -94,7 +106,6 @@ class TrainingProcess(ITraining):
 
         self.model = model
         self.optimizer_state = optimizer_state
-        self.max_num_iterations = 0
 
         self.datasets = {TRAINING: DynamicDataset(), VALIDATION: DynamicDataset()}
         self.update_loader = {TRAINING: True, VALIDATION: True}
@@ -103,55 +114,47 @@ class TrainingProcess(ITraining):
             VALIDATION: {"dataset": self.datasets[VALIDATION]},
         }
 
-        # setup inferno trainer configuration
-        trainer_config = {
-            "logger_config": {"name": "InfernoTrainer"},
-            "max_num_iterations": self.max_num_iterations,
-            "max_num_epochs": "inf",
-        }
-        # Some keys may not be set by the user
-        if "max_num_iterations" in config:
-            raise ValueError(
-                "max_num_iterations is reserved for internal use."
-                "The user should set max_num_iterations_per_update instead"
-            )
-
-        # Catch all forbidden keys we might have forgotten to implement an Exception for
-        for key in trainer_config.keys():
-            if key in config:
-                raise ValueError("%s reserved for internal use. Do not specify in config!")
-
-        # Some keys are required from the user
-        if "optimizer_config" not in config:
-            raise ValueError("Missing optimizer configuration!")
-
-        trainer_config.update(deepcopy(config))
-        if "max_num_iterations_per_update" not in config:
-            config["max_num_iterations_per_update"] = 100
+        for key, default in self.trainer_defaults.items():
+            if key not in config:
+                config[key] = default
 
         self.config = config
-        self.trainer_config = trainer_config
 
-        self._train_event = threading.Event()
+        self._pause_event = threading.Event()
+        self._pause_event.set()
         self._update_trainer_event = threading.Event()
         self._update_trainer_event.set()
-        self.trainer = TikTrainer.build(model=self.model, break_event=self._shutdown_event, **self.trainer_config)
 
         self.training_thread = threading.Thread(target=self._training_worker)
         self.training_thread.start()
 
-    def end_of_training_iteration(self, iteration_num, trigger):
-        if not self._train_event.is_set() or self._shutdown_event.is_set():
-            raise StopIteration
-
+    # def end_of_training_iteration(self, iteration_num, trigger):
+    #     if not self._pause_event.is_set() or self._shutdown_event.is_set():
+    #         raise StopIteration
+    #
     def end_of_validation_iteration(self, trigger):
-        if not self._train_event.is_set() or self._shutdown_event.is_set():
-            raise StopIteration
+        pass  # todo: return validation
+
+    def create_trainer_config(self) -> Dict:
+        trainer_config = {}
+        for key, default in self.trainer_defaults:
+            if key in self.config:
+                trainer_config[key] = self.config[key]
+            else:
+                trainer_config[key] = default
+
+        return trainer_config
 
     def _training_worker(self):
         self.logger.info("Training thread started")
         # todo: configure (create/load) inferno trainer fully
-        trainer = self.trainer
+        trainer = TikTrainer.build(
+            model=self.model,
+            break_events=[self._shutdown_event, self._pause_event, self._update_trainer_event],
+            **self.create_trainer_config(),
+        )
+        # trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
+        trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
 
         if self.optimizer_state:
             optimizer = self.create_optimizer(self.optimizer_state)
@@ -160,40 +163,29 @@ class TrainingProcess(ITraining):
 
         while not self._shutdown_event.is_set():
             try:
-                self._train_event.wait(timeout=1)
+                self._pause_event.wait(timeout=1)
             except TimeoutError:
                 pass
 
-            if self._train_event.is_set():
+            if not self._pause_event.is_set():
                 if self._update_trainer_event.is_set():
-                    self._update_trainer_event.clear()
                     self.logger.info("Update trainer")
-                    trainer.set_max_num_iterations(self.max_num_iterations)
-                    for name in (TRAINING, VALIDATION):
-                        if self.update_loader[name]:
-                            with training_settings_lock:
+                    with training_settings_lock:
+                        self._update_trainer_event.clear()
+                        trainer.set_max_num_iterations(self.config["max_num_iterations"])
+                        for name in (TRAINING, VALIDATION):
+                            if self.update_loader[name]:
                                 self.update_loader[name] = False
                                 trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
 
-                # trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
-                # trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
-                with training_settings_lock:
-                    trainer.set_max_num_iterations(self.max_num_iterations)
-
-                self.logger.info("Start training for %d iterations", self.max_num_iterations - trainer._iteration_count)
+                self.logger.info(
+                    "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
+                )
                 trainer.fit()
-                # num_iterations = self.max_num_iterations - trainer._iteration_count
-                # assert num_iterations > 0
-                # trainer.train_for(
-                #     num_iterations=num_iterations,
-                #     break_callback=lambda *args: not self._train_event.is_set() or self._shutdown_event.is_set(),
-                # )
-            else:
-                pass
 
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
-            optimizer: torch.optim.Optimizer = getattr(torch.optim, self.trainer_config["optimizer_config"]["method"])
+            optimizer: torch.optim.Optimizer = getattr(torch.optim, self.config["optimizer_config"]["method"])
             with closing(io.BytesIO(optimizer_state)) as f:
                 optimizer.load_state_dict(torch.load(f))
         except Exception as e:
@@ -209,12 +201,13 @@ class TrainingProcess(ITraining):
         self._shutdown_event.set()
         self.training_thread.join()
         self.logger.debug("Shutdown complete")
+        raise Shutdown
 
     def resume_training(self) -> None:
-        self._train_event.set()
+        self._pause_event.clear()
 
     def pause_training(self) -> None:
-        self._train_event.clear()
+        self._pause_event.set()
         # with training_settings_lock:
         #     self.trainer.set_max_num_iterations(0)
 
@@ -222,7 +215,7 @@ class TrainingProcess(ITraining):
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data)
         if name == TRAINING:
-            self.max_num_iterations += self.config["max_num_iterations_per_update"] * len(data)
+            self.config["max_num_iterations"] += self.config["max_num_iterations_per_update"] * len(data)
 
         self._update_trainer_event.set()
 
