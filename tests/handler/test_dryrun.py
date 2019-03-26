@@ -1,13 +1,12 @@
 import torch
 import logging.config
-from importlib import import_module
-from functools import partial
 
-from tests.handler.dummyserver import DummyServer
-from tiktorch.handler.dryrun import DryRunProcess, in_subproc
+from tiktorch.handler.dryrun import DryRunProcess
+from tiktorch.rpc import Shutdown
 
-# from tests.data.tiny_models import TinyConvNet2d
-# model = TinyConvNet2d()
+from tiktorch.configkeys import TRAINING_SHAPE, INFERENCE_SHAPE_UPPER_BOUND
+
+from tests.data.tiny_models import TinyConvNet2d
 
 logging.config.dictConfig(
     {
@@ -19,25 +18,54 @@ logging.config.dictConfig(
 )
 
 
-def test_minimal_device_test():
-    assert DryRunProcess.minimal_device_test(torch.device("cpu"))
+def test_minimal_device_test(tiny_model_2d):
+    config = tiny_model_2d["config"]
+    in_channels = config["input_channels"]
+    model = TinyConvNet2d(in_channels=in_channels)
 
-def test_minimal_device_test_in_subproc():
-    ret = in_subproc(DryRunProcess.minimal_device_test, torch.device("cpu"))
-    assert ret.recv()
-
-
-def test_confirm_training_shape(tiny_model_2d):
-    tiny_model_2d['config'].update({"training_shape": (15, 15)})
-    ts = DummyServer(**tiny_model_2d)
+    dr = DryRunProcess(config=config, model=model)
     try:
-        ts.active_children()
-        assert ts.listen(timeout=10) is not None
-        ts.handler_conn.send(('set_devices', {"device_names": ["cpu"]}))
-        answer = ts.listen(timeout=10)
-        # todo: fix this test! Where is the answer?
-        assert answer is not None
-    except Exception:
-        raise
+        assert dr.minimal_device_test(torch.device("cpu"))
     finally:
-        ts.shutdown()
+        try:
+            dr.shutdown()
+        except Shutdown:
+            pass
+
+
+def test_with_given_training_shape(tiny_model_2d):
+    config = tiny_model_2d["config"]
+    config.update({TRAINING_SHAPE: (15, 15)})
+    config.update({INFERENCE_SHAPE_UPPER_BOUND: (20, 20)})
+
+    in_channels = config["input_channels"]
+    model = TinyConvNet2d(in_channels=in_channels)
+
+    dr = DryRunProcess(config=config, model=model)
+    try:
+        fut = dr.dry_run(devices=[torch.device("cpu")])
+        print(fut.result())
+    finally:
+        try:
+            dr.shutdown()
+        except Shutdown:
+            pass
+
+
+def test_with_given_malicious_training_shape(tiny_model_2d):
+    config = tiny_model_2d["config"]
+    config.update({TRAINING_SHAPE: (2, 2)})
+    config.update({INFERENCE_SHAPE_UPPER_BOUND: (20, 20)})
+
+    in_channels = config["input_channels"]
+    model = TinyConvNet2d(in_channels=in_channels)
+
+    dr = DryRunProcess(config=config, model=model)
+    try:
+        fut = dr.dry_run(devices=[torch.device("cpu")])
+        assert isinstance(fut.exception(), ValueError)
+    finally:
+        try:
+            dr.shutdown()
+        except Shutdown:
+            pass

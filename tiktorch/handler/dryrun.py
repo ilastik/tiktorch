@@ -131,12 +131,11 @@ class DryRunProcess(IDryRun):
     def _dry_run(self, devices: Sequence[torch.device], fut: Future) -> None:
         self.logger.info("Starting dry run")
         self.valid_shapes: List[Union[Point2D, Point3D, Point4D]] = []
-        self.training_shape: Union[Point2D, Point3D, Point4D] = None
         self.shrinkage: Union[Point2D, Point3D, Point4D] = None
         try:
             works = []
             for d in devices:
-                if self.minimal_device_test(device=d):
+                if self.minimal_device_test(d):
                     works.append(d)
 
             devices = works
@@ -163,7 +162,7 @@ class DryRunProcess(IDryRun):
                     if TRAINING_SHAPE_LOWER_BOUND in self.config:
                         training_shape_lower_bound = self.config[TRAINING_SHAPE_LOWER_BOUND]
                     else:
-                        training_shape_lower_bound = (0,) * len(training_shape_upper_bound)
+                        training_shape_lower_bound = (1,) * len(training_shape_upper_bound)
 
                     assert (
                         training_shape_lower_bound <= training_shape
@@ -201,21 +200,19 @@ class DryRunProcess(IDryRun):
                         f"{TRAINING_SHAPE_UPPER_BOUND}{training_shape_upper_bound}"
                     )
                 else:
-                    raise ValueError(
-                        f"config is missing {TRAINING_SHAPE} and {TRAINING_SHAPE_UPPER_BOUND}. Specify either!"
-                    )
+                    raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
                 # find optimal training shape
                 training_shape = self.find_one_shape(
                     training_shape_lower_bound, training_shape_upper_bound, device=smallest_device
                 )
 
-            self.training_shape = training_shape
+            self.training_shape = training_shape.drop_batch()
 
             # find valid inference shapes (starting from the training shape without batch_size)
             # todo: really look for valid shapes
             # self.dry_run_on_device(smallest_device, self.config[TRAINING_SHAPE_UPPER_BOUND])
-            self.valid_shapes.append(self.training_shape.drop_batch())
+            self.valid_shapes.append(self.training_shape)
 
             fut.set_result((devices, self.training_shape, self.valid_shapes, self.shrinkage))
             self.logger.info("dry run done")
@@ -223,8 +220,11 @@ class DryRunProcess(IDryRun):
             self.logger.error(e)
             fut.set_exception(e)
 
+    def minimal_device_test(self, device: torch.device) -> bool:
+        return in_subproc(self._minimal_device_test, device=device).recv()
+
     @staticmethod
-    def minimal_device_test(device: torch.device) -> bool:
+    def _minimal_device_test(device: torch.device) -> bool:
         """
         Minimalistic test to check if a toy model can be loaded onto the device
         :return: True on success, False otherwise
@@ -242,8 +242,13 @@ class DryRunProcess(IDryRun):
 
         return True
 
-    @staticmethod
     def validate_shape(
+        self, model: torch.nn.Module, device: torch.device, shape: PointAndBatchPointBase, train_mode: bool
+    ) -> Optional[PointBase]:
+        return in_subproc(self._validate_shape, model=model, device=device, shape=shape, train_mode=train_mode).recv()
+
+    @staticmethod
+    def _validate_shape(
         model: torch.nn.Module, device: torch.device, shape: PointAndBatchPointBase, train_mode: bool
     ) -> Optional[PointBase]:
         try:
