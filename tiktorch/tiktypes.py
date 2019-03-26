@@ -90,7 +90,7 @@ class PointAndBatchPointBase:
         return setattr(self, key, item)
 
     def __repr__(self):
-        return ", ".join([f"{a}:{getattr(self, a)}" for a in self.order])
+        return f"{self.__class__.__name__}({', '.join([f'{a}:{getattr(self, a)}' for a in self.order])})"
 
     def __len__(self):
         return len(self.order)

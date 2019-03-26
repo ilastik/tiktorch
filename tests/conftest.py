@@ -80,9 +80,6 @@ def tiny_model(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
-            "optimizer_config": {
-                "method": "Adam"
-            }
         }
     }
 
@@ -100,9 +97,6 @@ def tiny_model_2d(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
-            "optimizer_config": {
-                "method": "Adam"
-            }
         }
     }
 
@@ -120,9 +114,6 @@ def tiny_model_3d(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
-            "optimizer_config": {
-                "method": "Adam"
-            }
         }
     }
 

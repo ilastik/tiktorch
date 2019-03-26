@@ -2,10 +2,8 @@ import itertools
 import torch
 
 from torch.utils.data.dataset import Dataset
-from torch.utils.data.sampler import Sampler
-from typing import Iterable
 
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch.tiktypes import TikTensorBatch
 
 
 class DynamicDataset(Dataset):
