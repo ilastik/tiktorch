@@ -26,15 +26,6 @@ from .dryrun import DryRunProcess
 from .training import TrainingProcess
 from .inference import InferenceProcess
 
-# logging.basicConfig(level=logging.DEBUG)
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
-        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
-    }
-)
 
 class IHandler(RPCInterface):
     @exposed
@@ -52,6 +43,7 @@ class IHandler(RPCInterface):
     @exposed
     def forward(self, data: TikTensorBatch):
         raise NotImplementedError
+
 
 def run(conn: Connection,  config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes):
     handler = HandlerProcess(config, model_file, model_state, optimizer_state)

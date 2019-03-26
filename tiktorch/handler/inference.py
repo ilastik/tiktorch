@@ -3,6 +3,7 @@ import os
 import queue
 import torch.nn
 import threading
+import multiprocessing as mp
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
@@ -12,17 +13,7 @@ from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_
 from tiktorch.rpc import RPCInterface, exposed, Shutdown
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-
-
-# logging.basicConfig(level=logging.DEBUG)
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
-        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
-    }
-)
+from tiktorch import log
 
 
 class IInference(RPCInterface):
@@ -39,7 +30,8 @@ class IInference(RPCInterface):
         raise NotImplementedError()
 
 
-def run(conn: Connection, config: dict, model: torch.nn.Module):
+def run(conn: Connection, config: dict, model: torch.nn.Module, log_queue: Optional[mp.Queue] = None):
+    log.configure(log_queue)
     inference_proc = InferenceProcess(config, model)
     srv = MPServer(inference_proc, conn)
     srv.listen()
@@ -50,7 +42,7 @@ class InferenceProcess(IInference):
     Process for neural network inference
     """
 
-    name = "InferenceProcess"
+    name = "tiktorch.InferenceProcess"
 
     def __init__(self, config: dict, model: torch.nn.Module) -> None:
         self.logger = logging.getLogger(self.name)
