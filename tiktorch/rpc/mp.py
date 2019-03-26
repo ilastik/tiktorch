@@ -122,6 +122,12 @@ class MPServer:
     def __init__(self, api, conn: Connection):
         self._conn = conn
         self._api = api
+        self._futures = {}
+
+    def _send_result(self, fut):
+        id_ = self._futures.pop(fut, None)
+        if id_:
+            self._conn.send([id_, Result.OK(fut.result())])
 
     def listen(self):
         while True:
@@ -142,4 +148,8 @@ class MPServer:
             except Exception as e:
                 self._conn.send([id_, Result.Error(e)])
             else:
-                self._conn.send([id_, Result.OK(res)])
+                if isinstance(res, Future):
+                    self._futures[res] = id_
+                    res.add_done_callback(self._send_result)
+                else:
+                    self._conn.send([id_, Result.OK(res)])

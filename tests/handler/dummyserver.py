@@ -8,8 +8,11 @@ from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.handler import HandlerProcess
 from tiktorch.handler.constants import SHUTDOWN, SHUTDOWN_ANSWER
 from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 logger = logging.getLogger(__name__)
+
+
 
 class DummyServer(INeuralNetworkAPI, IFlightControl):
     def __init__(self, **kwargs):
@@ -17,13 +20,15 @@ class DummyServer(INeuralNetworkAPI, IFlightControl):
         self.handler = HandlerProcess(server_conn=server_conn, **kwargs)
         self.handler.start()
 
-    def forward(self, batch: NDArrayBatch) -> None:
-        self.handler_conn.send(
-            (
-                "forward",
-                {"keys": [a.id for a in batch], "data": torch.stack([torch.from_numpy(a.as_numpy()) for a in batch])},
-            )
-        )
+    def forward(self, batch: TikTensor) -> None:
+        pass
+
+        # self.handler_conn.send(
+        #     (
+        #         "forward",
+        #         {"keys": [a.id for a in batch], "data": torch.stack([torch.from_numpy(a.as_numpy()) for a in batch])},
+        #     )
+        # )
 
     def active_children(self):
         self.handler_conn.send(("active_children", {}))

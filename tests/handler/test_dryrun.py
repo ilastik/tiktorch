@@ -22,7 +22,6 @@ logging.config.dictConfig(
 def test_minimal_device_test():
     assert DryRunProcess.minimal_device_test(torch.device("cpu"))
 
-
 def test_minimal_device_test_in_subproc():
     ret = in_subproc(DryRunProcess.minimal_device_test, torch.device("cpu"))
     assert ret.recv()
