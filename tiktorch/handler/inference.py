@@ -1,14 +1,15 @@
 import logging
 import torch.nn
 import threading
-from concurrent.futures import ThreadPoolExecutor, Future
+import os
 import queue
 
+from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_DEVICES
-from tiktorch.rpc import RPCInterface, exposed
+from tiktorch.rpc import RPCInterface, exposed, Shutdown
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
@@ -35,7 +36,7 @@ class IInference(RPCInterface):
 
     @exposed
     def forward(self, data: TikTensorBatch):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 def run(conn: Connection, config: dict, model: torch.nn.Module):
@@ -53,14 +54,13 @@ class InferenceProcess(IInference):
 
     def __init__(self, config: dict, model: torch.nn.Module) -> None:
         self.logger = logging.getLogger(self.name)
+        self.logger.info("Starting")
         self.config = config
         self.training_model = model
         self.model = model.__class__()
         self.model.eval()
-        self._stop_event = threading.Event()
+        self._shutdown_event = threading.Event()
 
-        self.logger.info("Starting")
-        self._shutting_down = False
         self.devices = []
         self._forward_queue = queue.Queue()
         self.batch_size: int = config.get("inference_batch_size", None)
@@ -70,11 +70,11 @@ class InferenceProcess(IInference):
         else:
             self.increase_batch_size = False
 
-        t = threading.Thread(target=self._forward_worker)
-        t.start()
+        self.forward_thread = threading.Thread(target=self._forward_worker)
+        self.forward_thread.start()
 
-    def _forward_worker(self):
-        while True:
+    def _forward_worker(self) -> None:
+        while not self._shutdown_event.is_set():
             data_batch, fut_batch = [], []
             while not self._forward_queue.empty() and len(data_batch) < self.batch_size:
                 data, fut = self._forward_queue.get()
@@ -84,16 +84,23 @@ class InferenceProcess(IInference):
             if data_batch:
                 self._forward(TikTensorBatch(data_batch), fut_batch)
 
-    def shutdown(self):
-        assert not self._shutting_down, "Shutdown should not be initiated twice!"
-        self._shutting_down = True
+    def shutdown(self) -> None:
+        self._shutdown_event.set()
+        self.forward_thread.join()
         self.logger.debug("Shutdown complete")
+        raise Shutdown
+
+    def set_devices(self, device_names: Sequence[str]):
+        raise NotImplementedError()
+        # todo: with lock
+        # torch.cuda.empty_cache()
+        # os.environ['CUDA_VISIBLE_DEVICES'] = ...
 
     def update_inference_model(self):
         self.model.load_state_dict(self.training_model.state_dict())
         assert not self.model.training, "Model switched back to training mode somehow???"
 
-    def forward(self, data: TikTensor):
+    def forward(self, data: TikTensor) -> Future:
         fut = Future()
         self._forward_queue.put((data, fut))
         return fut
@@ -106,7 +113,7 @@ class InferenceProcess(IInference):
         keys: List = [d.id for d in data]
         data: List[torch.Tensor] = data.as_torch()
 
-        #TODO: fixT        return data
+        # TODO: fixT        return data
 
         self.logger.debug("this is forward")
 
@@ -121,7 +128,7 @@ class InferenceProcess(IInference):
             yield end
 
         end_generator = create_end_generator(start, len(keys), self.batch_size)
-        while end <= len(keys):
+        while start < len(keys):
             # todo: callback
             end = next(end_generator)
             self.update_inference_model()
@@ -155,7 +162,7 @@ class InferenceProcess(IInference):
                 end_generator = create_end_generator(start, len(keys), self.batch_size)
             else:
                 for i in range(start, end):
-                    fut[i].set_result(pred[i])
+                    fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
                 start = end
                 last_batch_size = self.batch_size
                 if self.increase_batch_size:
