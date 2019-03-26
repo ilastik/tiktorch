@@ -1,8 +1,8 @@
 import logging
-import torch.nn
-import threading
 import os
 import queue
+import torch.nn
+import threading
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
@@ -118,7 +118,6 @@ class InferenceProcess(IInference):
         self.logger.debug("this is forward")
 
         start = 0
-        end = 0
         last_batch_size = self.batch_size
 
         def create_end_generator(start, end, batch_size):
@@ -144,7 +143,7 @@ class InferenceProcess(IInference):
                         last_batch_size,
                     )
                     self.batch_size = last_batch_size
-                    increase_batch_size = False
+                    self.increase_batch_size = False
                 else:
                     last_batch_size = self.batch_size
                     self.batch_size //= 2
@@ -152,7 +151,7 @@ class InferenceProcess(IInference):
                         self.logger.error("Forward pass failed. Processed %d/%d", start, len(keys))
                         break
 
-                    increase_batch_size = True
+                    self.increase_batch_size = True
                     self.logger.info(
                         "forward pass with batch size %d threw exception %s. Trying again with smaller batch_size %d",
                         last_batch_size,

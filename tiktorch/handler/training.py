@@ -137,7 +137,7 @@ class TrainingProcess(ITraining):
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
-        for key, default in self.trainer_defaults:
+        for key, default in self.trainer_defaults.items():
             if key in self.config:
                 trainer_config[key] = self.config[key]
             else:

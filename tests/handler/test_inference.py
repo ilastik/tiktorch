@@ -4,7 +4,7 @@ from torch import multiprocessing as mp
 
 from tiktorch.handler.inference import IInference, InferenceProcess, run
 from tiktorch.tiktypes import TikTensor
-from tiktorch.rpc.mp import MPServer, MPClient, Shutdown
+from tiktorch.rpc.mp import MPClient, Shutdown
 
 from tests.data.tiny_models import TinyConvNet2d
 
