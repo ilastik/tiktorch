@@ -12,12 +12,16 @@ class TikTensor:
     e.g. position of array in dataset (id_)
     """
 
-    def __init__(self, tensor: torch.Tensor, id_: Optional[Tuple[int, ...]] = None) -> None:
+    def __init__(self, tensor: torch.Tensor, id_: Optional[Tuple[int, ...]] = None, label: Optional[torch.Tensor] = None) -> None:
         self._torch = tensor
         self.id = id_
+        self.label = label
 
-    def as_torch(self) -> torch.Tensor:
-        return self._torch
+    def as_torch(self, with_label=False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        if with_label:
+            return self._torch, self.label
+        else:
+            return self._torch
 
     @property
     def dtype(self):
@@ -34,6 +38,7 @@ class TikTensorBatch:
     """
 
     def __init__(self, tensors: List[TikTensor]):
+        assert all([isinstance(t, TikTensor) for t in tensors])
         self._tensors = tensors
 
     def tensor_metas(self):
@@ -46,8 +51,12 @@ class TikTensorBatch:
         for item in self._tensors:
             yield item
 
-    def as_torch(self) -> List[torch.Tensor]:
-        return torch.stack([t.as_torch() for t in self._tensors])
+    def as_torch(self, with_label=False) -> List[Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]]:
+        return [t.as_torch(with_label=with_label) for t in self._tensors]
+
+    @property
+    def ids(self) -> List[Tuple[int]]:
+        return [t.id for t in self._tensors]
 
 
 class PointAndBatchPointBase:
