@@ -52,16 +52,6 @@ from tiktorch.tiktypes import (
 
 from tiktorch.configkeys import *
 
-# logging.basicConfig(level=logging.DEBUG)
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
-        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
-    }
-)
-
 
 def ret_through_conn(*args, fn: Callable, conn: Connection, **kwargs) -> None:
     conn.send(fn(*args, **kwargs))

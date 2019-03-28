@@ -23,14 +23,15 @@ def test_inference(tiny_model_2d):
         pass
 
 
-def test_inference_in_proc(tiny_model_2d):
+def test_inference_in_proc(tiny_model_2d, log_queue):
     config = tiny_model_2d["config"]
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     handler_conn, inference_conn = mp.Pipe()
-    p = mp.Process(target=run, kwargs={"conn": inference_conn, "model": model, "config": config})
+    p = mp.Process(target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue})
     p.start()
     client = MPClient(IInference(), handler_conn)
     data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
-    client.forward(data)
+    f = client.forward(data)
+    f.result()
     client.shutdown()
