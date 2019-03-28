@@ -3,7 +3,10 @@ Types defining interop between processes on the server
 """
 import torch
 
+from numpy import ndarray
 from typing import List, Tuple, Optional, Union, Sequence
+
+from tiktorch.types import NDArray, NDArrayBatch
 
 
 class TikTensor:
@@ -12,7 +15,14 @@ class TikTensor:
     e.g. position of array in dataset (id_)
     """
 
-    def __init__(self, tensor: torch.Tensor, id_: Optional[Tuple[int, ...]] = None, label: Optional[torch.Tensor] = None) -> None:
+    def __init__(self, tensor: Union[NDArray, ndarray, torch.Tensor], id_: Optional[Tuple[int, ...]] = None, label: Optional[torch.Tensor] = None) -> None:
+        if isinstance(tensor, NDArray):
+            assert id_ is None
+            id_ = tensor.id
+            tensor = torch.from_numpy(tensor.as_numpy())
+        elif isinstance(tensor, ndarray):
+            tensor = torch.from_numpy(tensor)
+
         self._torch = tensor
         self.id = id_
         self.label = label
@@ -37,7 +47,10 @@ class TikTensorBatch:
     Batch of TikTensor
     """
 
-    def __init__(self, tensors: List[TikTensor]):
+    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch]):
+        if isinstance(tensors, NDArrayBatch):
+            tensors = [TikTensor(a) for a in tensors]
+
         assert all([isinstance(t, TikTensor) for t in tensors])
         self._tensors = tensors
 

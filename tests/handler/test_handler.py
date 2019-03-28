@@ -2,20 +2,16 @@ import logging
 import numpy
 
 from tiktorch.types import NDArray, NDArrayBatch
-from tests.handler.dummyserver import DummyServer
+from tiktorch.handler.handler import HandlerProcess
 
 logger = logging.getLogger(__name__)
 
 
-def test_initialization(tiny_model):
-    ts = DummyServer(**tiny_model)
-    ts.active_children()
-    active_children = ts.listen()
-    ts.shutdown()
-    assert active_children is not None
+def test_initialization(tiny_model_2d):
+    hp = HandlerProcess(**tiny_model_2d)
+    active_children = hp.active_children()
+    hp.shutdown()
     assert len(active_children) in (2, 3)
-    assert "TrainingProcess" in active_children
-    assert "InferenceProcess" in active_children
 
 
 def test_forward(tiny_model):

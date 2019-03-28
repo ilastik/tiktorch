@@ -14,17 +14,18 @@ import queue
 
 from functools import partial
 from multiprocessing.connection import Connection, wait
-from torch.multiprocessing import Process, Pipe, active_children, Queue
+from torch import multiprocessing as mp
 
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set
 
-from tiktorch.rpc import RPCInterface, exposed
-from tiktorch.rpc.mp import MPServer
+from tiktorch.rpc import RPCInterface, exposed, RPCFuture
+from tiktorch.rpc.mp import MPServer, MPClient
 from tiktorch.tiktypes import TikTensor, TikTensorBatch, PointBase, Point2D, Point3D, Point4D, BatchPointBase, PointAndBatchPointBase
 from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
 from .dryrun import DryRunProcess
-from .training import TrainingProcess
-from .inference import InferenceProcess
+from tiktorch.handler.training import run as run_training, ITraining
+from tiktorch.handler.inference import run as run_inference, IInference
+from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 
 # logging.basicConfig(level=logging.DEBUG)
 logging.config.dictConfig(
@@ -81,36 +82,91 @@ class HandlerProcess(IHandler):
                 raise ValueError(f"{required} missing in config")
 
         self.config = config
-        self.model_file = model_file  # to be deserialized in 'load_model'
-        self.model_state = model_state  # to be deserialized in 'load_model'
-        self.optimizer_state = optimizer_state  # to be deserialized in training process
 
-        self._shutting_down: bool = False
-        self.logger = logging.getLogger(self.name)
+        self.shutting_down: bool = False
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("Starting")
         self.valid_shapes: list = []
         self.known_devices: dict = {}
-        self.tempdir: str = ""
         self.idle_devices: List[torch.device] = []
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
         self.waiting_for_dry_run = True
-        self.dryrun_conn: Connection = None
 
-        self.inference_conn, self.inference_proc = None, None
-        self.training_conn, self.training_proc = None, None
-        self.load_model(
-            self.model_file,
-            self.model_state,
-            self.config["model_class_name"],
-            self.config.get("model_init_kwargs", {}),
+        self.tempdir = tempfile.mkdtemp()
+        user_module_name = "usermodel"
+        with open(os.path.join(self.tempdir, user_module_name + ".py"), "w") as f:
+            f.write(pickle.loads(model_file))
+
+        sys.path.insert(0, self.tempdir)
+        user_module = importlib.import_module(user_module_name)
+
+        self.model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(**self.config.get("model_init_kwargs", {}))
+        self.logger.debug("created user model")
+
+        if model_state:
+            self.model.load_state_dict(torch.load(pickle.loads(model_state)))
+            self.logger.info("restored model state")
+
+        # start training process
+        handler2training_conn, training2handler_conn = mp.Pipe()
+        p = mp.Process(
+            target=run_training,
+            kwargs={
+                "conn": training2handler_conn,
+                "config": config,
+                "model": self.model,
+                "optimizer_state": optimizer_state,
+            },
         )
+        p.start()
+        self._training: MPClient = MPClient(ITraining, handler2training_conn)
+
+        # start inference process
+        handler2inference_conn, inference2handler_conn = mp.Pipe()
+        p = mp.Process(
+            target=run_inference,
+            kwargs={
+                "conn": inference2handler_conn,
+                "config": config,
+                "model": self.model,
+                "optimizer_state": optimizer_state,
+            },
+        )
+        p.start()
+        self._inference: MPClient = MPClient(IInference, handler2inference_conn)
+
+        # start dryun pocess
+        handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
+        p = mp.Process(
+            target=run_dryrun,
+            kwargs={
+                "conn": dryrun2handler_conn,
+                "config": config,
+                "model": self.model,
+            },
+        )
+        p.start()
+        self._dry_run: MPClient = MPClient(IDryRun, handler2dryrun_conn)
+
         self.set_devices(device_names=self.config.get("devices", ["cpu"]))
 
     # device handling and dry run
     @property
     def devices(self):
         return self.idle_devices + self.training_devices + self.inference_devices
+
+    @property
+    def inference(self):
+        return self._inference
+
+    @property
+    def training(self):
+        return self._training
+
+    @property
+    def dry_run(self):
+        return self._dry_run
 
     def set_devices(self, device_names: Sequence[str]) -> None:
         self.waiting_for_dry_run = True
@@ -128,17 +184,14 @@ class HandlerProcess(IHandler):
         previous_devices = list(self.devices)
         if previous_devices:
             pass
+
         # for now hard reset all previous devices
         self.idle_devices: Sequence[torch.device] = []
         self.training_devices: Sequence[torch.device] = []
         self.inference_devices: Sequence[torch.device] = []
 
-        if self.dryrun_conn is not None:
-            self.dryrun_conn.send(SHUTDOWN)
-
-        self.dryrun_conn, handler_conn = Pipe()
-        self.dryrun = DryRunProcess(handler_conn=handler_conn, config=self.config, model=self.model, devices=devices)
-        self.dryrun.start()
+        for d in devices:
+            self.dry_run.dry_run(d)
 
     def set_devices_answer(self, devices: Sequence[torch.device] = tuple(), valid_shapes: Sequence[PointBase] = tuple(), shrinkage: PointBase = None, failure_msg: str = "") -> None:
         if failure_msg:
@@ -147,120 +200,23 @@ class HandlerProcess(IHandler):
             self.waiting_for_dry_run = False
             self.server_conn.send(("set_devices_answer", {"device_names": [str(d) for d in devices]}))
 
-    def load_model(self, model_file: bytes, model_state: bytes, model_class_name: str, model_init_kwargs: dict) -> None:
-        if self.tempdir:
-            # remove previous usermodule folder
-            shutil.rmtree(self.tempdir)
-
-        self.tempdir = tempfile.mkdtemp()
-        user_module_name = "usermodel"
-        with open(os.path.join(self.tempdir, user_module_name + ".py"), "w") as f:
-            f.write(pickle.loads(model_file))
-
-        sys.path.insert(0, self.tempdir)
-        user_module = importlib.import_module(user_module_name)
-
-        self.model: torch.nn.Module = getattr(user_module, model_class_name)(**model_init_kwargs)
-        self.logger.debug("created user model")
-
-        if model_state:
-            self.model.load_state_dict(torch.load(pickle.loads(model_state)))
-            # with closing(io.BytesIO(model_state)) as f:
-            #     self.model.load_state_dict(torch.load(f))
-
-            self.logger.info("restored model state")
-
-        # (re-)start training and inference processes
-        self.shutdown_children(
-            conn_procs=[(self.training_conn, self.training_proc), (self.inference_conn, self.inference_proc)]
-        )
-
-        # set up training process
-        self.training_conn, handler_conn_training = Pipe()
-        self.config["training_devices"] = self.training_devices
-        self.training_proc = TrainingProcess(
-            handler_conn=handler_conn_training,
-            config=self.config,
-            model=self.model,
-            optimizer_state=self.optimizer_state,
-        )
-        self.training_proc.start()
-        # set up inference process
-        self.config["inference_devices"] = self.inference_devices
-        self.inference_conn, handler_conn_inference = Pipe()
-        self.inference_proc = InferenceProcess(
-            handler_conn=handler_conn_inference, config=self.config, model=self.model
-        )
-        self.inference_proc.start()      
-
     # general
-    def active_children(self) -> None:
-        self.server_conn.send([child_proc.name for child_proc in active_children()])
-
-    def shutdown_children(self, conn_procs: Sequence[Tuple[Connection, Process]]) -> None:
-        # initiate shutdown of children (to shut down in parallel)
-        for conn, proc in conn_procs:
-            if proc is None:
-                continue
-
-            try:
-                conn.send(SHUTDOWN)
-            except Exception as e:
-                self.logger.error(e)
-
-        # enforce shutdown of children
-        shutdown_time = 20
-        for conn, proc in conn_procs:
-            if proc is None:
-                continue
-
-            while proc.is_alive():
-                # look for shutting down answer
-                if conn.poll(timeout=shutdown_time):
-                    answer = conn.recv()
-                    if answer == SHUTDOWN_ANSWER:
-                        # give child process extra time to shutdown
-                        proc.join(timeout=shutdown_time)
-                else:
-                    self.logger.error("Failed to shutdown %s gracefully. Sending kill...", proc.name)
-                    proc.kill()
-                    proc.join(timeout=shutdown_time)
-
-            self.logger.debug("%s has shutdown", proc.name)
+    def active_children(self) -> List[mp.Process]:
+        return mp.active_children()
 
     def shutdown(self) -> None:
-        logger = logging.getLogger(self.name + ".shutdown")
-        logger.debug("Shutting down...")
+        self.logger.debug("Shutting down...")
         self._shutting_down = True
-        self.server_conn.send(SHUTDOWN_ANSWER)
-        try:
-            self.shutdown_children(
-                [(self.inference_conn, self.inference_proc), (self.training_conn, self.training_proc)]
-            )
-        except Exception as e:
-            logger.error("Could not shut down children due to exception: %s", e)
-
+        self.dry_run.shutdown()
+        self.inference.shutdown()
+        self.training.shutdown()
         try:
             if self.tempdir:
                 shutil.rmtree(self.tempdir)
         except Exception as e:
-            logger.error(e)
+            self.logger.error(e)
 
-        logger.debug("Shutdown complete")
-
-    def shutting_down(self):
-        self.logger.error("A child process is shutting down unscheduled.")
-
-    def report_exception(self, proc_name: str, exception: Exception) -> None:
-        self.logger.error("Received exception report from %s: %s", proc_name, exception)
-        if proc_name == TrainingProcess.name:
-            # todo: restart training proess
-            pass
-        elif proc_name == InferenceProcess.name:
-            # todo: restart inference process
-            pass
-        else:
-            raise NotImplementedError("Did not expect exception report form %s", proc_name)
+        self.logger.debug("Shutdown complete")
 
     def report_idle(self, proc_name: str, devices: Sequence = tuple()) -> None:
         """
@@ -294,16 +250,6 @@ class HandlerProcess(IHandler):
         # # todo: remove this idle report to server, only for debugging
         # self.server_conn.send(("report_idle", {"proc_name": proc_name, "devices": devices}))
 
-    def generic_relay_to_server(self, method_name: str, **kwargs) -> None:
-        if not self._shutting_down:
-            self.server_conn.send((method_name, kwargs))
-
-    def __getattr__(self, method_name) -> Callable:
-        if method_name in ["forward_answer", "pause_training_answer"]:
-            return partial(self.generic_relay_to_server, method_name=method_name)
-        else:
-            raise AttributeError(method_name)
-
     # inference
     def assign_inference_devices(self) -> None:
         if not self.inference_devices and not self.idle_devices:
@@ -320,7 +266,7 @@ class HandlerProcess(IHandler):
             self.inference_devices += self.idle_devices
             self.idle_devices = []
 
-        self.inference_conn.send(("update_devices", {"devices": self.inference_devices}))
+        self.inference.send(("update_devices", {"devices": self.inference_devices}))
 
     def forward(self, data: TikTensorBatch) -> None:
         keys: List = [d.id for d in data]

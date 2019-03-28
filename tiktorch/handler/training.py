@@ -70,7 +70,7 @@ class ITraining(RPCInterface):
         raise NotImplementedError()
 
     @exposed
-    def update_hparams(self, hparams: Dict):
+    def update_hparams(self, name: str, hparams: Dict):
         raise NotImplementedError
 
 
@@ -88,7 +88,6 @@ class TrainingProcess(ITraining):
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
     """
 
-    name = "TrainingProcess"
     trainer_defaults = {
         "criterion_config": {"method": "MSELoss"},
         "logger_config": {"name": "InfernoTrainer"},
@@ -99,9 +98,8 @@ class TrainingProcess(ITraining):
     }
 
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
-        self.logger = logging.getLogger(self.name)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("Starting")
-        assert hasattr(self, SHUTDOWN[0]), "make sure the 'shutdown' method has the correct name"
         self._shutdown_event = threading.Event()
 
         self.model = model

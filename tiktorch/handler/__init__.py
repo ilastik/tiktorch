@@ -1,1 +1,1 @@
-from .handler import HandlerProcess
+from .handler import IHandler, run
