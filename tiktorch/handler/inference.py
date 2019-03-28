@@ -40,7 +40,7 @@ class IInference(RPCInterface):
         raise NotImplementedError()
 
     @exposed
-    def forward(self, data: TikTensorBatch):
+    def forward(self, data: TikTensor):
         raise NotImplementedError()
 
 
@@ -147,9 +147,9 @@ class InferenceProcess(IInference):
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
-        # self.device_setter_thread.join()
-        # for ft in self.forward_worker_threads.values():
-        #     ft.join()
+        self.device_setter_thread.join()
+        for ft in self.forward_worker_threads.values():
+            ft.join()
         self.logger.debug("Shutdown complete")
         raise Shutdown
 
@@ -199,7 +199,7 @@ class InferenceProcess(IInference):
             except Exception as e:
                 if batch_size > last_batch_size:
                     self.logger.info(
-                        "forward pass with batch size %d threw exception %s. Using previous batch size %d again.",
+                        "forward pass with batch size %d threw exception '%s'. Using previous batch size %d again.",
                         batch_size,
                         e,
                         last_batch_size,
@@ -210,7 +210,13 @@ class InferenceProcess(IInference):
                     last_batch_size = batch_size
                     batch_size //= 2
                     if batch_size == 0:
-                        self.logger.error("Forward pass failed. Processed %d/%d", start, len(keys))
+                        self.logger.error(
+                            "Forward pass with batch size %d threw exeption '%s'. Processed %d/%d",
+                            last_batch_size,
+                            e,
+                            start,
+                            len(keys),
+                        )
                         for i in range(start, len(keys)):
                             fut[i].set_exception(e)
 
@@ -218,7 +224,7 @@ class InferenceProcess(IInference):
 
                     increase_batch_size = True
                     self.logger.info(
-                        "forward pass with batch size %d threw exception %s. Trying again with smaller batch_size %d",
+                        "forward pass with batch size %d threw exception '%s'. Trying again with smaller batch_size %d",
                         last_batch_size,
                         e,
                         batch_size,
