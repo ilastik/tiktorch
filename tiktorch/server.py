@@ -1,27 +1,16 @@
-import argparse
 import logging
-import io
-import os
-import zmq
-
 import torch
-from datetime import datetime
-import socket
-import shutil
-import tempfile
-
 
 from torch import multiprocessing as mp
 
-import tiktorch.utils as utils
-from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
-from tiktorch.rpc.mp import MPServer, MPClient
+from typing import Optional
 
-from tiktorch.types import NDArray, NDArrayBatch
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.rpc.mp import MPClient
+from tiktorch.types import NDArrayBatch
+from tiktorch.tiktypes import TikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from typing import Iterable
 
 
 if torch.cuda.is_available():
@@ -46,7 +35,7 @@ class State:
     def next(self, state):
         allowed = self.STATES.get(self.current)
         if state not in allowed:
-            raise Exception(f"Transition from {self._current} to {state} not allowed")
+            raise Exception(f"Transition from {self.current} to {state} not allowed")
 
     def __repr__(self):
         return f"State({self.current})"
@@ -73,32 +62,13 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     SIZE = 2
 
     def __init__(self):
-        logger = logging.getLogger("TikTorchServer.__init__")
-        # Privates
-        self._handler: MPClient = None
-        self._log_directory = None
-        # Publics
+        self.logger = logging.getLogger(__name__)
+        self.handler: Optional[MPClient] = None
         self.state = State()
 
-    def init(self):
-        logger = logging.getLogger("TikTorchServer.init")
-        logger.info("Setting up ZMQ")
-        # Init ZMQ
-        logger.info("Setting up ZMQ Context...")
-        self._zmq_context = zmq.Context()
-        logger.info("Setting up ZMQ Socket...")
-        self._zmq_socket = self._zmq_context.socket(zmq.PAIR)
-        logger.info("Binding to socket tcp://%s:%s", self.addr, self.port)
-        self._zmq_socket.bind(f"tcp://{self.addr}:{self.port}")
-        logger.info("Waiting for init data...")
-
-    @property
-    def log_directory(self):
-        return self._log_directory
-
-    def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes):
-        if self._handler is not None:
-            pass
+    def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes) -> None:
+        if self.handler is not None:
+            self.handler.shutdown()
 
         server_conn, handler_conn = mp.Pipe()
         p = mp.Process(
@@ -112,33 +82,13 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             },
         )
         p.start()
-        self._handler = MPClient(IHandler(), server_conn)
-
-
-    @property
-    def handler(self):
-        assert self._handler
-        return self._handler
-
-    def get(self, tag, default=None, assert_exist=False):
-        if assert_exist:
-            assert tag in self._config, f"Tag '{tag}' not found in configuration."
-        return self._config.get(tag, default)
+        self.handler = MPClient(IHandler(), server_conn)
 
     def forward(self, batch: NDArrayBatch) -> RPCFuture[NDArrayBatch]:
-        fut = self.handler.forward(data=TikTensorBatch(batch))
-        return RPCFuture(fut)  # todo: fut -> rpcfut?
+        return self.handler.forward(data=TikTensorBatch(batch))
 
-    def train(self, keys: Iterable, data: NDArrayBatch, labels: NDArrayBatch) -> None:
-        torch_data = [torch.from_numpy(arr) for arr in data.as_numpy()]
-        torch_labels = [torch.from_numpy(arr) for arr in labels.as_numpy()]
-        logger.info("Received data and labels from chief.")
-        logger.info("Sending to handler.")
-        self.handler.train(torch_data, torch_labels)
-        logger.info("Sent to handler.")
-
-    def training_process_is_running(self) -> bool:
-        return self.handler.training_process_is_alive()
+    def train(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
+        return self.handler.train(TikTensorBatch(raw, labels))
 
     def pause(self) -> None:
         self.handler.pause_training()
@@ -146,82 +96,19 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def resume(self) -> None:
         self.handler.resume_training()
 
-    def set_hparams(self, params: dict) -> None:
-        logger.info("Sending to handler.")
-        self.handler.set_hparams(params)
-        logger.info("Sent to handler.")
+    def set_hparams(self, hparams: dict) -> None:
+        self.handler.set_hparams(hparams)
 
-    def request_model_state_dict(self):
-        logger = logging.getLogger("TikTorchServer.request_model_state_dict")
-        logger.info("Requesting model state dict from handler....")
-        self.handler.update_state()
-        state_dict = io.BytesIO()
-        torch.save(self.model.state_dict(), f=state_dict)
-        logger.info("Sending state dict.")
-        self._zmq_socket.send(state_dict.getvalue())
-        logger.info("Sent state dict.")
-        state_dict.close()
-
-    def request_optimizer_state_dict(self):
-        pass
-
-    def dry_run(self, conf: dict) -> dict:
-        assert "train" in conf
-        assert "upper_bound" in conf
-        logger = logging.getLogger("TikTorchServer.dry_run")
-        logger.info("Initiating dry run...")
-        valid_shape = self.handler.dry_run(conf["upper_bound"], conf["train"])
-        return {"shape": valid_shape}
-
-    def poll_training_process(self):
-        logger = logging.getLogger("TikTorchServer.poll_training_process")
-        logger.info("Polling...")
-        # Check if training process is running, and send info back
-        it_lives = self.handler.training_process_is_alive()
-        logger.info("Poll successful. Sending response...")
-        info = {"id": "POLL_TRAIN.INFO", "is_alive": it_lives}
-        self.meta_send(info)
-        logger.info("Poll response sent.")
+    def request_state(self) -> RPCFuture:
+        self.logger.info("Requesting model state dict from handler...")
+        return self.handler.get_state()
 
     def ping(self) -> bytes:
         return b"pong"
 
     def shutdown(self):
-        logger = logging.getLogger("TikTorchServer.shutdown")
-        logger.info("Stopping training...")
-        if self._handler:
-            self._handler.stop_training()
-        logger.info("Training has stopped")
+        self.logger.info("Shutting down...")
+        if self.handler:
+            self.handler.shutdown()
+
         raise Shutdown()
-
-
-class ServerProcess:
-    def __init__(self, address: str, port: str, notify_port: str, device=None, **kwargs):
-        self._addr = address
-        self._port = port
-        self._notify_port = notify_port
-        self._device = device
-
-    def listen(self):
-        api_provider = TikTorchServer(device=self._device)
-        srv = Server(api_provider, TCPConnConf(self._addr, self._port, self._notify_port))
-        srv.listen()
-
-
-if __name__ == "__main__":
-    # Output pid for process tracking
-    print(os.getpid(), flush=True)
-
-    parsey = argparse.ArgumentParser()
-    parsey.add_argument("--addr", type=str, default="127.0.0.1")
-    parsey.add_argument("--port", type=str, default="29500")
-    parsey.add_argument("--notify-port", type=str, default="29501")
-    parsey.add_argument("--debug", type=bool, default=False)
-
-    args = parsey.parse_args()
-
-    logger.info("Starting server on %s:%s", args.addr, args.port)
-
-    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
-    srv = ServerProcess(address=args.addr, port=args.port)
-    srv.listen()

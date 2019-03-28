@@ -15,7 +15,7 @@ class TikTensor:
     e.g. position of array in dataset (id_)
     """
 
-    def __init__(self, tensor: Union[NDArray, ndarray, torch.Tensor], id_: Optional[Tuple[int, ...]] = None, label: Optional[torch.Tensor] = None) -> None:
+    def __init__(self, tensor: Union[NDArray, ndarray, torch.Tensor], id_: Optional[Tuple[int, ...]] = None, label: Optional[Union[NDArray, ndarray, torch.Tensor]] = None) -> None:
         if isinstance(tensor, NDArray):
             assert id_ is None
             id_ = tensor.id
@@ -23,8 +23,24 @@ class TikTensor:
         elif isinstance(tensor, ndarray):
             tensor = torch.from_numpy(tensor)
 
-        self._torch = tensor
         self.id = id_
+
+        if isinstance(label, NDArray):
+            assert self.id == label.id
+            label = torch.from_numpy(label.as_numpy())
+        elif isinstance(label, ndarray):
+            label = torch.from_numpy(label)
+
+        self._torch = tensor
+        self.label = label
+
+    def add_label(self, label: Union[NDArray, ndarray, torch.Tensor]):
+        if isinstance(label, NDArray):
+            assert self.id == label.id
+            label = torch.from_numpy(label.as_numpy())
+        elif isinstance(label, ndarray):
+            label = torch.from_numpy(label)
+
         self.label = label
 
     def as_torch(self, with_label=False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
@@ -47,9 +63,14 @@ class TikTensorBatch:
     Batch of TikTensor
     """
 
-    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch]):
+    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch], labels: Optional[NDArrayBatch] = None):
         if isinstance(tensors, NDArrayBatch):
             tensors = [TikTensor(a) for a in tensors]
+
+        if labels is not None:
+            assert len(tensors) == len(labels)
+            for t, l in zip(tensors, labels):
+                t.add_label(l)
 
         assert all([isinstance(t, TikTensor) for t in tensors])
         self._tensors = tensors
