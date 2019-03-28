@@ -9,31 +9,11 @@ from contextlib import closing
 from copy import deepcopy
 from multiprocessing.connection import Connection
 from torch.utils.data import DataLoader
-from typing import (
-    Any,
-    List,
-    Generic,
-    Iterator,
-    Iterable,
-    Sequence,
-    TypeVar,
-    Mapping,
-    Callable,
-    Dict,
-    Optional,
-    Tuple,
-)
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from inferno.trainers import Trainer as InfernoTrainer
 
-from .constants import (
-    SHUTDOWN,
-    SHUTDOWN_ANSWER,
-    REPORT_EXCEPTION,
-    TRAINING,
-    VALIDATION,
-    REQUEST_FOR_DEVICES,
-)
+from .constants import TRAINING, VALIDATION
 from .datasets import DynamicDataset
 
 from tiktorch.rpc import RPCInterface, exposed, Shutdown
@@ -51,9 +31,7 @@ class TikTrainer(InfernoTrainer):
         if self.break_events and any([e.is_set() for e in self.break_events]):
             return True
         else:
-            return super().stop_fitting(
-                max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs
-            )
+            return super().stop_fitting(max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs)
 
     @classmethod
     def build(cls, *args, break_events: List[threading.Event] = None, **kwargs):
@@ -118,9 +96,7 @@ class TrainingProcess(ITraining):
         "optimizer_config": {"method": "Adam"},
     }
 
-    def __init__(
-        self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""
-    ):
+    def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
         self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
         self._shutdown_event = threading.Event()
@@ -200,19 +176,14 @@ class TrainingProcess(ITraining):
                         for name in (TRAINING, VALIDATION):
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
-                                trainer.bind_loader(
-                                    name, DataLoader(**self.loader_kwargs[name])
-                                )
+                                trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
 
                 self.logger.info(
-                    "Start training for %d iterations",
-                    self.config["max_num_iterations"] - trainer._iteration_count,
+                    "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
                 )
                 trainer.fit()
 
-    def create_optimizer(
-        self, optimizer_state: bytes
-    ) -> Optional[torch.optim.Optimizer]:
+    def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
             optimizer: torch.optim.Optimizer = getattr(torch.optim, self.config["optimizer_config"]["method"])
             with closing(io.BytesIO(optimizer_state)) as f:
@@ -241,10 +212,7 @@ class TrainingProcess(ITraining):
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch) -> None:
-        assert name in (
-            TRAINING,
-            VALIDATION,
-        ), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data)
         if name == TRAINING:
             self.config["max_num_iterations"] += self.config["max_num_iterations_per_update"] * len(data)
@@ -252,10 +220,7 @@ class TrainingProcess(ITraining):
         self._update_trainer_event.set()
 
     def update_hparams(self, name: str, hparams: dict):
-        assert name in (
-            TRAINING,
-            VALIDATION,
-        ), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         for key, value in hparams.items():
             if key in ("batch_size",):
                 with training_settings_lock:

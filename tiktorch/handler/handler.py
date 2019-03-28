@@ -21,7 +21,7 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, D
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient
 from tiktorch.tiktypes import TikTensor, TikTensorBatch, PointBase, Point2D, Point3D, Point4D, BatchPointBase, PointAndBatchPointBase
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
+from .constants import TRAINING, VALIDATION
 from .dryrun import DryRunProcess
 from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference

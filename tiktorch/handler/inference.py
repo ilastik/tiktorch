@@ -7,9 +7,23 @@ import multiprocessing as mp
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple, Set, Collection
+from typing import (
+    Any,
+    List,
+    Generic,
+    Iterator,
+    Iterable,
+    Sequence,
+    TypeVar,
+    Mapping,
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+    Set,
+    Collection,
+)
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, REQUEST_FOR_DEVICES
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
@@ -87,7 +101,6 @@ class InferenceProcess(IInference):
             assert d in self.forward_worker_threads
             self.shutdown_worker_events[d].set()
 
-
         for d in devices:
             self.forward_worker_threads[d].join()
             del self.forward_worker_threads[d]
@@ -105,6 +118,7 @@ class InferenceProcess(IInference):
             self.forward_worker_threads[d].start()
 
     def _forward_worker(self, device: torch.device) -> None:
+        self.logger.info("Start inference worker for device %s", device)
         local_data = threading.local()
         local_data.increase_batch_size = True
         if self.batch_size is None:
@@ -121,13 +135,10 @@ class InferenceProcess(IInference):
 
             if data_batch:
                 local_data.batch_size, local_data.increase_batch_size = self._forward(
-                    TikTensorBatch(data_batch),
-                    fut_batch,
-                    device,
-                    local_data.batch_size,
-                    local_data.increase_batch_size,
+                    TikTensorBatch(data_batch), fut_batch, device, local_data.batch_size, local_data.increase_batch_size
                 )
 
+        self.logger.info("Stop inference worker for device %s", device)
 
     def set_devices(self, devices: Collection[torch.device]) -> RPCFuture[Set[torch.device]]:
         fut = RPCFuture()
@@ -136,9 +147,9 @@ class InferenceProcess(IInference):
 
     def shutdown(self) -> None:
         self.shutdown_event.set()
-        self.device_setter_thread.join()
-        for ft in self.forward_worker_threads.values():
-            ft.join()
+        # self.device_setter_thread.join()
+        # for ft in self.forward_worker_threads.values():
+        #     ft.join()
         self.logger.debug("Shutdown complete")
         raise Shutdown
 
@@ -153,7 +164,7 @@ class InferenceProcess(IInference):
         """
         :param data: input data to neural network
         """
-        if device.type == 'cuda':
+        if device.type == "cuda":
             with device:
                 model = self.training_model.__class__()
         else:
@@ -167,7 +178,7 @@ class InferenceProcess(IInference):
 
         # TODO: fixT        return data
 
-        self.logger.debug("this is forward")
+        self.logger.debug("forward with batch_size %d (increasing: %s)", batch_size, increase_batch_size)
 
         start = 0
         last_batch_size = batch_size

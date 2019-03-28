@@ -27,13 +27,13 @@ def test_training(tiny_model_2d):
         pass
 
 
-def test_training_in_proc(tiny_model_2d):
+def test_training_in_proc(tiny_model_2d, log_queue):
     config = tiny_model_2d["config"]
     config["max_num_iterations_per_update"] = 10
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     handler_conn, training_conn = mp.Pipe()
-    p = mp.Process(target=run, kwargs={"conn": training_conn, "model": model, "config": config})
+    p = mp.Process(target=run, kwargs={"conn": training_conn, "model": model, "config": config, "log_queue": log_queue})
     p.start()
 
     client = MPClient(ITraining(), handler_conn)
