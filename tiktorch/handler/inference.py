@@ -42,10 +42,8 @@ class InferenceProcess(IInference):
     Process for neural network inference
     """
 
-    name = "tiktorch.InferenceProcess"
-
     def __init__(self, config: dict, model: torch.nn.Module) -> None:
-        self.logger = logging.getLogger(self.name)
+        self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
         self.config = config
         self.training_model = model

@@ -76,7 +76,7 @@ class HandlerProcess(IHandler):
         self.config = config
 
         self.shutting_down: bool = False
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
         self.valid_shapes: list = []
         self.known_devices: dict = {}

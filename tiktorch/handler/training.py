@@ -121,6 +121,7 @@ class TrainingProcess(ITraining):
     def __init__(
         self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""
     ):
+        self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
         self._shutdown_event = threading.Event()
 
@@ -145,7 +146,7 @@ class TrainingProcess(ITraining):
         self._update_trainer_event = threading.Event()
         self._update_trainer_event.set()
         self.trainer = TikTrainer.build(
-            model=self.model, break_event=self._shutdown_event, **self.trainer_config
+            model=self.model, break_event=self._shutdown_event, **self.create_trainer_config()
         )
 
         self.training_thread = threading.Thread(target=self._training_worker)
@@ -205,7 +206,7 @@ class TrainingProcess(ITraining):
 
                 self.logger.info(
                     "Start training for %d iterations",
-                    self.max_num_iterations - trainer._iteration_count,
+                    self.config["max_num_iterations"] - trainer._iteration_count,
                 )
                 trainer.fit()
 

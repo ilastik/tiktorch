@@ -1,5 +1,6 @@
 import logging
 import numpy
+import pytest
 
 from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.handler.handler import HandlerProcess
@@ -14,6 +15,7 @@ def test_initialization(tiny_model_2d):
     assert len(active_children) in (2, 3)
 
 
+@pytest.mark.skip
 def test_forward(tiny_model):
     ts = DummyServer(**tiny_model)
     C, X = 3, 5
@@ -36,6 +38,7 @@ def test_forward(tiny_model):
     assert keys == answer_dict["keys"]
 
 
+@pytest.mark.skip
 def test_forward2(tiny_model):
     ts = DummyServer(**tiny_model)
     C, X = 3, 5
