@@ -2,32 +2,44 @@ import io
 import logging
 import torch.nn, torch.optim
 import threading
+import multiprocessing as mp
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import closing
 from copy import deepcopy
 from multiprocessing.connection import Connection
 from torch.utils.data import DataLoader
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+from typing import (
+    Any,
+    List,
+    Generic,
+    Iterator,
+    Iterable,
+    Sequence,
+    TypeVar,
+    Mapping,
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+)
 
 from inferno.trainers import Trainer as InfernoTrainer
 
-from .constants import SHUTDOWN, SHUTDOWN_ANSWER, REPORT_EXCEPTION, TRAINING, VALIDATION, REQUEST_FOR_DEVICES
+from .constants import (
+    SHUTDOWN,
+    SHUTDOWN_ANSWER,
+    REPORT_EXCEPTION,
+    TRAINING,
+    VALIDATION,
+    REQUEST_FOR_DEVICES,
+)
 from .datasets import DynamicDataset
 
 from tiktorch.rpc import RPCInterface, exposed, Shutdown
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-
-# logging.basicConfig(level=logging.INFO)
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
-        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
-    }
-)
+from tiktorch import log
 
 
 class TikTrainer(InfernoTrainer):
@@ -39,7 +51,9 @@ class TikTrainer(InfernoTrainer):
         if self.break_events and any([e.is_set() for e in self.break_events]):
             return True
         else:
-            return super().stop_fitting(max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs)
+            return super().stop_fitting(
+                max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs
+            )
 
     @classmethod
     def build(cls, *args, break_events: List[threading.Event] = None, **kwargs):
@@ -74,7 +88,14 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
 
-def run(conn: Connection, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
+def run(
+    conn: Connection,
+    config: dict,
+    model: torch.nn.Module,
+    optimizer_state: bytes = b"",
+    log_queue: Optional[mp.Queue] = None,
+):
+    log.configure(log_queue)
     training_proc = TrainingProcess(config, model, optimizer_state)
     srv = MPServer(training_proc, conn)
     srv.listen()
@@ -97,8 +118,9 @@ class TrainingProcess(ITraining):
         "optimizer_config": {"method": "Adam"},
     }
 
-    def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
-        self.logger = logging.getLogger(self.__class__.__name__)
+    def __init__(
+        self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""
+    ):
         self.logger.info("Starting")
         self._shutdown_event = threading.Event()
 
@@ -122,6 +144,9 @@ class TrainingProcess(ITraining):
         self._pause_event.set()
         self._update_trainer_event = threading.Event()
         self._update_trainer_event.set()
+        self.trainer = TikTrainer.build(
+            model=self.model, break_event=self._shutdown_event, **self.trainer_config
+        )
 
         self.training_thread = threading.Thread(target=self._training_worker)
         self.training_thread.start()
@@ -174,14 +199,19 @@ class TrainingProcess(ITraining):
                         for name in (TRAINING, VALIDATION):
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
-                                trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
+                                trainer.bind_loader(
+                                    name, DataLoader(**self.loader_kwargs[name])
+                                )
 
                 self.logger.info(
-                    "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
+                    "Start training for %d iterations",
+                    self.max_num_iterations - trainer._iteration_count,
                 )
                 trainer.fit()
 
-    def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
+    def create_optimizer(
+        self, optimizer_state: bytes
+    ) -> Optional[torch.optim.Optimizer]:
         try:
             optimizer: torch.optim.Optimizer = getattr(torch.optim, self.config["optimizer_config"]["method"])
             with closing(io.BytesIO(optimizer_state)) as f:
@@ -210,7 +240,10 @@ class TrainingProcess(ITraining):
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch) -> None:
-        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (
+            TRAINING,
+            VALIDATION,
+        ), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data)
         if name == TRAINING:
             self.config["max_num_iterations"] += self.config["max_num_iterations_per_update"] * len(data)
@@ -218,7 +251,10 @@ class TrainingProcess(ITraining):
         self._update_trainer_event.set()
 
     def update_hparams(self, name: str, hparams: dict):
-        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (
+            TRAINING,
+            VALIDATION,
+        ), f"{name} not in ({TRAINING}, {VALIDATION})"
         for key, value in hparams.items():
             if key in ("batch_size",):
                 with training_settings_lock:

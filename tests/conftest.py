@@ -3,6 +3,8 @@ import pickle
 import faulthandler
 import sys
 import signal
+import multiprocessing as mp
+import logging.handlers
 
 from collections import namedtuple
 from os import path, getenv
@@ -10,7 +12,6 @@ from random import randint
 
 import pytest
 import yaml
-
 
 TEST_DATA = "data"
 TEST_NET = "CREMI_DUNet_pretrained_new"
@@ -122,3 +123,17 @@ def tiny_model_3d(datadir):
 def register_faulthandler():
     if not sys.platform.startswith('win'):
         faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
+
+
+@pytest.fixture(scope='session')
+def log_queue():
+    q = mp.Queue()
+
+    logger = logging.getLogger()
+
+    listener = logging.handlers.QueueListener(q, *logger.handlers)
+    listener.start()
+
+    yield q
+
+    listener.stop()

@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def log_debug():
+    return
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': False,

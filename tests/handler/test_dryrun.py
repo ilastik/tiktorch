@@ -8,15 +8,6 @@ from tiktorch.configkeys import TRAINING_SHAPE, INFERENCE_SHAPE_UPPER_BOUND
 
 from tests.data.tiny_models import TinyConvNet2d
 
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "handlers": {"default": {"level": "DEBUG", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
-        "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
-    }
-)
-
 
 def test_minimal_device_test(tiny_model_2d):
     config = tiny_model_2d["config"]
