@@ -12,7 +12,6 @@ import numpy as np
 import bisect
 import queue
 
-from functools import partial
 from multiprocessing.connection import Connection, wait
 from torch import multiprocessing as mp
 
@@ -21,12 +20,11 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, D
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient
 from tiktorch.tiktypes import TikTensor, TikTensorBatch, PointBase, Point2D, Point3D, Point4D, BatchPointBase, PointAndBatchPointBase
-from .constants import TRAINING, VALIDATION
-from .dryrun import DryRunProcess
+from tiktorch.handler.constants import TRAINING, VALIDATION
 from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
 from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
-
+from tiktorch import log
 
 class IHandler(RPCInterface):
     @exposed
@@ -42,12 +40,13 @@ class IHandler(RPCInterface):
         raise NotImplementedError()
 
     @exposed
-    def forward(self, data: TikTensorBatch):
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         raise NotImplementedError
 
 
-def run(conn: Connection,  config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes):
-    handler = HandlerProcess(config, model_file, model_state, optimizer_state)
+def run(conn: Connection,  config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, log_queue: Optional[mp.Queue] = None):
+    log.configure(log_queue)
+    handler = HandlerProcess(config, model_file, model_state, optimizer_state, log_queue)
     srv = MPServer(handler, conn)
     srv.listen()
 
@@ -60,7 +59,7 @@ class HandlerProcess(IHandler):
     """
 
     def __init__(
-        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes
+        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, log_queue: Optional[mp.Queue] = None
     ) -> None:
         """
         :param config: configuration dict
@@ -102,7 +101,7 @@ class HandlerProcess(IHandler):
 
         # start training process
         handler2training_conn, training2handler_conn = mp.Pipe()
-        p = mp.Process(
+        mp.Process(
             target=run_training,
             kwargs={
                 "conn": training2handler_conn,
@@ -110,13 +109,12 @@ class HandlerProcess(IHandler):
                 "model": self.model,
                 "optimizer_state": optimizer_state,
             },
-        )
-        p.start()
+        ).start()
         self._training: MPClient = MPClient(ITraining, handler2training_conn)
 
         # start inference process
         handler2inference_conn, inference2handler_conn = mp.Pipe()
-        p = mp.Process(
+        mp.Process(
             target=run_inference,
             kwargs={
                 "conn": inference2handler_conn,
@@ -124,21 +122,19 @@ class HandlerProcess(IHandler):
                 "model": self.model,
                 "optimizer_state": optimizer_state,
             },
-        )
-        p.start()
+        ).start()
         self._inference: MPClient = MPClient(IInference, handler2inference_conn)
 
-        # start dryun pocess
+        # start dryrun process
         handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
-        p = mp.Process(
+        mp.Process(
             target=run_dryrun,
             kwargs={
                 "conn": dryrun2handler_conn,
                 "config": config,
                 "model": self.model,
             },
-        )
-        p.start()
+        ).start()
         self._dry_run: MPClient = MPClient(IDryRun, handler2dryrun_conn)
 
         self.set_devices(device_names=self.config.get("devices", ["cpu"]))
@@ -260,13 +256,9 @@ class HandlerProcess(IHandler):
 
         self.inference.send(("update_devices", {"devices": self.inference_devices}))
 
-    def forward(self, data: TikTensorBatch) -> None:
-        keys: List = [d.id for d in data]
-        data: List[torch.Tensor] = data.as_torch()
-        self.logger.debug("forward")
-        self.logger.debug("inference id %d", id(self.model))
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         # todo: update inference devices
-        self.inference_conn.send(("forward", {"keys": keys, "data": data}))
+        return self.inference.forward(data)
 
     # training
     def assign_training_devices(self) -> None:

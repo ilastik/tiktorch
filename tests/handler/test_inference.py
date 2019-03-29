@@ -62,8 +62,14 @@ def test_inference3d_in_proc(tiny_model_3d, log_queue):
     p.start()
     client = MPClient(IInference(), handler_conn)
     try:
-        data = TikTensor(torch.zeros(in_channels, 15, 15, 15), (0,))
-        f = client.forward(data)
-        f.result(timeout=3)
+        f = []
+        n = 10
+        for i in range(n):
+            data = TikTensor(torch.rand(in_channels, 15, 15, 15))
+            f.append(client.forward(data))
+
+        for i in range(n):
+            f[i].result(timeout=5)
+            print('received ', i)
     finally:
         client.shutdown()

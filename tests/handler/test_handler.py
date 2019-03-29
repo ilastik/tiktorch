@@ -2,8 +2,13 @@ import logging
 import numpy
 import pytest
 
+from torch import multiprocessing as mp
+
+from tiktorch.rpc.mp import MPClient, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
-from tiktorch.handler.handler import HandlerProcess
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
+
+from tiktorch.handler.handler import HandlerProcess, IHandler, run as run_handler
 
 logger = logging.getLogger(__name__)
 
@@ -15,27 +20,25 @@ def test_initialization(tiny_model_2d):
     assert len(active_children) in (2, 3)
 
 
-@pytest.mark.skip
-def test_forward(tiny_model):
-    ts = DummyServer(**tiny_model)
-    C, X = 3, 5
-    numpy.random.seed(0)
-    keys = [(0,), (1,), (2,), (3,)]
-    x = NDArrayBatch(
-        [
-            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[0]),
-            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[1]),
-            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[2]),
-            NDArray(numpy.random.random((X, C)).astype(numpy.float32), keys[3]),
-        ]
-    )
-    ts.forward(x)
-    answer = ts.listen()
-    ts.shutdown()
-    assert answer is not None, "Answer timed out"
-    forward_answer, answer_dict = answer
-    assert forward_answer == "forward_answer"
-    assert keys == answer_dict["keys"]
+def test_forward(tiny_model_2d, log_queue):
+    client_conn, handler_conn = mp.Pipe()
+    client = MPClient(IHandler(), client_conn)
+    try:
+        p = mp.Process(target=run_handler, kwargs={"conn": handler_conn, **tiny_model_2d, "log_queue": log_queue})
+        p.start()
+        C, Y, X = tiny_model_2d["config"]["input_channels"], 15, 15
+        futs = []
+        for data in [
+            TikTensor(numpy.random.random((C, Y, X)).astype(numpy.float32)),
+            TikTensor(numpy.random.random((C, Y, X)).astype(numpy.float32)),
+            TikTensor(numpy.random.random((C, Y, X)).astype(numpy.float32)),
+            TikTensor(numpy.random.random((C, Y, X)).astype(numpy.float32)),
+        ]:
+            futs.append(client.forward(data))
+        for fut in futs:
+            fut.result(timeout=5)
+    finally:
+        client.shutdown()
 
 
 @pytest.mark.skip

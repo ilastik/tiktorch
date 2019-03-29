@@ -153,8 +153,8 @@ class InferenceProcess(IInference):
         self.logger.debug("Shutdown complete")
         raise Shutdown
 
-    def forward(self, data: TikTensor) -> Future:
-        fut = Future()
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
+        fut = RPCFuture()
         self.forward_queue.put((data, fut))
         return fut
 
@@ -191,7 +191,6 @@ class InferenceProcess(IInference):
 
         end_generator = create_end_generator(start, len(keys), batch_size)
         while start < len(keys):
-            # todo: callback
             end = next(end_generator)
             try:
                 with torch.no_grad():
@@ -236,7 +235,11 @@ class InferenceProcess(IInference):
                 start = end
                 last_batch_size = batch_size
                 if increase_batch_size:
-                    batch_size += 1
-                    end_generator = create_end_generator(start, len(keys), batch_size)
+                    if batch_size >= self.config.get("max_inference_batch_size", 100):
+                        self.logger.info("Reached max_batch_size")
+                        increase_batch_size = False
+                    else:
+                        batch_size += 1
+                        end_generator = create_end_generator(start, len(keys), batch_size)
 
         return batch_size, increase_batch_size
