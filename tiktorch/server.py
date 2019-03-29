@@ -1,10 +1,12 @@
+import argparse
 import logging
 import logging.handlers
 import torch
+import os
 
 from torch import multiprocessing as mp
 
-from typing import Optional
+from typing import Optional, List
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient
@@ -62,7 +64,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     RANK = 1
     SIZE = 2
 
-    def __init__(self):
+    def __init__(self, devices: Optional[List[str]] = None):
+
         self.logger = logging.getLogger(__name__)
         self.log_queue = mp.Queue()
         self.handler: Optional[MPClient] = None
@@ -122,3 +125,34 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self._log_listener.stop()
 
         raise Shutdown()
+
+
+class ServerProcess:
+    def __init__(self, address: str, port: str, notify_port: str, devices: Optional[List[str]] = None, **kwargs):
+        self._addr = address
+        self._port = port
+        self._notify_port = notify_port
+        self._devices = devices
+
+    def listen(self):
+        api_provider = TikTorchServer(devices=self._devices)
+        srv = Server(api_provider, TCPConnConf(self._addr, self._port, self._notify_port))
+        srv.listen()
+
+
+if __name__ == "__main__":
+    # Output pid for process tracking
+    print(os.getpid(), flush=True)
+
+    parsey = argparse.ArgumentParser()
+    parsey.add_argument("--addr", type=str, default="127.0.0.1")
+    parsey.add_argument("--port", type=str, default="29500")
+    parsey.add_argument("--notify-port", type=str, default="29501")
+    parsey.add_argument("--debug", type=bool, default=False)
+
+    args = parsey.parse_args()
+
+    logger.info("Starting server on %s:%s", args.addr, args.port)
+
+    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
+    srv.listen()

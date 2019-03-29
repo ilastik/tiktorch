@@ -1,8 +1,9 @@
 import io
 import logging
 import torch.nn, torch.optim
-import threading
 import multiprocessing as mp
+import time
+import threading
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import closing
@@ -42,8 +43,8 @@ class TikTrainer(InfernoTrainer):
 
 class ITraining(RPCInterface):
     @exposed
-    def set_devices(self, device_names: Sequence[str]):
-        raise NotImplementedError()
+    def set_devices(self, devices: Sequence[torch.device]):
+        raise NotImplementedError
 
     @exposed
     def shutdown(self):
@@ -55,11 +56,15 @@ class ITraining(RPCInterface):
 
     @exposed
     def pause_training(self):
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    @exposed
+    def get_idle(self) -> bool:
+        raise NotImplementedError
 
     @exposed
     def update_dataset(self, name: str, data: TikTensorBatch):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @exposed
     def update_hparams(self, name: str, hparams: Dict):
@@ -79,9 +84,6 @@ def run(
     srv.listen()
 
 
-training_settings_lock = threading.Lock()
-
-
 class TrainingProcess(ITraining):
     """
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
@@ -99,10 +101,14 @@ class TrainingProcess(ITraining):
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
         self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
-        self._shutdown_event = threading.Event()
+        self.shutdown_event = threading.Event()
+        self.idle = False
 
         self.model = model
         self.optimizer_state = optimizer_state
+        self.training_settings_lock = threading.Lock()
+        self.devices = [torch.device("cpu")]
+        self.base_device = "cpu"
 
         self.datasets = {TRAINING: DynamicDataset(), VALIDATION: DynamicDataset()}
         self.update_loader = {TRAINING: True, VALIDATION: True}
@@ -119,17 +125,17 @@ class TrainingProcess(ITraining):
 
         self._pause_event = threading.Event()
         self._pause_event.set()
-        self._update_trainer_event = threading.Event()
-        self._update_trainer_event.set()
+        self.update_trainer_event = threading.Event()
+        self.update_trainer_event.set()
         self.trainer = TikTrainer.build(
-            model=self.model, break_event=self._shutdown_event, **self.create_trainer_config()
+            model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
         )
 
         self.training_thread = threading.Thread(target=self._training_worker)
         self.training_thread.start()
 
     # def end_of_training_iteration(self, iteration_num, trigger):
-    #     if not self._pause_event.is_set() or self._shutdown_event.is_set():
+    #     if not self._pause_event.is_set() or self.shutdown_event.is_set():
     #         raise StopIteration
     #
     def end_of_validation_iteration(self, trigger):
@@ -150,7 +156,7 @@ class TrainingProcess(ITraining):
         # todo: configure (create/load) inferno trainer fully
         trainer = TikTrainer.build(
             model=self.model,
-            break_events=[self._shutdown_event, self._pause_event, self._update_trainer_event],
+            break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
             **self.create_trainer_config(),
         )
         # trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
@@ -161,27 +167,65 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 trainer.optimizer = optimizer
 
-        while not self._shutdown_event.is_set():
-            try:
-                self._pause_event.wait(timeout=1)
-            except TimeoutError:
-                pass
+        while not self.shutdown_event.is_set():
+            if self._pause_event.is_set():
+                self.idle = True
+                time.sleep(1)
+            else:
+                if self.update_trainer_event.is_set():
+                    self.logger.info("Update trainer settings")
+                    with self.training_settings_lock:
+                        self.update_trainer_event.clear()
+                        if self.base_device == "cpu":
+                            self.trainer.cpu()
+                        elif self.base_device == "cuda":
+                            self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
+                        else:
+                            raise ValueError(self.base_device)
 
-            if not self._pause_event.is_set():
-                if self._update_trainer_event.is_set():
-                    self.logger.info("Update trainer")
-                    with training_settings_lock:
-                        self._update_trainer_event.clear()
                         trainer.set_max_num_iterations(self.config["max_num_iterations"])
                         for name in (TRAINING, VALIDATION):
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
                                 trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
 
-                self.logger.info(
-                    "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
-                )
-                trainer.fit()
+                if self.config["max_num_iterations"] >= trainer._iteration_count:
+                    self.idle = False
+                    self.logger.info(
+                        "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
+                    )
+                    trainer.fit()
+                else:
+                    self.idle = True
+                    time.sleep(1)
+
+    def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
+        """
+        set devices to train on. This request blocks until previous devices are free.
+        :param devices: devices to use for training
+        """
+        if self.devices == devices:
+            return []
+
+        free_devices = [d for d in self.devices if d not in devices]
+
+        with self.training_settings_lock:
+            self.update_trainer_event.set()
+            device_types = [d.type for d in devices]
+            if "cpu" in device_types or len(devices) == 0:
+                assert len(devices) == 1, "Cannot train on cpu and gpu at the same time"
+                # train on cpu
+                self.base_device = "cpu"
+                self.devices = []
+            else:
+                self.base_device = "cuda"
+                self.devices = devices
+
+        # wait for training worker to update training settings
+        while self.update_trainer_event.is_set():
+            time.sleep(2)
+
+        return free_devices
 
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
@@ -198,7 +242,7 @@ class TrainingProcess(ITraining):
             return optimizer
 
     def shutdown(self) -> None:
-        self._shutdown_event.set()
+        self.shutdown_event.set()
         self.training_thread.join()
         self.logger.debug("Shutdown complete")
         raise Shutdown
@@ -208,7 +252,7 @@ class TrainingProcess(ITraining):
 
     def pause_training(self) -> None:
         self._pause_event.set()
-        # with training_settings_lock:
+        # with self.training_settings_lock:
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch) -> None:
@@ -217,19 +261,18 @@ class TrainingProcess(ITraining):
         if name == TRAINING:
             self.config["max_num_iterations"] += self.config["max_num_iterations_per_update"] * len(data)
 
-        self._update_trainer_event.set()
+        self.update_trainer_event.set()
 
     def update_hparams(self, name: str, hparams: dict):
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        for key, value in hparams.items():
-            if key in ("batch_size",):
-                with training_settings_lock:
+        with self.training_settings_lock:
+            self.update_trainer_event.set()
+            for key, value in hparams.items():
+                if key in ("batch_size",):
                     self.update_loader[name] = True
                     self.loader_kwargs[name][key] = value
-            else:
-                raise NotImplementedError(f"How to set {key} as a hyper parameter?")
-
-        self._update_trainer_event.set()
+                else:
+                    raise NotImplementedError(f"How to set {key} as a hyper parameter?")
 
     # def update_devices(self, devices: List[torch.device]):
     #     if devices != self.devices:

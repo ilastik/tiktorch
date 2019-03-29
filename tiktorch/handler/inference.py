@@ -234,9 +234,11 @@ class InferenceProcess(IInference):
                     fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
                 start = end
                 last_batch_size = batch_size
-                if increase_batch_size:
-                    if batch_size >= self.config.get("max_inference_batch_size", 100):
-                        self.logger.info("Reached max_batch_size")
+                if increase_batch_size and end - start >= batch_size:  # do not increase batch size after successfully
+                    #                                                    computing an incomplete batch
+                    max_cpu_batch_size = self.config.get("inference_max_cpu_batch_size", 100)
+                    if batch_size >= max_cpu_batch_size:
+                        self.logger.info("Reached 'inference_max_cpu_batch_size' of %d", max_cpu_batch_size)
                         increase_batch_size = False
                     else:
                         batch_size += 1

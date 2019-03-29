@@ -3,9 +3,11 @@ import logging
 import logging.config
 import os.path
 import pickle
+import queue
 import shutil
 import sys
 import tempfile
+import threading
 import torch
 import time
 import numpy as np
@@ -15,21 +17,39 @@ import queue
 from multiprocessing.connection import Connection, wait
 from torch import multiprocessing as mp
 
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set
+from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient
-from tiktorch.tiktypes import TikTensor, TikTensorBatch, PointBase, Point2D, Point3D, Point4D, BatchPointBase, PointAndBatchPointBase
+from tiktorch.tiktypes import (
+    TikTensor,
+    TikTensorBatch,
+    PointBase,
+    Point2D,
+    Point3D,
+    Point4D,
+    BatchPointBase,
+    PointAndBatchPointBase,
+)
 from tiktorch.handler.constants import TRAINING, VALIDATION
 from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
 from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 from tiktorch import log
 
+from tiktorch.configkeys import (
+    TRAINING_SHAPE,
+    TRAINING_SHAPE_LOWER_BOUND,
+    TRAINING_SHAPE_UPPER_BOUND,
+    BATCH_SIZE,
+    INPUT_CHANNELS,
+)
+
+
 class IHandler(RPCInterface):
     @exposed
     def set_devices(self, device_names: Sequence[str]):
-       raise NotImplementedError()
+        raise NotImplementedError()
 
     @exposed
     def active_children(self):
@@ -44,14 +64,22 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
 
-def run(conn: Connection,  config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, log_queue: Optional[mp.Queue] = None):
+def run(
+    conn: Connection,
+    config: dict,
+    model_file: bytes,
+    model_state: bytes,
+    optimizer_state: bytes,
+    log_queue: Optional[mp.Queue] = None,
+):
     log.configure(log_queue)
     handler = HandlerProcess(config, model_file, model_state, optimizer_state, log_queue)
     srv = MPServer(handler, conn)
     srv.listen()
 
+
 #                           - InferenceProcess
-# server - HandlerProcess*-| 
+# server - HandlerProcess*-|
 #                           - TrainingProcess
 class HandlerProcess(IHandler):
     """
@@ -59,7 +87,12 @@ class HandlerProcess(IHandler):
     """
 
     def __init__(
-        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, log_queue: Optional[mp.Queue] = None
+        self,
+        config: dict,
+        model_file: bytes,
+        model_state: bytes,
+        optimizer_state: bytes,
+        log_queue: Optional[mp.Queue] = None,
     ) -> None:
         """
         :param config: configuration dict
@@ -74,15 +107,15 @@ class HandlerProcess(IHandler):
 
         self.config = config
 
-        self.shutting_down: bool = False
+        self.shutdown_event = threading.Event()
+
         self.logger = logging.getLogger(__name__)
         self.logger.info("Starting")
-        self.valid_shapes: list = []
-        self.known_devices: dict = {}
+        self.valid_shapes: Optional[Union[List[Point2D], List[Point3D], List[Point4D]]] = None
+        self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
         self.idle_devices: List[torch.device] = []
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
-        self.waiting_for_dry_run = True
 
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
@@ -92,7 +125,9 @@ class HandlerProcess(IHandler):
         sys.path.insert(0, self.tempdir)
         user_module = importlib.import_module(user_module_name)
 
-        self.model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(**self.config.get("model_init_kwargs", {}))
+        self.model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(
+            **self.config.get("model_init_kwargs", {})
+        )
         self.logger.debug("created user model")
 
         if model_state:
@@ -108,6 +143,7 @@ class HandlerProcess(IHandler):
                 "config": config,
                 "model": self.model,
                 "optimizer_state": optimizer_state,
+                "log_queue": log_queue,
             },
         ).start()
         self._training: MPClient = MPClient(ITraining, handler2training_conn)
@@ -116,12 +152,7 @@ class HandlerProcess(IHandler):
         handler2inference_conn, inference2handler_conn = mp.Pipe()
         mp.Process(
             target=run_inference,
-            kwargs={
-                "conn": inference2handler_conn,
-                "config": config,
-                "model": self.model,
-                "optimizer_state": optimizer_state,
-            },
+            kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
         self._inference: MPClient = MPClient(IInference, handler2inference_conn)
 
@@ -129,20 +160,88 @@ class HandlerProcess(IHandler):
         handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
         mp.Process(
             target=run_dryrun,
-            kwargs={
-                "conn": dryrun2handler_conn,
-                "config": config,
-                "model": self.model,
-            },
+            kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
-        self._dry_run: MPClient = MPClient(IDryRun, handler2dryrun_conn)
+        self._dry_run = MPClient(IDryRun, handler2dryrun_conn)
+
+        # start device setter thread that will wait for dry run processes to finish
+        self.new_device_names: queue.Queue = queue.Queue()
+        self.device_setter_thread = threading.Thread(target=self._device_setter_worker)
+        self.device_setter_thread.start()
 
         self.set_devices(device_names=self.config.get("devices", ["cpu"]))
+
+    def _device_setter_worker(self) -> None:
+        while not self.shutdown_event.is_set():
+            try:
+                new_device_names, fut = self.new_device_names.get(timeout=5)
+            except TimeoutError:
+                pass
+            else:
+                while not self.new_device_names.empty():
+                    fut.cancel()
+                    new_device_names, fut = self.new_device_names.get()
+
+                new_devices = []
+                for dn in new_device_names:
+                    try:
+                        torch_device = torch.device(dn)
+                    except TypeError as e:
+                        self.logger.error(e)
+                    else:
+                        new_devices.append(torch_device)
+
+                # remove old devices that are not in the new list of devices
+                self.idle_devices = [d for d in self.idle_devices if d in new_devices]
+
+                if self.training.get_idle():
+                    previous_training_devices = self.training.set_devices([])
+                    assert previous_training_devices == self.training_devices, (previous_training_devices, self.training_devices)
+                    self.idle_devices = self.training_devices + self.idle_devices
+                else:
+                    self.training_devices = [d for d in self.training_devices if d in new_devices]
+
+                self.training.set_devices(self.training_devices)
+
+                self.inference_devices = [d for d in self.inference_devices if d in new_devices]
+                self.inference.set_devices(self.inference_devices)
+
+                # do dry run for truly new devices
+                new_devices = [d for d in new_devices if d not in self.devices]
+                try:
+                    approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
+                        new_devices,
+                        training_shape=self.config.get(TRAINING_SHAPE, None),
+                        valid_shapes=self.valid_shapes,
+                        shrinkage=self.shrinkage,
+                    ).result()
+                    if TRAINING_SHAPE in self.config:
+                        assert training_shape == self.config[TRAINING_SHAPE]
+                    else:
+                        self.config[TRAINING_SHAPE] = training_shape
+
+                    if self.valid_shapes is None:
+                        self.valid_shapes = valid_shapes
+                    else:
+                        self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
+                        assert self.valid_shapes, "No overlapping valid shapes found!"
+
+                    if self.shrinkage is None:
+                        self.shrinkage = shrinkage
+                    else:
+                        assert self.shrinkage == shrinkage
+
+                except Exception as e:
+                    fut.set_exeption(e)
+                    self.logger.error(e)
+                else:
+                    self.idle_devices += approved_devices
+                    fut.set_result((self.config[TRAINING_SHAPE], self.valid_shapes, self.shrinkage))
 
     # device handling and dry run
     @property
     def devices(self):
-        return self.idle_devices + self.training_devices + self.inference_devices
+        return self.training_devices + self.idle_devices + self.inference_devices
 
     @property
     def inference(self):
@@ -156,37 +255,18 @@ class HandlerProcess(IHandler):
     def dry_run(self):
         return self._dry_run
 
-    def set_devices(self, device_names: Sequence[str]) -> None:
-        self.waiting_for_dry_run = True
-        devices = []
-        for device in device_names:
-            try:
-                torch_device = torch.device(device)
-            except TypeError as e:
-                self.logger.warning(e)
-            else:
-                devices.append(torch_device)
-
-        # todo: compare to previous devices
-        #   todo: free old devices, reset idle_devices, training_devices, inference_devices
-        previous_devices = list(self.devices)
-        if previous_devices:
-            pass
-
-        # for now hard reset all previous devices
-        self.idle_devices: Sequence[torch.device] = []
-        self.training_devices: Sequence[torch.device] = []
-        self.inference_devices: Sequence[torch.device] = []
-
-        for d in devices:
-            self.dry_run.dry_run(d)
-
-    def set_devices_answer(self, devices: Sequence[torch.device] = tuple(), valid_shapes: Sequence[PointBase] = tuple(), shrinkage: PointBase = None, failure_msg: str = "") -> None:
-        if failure_msg:
-            self.server_conn.send(("set_devices_answer", {"failure_msg": failure_msg}))
-        else:
-            self.waiting_for_dry_run = False
-            self.server_conn.send(("set_devices_answer", {"device_names": [str(d) for d in devices]}))
+    def set_devices(
+        self, device_names: Sequence[str]
+    ) -> RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]:
+        fut = RPCFuture()
+        self.new_device_names.put((device_names, fut))
+        return fut
 
     # general
     def active_children(self) -> List[mp.Process]:
@@ -194,7 +274,7 @@ class HandlerProcess(IHandler):
 
     def shutdown(self) -> None:
         self.logger.debug("Shutting down...")
-        self._shutting_down = True
+        self.shutdown_event.set()
         self.dry_run.shutdown()
         self.inference.shutdown()
         self.training.shutdown()
@@ -239,50 +319,20 @@ class HandlerProcess(IHandler):
         # self.server_conn.send(("report_idle", {"proc_name": proc_name, "devices": devices}))
 
     # inference
-    def assign_inference_devices(self) -> None:
-        if not self.inference_devices and not self.idle_devices:
-            # training is currently using all devices
-            raise NotImplementedError(
-                "cpu should always be available for forward pass! Freeing a training gpu to be implemented"
-            )
-
-        idle_gpus = [d for d in self.idle_devices if d.type != "cpu"]
-        if idle_gpus:
-            self.inference_devices += idle_gpus
-            self.idle_devices = [d for d in self.idle_devices if d.type == "cpu"]
-        else:
-            self.inference_devices += self.idle_devices
-            self.idle_devices = []
-
-        self.inference.send(("update_devices", {"devices": self.inference_devices}))
-
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         # todo: update inference devices
         return self.inference.forward(data)
 
     # training
-    def assign_training_devices(self) -> None:
-        if len(self.devices) == 1 and self.devices[0] == "cpu":
-            # todo: remove training on cpu (only useful for debugging)
-            self.training_conn.send(("update_devices", {"devices": ["cpu"]}))
-        else:
-            idle_gpus = [d for d in self.idle_devices if d.type != "cpu"]
-            if idle_gpus:
-                self.training_devices = idle_gpus
-                self.idle_devices = [d for d in self.idle_devices if d.type == "cpu"]
-                self.training_conn.send(("update_devices", {"devices": idle_gpus}))
-            else:
-                self.training_devices = REQUEST_FOR_DEVICES
-
     def update_hparams(self, hparams: dict) -> None:
         # todo: check valid shapes if mini batch size changes
         pass
 
     def resume_training(self) -> None:
-        self.training_conn.send((TrainingProcess.resume_training.__name__, {}))
+        self.training.resume_training()
 
     def pause_training(self) -> None:
-        self.training_conn.send((TrainingProcess.pause_training.__name__, {}))
+        self.training.pause_training()
 
     def update_training_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
         self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))

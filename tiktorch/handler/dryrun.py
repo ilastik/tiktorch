@@ -15,7 +15,10 @@ import threading
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
+from torch import multiprocessing as mp
+
 from torch.multiprocessing import Process, Pipe, Queue
+from tiktorch import log
 
 from typing import (
     Any,
@@ -34,7 +37,7 @@ from typing import (
     NamedTuple,
 )
 
-from tiktorch.rpc import RPCInterface, exposed, Shutdown
+from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import (
     TikTensor,
@@ -50,7 +53,7 @@ from tiktorch.tiktypes import (
     BatchPoint4D,
 )
 
-from tiktorch.configkeys import *
+from tiktorch.configkeys import TRAINING_SHAPE, TRAINING_SHAPE_LOWER_BOUND, TRAINING_SHAPE_UPPER_BOUND, BATCH_SIZE, INPUT_CHANNELS
 
 
 def ret_through_conn(*args, fn: Callable, conn: Connection, **kwargs) -> None:
@@ -71,7 +74,7 @@ def in_subproc(fn: Callable, *args, **kwargs) -> Connection:
 
 class IDryRun(RPCInterface):
     @exposed
-    def dry_run(self, devices: Sequence[torch.device]) -> Future:
+    def dry_run(self, devices: Sequence[torch.device]) -> RPCFuture:
         raise NotImplementedError()
 
     @exposed
@@ -79,7 +82,8 @@ class IDryRun(RPCInterface):
         raise NotImplementedError()
 
 
-def run(conn: Connection, config: dict, model: torch.nn.Module):
+def run(conn: Connection, config: dict, model: torch.nn.Module, log_queue: Optional[mp.Queue] = None):
+    log.configure(log_queue)
     # print('CUDA_VISIBLE_DEVICES:', os.environ["CUDA_VISIBLE_DEVICES"])
     dryrun_proc = DryRunProcess(config, model)
     srv = MPServer(dryrun_proc, conn)
@@ -91,10 +95,8 @@ class DryRunProcess(IDryRun):
     Process to execute a dry run to determine training and inference shape for 'model' on 'device'
     """
 
-    name = "DryRunProcess"
-
     def __init__(self, config: dict, model: torch.nn.Module) -> None:
-        self.logger = logging.getLogger(self.name)
+        self.logger = logging.getLogger(__name__)
         self.config = config
         self.model = model
 
@@ -113,15 +115,15 @@ class DryRunProcess(IDryRun):
             else:
                 self._dry_run(devices, fut)
 
-    def dry_run(self, devices: Sequence[torch.device]) -> Future:
-        fut = Future()
+    def dry_run(self, devices: Sequence[torch.device], training_shape=None) -> RPCFuture:
+        fut = RPCFuture()
+        self.valid_shapes: List[Union[Point2D, Point3D, Point4D]] = []
+        self.shrinkage: Union[Point2D, Point3D, Point4D] = None
         self.dry_run_queue.put((devices, fut))
         return fut
 
     def _dry_run(self, devices: Sequence[torch.device], fut: Future) -> None:
         self.logger.info("Starting dry run")
-        self.valid_shapes: List[Union[Point2D, Point3D, Point4D]] = []
-        self.shrinkage: Union[Point2D, Point3D, Point4D] = None
         try:
             works = []
             for d in devices:
