@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import torch
 
 from torch import multiprocessing as mp
@@ -63,8 +64,14 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.log_queue = mp.Queue()
         self.handler: Optional[MPClient] = None
         self.state = State()
+
+    def _start_logging_handler(self):
+        root_logger = logging.getLogger()
+        self._log_listener = logging.handlers.QueueHandler(self.log_queue, *root_logger.handlers)
+        self._log_listener.start()
 
     def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes) -> None:
         if self.handler is not None:
@@ -79,9 +86,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 "model_file": model_file,
                 "model_state": model_state,
                 "optimizer_state": optimizer_state,
+                "log_queue": mp.Queue(),
             },
         )
         p.start()
+        self._start_logging_handler()
         self.handler = MPClient(IHandler(), server_conn)
 
     def forward(self, batch: NDArrayBatch) -> RPCFuture[NDArrayBatch]:
@@ -110,5 +119,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger.info("Shutting down...")
         if self.handler:
             self.handler.shutdown()
+        self._log_listener.stop()
 
         raise Shutdown()
