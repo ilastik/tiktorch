@@ -68,51 +68,47 @@ class BarSerializer(ISerializer[Bar]):
 
 def test_undefinined_serializer_raises(ser):
     with pytest.raises(NotImplementedError):
-        res = list(serialize(Foo, Foo(a=1)))
-
-    with pytest.raises(NotImplementedError):
-        res = list(deserialize(Foo, zmq.Frame(b'{"a": 1}')))
+        res = list(serialize(Foo(a=1)))
 
 
 def test_defining_serializer(ser):
-    ser.register(Foo)(FooSerializer)
+    ser.register(Foo, tag=b'foo')(FooSerializer)
 
-    frame, *rest = list(ser.serialize(Foo, Foo(a=42)))
-    assert len(rest) == 0
-    assert frame.bytes == b'{"a": 42}'
+    frames = list(ser.serialize(Foo(a=42)))
+    foo = ser.deserialize(iter(frames))
 
-    foo = ser.deserialize(Foo, iter([frame]))
     assert foo.a == 42
 
 
 def test_multiframe_parser(ser):
-    ser.register(Bar)(BarSerializer)
+    ser.register(Bar, tag=b'bar')(BarSerializer)
 
-    frames = list(ser.serialize(Bar, Bar(b=42, c=21)))
-    assert len(frames) == 2
-    assert frames[0].bytes == b'*'
-    assert frames[1].bytes == b'\x15'
+    frames = list(ser.serialize(Bar(b=42, c=21)))
+    assert len(frames) == 3
+    assert frames[0].bytes == b'T:bar'
+    assert frames[1].bytes == b'*'
+    assert frames[2].bytes == b'\x15'
 
 
 def test_deserializing_multiple_objects_from_frame_stream(ser):
-    ser.register(Foo)(FooSerializer)
-    ser.register(Bar)(BarSerializer)
+    ser.register(Foo, tag=b'foo')(FooSerializer)
+    ser.register(Bar, tag=b'bar')(BarSerializer)
 
     expected_bar = Bar(b=42, c=21)
     expected_foo = Foo(a=1)
-    bar_frames = ser.serialize(Bar, expected_bar)
-    foo_frames = ser.serialize(Foo, expected_foo)
+    bar_frames = ser.serialize(expected_bar)
+    foo_frames = ser.serialize(expected_foo)
     tail = ('ok' for _ in range(1))
     # foo = deserialize(Foo, iter([frame]))
 
     frames = chain(bar_frames, foo_frames, tail)
 
 
-    bar = ser.deserialize(Bar, frames)
+    bar = ser.deserialize(frames)
     assert bar == expected_bar
     assert bar is not expected_bar
 
-    foo = ser.deserialize(Foo, frames)
+    foo = ser.deserialize(frames)
     assert foo == expected_foo
     assert foo is not expected_foo
 
@@ -120,14 +116,14 @@ def test_deserializing_multiple_objects_from_frame_stream(ser):
 
 
 def test_deserializing_from_empty_iterator_should_raise(ser):
-    ser.register(Foo)(FooSerializer)
+    ser.register(tag=b'foo')(FooSerializer)
 
     with pytest.raises(DeserializationError):
-        foo = ser.deserialize(Foo, iter([]))
+        foo = ser.deserialize(iter([]))
 
 
 def test_deserializing_from_empty_iterator_should_raise(ser):
-    ser.register(Foo)(FooSerializer)
+    ser.register(Foo, tag=b'foo')(FooSerializer)
 
     with pytest.raises(DeserializationError):
-        foo = ser.deserialize(Foo, iter([]))
+        foo = ser.deserialize(iter([]))

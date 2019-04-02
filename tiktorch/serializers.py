@@ -9,7 +9,7 @@ from .types import NDArrayBatch, NDArray
 from .rpc.serialization import ISerializer, FusedFrameIterator, serializer_for
 
 
-@serializer_for(NDArrayBatch)
+@serializer_for(NDArrayBatch, tag=b'ndarray')
 class NDArrayBatchSerializer(ISerializer[NDArrayBatch]):
     """
     Serialization/deserialization protocol for NDArrayBatch

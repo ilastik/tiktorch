@@ -1,5 +1,6 @@
 from logging import getLogger
 from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
+from collections import namedtuple
 
 import zmq
 
@@ -31,45 +32,61 @@ class ISerializer(Generic[T]):
 
 
 class SerializerRegistry:
+    Entry = namedtuple('Entry', ['serializer', 'tag'])
+
     """
     Contains all registered serializers for types
     """
     def __init__(self):
-        self._serializer_by_type: Dict[Any, ISerializer] = {}
+        self._entry_by_type: Dict[Any, self.Entry] = {}
+        self._entry_by_tag: Dict[Any, self.Entry] = {}
 
-    def register(self, type_: T) -> Callable[[ISerializer[T]], Any]:
+    def register(self, type_: T, tag: bytes) -> Callable[[ISerializer[T]], Any]:
         """
         Register serializer for given type
         """
         def _reg_fn(cls: ISerializer[T]) -> ISerializer[T]:
-            self._serializer_by_type[type_] = cls
+            self._entry_by_tag[tag] = self.Entry(cls, tag)
+            self._entry_by_type[type_] = self.Entry(cls, tag)
             return cls
 
         return _reg_fn
 
-    def serialize(self, type_: type, obj: Any) -> Iterator[zmq.Frame]:
+    def serialize(self, obj: Any) -> Iterator[zmq.Frame]:
         """
         Serialize single object of type *type_* to zmq.Frame stream
         """
+        type_ = type(obj)
         logger.debug("serialize(%r, %r)", type_, obj)
-        serializer = self._serializer_by_type.get(type_)
-        if not serializer:
+        entry = self._entry_by_type.get(type(obj))
+
+        if not entry:
             raise NotImplementedError(f"Serialization protocol not implemented for {type_}")
-        logger.debug("Using %r serializer", serializer)
 
-        yield from serializer.serialize(obj)
+        logger.debug("Using %r serializer", entry.serializer)
+        yield zmq.Frame(b'T:%s' % entry.tag)
 
-    def deserialize(self, type_: type, frames: Iterator[zmq.Frame]) -> Any:
+        yield from entry.serializer.serialize(obj)
+
+    def deserialize(self, frames: Iterator[zmq.Frame]) -> Any:
         """
         Deserialize object of type *type_* from frames stream
         """
-        logger.debug("deserialize(%r)", type_)
-        serializer = self._serializer_by_type.get(type_)
-        if not serializer:
-            raise NotImplementedError(f"Serialization protocol not implemented for {type_}")
-        logger.debug("Using %r serializer", serializer)
+        logger.debug("deserialize")
+        try:
+            header_frm = next(frames)
+            header = header_frm.bytes
+        except StopIteration:
+            raise DeserializationError('Failed to read header')
 
-        return serializer.deserialize(FusedFrameIterator(type_, frames))
+        assert header.startswith(b'T:')
+        tag = header[2:]
+        entry = self._entry_by_tag.get(tag)
+        if not entry:
+            raise NotImplementedError(f"Serialization protocol not implemented for {tag}")
+        logger.debug("Using %r serializer", entry.serializer)
+
+        return entry.serializer.deserialize(FusedFrameIterator(entry.serializer, frames))
 
 
 class DeserializationError(Exception):
@@ -104,7 +121,8 @@ register = root_reg.register
 # TODO Remove
 serializer_for = root_reg.register
 
-@serializer_for(None)
+
+@serializer_for(type(None), tag=b'none')
 class NoneSerializer(ISerializer[None]):
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> None:
@@ -127,7 +145,7 @@ class NoneSerializer(ISerializer[None]):
         yield zmq.Frame()
 
 
-@serializer_for(bytes)
+@serializer_for(bytes, tag=b'bytes')
 class BytesSerializer(ISerializer[bytes]):
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> bytes:
@@ -147,7 +165,7 @@ class BytesSerializer(ISerializer[bytes]):
         yield zmq.Frame(obj)
 
 
-@serializer_for(memoryview)
+@serializer_for(memoryview, tag=b'mem')
 class MemoryViewSerializer(ISerializer[memoryview]):
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> memoryview:
@@ -160,7 +178,7 @@ class MemoryViewSerializer(ISerializer[memoryview]):
         yield zmq.Frame(obj)
 
 
-@serializer_for(dict)
+@serializer_for(dict, tag=b'dict')
 class DictSerializer(ISerializer[dict]):
     @classmethod
     def serialize(cls, obj: dict) -> Iterator[zmq.Frame]:
@@ -171,18 +189,20 @@ class DictSerializer(ISerializer[dict]):
         frame = next(frames)
         return jsonapi.loads(frame.bytes)
 
-@serializer_for(list)
+
+@serializer_for(list, tag=b'list')
 class ListSerializer(ISerializer[list]):
     @classmethod
     def serialize(cls, obj: list) -> Iterator[zmq.Frame]:
-        yield zmq.Frame(bytes(obj))
+        yield zmq.Frame(jsonapi.dumps(obj))
 
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> list:
         frame = next(frames)
-        return list(frame)
+        return jsonapi.loads(frame.bytes)
 
-@serializer_for(bool)
+
+@serializer_for(bool, tag=b'bool')
 class BoolSerializer(ISerializer[bool]):
     @classmethod
     def serialize(cls, obj: bool) -> Iterator[zmq.Frame]:
