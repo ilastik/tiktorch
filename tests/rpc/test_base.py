@@ -123,7 +123,6 @@ def test_serialize_deserialize_method_args():
     a = b'hello'
     serialized = list(serialize_args(f.func, [data, a]))
 
-    assert len(serialized) == 2
     for frame in serialized:
         assert isinstance(frame, zmq.Frame)
 
@@ -136,7 +135,6 @@ def test_serialize_deserialize_method_return():
     f = Foo()
     serialized = list(serialize_return(f.func, b'bytes'))
 
-    assert len(serialized) == 1
     deserialized = deserialize_return(f.func, iter(serialized))
     assert deserialized == b'bytes'
 
@@ -147,7 +145,6 @@ def test_serialize_deserialize_decorated_method_args():
     a = b'hello'
     serialized = list(serialize_args(f.func_dec, [data, a]))
 
-    assert len(serialized) == 2
     for frame in serialized:
         assert isinstance(frame, zmq.Frame)
 
@@ -160,7 +157,6 @@ def test_serialize_deserialize_decorated_method_return():
     f = Foo()
     serialized = list(serialize_return(f.func_dec, b'bytes'))
 
-    assert len(serialized) == 1
     deserialized = deserialize_return(f.func_dec, iter(serialized))
     assert deserialized == b'bytes'
 

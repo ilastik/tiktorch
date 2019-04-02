@@ -1,5 +1,6 @@
 from logging import getLogger
 from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
+from collections import namedtuple
 
 import zmq
 
@@ -29,25 +30,24 @@ class ISerializer(Generic[T]):
         """
         raise NotImplementedError
 
-from collections import namedtuple
-
-Entry = namedtuple('Entry', ['serializer', 'tag'])
 
 class SerializerRegistry:
+    Entry = namedtuple('Entry', ['serializer', 'tag'])
+
     """
     Contains all registered serializers for types
     """
     def __init__(self):
-        self._entry_by_type: Dict[Any, ISerializer] = {}
-        self._entry_by_tag: Dict[Any, ISerializer] = {}
+        self._entry_by_type: Dict[Any, self.Entry] = {}
+        self._entry_by_tag: Dict[Any, self.Entry] = {}
 
     def register(self, type_: T, tag: bytes) -> Callable[[ISerializer[T]], Any]:
         """
         Register serializer for given type
         """
         def _reg_fn(cls: ISerializer[T]) -> ISerializer[T]:
-            self._entry_by_tag[tag] = Entry(cls, tag)
-            self._entry_by_type[type_] = Entry(cls, tag)
+            self._entry_by_tag[tag] = self.Entry(cls, tag)
+            self._entry_by_type[type_] = self.Entry(cls, tag)
             return cls
 
         return _reg_fn
@@ -74,9 +74,8 @@ class SerializerRegistry:
         """
         logger.debug("deserialize")
         try:
-            header = next(frames)
-            if isinstance(header, zmq.Frame):
-                header = header.bytes
+            header_frm = next(frames)
+            header = header_frm.bytes
         except StopIteration:
             raise DeserializationError('Failed to read header')
 
@@ -122,7 +121,8 @@ register = root_reg.register
 # TODO Remove
 serializer_for = root_reg.register
 
-@serializer_for(None, tag=b'none')
+
+@serializer_for(type(None), tag=b'none')
 class NoneSerializer(ISerializer[None]):
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> None:
@@ -145,7 +145,7 @@ class NoneSerializer(ISerializer[None]):
         yield zmq.Frame()
 
 
-@serializer_for(bytes, tag='bytes')
+@serializer_for(bytes, tag=b'bytes')
 class BytesSerializer(ISerializer[bytes]):
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> bytes:
@@ -189,16 +189,18 @@ class DictSerializer(ISerializer[dict]):
         frame = next(frames)
         return jsonapi.loads(frame.bytes)
 
-@serializer_for(list)
+
+@serializer_for(list, tag=b'list')
 class ListSerializer(ISerializer[list]):
     @classmethod
     def serialize(cls, obj: list) -> Iterator[zmq.Frame]:
-        yield zmq.Frame(bytes(obj))
+        yield zmq.Frame(jsonapi.dumps(obj))
 
     @classmethod
     def deserialize(cls, frames: FusedFrameIterator) -> list:
         frame = next(frames)
-        return list(frame)
+        return jsonapi.loads(frame.bytes)
+
 
 @serializer_for(bool, tag=b'bool')
 class BoolSerializer(ISerializer[bool]):

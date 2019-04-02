@@ -12,7 +12,6 @@ from typing import (
 )
 
 import zmq
-import typing_inspect
 
 from .interface import RPCInterface, get_exposed_methods
 from .serialization import serialize, deserialize
@@ -66,7 +65,7 @@ def serialize_args(
     for arg in sig.parameters.values():
         type_ = arg.annotation
         call_arg = bound_args[arg.name]
-        yield from serialize(type_, call_arg)
+        yield from serialize(call_arg)
 
 
 def deserialize_args(
@@ -78,7 +77,7 @@ def deserialize_args(
 
     for arg in sig.parameters.values():
         type_ = arg.annotation
-        args.append(deserialize(type_, frames))
+        args.append(deserialize(frames))
 
     return args
 
@@ -87,16 +86,17 @@ def serialize_return(
     func: Callable,
     value: Any,
 ) -> Iterator[zmq.Frame]:
-    sig = inspect.signature(func)
+    return serialize(value)
+    # sig = inspect.signature(func)
 
-    if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
-        type_, *rest = typing_inspect.get_args(sig.return_annotation)
-        if rest:
-            raise ValueError("Tuple returns are not supported")
-        return serialize(type_, value)
+    # if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
+    #     type_, *rest = typing_inspect.get_args(sig.return_annotation)
+    #     if rest:
+    #         raise ValueError("Tuple returns are not supported")
+    #     return serialize(type_, value)
 
-    else:
-        return serialize(sig.return_annotation, value)
+    # else:
+    #     return serialize(sig.return_annotation, value)
 
 
 def isfutureret(func: Callable):
@@ -113,15 +113,15 @@ def deserialize_return(
 ) -> Any:
     sig = inspect.signature(func)
 
-    if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
-        type_, *rest = typing_inspect.get_args(sig.return_annotation)
-        if rest:
-            raise ValueError("Tuple returns are not supported")
+    # if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
+    #     type_, *rest = typing_inspect.get_args(sig.return_annotation)
+    #     if rest:
+    #         raise ValueError("Tuple returns are not supported")
 
-        return deserialize(type_, frames)
+    return deserialize(frames)
 
-    else:
-        return deserialize(sig.return_annotation, frames)
+    # else:
+    #     return deserialize(frames)
 
 
 class Result:
@@ -279,6 +279,7 @@ class Client:
             target=_listen,
             name=f'ClientNotificationsThread[{self._name}]'
         )
+        self._listener.daemon = True
         self._listener.start()
 
     @property

@@ -3,6 +3,7 @@ import pickle
 import faulthandler
 import sys
 import signal
+import threading
 import multiprocessing as mp
 import logging.handlers
 
@@ -140,3 +141,9 @@ def log_queue():
     yield q
 
     listener.stop()
+
+
+@pytest.fixture(scope='function')
+def assert_threads_cleanup():
+    yield
+    assert threading.enumerate() == []
