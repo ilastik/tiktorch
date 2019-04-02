@@ -81,6 +81,7 @@ def tiny_model(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
+            "training_shape_upper_bound": (15),
         }
     }
 
@@ -98,6 +99,7 @@ def tiny_model_2d(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
+            "training_shape_upper_bound": (15, 15),
         }
     }
 
@@ -115,6 +117,7 @@ def tiny_model_3d(datadir):
             "model_init_kwargs": {},
             "batch_size": 10,
             "input_channels": 1,
+            "training_shape_upper_bound": (15, 15, 15),
         }
     }
 
