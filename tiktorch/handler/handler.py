@@ -20,7 +20,7 @@ from torch import multiprocessing as mp
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
-from tiktorch.rpc.mp import MPServer, MPClient
+from tiktorch.rpc.mp import MPServer, MPClient, Shutdown
 from tiktorch.tiktypes import (
     TikTensor,
     TikTensorBatch,
@@ -49,15 +49,15 @@ from tiktorch.configkeys import (
 class IHandler(RPCInterface):
     @exposed
     def set_devices(self, device_names: Sequence[str]):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @exposed
-    def active_children(self):
-        raise NotImplementedError()
+    def active_children(self) -> List[str]:
+        raise NotImplementedError
 
     @exposed
     def shutdown(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @exposed
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
@@ -110,10 +110,10 @@ class HandlerProcess(IHandler):
         self.shutdown_event = threading.Event()
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Starting")
+        self.logger.info("started")
         self.valid_shapes: Optional[Union[List[Point2D], List[Point3D], List[Point4D]]] = None
         self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
-        self.idle_devices: List[torch.device] = []
+        self.idle_devices: List[torch.device] = [torch.device("cpu")]
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
 
@@ -138,6 +138,7 @@ class HandlerProcess(IHandler):
         handler2training_conn, training2handler_conn = mp.Pipe()
         mp.Process(
             target=run_training,
+            name="Training",
             kwargs={
                 "conn": training2handler_conn,
                 "config": config,
@@ -152,6 +153,7 @@ class HandlerProcess(IHandler):
         handler2inference_conn, inference2handler_conn = mp.Pipe()
         mp.Process(
             target=run_inference,
+            name="Inference",
             kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
         self._inference: MPClient = MPClient(IInference, handler2inference_conn)
@@ -159,6 +161,7 @@ class HandlerProcess(IHandler):
         # start dryrun process
         handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
         mp.Process(
+            name="DryRun",
             target=run_dryrun,
             kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
@@ -166,18 +169,32 @@ class HandlerProcess(IHandler):
 
         # start device setter thread that will wait for dry run processes to finish
         self.new_device_names: queue.Queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(target=self._device_setter_worker)
+        self.device_setter_thread = threading.Thread(target=self._device_setter_worker, name="DeviceSetter")
         self.device_setter_thread.start()
 
         self.set_devices(device_names=self.config.get("devices", ["cpu"]))
 
     def _device_setter_worker(self) -> None:
+        self.logger.info("started")
         while not self.shutdown_event.is_set():
             try:
-                new_device_names, fut = self.new_device_names.get(timeout=5)
-            except TimeoutError:
-                pass
-            else:
+                new_device_names, fut = self.new_device_names.get(timeout=3)
+            except queue.Empty:
+                # no new devices; reassign devices if necessary
+                for fut in self._collect_idle_devices():
+                    fut.result()  # wait for confirmation that idle devices are in fact free
+
+                if not self.idle_devices and not self.inference_devices and not self.inference.get_idle().result():
+                    self.logger.debug("reassigning a training device to inference")
+                    self.inference_devices = [self.training_devices[-1]]
+                    self.training_devices = self.training_devices[:-1]
+                    self.training.set_devices(self.training_devices).result()
+                    self.inference.set_devices(self.inference_devices)  # no need to wait here
+                else:
+                    self._assign_idle_devices()
+
+                continue
+            try:
                 while not self.new_device_names.empty():
                     fut.cancel()
                     new_device_names, fut = self.new_device_names.get()
@@ -194,27 +211,21 @@ class HandlerProcess(IHandler):
                 # remove old devices that are not in the new list of devices
                 self.idle_devices = [d for d in self.idle_devices if d in new_devices]
 
-                if self.training.get_idle():
-                    previous_training_devices = self.training.set_devices([])
-                    assert previous_training_devices == self.training_devices, (previous_training_devices, self.training_devices)
-                    self.idle_devices = self.training_devices + self.idle_devices
-                else:
-                    self.training_devices = [d for d in self.training_devices if d in new_devices]
-
-                self.training.set_devices(self.training_devices)
-
-                self.inference_devices = [d for d in self.inference_devices if d in new_devices]
-                self.inference.set_devices(self.inference_devices)
+                freed_training_devices_fut, freed_inference_devices_fut = self._collect_idle_devices(
+                    new_devices=new_devices
+                )
 
                 # do dry run for truly new devices
                 new_devices = [d for d in new_devices if d not in self.devices]
-                try:
+                if new_devices:
                     approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
                         new_devices,
                         training_shape=self.config.get(TRAINING_SHAPE, None),
                         valid_shapes=self.valid_shapes,
                         shrinkage=self.shrinkage,
                     ).result()
+                    self.idle_devices += approved_devices
+
                     if TRAINING_SHAPE in self.config:
                         assert training_shape == self.config[TRAINING_SHAPE]
                     else:
@@ -224,19 +235,67 @@ class HandlerProcess(IHandler):
                         self.valid_shapes = valid_shapes
                     else:
                         self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
-                        assert self.valid_shapes, "No overlapping valid shapes found!"
+                        if not self.valid_shapes:
+                            raise ValueError(f"No valid shapes found after {new_devices}")
 
                     if self.shrinkage is None:
                         self.shrinkage = shrinkage
                     else:
                         assert self.shrinkage == shrinkage
 
-                except Exception as e:
-                    fut.set_exeption(e)
-                    self.logger.error(e)
-                else:
-                    self.idle_devices += approved_devices
-                    fut.set_result((self.config[TRAINING_SHAPE], self.valid_shapes, self.shrinkage))
+                # wait for old devices to be free
+                freed_training_devices_fut.result()
+                freed_inference_devices_fut.result()
+
+                # (re-)assign freed old and new devices
+                self._assign_idle_devices()
+            except Exception as e:
+                fut.set_exeption(e)
+                self.logger.error(e)
+            else:
+                fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
+
+        self.logger.info("stopped")
+
+    def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
+        if self.training.get_idle().result():
+            self.idle_devices = self.training_devices + self.idle_devices
+            self.training_devices = []
+        elif new_devices is not None:
+            self.training_devices = [d for d in self.training_devices if d in new_devices]
+
+        if self.inference.get_idle().result():
+            self.idle_devices += self.inference_devices
+            self.inference_devices = []
+        elif new_devices is not None:
+            self.inference_devices = [d for d in self.inference_devices if d in new_devices]
+
+        freed_training_devices_fut = self.training.set_devices(self.training_devices)
+        freed_inference_devices_fut = self.inference.set_devices(self.inference_devices)
+        return freed_training_devices_fut, freed_inference_devices_fut
+
+    def _assign_idle_devices(self):
+        if not self.idle_devices:
+            return
+
+        self.logger.debug("assigning idle devices")
+        training_idle = self.training.get_idle().result()
+        inference_idle = self.inference.get_idle().result()
+        if training_idle and inference_idle:
+            return
+        elif training_idle and not inference_idle:  # all for inference
+            self.inference_devices = self.idle_devices + self.inference_devices
+        elif not training_idle and inference_idle:  # all for training
+            self.training_devices += self.idle_devices
+        elif not self.inference_devices:  # one device for inference, rest (if exists) for training
+            self.inference_devices.insert(0, self.idle_devices[-1])
+            self.training_devices += self.idle_devices[:-1]
+        else:  # inference has at least one device already, assign the rest to training
+            self.training_devices += self.idle_devices
+
+        self.idle_devices = []
+        self.training.set_devices(self.training_devices)
+        self.inference.set_devices(self.inference_devices)
 
     # device handling and dry run
     @property
@@ -269,15 +328,32 @@ class HandlerProcess(IHandler):
         return fut
 
     # general
-    def active_children(self) -> List[mp.Process]:
-        return mp.active_children()
+    def active_children(self) -> List[str]:
+        return [c.name for c in mp.active_children()]
 
     def shutdown(self) -> None:
         self.logger.debug("Shutting down...")
         self.shutdown_event.set()
-        self.dry_run.shutdown()
-        self.inference.shutdown()
-        self.training.shutdown()
+        # wait for threads to shutdown
+        try:
+            self.device_setter_thread.join(timeout=30)
+        except TimeoutError as e:
+            self.logger.error(e)
+
+        # shutdown processes
+        try:
+            self.dry_run.shutdown().result(timeout=30)
+        except TimeoutError as e:
+            self.logger.error(e)
+        try:
+            self.inference.shutdown().result(timeout=30)
+        except TimeoutError as e:
+            self.logger.error(e)
+        try:
+            self.training.shutdown().result(timeout=30)
+        except TimeoutError as e:
+            self.logger.error(e)
+
         try:
             if self.tempdir:
                 shutil.rmtree(self.tempdir)
@@ -285,38 +361,7 @@ class HandlerProcess(IHandler):
             self.logger.error(e)
 
         self.logger.debug("Shutdown complete")
-
-    def report_idle(self, proc_name: str, devices: Sequence = tuple()) -> None:
-        """
-        report idle devices. Note that the process might not be fully idle.
-        :param proc_name: child process name
-        :param devices: devices that are idle (given back to the handler)
-        """
-        self.logger.debug("%s reported being idle", proc_name)
-        if proc_name == TrainingProcess.name:
-            assert all([d in self.training_devices for d in devices])
-            self.training_devices = [d for d in self.training_devices if d not in devices]
-            self.idle_devices += devices
-            if self.inference_devices == REQUEST_FOR_DEVICES and not self.waiting_for_dry_run:
-                self.assign_inference_devices()
-        elif proc_name == InferenceProcess.name:
-            assert all([d in self.inference_devices for d in devices])
-            self.inference_devices = [d for d in self.inference_devices if d not in devices]
-            self.idle_devices += devices
-            if self.training_devices == REQUEST_FOR_DEVICES and not self.waiting_for_dry_run:
-                self.assign_training_devices()
-        elif proc_name == DryRunProcess.name:
-            self.idle_devices += devices
-            if self.inference_devices == REQUEST_FOR_DEVICES:
-                self.assign_inference_devices()
-
-            if self.training_devices == REQUEST_FOR_DEVICES:
-                self.assign_training_devices()
-        else:
-            raise NotImplementedError(proc_name)
-
-        # # todo: remove this idle report to server, only for debugging
-        # self.server_conn.send(("report_idle", {"proc_name": proc_name, "devices": devices}))
+        raise Shutdown
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
@@ -334,23 +379,23 @@ class HandlerProcess(IHandler):
     def pause_training(self) -> None:
         self.training.pause_training()
 
-    def update_training_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
-        self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
-
-    def request_state(self) -> None:
-        model_state = pickle.dumps(self.model.state_dict())
-        optimizer_state = pickle.dumps(self.model.optimizer.state_dict())
-        current_config = pickle.dumps(self.config)
-        self.server_conn.send(
-            (
-                "request_state_answer",
-                {"model_state": model_state, "optimizer_state": optimizer_state, "config": current_config},
-            )
-        )
-
-    # validation
-    def update_validation_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
-        self.training_conn.send(("update_dataset", {"name": VALIDATION, "keys": keys, "data": data}))
+    # def update_training_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
+    #     self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
+    #
+    # def request_state(self) -> None:
+    #     model_state = pickle.dumps(self.model.state_dict())
+    #     optimizer_state = pickle.dumps(self.model.optimizer.state_dict())
+    #     current_config = pickle.dumps(self.config)
+    #     self.server_conn.send(
+    #         (
+    #             "request_state_answer",
+    #             {"model_state": model_state, "optimizer_state": optimizer_state, "config": current_config},
+    #         )
+    #     )
+    #
+    # # validation
+    # def update_validation_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
+    #     self.training_conn.send(("update_dataset", {"name": VALIDATION, "keys": keys, "data": data}))
 
     # def validate(self):
     #     pass

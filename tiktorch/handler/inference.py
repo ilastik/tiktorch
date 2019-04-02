@@ -33,15 +33,19 @@ from tiktorch import log
 class IInference(RPCInterface):
     @exposed
     def set_devices(self, device_names: Sequence[str]):
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    @exposed
+    def get_idle(self):
+        raise NotImplementedError
 
     @exposed
     def shutdown(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @exposed
     def forward(self, data: TikTensor):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 def run(conn: Connection, config: dict, model: torch.nn.Module, log_queue: Optional[mp.Queue] = None):
@@ -58,7 +62,7 @@ class InferenceProcess(IInference):
 
     def __init__(self, config: dict, model: torch.nn.Module) -> None:
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Starting")
+        self.logger.info("started")
         self.config = config
         self.training_model = model
 
@@ -69,16 +73,17 @@ class InferenceProcess(IInference):
         self.shutdown_worker_events = {}
         self.forward_worker_threads = {}
         self.devices = set()
-        self.add_devices({torch.device("cpu")})
+        # self.add_devices({torch.device("cpu")})
 
         self.device_change_queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(target=self._device_setter_worker)
+        self.device_setter_thread = threading.Thread(target=self._device_setter_worker, name="DeviceSetter")
         self.device_setter_thread.start()
 
     def _device_setter_worker(self):
+        self.logger.debug("started")
         while not self.shutdown_event.is_set():
             try:
-                devices, fut = self.device_change_queue.get(block=True, timeout=5)
+                devices, fut = self.device_change_queue.get(block=True, timeout=1)
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
@@ -87,8 +92,10 @@ class InferenceProcess(IInference):
                 pass
 
         while not self.device_change_queue.empty():
-            devices, fut = self.device_change_queue.get(block=True, timeout=5)
+            devices, fut = self.device_change_queue.get()
             fut.set_result(set())
+
+        self.logger.debug("stopped")
 
     def remove_devices(self, devices: Set[torch.device]) -> None:
         """
@@ -114,11 +121,11 @@ class InferenceProcess(IInference):
             assert d not in self.shutdown_worker_events
             assert d not in self.forward_worker_threads
             self.shutdown_worker_events[d] = threading.Event()
-            self.forward_worker_threads[d] = threading.Thread(target=self._forward_worker, kwargs={"device": d})
+            self.forward_worker_threads[d] = threading.Thread(target=self._forward_worker, name=f"ForwardWorker({d})", kwargs={"device": d})
             self.forward_worker_threads[d].start()
 
     def _forward_worker(self, device: torch.device) -> None:
-        self.logger.info("Start inference worker for device %s", device)
+        self.logger.debug("started")
         local_data = threading.local()
         local_data.increase_batch_size = True
         if self.batch_size is None:
@@ -138,18 +145,30 @@ class InferenceProcess(IInference):
                     TikTensorBatch(data_batch), fut_batch, device, local_data.batch_size, local_data.increase_batch_size
                 )
 
-        self.logger.info("Stop inference worker for device %s", device)
+        self.logger.debug("stopped")
 
     def set_devices(self, devices: Collection[torch.device]) -> RPCFuture[Set[torch.device]]:
         fut = RPCFuture()
         self.device_change_queue.put((set(devices), fut))
         return fut
 
+    def get_idle(self) -> bool:
+        return self.forward_queue.empty()
+
     def shutdown(self) -> None:
+        self.logger.debug("Shutting down...")
         self.shutdown_event.set()
-        self.device_setter_thread.join()
+        try:
+            self.device_setter_thread.join(timeout=20)
+        except TimeoutError as e:
+            self.logger.error(e)
+
         for ft in self.forward_worker_threads.values():
-            ft.join()
+            try:
+                ft.join(timeout=20)
+            except TimeoutError as e:
+                self.logger.error(e)
+
         self.logger.debug("Shutdown complete")
         raise Shutdown
 
@@ -232,7 +251,6 @@ class InferenceProcess(IInference):
             else:
                 for i in range(start, end):
                     fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
-                start = end
                 last_batch_size = batch_size
                 if increase_batch_size and end - start >= batch_size:  # do not increase batch size after successfully
                     #                                                    computing an incomplete batch
@@ -242,6 +260,8 @@ class InferenceProcess(IInference):
                         increase_batch_size = False
                     else:
                         batch_size += 1
-                        end_generator = create_end_generator(start, len(keys), batch_size)
+                        end_generator = create_end_generator(end, len(keys), batch_size)
+
+                start = end
 
         return batch_size, increase_batch_size

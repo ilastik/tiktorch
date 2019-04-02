@@ -48,7 +48,7 @@ class ITraining(RPCInterface):
 
     @exposed
     def shutdown(self):
-        raise Shutdown
+        raise NotImplementedError
 
     @exposed
     def resume_training(self):
@@ -100,15 +100,16 @@ class TrainingProcess(ITraining):
 
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Starting")
+        self.logger.info("started")
         self.shutdown_event = threading.Event()
         self.idle = False
 
         self.model = model
         self.optimizer_state = optimizer_state
         self.training_settings_lock = threading.Lock()
-        self.devices = [torch.device("cpu")]
-        self.base_device = "cpu"
+        # self.devices = [torch.device("cpu")]
+        self.devices = []
+        self.base_device = ""
 
         self.datasets = {TRAINING: DynamicDataset(), VALIDATION: DynamicDataset()}
         self.update_loader = {TRAINING: True, VALIDATION: True}
@@ -131,7 +132,7 @@ class TrainingProcess(ITraining):
             model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
         )
 
-        self.training_thread = threading.Thread(target=self._training_worker)
+        self.training_thread = threading.Thread(target=self._training_worker, name="Training")
         self.training_thread.start()
 
     # def end_of_training_iteration(self, iteration_num, trigger):
@@ -152,7 +153,7 @@ class TrainingProcess(ITraining):
         return trainer_config
 
     def _training_worker(self):
-        self.logger.info("Training thread started")
+        self.logger.info("started")
         # todo: configure (create/load) inferno trainer fully
         trainer = TikTrainer.build(
             model=self.model,
@@ -176,7 +177,10 @@ class TrainingProcess(ITraining):
                     self.logger.info("Update trainer settings")
                     with self.training_settings_lock:
                         self.update_trainer_event.clear()
-                        if self.base_device == "cpu":
+                        if not self.devices:
+                            self.trainer.cpu()
+                            break  # wait for a device
+                        elif self.base_device == "cpu":
                             self.trainer.cpu()
                         elif self.base_device == "cuda":
                             self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
@@ -191,19 +195,26 @@ class TrainingProcess(ITraining):
 
                 if self.config["max_num_iterations"] >= trainer._iteration_count:
                     self.idle = False
-                    self.logger.info(
-                        "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
-                    )
-                    trainer.fit()
+                    if self.devices:
+                        self.logger.info(
+                            "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
+                        )
+                        trainer.fit()
+                    else:
+                        # waiting for a device
+                        time.sleep(1)
                 else:
                     self.idle = True
                     time.sleep(1)
+
+        self.logger.info("stopped")
 
     def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
         """
         set devices to train on. This request blocks until previous devices are free.
         :param devices: devices to use for training
         """
+        self.logger.debug("set devices %s", devices)
         if self.devices == devices:
             return []
 
@@ -213,7 +224,7 @@ class TrainingProcess(ITraining):
             self.update_trainer_event.set()
             device_types = [d.type for d in devices]
             if "cpu" in device_types or len(devices) == 0:
-                assert len(devices) == 1, "Cannot train on cpu and gpu at the same time"
+                assert len(devices) <= 1, "Cannot train on cpu and gpu at the same time"
                 # train on cpu
                 self.base_device = "cpu"
                 self.devices = []
@@ -222,10 +233,15 @@ class TrainingProcess(ITraining):
                 self.devices = devices
 
         # wait for training worker to update training settings
-        while self.update_trainer_event.is_set():
+        while not self.idle and self.update_trainer_event.is_set() and not self._pause_event.is_set():
+            self.logger.debug("wait for old deviced to be free")
             time.sleep(2)
 
+        self.logger.debug("new devices %s set", devices)
         return free_devices
+
+    def get_idle(self):
+        return self.idle
 
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
@@ -242,10 +258,15 @@ class TrainingProcess(ITraining):
             return optimizer
 
     def shutdown(self) -> None:
+        self.logger.debug("Shutting down...")
         self.shutdown_event.set()
-        self.training_thread.join()
+        try:
+            self.training_thread.join(timeout=30)
+        except TimeoutError as e:
+            self.logger.error(e)
+
         self.logger.debug("Shutdown complete")
-        raise Shutdown
+        raise Shutdown()
 
     def resume_training(self) -> None:
         self._pause_event.clear()

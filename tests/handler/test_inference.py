@@ -9,14 +9,30 @@ from tiktorch.rpc.mp import MPClient, Shutdown
 from tests.data.tiny_models import TinyConvNet2d, TinyConvNet3d
 
 
+def test_initialization(tiny_model_2d):
+    config = tiny_model_2d["config"]
+    in_channels = config["input_channels"]
+    model = TinyConvNet2d(in_channels=in_channels)
+
+    ip = InferenceProcess(config=config, model=model)
+    raised_shutdown = False
+    try:
+        ip.shutdown()
+    except Shutdown:
+        raised_shutdown = True
+
+    assert raised_shutdown
+
+
 def test_inference2d(tiny_model_2d):
     config = tiny_model_2d["config"]
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     inference = InferenceProcess(config=config, model=model)
+    inference.set_devices([torch.device('cpu')])
     data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
     pred = inference.forward(data)
-    assert isinstance(pred.result(timeout=3), TikTensor)
+    assert isinstance(pred.result(timeout=10), TikTensor)
     try:
         inference.shutdown()
     except Shutdown:
@@ -28,13 +44,16 @@ def test_inference2d_in_proc(tiny_model_2d, log_queue):
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     handler_conn, inference_conn = mp.Pipe()
-    p = mp.Process(target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue})
+    p = mp.Process(
+        target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue}
+    )
     p.start()
     client = MPClient(IInference(), handler_conn)
     try:
+        client.set_devices([torch.device('cpu')])
         data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
         f = client.forward(data)
-        f.result(timeout=3)
+        f.result(timeout=10)
     finally:
         client.shutdown()
 
@@ -44,9 +63,10 @@ def test_inference3d(tiny_model_3d, log_queue):
     in_channels = config["input_channels"]
     model = TinyConvNet3d(in_channels=in_channels)
     inference = InferenceProcess(config=config, model=model)
+    inference.set_devices([torch.device('cpu')])
     data = TikTensor(torch.zeros(in_channels, 15, 15, 15), (0,))
     pred = inference.forward(data)
-    assert isinstance(pred.result(timeout=3), TikTensor)
+    assert isinstance(pred.result(timeout=10), TikTensor)
     try:
         inference.shutdown()
     except Shutdown:
@@ -58,10 +78,13 @@ def test_inference3d_in_proc(tiny_model_3d, log_queue):
     in_channels = config["input_channels"]
     model = TinyConvNet3d(in_channels=in_channels)
     handler_conn, inference_conn = mp.Pipe()
-    p = mp.Process(target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue})
+    p = mp.Process(
+        target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue}
+    )
     p.start()
     client = MPClient(IInference(), handler_conn)
     try:
+        client.set_devices([torch.device('cpu')])
         f = []
         n = 10
         for i in range(n):
@@ -69,7 +92,7 @@ def test_inference3d_in_proc(tiny_model_3d, log_queue):
             f.append(client.forward(data))
 
         for i in range(n):
-            f[i].result(timeout=5)
-            print('received ', i)
+            f[i].result(timeout=10)
+            print("received ", i)
     finally:
         client.shutdown()
