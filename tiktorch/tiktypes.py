@@ -164,6 +164,9 @@ class PointAndBatchPointBase:
         return all([m > o for m, o in zip(me, other)])
 
     def __eq__(self, other):
+        if other is None:
+            return False
+
         me, other = self.upcast_dim(self, other)
         return all([m == o for m, o in zip(me, other)])
 
@@ -267,7 +270,7 @@ class PointBase(PointAndBatchPointBase):
         super().__init__(t=t, c=c, z=z, y=y, x=x)
 
     @staticmethod
-    def from_spacetime(cls, c: int, spacetime: Sequence[int]) -> Union["Point2D", "Point3D", "Point4D"]:
+    def from_spacetime(c: int, spacetime: Sequence[int]) -> Union["Point2D", "Point3D", "Point4D"]:
         """
         :return: a suitable BatchPoint instance
         :raises: ValueError
@@ -300,8 +303,8 @@ class Point2D(PointBase):
     def __init__(self, c: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, y=y, x=x)
 
-    def add_batch(self) -> BatchPoint2D:
-        return BatchPoint2D(c=self.c, y=self.y, x=self.x)
+    def add_batch(self, b: int = 0) -> BatchPoint2D:
+        return BatchPoint2D(b=b, c=self.c, y=self.y, x=self.x)
 
 
 class Point3D(PointBase):
@@ -310,8 +313,8 @@ class Point3D(PointBase):
     def __init__(self, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(c=c, z=z, y=y, x=x)
 
-    def add_batch(self) -> BatchPoint3D:
-        return BatchPoint3D(c=self.c, z=self.z, y=self.y, x=self.x)
+    def add_batch(self, b: int = 0) -> BatchPoint3D:
+        return BatchPoint3D(b=b, c=self.c, z=self.z, y=self.y, x=self.x)
 
 
 class Point4D(PointBase):
@@ -320,5 +323,5 @@ class Point4D(PointBase):
     def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(t=t, c=c, z=z, y=y, x=x)
 
-    def add_batch(self) -> BatchPoint4D:
-        return BatchPoint4D(t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
+    def add_batch(self, b: int = 0) -> BatchPoint4D:
+        return BatchPoint4D(b=b, t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
