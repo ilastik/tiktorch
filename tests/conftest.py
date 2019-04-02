@@ -146,4 +146,6 @@ def log_queue():
 @pytest.fixture(scope='function')
 def assert_threads_cleanup():
     yield
-    assert threading.enumerate() == []
+    running_threads = [str(t) for t in threading.enumerate() if t != threading.current_thread()]
+    if len(running_threads):
+        pytest.fail('Threads still running:\n\t%s' % '\n\t'.join(running_threads))
