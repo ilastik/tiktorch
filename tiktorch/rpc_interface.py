@@ -1,6 +1,7 @@
 from tiktorch.rpc import RPCInterface, exposed
 from tiktorch.types import NDArrayBatch
 
+from typing import List, Tuple
 
 class IFlightControl(RPCInterface):
     @exposed
@@ -17,6 +18,14 @@ class IFlightControl(RPCInterface):
 
 
 class INeuralNetworkAPI(RPCInterface):
+    @exposed
+    def get_available_devices(self) -> List[Tuple[str, str]]:
+        raise NotImplementedError
+
+    @exposed
+    def is_valid_device_name(self, device_name: str) -> bool:
+        raise NotImplementedError
+
     @exposed
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list

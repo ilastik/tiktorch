@@ -82,12 +82,13 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self._handler = new_handler
 
     @staticmethod
-    def get_cuda_and_handler_device_names(devices: Iterable[str]) -> Generator[Tuple[Optional[str], str], None, None]:
-        handler_device_index = -1
+    def get_cuda_and_handler_device_names(devices: Iterable[str]) -> Tuple[List[str], List[str]]:
+        add_cpu = False
+        cuda_devices = []
         for d in devices:
             d = d.lower()
             if d == 'cpu':
-                yield None, 'cpu'
+                add_cpu = True
             elif ':' in d:
                 base, index = d.split(':')
 
@@ -105,15 +106,25 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 if not index.isdigit():
                     raise ValueError(f"device name '{d}' contains non-numeral index after the colon")
 
-                handler_device_index += 1
-                yield index, f"cuda:{handler_device_index}"
+                cuda_devices.append(index)
             else:
                 raise ValueError(f"device name '{d}' does not specify an index")
 
+        # Pytorch uses CUDA device order, which means devices are ordered computing power.
+        # We want to ensure the same order here:
+        cuda_devices.sort()
+        # When limiting CUDA_VISIBLE_DEVICES, indices might be missing,
+        # e.g. CUDA_VISIBLE_DEVICES="2,3" => available torch.devices: "cuda:0", "cuda:1",
+        # corresponding to "cuda:2" and "cuda:3", respectively, if CUDA_VISIBLE_DEVICES was not set.
+        handler_devices = [f"cuda:{i}" for i in range(len(cuda_devices))]
+        if add_cpu:
+            handler_devices.append(("cpu"))
+
+        return cuda_devices, handler_devices
+
     def is_valid_device_name(self, device_name: str):
         try:
-            for _ in self.get_cuda_and_handler_device_names([device_name]):
-                pass
+            self.get_cuda_and_handler_device_names([device_name])
         except ValueError:
             return False
         else:
@@ -127,17 +138,26 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self._log_listener = logging.handlers.QueueListener(self.log_queue, *root_logger.handlers)
         self._log_listener.start()
 
+    def get_available_devices(self) -> List[Tuple[str, str]]:
+        available = []
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                prop = torch.cuda.get_device_properties(i)
+                vram = prop.total_memory / 1,074e+9  # vram in Gibibytes
+                available.append((vram, i, prop.name))
+
+            available = sorted(available, reverse=True)
+
+            available = [(f"cuda:{a[1]}", f"{a[2]} ({a[0]:.2f}GB)") for a in available]
+
+        available.append(('cpu', 'CPU'))
+        return available
+
     def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list) -> None:
         if not devices:
             devices = ['cpu']
 
-        cuda_visible_devices: List[str] = []
-        handler_devices: List[str] = []
-        for cuda_name, handler_name in self.get_cuda_and_handler_device_names(devices):
-            if cuda_name:
-                cuda_visible_devices.append(cuda_name)
-
-            handler_devices.append(handler_name)
+        cuda_visible_devices, handler_devices = self.get_cuda_and_handler_device_names(devices)
 
         os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(cuda_visible_devices)
         self.logger.info("Set CUDA_VISIBLE_DEVICES to '%s'", os.environ["CUDA_VISIBLE_DEVICES"])
