@@ -1,12 +1,14 @@
 from tiktorch.rpc import RPCInterface, exposed
 from tiktorch.types import NDArrayBatch
 
-from typing import Iterable
-
 
 class IFlightControl(RPCInterface):
     @exposed
     def ping(self) -> bytes:
+        raise NotImplementedError
+
+    @exposed
+    def active_children(self) -> list:
         raise NotImplementedError
 
     @exposed
@@ -16,7 +18,9 @@ class IFlightControl(RPCInterface):
 
 class INeuralNetworkAPI(RPCInterface):
     @exposed
-    def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes) -> None:
+    def load_model(
+        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
+    ) -> None:
         raise NotImplementedError
 
     @exposed

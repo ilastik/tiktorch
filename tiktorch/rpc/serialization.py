@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable
+from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
 
 import zmq
 
@@ -171,6 +171,16 @@ class DictSerializer(ISerializer[dict]):
         frame = next(frames)
         return jsonapi.loads(frame.bytes)
 
+@serializer_for(list)
+class ListSerializer(ISerializer[list]):
+    @classmethod
+    def serialize(cls, obj: list) -> Iterator[zmq.Frame]:
+        yield zmq.Frame(bytes(obj))
+
+    @classmethod
+    def deserialize(cls, frames: FusedFrameIterator) -> list:
+        frame = next(frames)
+        return list(frame)
 
 @serializer_for(bool)
 class BoolSerializer(ISerializer[bool]):
