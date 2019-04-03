@@ -3,7 +3,7 @@ import time
 import multiprocessing as mp
 from concurrent.futures import Future
 
-from tiktorch.rpc.mp import MPClient, MPServer
+from tiktorch.rpc.mp import MPClient, MPServer, create_client
 from tiktorch.rpc import exposed, RPCInterface, Shutdown
 
 
@@ -52,7 +52,7 @@ def test_async():
     p = mp.Process(target=_srv, args=(child_conn,))
     p.start()
 
-    client = MPClient(ITestApi(), parent_conn)
+    client = create_client(ITestApi, parent_conn)
     f = client.compute(1, b=2)
     assert f.result() == "test 3"
 
@@ -61,6 +61,7 @@ def test_async():
         f.result()
 
     client.shutdown()
+    p.join()
 
 
 def test_sync():
@@ -69,7 +70,7 @@ def test_sync():
     p = mp.Process(target=_srv, args=(child_conn,))
     p.start()
 
-    client = MPClient(ITestApi(), parent_conn)
+    client = create_client(ITestApi, parent_conn)
     res = client.compute.sync(1, b=2)
     assert res == "test 3"
 
@@ -77,6 +78,7 @@ def test_sync():
         f = client.broken.sync(1, 2)
 
     client.shutdown()
+    p.join()
 
 
 def test_future():
@@ -85,27 +87,8 @@ def test_future():
     p = mp.Process(target=_srv, args=(child_conn,))
     p.start()
 
-    client = MPClient(ITestApi(), parent_conn)
+    client = create_client(ITestApi, parent_conn)
     res = client.compute_fut(1, b=2)
     assert res.result(timeout=5) == "test 3"
     client.shutdown()
-
-def end_generator(start, end, batch_size):
-    for idx in range(start + batch_size, end, batch_size):
-        yield idx
-
-    yield end
-
-
-def test_end_gen():
-    result = list(end_generator(0, 10, 7))
-    assert result == [7, 10]
-
-    result = list(end_generator(0, 4, 7))
-    assert result == [4]
-
-    result = list(end_generator(0, 4, 3))
-    assert result == [4]
-
-    result = list(end_generator(0, 4, 3))
-    assert result == [3, 4]
+    p.join()

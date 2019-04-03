@@ -1,4 +1,6 @@
+import logging
 import multiprocessing as mp
+import types
 
 from uuid import uuid4
 from threading import Thread
@@ -6,9 +8,13 @@ from concurrent.futures import Future
 from multiprocessing.connection import Connection
 from threading import Event
 from typing import Any
+from functools import wraps
 
 from .exceptions import Shutdown
 from .interface import RPCInterface, get_exposed_methods
+
+
+logger = logging.getLogger(__name__)
 
 
 class Result:
@@ -63,6 +69,45 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
+class MPMethodDispatcher:
+    def __init__(self, method_name, client):
+        self._method_name = method_name
+        self._client = client
+
+    def sync(self, *args, **kwargs):
+        f = self(*args, **kwargs)
+        return f.result()
+
+    def __call__(self, *args, **kwargs) -> Any:
+        return self._client._invoke(self._method_name, *args, **kwargs)
+
+
+def create_client(iface_cls, conn: Connection):
+    client = MPClient(iface_cls(), conn)
+    exposed = get_exposed_methods(iface_cls)
+
+    def _make_method(method):
+        class MethodWrapper:
+            @wraps(method)
+            def sync(self, *args, **kwargs):
+                f = self(*args, **kwargs)
+                return f.result()
+
+            @wraps(method)
+            def __call__(self, *args, **kwargs) -> Any:
+                return client._invoke(method.__name__, *args, **kwargs)
+
+        return MethodWrapper()
+
+    class _Client(iface_cls):
+        pass
+
+    for method_name, method in get_exposed_methods(iface_cls).items():
+        setattr(_Client, method_name, _make_method(method))
+
+    return _Client()
+
+
 class MPClient:
     def __init__(self, api, conn: Connection):
         self._conn = conn
@@ -72,6 +117,13 @@ class MPClient:
 
         self._start_poller()
         self._shutdown_event = Event()
+        self._logger = None
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
+        return self._logger
 
     def __getattr__(self, name) -> Any:
         method = self._methods_by_name.get(name)
@@ -92,11 +144,13 @@ class MPClient:
                     # signal
                     if id_ is None:
                         if res == b'shutdown':
+                            self.logger.debug('[signal] Shutdown')
                             self._shutdown()
 
                     # method
                     else:
                         fut = self._requests.pop(id_, None)
+                        self.logger.debug('[id:%s] Recieved result', id_)
 
                         if fut is not None:
                             res.to_future(fut)
@@ -110,6 +164,7 @@ class MPClient:
     def _invoke(self, method_name, *args, **kwargs):
         # request id, method, args, kwargs
         id_ = self._new_id()
+        self.logger.debug("[id:%s] Call '%s' method", id_, method_name)
         self._requests[id_] = Future()
         self._conn.send([id_, method_name, args, kwargs])
         return self._requests[id_]
@@ -123,9 +178,17 @@ class MPServer:
         self._conn = conn
         self._api = api
         self._futures = {}
+        self._logger = None
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            self._logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
+        return self._logger
 
     def _send_result(self, fut):
         id_ = self._futures.pop(fut, None)
+        self.logger.debug('[id: %s] Sending result', id_)
         if id_:
             self._conn.send([id_, Result.OK(fut.result())])
 
@@ -137,6 +200,7 @@ class MPServer:
 
             try:
                 id_, method_name, args, kwargs = self._conn.recv()
+                self.logger.debug("[id: %s] Recieved '%s' method call", id_, method_name)
                 # TODO: handle signals
 
                 meth = getattr(self._api, method_name)

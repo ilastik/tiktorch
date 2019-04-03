@@ -31,7 +31,7 @@ def get_exposed_methods(obj: RPCInterface) -> Dict[str, Callable[...,Any]]:
     exposed = getattr(obj, '__exposedmethods__', None)
 
     if not exposed:
-        raise ValueError(f"Class doesn't provide public API")
+        raise ValueError(f"Class {obj} doesn't provide public API")
 
     exposed_methods = {}
 
