@@ -77,7 +77,7 @@ def log_debug():
 
 
 @pytest.fixture
-def spawn(conn_conf):
+def spawn(conn_conf, assert_threads_cleanup):
     d = {
         'client': None,
         'thread': None,
