@@ -401,14 +401,13 @@ class Server:
 
             try:
                 result = fut.result()
+                resp = [id_, State.Return.value, *serialize_return(func, result)]
             except Exception as e:
+                logger.error('[id: %s]. Future expection', id_, exc_info=1)
                 resp = [id_, State.Error.value, str(e).encode('utf-8')]
             else:
-                resp = [id_, State.Return.value, *serialize_return(func, result)]
-
-            logger.debug('[id: %s]. Sending result', id_)
-
-            self._results_queue.put(resp)
+                logger.debug('[id: %s]. Sending result', id_)
+                self._results_queue.put(resp)
 
         return _done_callback
 
