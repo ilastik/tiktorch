@@ -2,9 +2,11 @@ import pytest
 import time
 import multiprocessing as mp
 from concurrent.futures import Future
+from collections import namedtuple
 
 from tiktorch.rpc.mp import MPClient, MPServer, create_client
 from tiktorch.rpc import exposed, RPCInterface, Shutdown
+from tiktorch import log
 
 
 class ITestApi(RPCInterface):
@@ -41,18 +43,28 @@ class ApiImpl(ITestApi):
         raise Shutdown()
 
 
-def _srv(conn):
+def _srv(conn, log_queue):
+    log.configure(log_queue)
     srv = MPServer(ApiImpl(), conn)
     srv.listen()
 
 
-def test_async():
-    parent_conn, child_conn = mp.Pipe()
+@pytest.fixture
+def client(log_queue):
+    child, parent = mp.Pipe()
 
-    p = mp.Process(target=_srv, args=(child_conn,))
+    p = mp.Process(target=_srv, args=(parent, log_queue))
     p.start()
 
-    client = create_client(ITestApi, parent_conn)
+    client = create_client(ITestApi, child)
+
+    yield client
+
+    client.shutdown()
+    p.join()
+
+
+def test_async(client: ITestApi):
     f = client.compute(1, b=2)
     assert f.result() == "test 3"
 
@@ -60,35 +72,16 @@ def test_async():
         f = client.broken(1, 2)
         f.result()
 
-    client.shutdown()
-    p.join()
 
-
-def test_sync():
-    parent_conn, child_conn = mp.Pipe()
-
-    p = mp.Process(target=_srv, args=(child_conn,))
-    p.start()
-
-    client = create_client(ITestApi, parent_conn)
+def test_sync(client: ITestApi):
     res = client.compute.sync(1, b=2)
     assert res == "test 3"
 
     with pytest.raises(NotImplementedError):
         f = client.broken.sync(1, 2)
 
-    client.shutdown()
-    p.join()
 
-
-def test_future():
-    parent_conn, child_conn = mp.Pipe()
-
-    p = mp.Process(target=_srv, args=(child_conn,))
-    p.start()
-
-    client = create_client(ITestApi, parent_conn)
+def test_future(client: ITestApi):
     res = client.compute_fut(1, b=2)
     assert res.result(timeout=5) == "test 3"
-    client.shutdown()
-    p.join()
+    assert False
