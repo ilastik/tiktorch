@@ -174,6 +174,9 @@ def deserialize_result(
         value = deserialize_return(method, frames)
         return Result(value=value)
 
+    elif ctrl_frm.bytes == State.Ack.value:
+        raise Exception("Expected return value. But received Future")
+
     raise Exception('Unexpected control frame %s' % ctrl_frm)
 
 
@@ -198,10 +201,12 @@ class MethodDispatcher:
         self._id = uuid4().hex.encode('ascii')
 
     def __call__(self, *args, **kwargs) -> Any:
+        logger.debug('[id: %s] Send call %s', self._id, self._method_name)
         method_name = self._method_name.encode('utf-8')
         frames = [method_name, self._id, *serialize_args(self._method, args, kwargs)]
         is_future = isfutureret(self._method)
         if is_future:
+            logger.debug('[id: %s] Created future', self._id)
             fut = self._client.create_future(self._id, self._method)
 
         # temporal dep,
@@ -259,6 +264,7 @@ class Client:
                 if events == zmq.POLLIN:
                     id_frm, *return_frames = sock.recv_multipart(copy=False)
                     id_ = id_frm.bytes
+                    logger.debug('[id: %s] Recieved return', id_)
                     fut, method = self._futures.pop(id_, (None, None))
                     if fut is not None:
                         try:
@@ -386,6 +392,7 @@ class Server:
         id_: bytes,
         func: Callable[..., Any]
     ) -> Callable[[Future], None]:
+        logger.debug('[id: %s]. Created done callback', id_)
         if self._result_sender is None:
             self._result_sender = self._start_result_sender()
 
@@ -399,7 +406,7 @@ class Server:
             else:
                 resp = [id_, State.Return.value, *serialize_return(func, result)]
 
-            logger.debug('Call[id: %s]. Sending result', id_)
+            logger.debug('[id: %s]. Sending result', id_)
 
             self._results_queue.put(resp)
 
@@ -425,7 +432,10 @@ class Server:
 
     def listen(self):
         while True:
-            frames = self._socket.recv_multipart(copy=False)
+            try:
+                frames = self._socket.recv_multipart(copy=False)
+            except zmq.Again:
+                continue
             method_frm, method_id_frm, *args = frames
 
             method_name = method_frm.bytes
