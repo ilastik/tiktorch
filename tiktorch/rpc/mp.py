@@ -7,7 +7,7 @@ from threading import Thread
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
 from threading import Event
-from typing import Any
+from typing import Any, Type, TypeVar
 from functools import wraps
 
 from .exceptions import Shutdown
@@ -16,6 +16,8 @@ from .interface import RPCInterface, get_exposed_methods
 
 logger = logging.getLogger(__name__)
 
+
+T = TypeVar('T')
 
 class Result:
     def __init__(self, *, value=None, err=None):
@@ -82,7 +84,7 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-def create_client(iface_cls, conn: Connection):
+def create_client(iface_cls: Type[T], conn: Connection) -> T:
     client = MPClient(iface_cls(), conn)
     exposed = get_exposed_methods(iface_cls)
 
