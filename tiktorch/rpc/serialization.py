@@ -165,6 +165,26 @@ class BytesSerializer(ISerializer[bytes]):
         yield zmq.Frame(obj)
 
 
+@serializer_for(str, tag=b'str')
+class StrSerializer(ISerializer[str]):
+    @classmethod
+    def deserialize(cls, frames: FusedFrameIterator) -> str:
+        """
+        Deserialize objects from zmq.Frame stream
+        This function fully consume relevant part of iterator
+        """
+        frame = next(frames)
+
+        return frame.bytes.decode('utf-8')
+
+    @classmethod
+    def serialize(cls, obj: str) -> Iterator[zmq.Frame]:
+        """
+        Serialize object to zmq.Frame stream
+        """
+        yield zmq.Frame(bytes(obj, encoding='utf-8'))
+
+
 @serializer_for(memoryview, tag=b'mem')
 class MemoryViewSerializer(ISerializer[memoryview]):
     @classmethod

@@ -124,6 +124,8 @@ class InferenceProcess(IInference):
             self.forward_worker_threads[d] = threading.Thread(target=self._forward_worker, name=f"ForwardWorker({d})", kwargs={"device": d})
             self.forward_worker_threads[d].start()
 
+        self.devices.update(devices)
+
     def _forward_worker(self, device: torch.device) -> None:
         self.logger.debug("started")
         local_data = threading.local()
@@ -185,9 +187,9 @@ class InferenceProcess(IInference):
         """
         if device.type == "cuda":
             with device:
-                model = self.training_model.__class__()
+                model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
         else:
-            model = self.training_model.__class__()
+            model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
 
         model.load_state_dict(self.training_model.state_dict())
         model.eval()

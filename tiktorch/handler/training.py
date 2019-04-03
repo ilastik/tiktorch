@@ -246,8 +246,7 @@ class TrainingProcess(ITraining):
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
             optimizer: torch.optim.Optimizer = getattr(torch.optim, self.config["optimizer_config"]["method"])
-            with closing(io.BytesIO(optimizer_state)) as f:
-                optimizer.load_state_dict(torch.load(f))
+            optimizer.load_state_dict(torch.load(io.BytesIO(optimizer_state)))
         except Exception as e:
             self.logger.warning(
                 "Could not load optimizer state due to %s.\nCreating new optimizer from %s",

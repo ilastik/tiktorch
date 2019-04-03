@@ -10,8 +10,8 @@ from typing import Optional, List, Tuple, Generator, Iterable
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient
-from tiktorch.types import NDArrayBatch
-from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 
@@ -96,7 +96,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                     if index not in ['0', '-1']:
                         raise ValueError(f"Invalid index '{index}' in device name '{d}'")
 
-                    yield None, 'cpu'
+                    add_cpu = True
                 elif base not in ['gpu', 'cuda']:
                     raise ValueError(f"Invalid base name '{base}' in device name '{d}'")
 
@@ -137,6 +137,9 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             self._log_listener.stop()
         self._log_listener = logging.handlers.QueueListener(self.log_queue, *root_logger.handlers)
         self._log_listener.start()
+
+    def log(self, msg: str) -> None:
+        self.logger.debug(msg)
 
     def get_available_devices(self) -> List[Tuple[str, str]]:
         available = []
@@ -183,11 +186,14 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
 
-    def forward(self, batch: NDArrayBatch) -> RPCFuture[NDArrayBatch]:
-        return self.handler.forward(data=TikTensorBatch(batch))
+    def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
+        return self.handler.forward(data=TikTensor(batch))
 
     def train(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
         return self.handler.train(TikTensorBatch(raw, labels))
+
+    def validate(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
+        return self.handler.validate(raw, labels)
 
     def pause(self) -> None:
         self.handler.pause_training()

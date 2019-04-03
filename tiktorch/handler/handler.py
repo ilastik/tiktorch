@@ -1,8 +1,10 @@
 import importlib
+import io
 import logging
 import logging.config
 import os.path
 import pickle
+
 import queue
 import shutil
 import sys
@@ -119,8 +121,8 @@ class HandlerProcess(IHandler):
 
         self.tempdir = tempfile.mkdtemp()
         user_module_name = "usermodel"
-        with open(os.path.join(self.tempdir, user_module_name + ".py"), "w") as f:
-            f.write(pickle.loads(model_file))
+        with open(os.path.join(self.tempdir, user_module_name + ".py"), "wb") as f:
+            f.write(model_file)
 
         sys.path.insert(0, self.tempdir)
         user_module = importlib.import_module(user_module_name)
@@ -131,7 +133,7 @@ class HandlerProcess(IHandler):
         self.logger.debug("created user model")
 
         if model_state:
-            self.model.load_state_dict(torch.load(pickle.loads(model_state)))
+            self.model.load_state_dict(torch.load(io.BytesIO(model_state)))
             self.logger.info("restored model state")
 
         # start training process
@@ -250,7 +252,7 @@ class HandlerProcess(IHandler):
                 # (re-)assign freed old and new devices
                 self._assign_idle_devices()
             except Exception as e:
-                fut.set_exeption(e)
+                fut.set_exception(e)
                 self.logger.error(e)
             else:
                 fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))

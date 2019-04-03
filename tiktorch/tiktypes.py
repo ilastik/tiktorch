@@ -49,6 +49,12 @@ class TikTensor:
         else:
             return self._torch
 
+    def as_numpy(self, with_label=False) -> Union[ndarray, Tuple[ndarray, ndarray]]:
+        if with_label:
+            return self._torch.numpy(), self.label.numpy()
+        else:
+            return  self._torch.numpy()
+
     @property
     def dtype(self):
         return self._torch.dtype
@@ -85,8 +91,11 @@ class TikTensorBatch:
         for item in self._tensors:
             yield item
 
-    def as_torch(self, with_label=False) -> List[Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]]:
+    def as_torch(self, with_label=False) -> Union[List[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]]:
         return [t.as_torch(with_label=with_label) for t in self._tensors]
+
+    def as_numpy(self, with_label=False) -> Union[List[ndarray], List[Tuple[ndarray, ndarray]]]:
+        return [t.as_numpy(with_label=with_label) for t in self._tensors]
 
     @property
     def ids(self) -> List[Tuple[int]]:

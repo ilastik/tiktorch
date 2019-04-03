@@ -1,8 +1,7 @@
-from threading import Thread
-
-import zmq
 import pytest
-import numpy as np
+import zmq
+
+from threading import Thread
 
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
@@ -35,7 +34,7 @@ def srv(conn_conf, client_control):
     yield api_provider
 
     with pytest.raises(Shutdown):
-        client_control.shutdown()
+        client_control.shutdown().result(timeout=5)
     t.join(timeout=2)
 
     assert not t.is_alive()
@@ -51,7 +50,6 @@ def client_control(conn_conf):
 @pytest.fixture
 def client(conn_conf):
     cl = Client(INeuralNetworkAPI(), conn_conf)
-
     yield cl
 
 
@@ -61,7 +59,7 @@ def test_tiktorch_server_ping(srv, client_control):
 
 def test_load_model(srv, client, nn_sample):
     client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
-    print(client.active_children())
+    assert "Handler" in client.active_children()
 
 
 def test_forward_pass(datadir, srv, client, nn_sample):
@@ -70,11 +68,11 @@ def test_forward_pass(datadir, srv, client, nn_sample):
 
     input_arr = np.load(os.path.join(datadir, "fwd_input.npy"))
     out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
-    out_arr.shape = (1, 1, 320, 320)  # TODO Figure out shape difference (1, 320, 320) vs (1, 1, 320, 320)
+    out_arr.shape = (1, 320, 320)
 
     client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
 
-    res = client.forward(NDArrayBatch([NDArray(input_arr)]))
+    res = client.forward(NDArray(input_arr)).result(timeout=20)
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
 
