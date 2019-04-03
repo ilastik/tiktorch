@@ -14,7 +14,7 @@ from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-
+from tiktorch.utils import convert_tik_fut_to_ndarray_fut
 
 if torch.cuda.is_available():
     torch.multiprocessing.set_start_method("spawn", force=True)
@@ -67,7 +67,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._log_listener: Optional[logging.handlers.QueueListener] = None
-        self._handler: Optional[MPClient] = None
+        self._handler: Optional[IHandler] = None
         self.state = State()
 
     @property
@@ -75,11 +75,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         return self._handler
 
     @handler.setter
-    def handler(self, new_handler):
+    def handler(self, new_handler: IHandler):
         if self._handler is not None:
             self._handler.shutdown()
 
-        self._handler = new_handler
+        self._handler: IHandler = new_handler
 
     @staticmethod
     def get_cuda_and_handler_device_names(devices: Iterable[str]) -> Tuple[List[str], List[str]]:
@@ -87,17 +87,17 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         cuda_devices = []
         for d in devices:
             d = d.lower()
-            if d == 'cpu':
+            if d == "cpu":
                 add_cpu = True
-            elif ':' in d:
-                base, index = d.split(':')
+            elif ":" in d:
+                base, index = d.split(":")
 
-                if base == 'cpu':
-                    if index not in ['0', '-1']:
+                if base == "cpu":
+                    if index not in ["0", "-1"]:
                         raise ValueError(f"Invalid index '{index}' in device name '{d}'")
 
                     add_cpu = True
-                elif base not in ['gpu', 'cuda']:
+                elif base not in ["gpu", "cuda"]:
                     raise ValueError(f"Invalid base name '{base}' in device name '{d}'")
 
                 if not index:
@@ -146,30 +146,32 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         if torch.cuda.is_available():
             for i in range(torch.cuda.device_count()):
                 prop = torch.cuda.get_device_properties(i)
-                vram = prop.total_memory / 1,074e+9  # vram in Gibibytes
+                vram = prop.total_memory / 1.074e9  # vram in Gibibytes
                 available.append((vram, i, prop.name))
 
             available = sorted(available, reverse=True)
 
             available = [(f"cuda:{a[1]}", f"{a[2]} ({a[0]:.2f}GB)") for a in available]
 
-        available.append(('cpu', 'CPU'))
+        available.append(("cpu", "CPU"))
         return available
 
-    def load_model(self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list) -> None:
+    def load_model(
+        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
+    ) -> None:
         if not devices:
-            devices = ['cpu']
+            devices = ["cpu"]
 
         cuda_visible_devices, handler_devices = self.get_cuda_and_handler_device_names(devices)
 
-        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(cuda_visible_devices)
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(cuda_visible_devices)
         self.logger.info("Set CUDA_VISIBLE_DEVICES to '%s'", os.environ["CUDA_VISIBLE_DEVICES"])
 
         self._start_logging_handler()
         server_conn, handler_conn = mp.Pipe()
         p = mp.Process(
             target=run_handler,
-            name='Handler',
+            name="Handler",
             kwargs={
                 "conn": handler_conn,
                 "config": config,
@@ -187,7 +189,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         return [c.name for c in mp.active_children()]
 
     def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
-        return self.handler.forward(data=TikTensor(batch))
+        tik_fut = self.handler.forward(data=TikTensor(batch))
+        return convert_tik_fut_to_ndarray_fut(tik_fut)
 
     def train(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
         return self.handler.train(TikTensorBatch(raw, labels))
@@ -215,7 +218,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger.info("Shutting down...")
         if self.handler:
             try:
-                self.handler.shutdown().result(timeout=60)
+                self.handler.shutdown()
             except TimeoutError as e:
                 self.logger.error(e)
 

@@ -8,7 +8,6 @@ from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
 
-
 @pytest.fixture
 def ctx():
     return zmq.Context()
@@ -34,8 +33,9 @@ def srv(conn_conf, client_control):
     yield api_provider
 
     with pytest.raises(Shutdown):
-        client_control.shutdown().result(timeout=5)
-    t.join(timeout=2)
+        client_control.shutdown()
+
+    t.join(timeout=10)
 
     assert not t.is_alive()
 
@@ -72,16 +72,8 @@ def test_forward_pass(datadir, srv, client, nn_sample):
 
     client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
 
-    res = client.forward(NDArray(input_arr)).result(timeout=20)
+    fut = client.forward(NDArray(input_arr))
+    print('fut', fut)
+    res = fut.result(timeout=30)
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
-
-
-def test_client_dry_run(srv, client, nn_sample):
-    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
-
-    client.dry_run({"train": True, "upper_bound": [1, 1, 125, 1250, 2040]})
-
-    valid_shape = client.dry_run({"train": False, "upper_bound": [1, 1, 125, 1250, 2040]})
-    assert isinstance(valid_shape, dict)
-    assert "shape" in valid_shape

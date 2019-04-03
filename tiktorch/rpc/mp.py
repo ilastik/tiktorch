@@ -72,18 +72,6 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-class MPMethodDispatcher:
-    def __init__(self, method_name, client):
-        self._method_name = method_name
-        self._client = client
-
-    def sync(self, *args, **kwargs):
-        f = self(*args, **kwargs)
-        return f.result()
-
-    def __call__(self, *args, **kwargs) -> Any:
-        return self._client._invoke(self._method_name, *args, **kwargs)
-
 import inspect
 
 def create_client(iface_cls: Type[T], conn: Connection) -> T:

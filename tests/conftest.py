@@ -70,8 +70,8 @@ def pub_port():
 
 @pytest.fixture
 def tiny_model(datadir):
-    with open(path.join(datadir, "tiny_models.py"), "r") as f:
-        model_file = pickle.dumps(f.read())
+    with open(path.join(datadir, "tiny_models.py"), "rb") as f:
+        model_file = f.read()
 
     return {
         "model_file": model_file,
@@ -80,16 +80,18 @@ def tiny_model(datadir):
         "config": {
             "model_class_name": "TestModel0",
             "model_init_kwargs": {},
-            "batch_size": 10,
             "input_channels": 1,
-            "training_shape_upper_bound": (15),
+            "training": {
+                "batch_size": 10,
+                "training_shape_upper_bound": (15),
+            },
         }
     }
 
 @pytest.fixture
 def tiny_model_2d(datadir):
-    with open(path.join(datadir, "tiny_models.py"), "r") as f:
-        model_file = pickle.dumps(f.read())
+    with open(path.join(datadir, "tiny_models.py"), "rb") as f:
+        model_file = f.read()
 
     return {
         "model_file": model_file,
@@ -98,16 +100,18 @@ def tiny_model_2d(datadir):
         "config": {
             "model_class_name": "TinyConvNet2d",
             "model_init_kwargs": {},
-            "batch_size": 10,
             "input_channels": 1,
-            "training_shape_upper_bound": (15, 15),
+            "training": {
+                "batch_size": 10,
+                "training_shape_upper_bound": (15, 15),
+            },
         }
     }
 
 @pytest.fixture
 def tiny_model_3d(datadir):
-    with open(path.join(datadir, "tiny_models.py"), "r") as f:
-        model_file = pickle.dumps(f.read())
+    with open(path.join(datadir, "tiny_models.py"), "rb") as f:
+        model_file = f.read()
 
     return {
         "model_file": model_file,
@@ -116,9 +120,11 @@ def tiny_model_3d(datadir):
         "config": {
             "model_class_name": "TinyConvNet3d",
             "model_init_kwargs": {},
-            "batch_size": 10,
             "input_channels": 1,
-            "training_shape_upper_bound": (15, 15, 15),
+            "training": {
+                "batch_size": 10,
+                "training_shape_upper_bound": (15, 15, 15),
+            },
         }
     }
 

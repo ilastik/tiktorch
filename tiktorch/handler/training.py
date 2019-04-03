@@ -14,19 +14,34 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Ma
 
 from inferno.trainers import Trainer as InfernoTrainer
 
-from .constants import TRAINING, VALIDATION
 from .datasets import DynamicDataset
 
+from tiktorch.utils import is_valid_tiktorch_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
+from tiktorch.configkeys import TRAINING, VALIDATION, BATCH_SIZE, NUM_ITERATION_DONE, MAX_NUM_ITERATIONS, MAX_NUM_ITERATIONS_PER_UPDATE, LOSS_CRITERION_CONFIG, OPTIMIZER_CONFIG
 
+# inferno names
+INFERNO_LOGGER_CONFIG = "logger_config"
+INFERNO_MAX_NUM_EPOCHS = "max_num_epochs"
+
+INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch config
+    TRAINING: "train",
+    VALIDATION: "validate",
+    LOSS_CRITERION_CONFIG: "criterion_config",
+    BATCH_SIZE: "batch_size",
+}
 
 class TikTrainer(InfernoTrainer):
     def __init__(self, *args, break_events: Optional[List[threading.Event]] = None, **kwargs):
         self.break_events = break_events
         super().__init__(*args, **kwargs)
+
+    @property
+    def max_num_iterations(self):
+        return self._max_num_iterations
 
     def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
         if self.break_events and any([e.is_set() for e in self.break_events]):
@@ -90,12 +105,10 @@ class TrainingProcess(ITraining):
     """
 
     trainer_defaults = {
-        "criterion_config": {"method": "MSELoss"},
-        "logger_config": {"name": "InfernoTrainer"},
-        "max_num_iterations": 0,
-        "max_num_iterations_per_update": 100,
-        "max_num_epochs": "inf",
-        "optimizer_config": {"method": "Adam"},
+        LOSS_CRITERION_CONFIG: {"method": "MSELoss"},
+        MAX_NUM_ITERATIONS: 0,
+        MAX_NUM_ITERATIONS_PER_UPDATE: 100,
+        OPTIMIZER_CONFIG: {"method": "Adam"},
     }
 
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
@@ -119,8 +132,8 @@ class TrainingProcess(ITraining):
         }
 
         for key, default in self.trainer_defaults.items():
-            if key not in config:
-                config[key] = default
+            if key not in config[TRAINING]:
+                config[TRAINING][key] = default
 
         self.config = config
 
@@ -145,11 +158,13 @@ class TrainingProcess(ITraining):
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
         for key, default in self.trainer_defaults.items():
-            if key in self.config:
-                trainer_config[key] = self.config[key]
+            if key in self.config[TRAINING]:
+                trainer_config[INFERNO_NAMES.get(key, key)] = self.config[TRAINING][key]
             else:
-                trainer_config[key] = default
+                trainer_config[INFERNO_NAMES.get(key, key)] = default
 
+        trainer_config[INFERNO_LOGGER_CONFIG] = {"name": "InfernoTrainer"}
+        trainer_config[INFERNO_MAX_NUM_EPOCHS] = "inf"
         return trainer_config
 
     def _training_worker(self):
@@ -187,17 +202,18 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
-                        trainer.set_max_num_iterations(self.config["max_num_iterations"])
-                        for name in (TRAINING, VALIDATION):
+                        trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
+                        for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
-                                trainer.bind_loader(name, DataLoader(**self.loader_kwargs[name]))
+                                trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
 
-                if self.config["max_num_iterations"] >= trainer._iteration_count:
+                if self.trainer.max_num_iterations >= trainer.iteration_count:
                     self.idle = False
                     if self.devices:
                         self.logger.info(
-                            "Start training for %d iterations", self.config["max_num_iterations"] - trainer._iteration_count
+                            "Start training for %d iterations",
+                            self.trainer.max_num_iterations - trainer.iteration_count,
                         )
                         trainer.fit()
                     else:
@@ -276,21 +292,27 @@ class TrainingProcess(ITraining):
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch) -> None:
-        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (
+            TRAINING,
+            VALIDATION,
+        ), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data)
         if name == TRAINING:
-            self.config["max_num_iterations"] += self.config["max_num_iterations_per_update"] * len(data)
+            self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(data)
 
         self.update_trainer_event.set()
 
-    def update_hparams(self, name: str, hparams: dict):
-        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+    def update_hparams(self, hparams: dict):
+        assert is_valid_tiktorch_config(hparams)
+
         with self.training_settings_lock:
             self.update_trainer_event.set()
             for key, value in hparams.items():
-                if key in ("batch_size",):
-                    self.update_loader[name] = True
-                    self.loader_kwargs[name][key] = value
+                if key == TRAINING:
+                    for subkey, subvalue in hparams[key].items():
+                        if subkey == BATCH_SIZE:
+                            self.update_loader[key] = True
+                            self.loader_kwargs[key][INFERNO_NAMES[BATCH_SIZE]] = subvalue
                 else:
                     raise NotImplementedError(f"How to set {key} as a hyper parameter?")
 

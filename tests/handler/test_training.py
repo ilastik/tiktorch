@@ -1,7 +1,4 @@
 import torch
-import threading
-import time
-
 from torch import multiprocessing as mp
 
 from tiktorch.handler.training import ITraining, TrainingProcess, run
@@ -56,7 +53,7 @@ def test_training(tiny_model_2d):
                 TikTensor(torch.ones(in_channels, 15, 15), (0,), torch.zeros(in_channels, 9, 9)),
             ]
         )
-        training.update_dataset("train", data)
+        training.update_dataset("training", data)
         training.resume_training()
     finally:
         shutdown_raised = False
@@ -85,11 +82,11 @@ def test_training_in_proc(tiny_model_2d, log_queue):
                 TikTensor(torch.ones(in_channels, 15, 15), (0,), torch.zeros(in_channels, 9, 9)),
             ]
         )
-        client.update_dataset("train", data)
+        client.update_dataset("training", data)
         client.resume_training()
         print("resumed training")
     finally:
-        client.shutdown().result(timeout=30)
+        client.shutdown()
 
 
 # def test_validation(tiny_model_2d):

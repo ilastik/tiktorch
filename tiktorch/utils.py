@@ -1,78 +1,35 @@
-import signal
-from importlib import util as imputils
-from contextlib import contextmanager
-import torch
-from torch.autograd import Variable
+from tiktorch.configkeys import CONFIG
+from tiktorch.rpc import RPCFuture
+from tiktorch.tiktypes import TikTensor
+from tiktorch.types import NDArray
 
 
-class delayed_keyboard_interrupt(object):
-    """
-    Delays SIGINT over critical code.
-    Borrowed from:
-    https://stackoverflow.com/questions/842557/
-    how-to-prevent-a-block-of-code-from-being-interrupted-by-keyboardinterrupt-in-py
-    """
-    # PEP8: Context manager class in lowercase
-    def __enter__(self):
-        self.signal_received = False
-        self.old_handler = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGINT, self.handler)
+def is_valid_tiktorch_config(config: dict) -> bool:
+    for key in config.keys():
+        if key not in CONFIG:
+            return False
 
-    def handler(self, sig, frame):
-        self.signal_received = (sig, frame)
+        if isinstance(CONFIG[key], dict):
+            if not isinstance(config[key], dict):
+                return False
+            else:
+                for subkey in config[key].keys():
+                    if subkey not in CONFIG[key]:
+                        return False
 
-    def __exit__(self, type, value, traceback):
-        signal.signal(signal.SIGINT, self.old_handler)
-        if self.signal_received:
-            self.old_handler(*self.signal_received)
+    return True
 
 
-def assert_(condition, message='', exception_type=Exception):
-    if not condition:
-        raise exception_type(message)
+def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[NDArray]:
+    ndarray_fut = RPCFuture()
 
+    def convert(tik_fut: RPCFuture[TikTensor]):
+        try:
+            res = tik_fut.result()
+        except Exception as e:
+            ndarray_fut.set_exception(e)
+        else:
+            ndarray_fut.set_result(NDArray(res.as_numpy()))
 
-class WannabeConvNet3D(torch.nn.Module):
-    """A torch model that pretends to be a 2D convolutional network.
-    This exists to just test the pickling machinery."""
-    def forward(self, input_):
-        assert isinstance(input_, Variable)
-        # Expecting 5 dimensional inputs as (NCDHW).
-        assert input_.dim() == 5
-        return input_
-
-
-class TinyConvNet3D(torch.nn.Module):
-    """Tiny ConvNet with actual parameters."""
-    def __init__(self, num_input_channels=1, num_output_channels=1):
-        super(TinyConvNet3D, self).__init__()
-        self.conv3d = torch.nn.Conv3d(num_input_channels, num_output_channels, 3, padding=1)
-
-    def forward(self, *input):
-        return self.conv3d(input[0])
-
-
-class TinyConvNet2D(torch.nn.Module):
-    """Tiny ConvNet with actual parameters."""
-    def __init__(self, num_input_channels=1, num_output_channels=1):
-        super(TinyConvNet2D, self).__init__()
-        self.conv2d = torch.nn.Conv2d(num_input_channels, num_output_channels, 3, padding=1)
-
-    def forward(self, *input):
-        return self.conv2d(input[0])
-
-
-def define_patched_model(model_file_name, model_class_name, model_init_kwargs):
-    # Dynamically import file.
-    module_spec = imputils.spec_from_file_location('model', model_file_name)
-    module = imputils.module_from_spec(module_spec)
-    module_spec.loader.exec_module(module)
-    # Build model from file
-    model: torch.nn.Module = \
-        getattr(module, model_class_name)(**model_init_kwargs)
-    # Monkey patch
-    model._model_file_name = model_file_name
-    model._model_class_name = model_class_name
-    model._model_init_kwargs = model_init_kwargs
-    return model
-
+    tik_fut.add_done_callback(convert)
+    return ndarray_fut

@@ -82,7 +82,13 @@ def in_subproc(fn: Callable, *args, **kwargs) -> Connection:
 
 class IDryRun(RPCInterface):
     @exposed
-    def dry_run(self, devices: Sequence[torch.device]) -> RPCFuture:
+    def dry_run(
+        self,
+        devices: Sequence[torch.device],
+        training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None,
+        valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
+        shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
+    ) -> RPCFuture:
         raise NotImplementedError()
 
     @exposed

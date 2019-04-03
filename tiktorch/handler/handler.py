@@ -22,7 +22,7 @@ from torch import multiprocessing as mp
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
-from tiktorch.rpc.mp import MPServer, MPClient, Shutdown
+from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
 from tiktorch.tiktypes import (
     TikTensor,
     TikTensorBatch,
@@ -33,7 +33,7 @@ from tiktorch.tiktypes import (
     BatchPointBase,
     PointAndBatchPointBase,
 )
-from tiktorch.handler.constants import TRAINING, VALIDATION
+from tiktorch.configkeys import TRAINING, VALIDATION, MODEL_CLASS_NAME, MODEL_INIT_KWARGS
 from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
 from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
@@ -58,7 +58,7 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def shutdown(self):
+    def shutdown(self) -> None:
         raise NotImplementedError
 
     @exposed
@@ -103,7 +103,7 @@ class HandlerProcess(IHandler):
         :param optimizer_state: binarized optimizer state dict
         """
         assert model_file
-        for required in ["model_class_name"]:
+        for required in [MODEL_CLASS_NAME]:
             if required not in config:
                 raise ValueError(f"{required} missing in config")
 
@@ -127,8 +127,8 @@ class HandlerProcess(IHandler):
         sys.path.insert(0, self.tempdir)
         user_module = importlib.import_module(user_module_name)
 
-        self.model: torch.nn.Module = getattr(user_module, self.config["model_class_name"])(
-            **self.config.get("model_init_kwargs", {})
+        self.model: torch.nn.Module = getattr(user_module, self.config[MODEL_CLASS_NAME])(
+            **self.config.get(MODEL_INIT_KWARGS, {})
         )
         self.logger.debug("created user model")
 
@@ -149,7 +149,7 @@ class HandlerProcess(IHandler):
                 "log_queue": log_queue,
             },
         ).start()
-        self._training: MPClient = MPClient(ITraining, handler2training_conn)
+        self._training: ITraining = create_client(ITraining, handler2training_conn)
 
         # start inference process
         handler2inference_conn, inference2handler_conn = mp.Pipe()
@@ -158,7 +158,7 @@ class HandlerProcess(IHandler):
             name="Inference",
             kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
-        self._inference: MPClient = MPClient(IInference, handler2inference_conn)
+        self._inference: IInference = create_client(IInference, handler2inference_conn)
 
         # start dryrun process
         handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
@@ -167,7 +167,7 @@ class HandlerProcess(IHandler):
             target=run_dryrun,
             kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
         ).start()
-        self._dry_run = MPClient(IDryRun, handler2dryrun_conn)
+        self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
 
         # start device setter thread that will wait for dry run processes to finish
         self.new_device_names: queue.Queue = queue.Queue()
@@ -184,13 +184,14 @@ class HandlerProcess(IHandler):
             except queue.Empty:
                 # no new devices; reassign devices if necessary
                 for fut in self._collect_idle_devices():
-                    fut.result()  # wait for confirmation that idle devices are in fact free
+                    # todo: ret fut fut.result()  # wait for confirmation that idle devices are in fact free
+                    pass  # wait for confirmation that idle devices are in fact free
 
-                if not self.idle_devices and not self.inference_devices and not self.inference.get_idle().result():
+                if not self.idle_devices and not self.inference_devices and not self.inference.get_idle():
                     self.logger.debug("reassigning a training device to inference")
                     self.inference_devices = [self.training_devices[-1]]
                     self.training_devices = self.training_devices[:-1]
-                    self.training.set_devices(self.training_devices).result()
+                    self.training.set_devices(self.training_devices) # todo: change to futures
                     self.inference.set_devices(self.inference_devices)  # no need to wait here
                 else:
                     self._assign_idle_devices()
@@ -246,8 +247,9 @@ class HandlerProcess(IHandler):
                         assert self.shrinkage == shrinkage
 
                 # wait for old devices to be free
-                freed_training_devices_fut.result()
-                freed_inference_devices_fut.result()
+                # todo: wait for old devices to be free (when they are returned as futures)
+                # freed_training_devices_fut.result()
+                # freed_inference_devices_fut.result()
 
                 # (re-)assign freed old and new devices
                 self._assign_idle_devices()
@@ -260,13 +262,13 @@ class HandlerProcess(IHandler):
         self.logger.info("stopped")
 
     def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
-        if self.training.get_idle().result():
+        if self.training.get_idle():
             self.idle_devices = self.training_devices + self.idle_devices
             self.training_devices = []
         elif new_devices is not None:
             self.training_devices = [d for d in self.training_devices if d in new_devices]
 
-        if self.inference.get_idle().result():
+        if self.inference.get_idle():
             self.idle_devices += self.inference_devices
             self.inference_devices = []
         elif new_devices is not None:
@@ -281,8 +283,8 @@ class HandlerProcess(IHandler):
             return
 
         self.logger.debug("assigning idle devices")
-        training_idle = self.training.get_idle().result()
-        inference_idle = self.inference.get_idle().result()
+        training_idle = self.training.get_idle()
+        inference_idle = self.inference.get_idle()
         if training_idle and inference_idle:
             return
         elif training_idle and not inference_idle:  # all for inference
@@ -344,15 +346,15 @@ class HandlerProcess(IHandler):
 
         # shutdown processes
         try:
-            self.dry_run.shutdown().result(timeout=30)
+            self.dry_run.shutdown()
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.inference.shutdown().result(timeout=30)
+            self.inference.shutdown()
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.training.shutdown().result(timeout=30)
+            self.training.shutdown()
         except TimeoutError as e:
             self.logger.error(e)
 
@@ -365,16 +367,16 @@ class HandlerProcess(IHandler):
         self.logger.debug("Shutdown complete")
         raise Shutdown
 
+    def update_hparams(self, hparams: dict) -> None:
+        # todo: check valid shapes if mini batch size changes
+        pass
+
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         # todo: update inference devices
         return self.inference.forward(data)
 
     # training
-    def update_hparams(self, hparams: dict) -> None:
-        # todo: check valid shapes if mini batch size changes
-        pass
-
     def resume_training(self) -> None:
         self.training.resume_training()
 
