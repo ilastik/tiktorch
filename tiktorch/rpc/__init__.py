@@ -1,5 +1,3 @@
-from tiktorch import log
-
 from .serialization import ISerializer, serializer_for, serialize, deserialize
 from .base import Client, Server, RPCFuture
 from .connections import InprocConnConf, TCPConnConf
