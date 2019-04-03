@@ -1,4 +1,4 @@
-from tiktorch.rpc import RPCInterface, exposed
+from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.types import NDArray, NDArrayBatch
 
 from typing import List, Tuple
@@ -25,7 +25,7 @@ class INeuralNetworkAPI(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, batch: NDArray) -> NDArray:
+    def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
         raise NotImplementedError
 
     @exposed
