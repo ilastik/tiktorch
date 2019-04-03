@@ -12,6 +12,7 @@ from functools import wraps
 
 from .exceptions import Shutdown
 from .interface import RPCInterface, get_exposed_methods
+from .types import RPCFuture
 
 
 logger = logging.getLogger(__name__)
@@ -83,21 +84,30 @@ class MPMethodDispatcher:
     def __call__(self, *args, **kwargs) -> Any:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
+import inspect
 
 def create_client(iface_cls: Type[T], conn: Connection) -> T:
     client = MPClient(iface_cls(), conn)
     exposed = get_exposed_methods(iface_cls)
 
     def _make_method(method):
+        sig = inspect.signature(method)
+        is_future_ret = issubclass(sig.return_annotation, Future)
+
         class MethodWrapper:
             @wraps(method)
-            def sync(self, *args, **kwargs):
-                f = self(*args, **kwargs)
-                return f.result()
-
-            @wraps(method)
-            def __call__(self, *args, **kwargs) -> Any:
+            def async_(self, *args, **kwargs):
                 return client._invoke(method.__name__, *args, **kwargs)
+
+            if is_future_ret:
+                @wraps(method)
+                def __call__(self, *args, **kwargs) -> Any:
+                    return self.async_(*args, **kwargs)
+            else:
+                @wraps(method)
+                def __call__(self, *args, **kwargs) -> Any:
+                    fut = client._invoke(method.__name__, *args, **kwargs)
+                    return fut.result(timeout=10)
 
         return MethodWrapper()
 

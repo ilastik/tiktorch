@@ -57,7 +57,7 @@ class SerializerRegistry:
         Serialize single object of type *type_* to zmq.Frame stream
         """
         type_ = type(obj)
-        logger.debug("serialize(%r, %r)", type_, obj)
+        logger.debug("serialize(%r)", type_)
         entry = self._entry_by_type.get(type(obj))
 
         if not entry:

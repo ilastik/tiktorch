@@ -17,6 +17,7 @@ from .interface import RPCInterface, get_exposed_methods
 from .serialization import serialize, deserialize
 from .connections import IConnConf
 from .exceptions import Timeout, Shutdown, Canceled, CallException
+from .types import RPCFuture
 
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,6 @@ class State(enum.Enum):
     Return = b'0'
     Error = b'1'
     Ack = b'2'
-
-
-class RPCFuture(Future, Generic[T]):
-    pass
 
 
 def isfuture(obj):
@@ -412,12 +409,12 @@ class Server:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
 
-        logger.debug('Call[id: %s]. Invoking method %s', id_, func)
+        logger.debug('[id: %s]. Invoking method %s', id_, func)
         ret = func(*args)
-        logger.debug('Call[id: %s]. Returned %r', id_, ret)
+        logger.debug('[id: %s]. Return value', id_)
 
         if isfuture(ret):
-            logger.debug('Call[id: %s]. Handling future', id_)
+            logger.debug('[id: %s]. Handling future', id_)
 
             self._futures.add(ret)
             ret.add_done_callback(self._make_done_callback(id_, func))

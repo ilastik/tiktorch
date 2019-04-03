@@ -5,17 +5,17 @@ from concurrent.futures import Future
 from collections import namedtuple
 
 from tiktorch.rpc.mp import MPClient, MPServer, create_client
-from tiktorch.rpc import exposed, RPCInterface, Shutdown
+from tiktorch.rpc import exposed, RPCInterface, RPCFuture, Shutdown
 from tiktorch import log
 
 
 class ITestApi(RPCInterface):
     @exposed
-    def compute(self, a, b):
+    def compute(self, a: int, b: int):
         raise NotImplementedError
 
     @exposed
-    def compute_fut(self, a, b):
+    def compute_fut(self, a: int, b: int) -> RPCFuture[str]:
         raise NotImplementedError
 
     @exposed
@@ -65,23 +65,18 @@ def client(log_queue):
 
 
 def test_async(client: ITestApi):
-    f = client.compute(1, b=2)
-    assert f.result() == "test 3"
-
     with pytest.raises(NotImplementedError):
-        f = client.broken(1, 2)
-        f.result()
+        client.broken(1, 2)
 
 
 def test_sync(client: ITestApi):
-    res = client.compute.sync(1, b=2)
+    res = client.compute(1, b=2)
     assert res == "test 3"
 
     with pytest.raises(NotImplementedError):
-        f = client.broken.sync(1, 2)
+        f = client.broken(1, 2)
 
 
 def test_future(client: ITestApi):
     res = client.compute_fut(1, b=2)
-    assert res.result(timeout=5) == "test 3"
-    assert False
+    assert res.result() == "test 3"
