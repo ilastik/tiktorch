@@ -397,9 +397,9 @@ class Server:
             except Exception as e:
                 logger.error('[id: %s]. Future expection', id_, exc_info=1)
                 resp = [id_, State.Error.value, str(e).encode('utf-8')]
-            else:
-                logger.debug('[id: %s]. Sending result', id_)
-                self._results_queue.put(resp)
+
+            logger.debug('[id: %s]. Sending result', id_)
+            self._results_queue.put(resp)
 
         return _done_callback
 
@@ -443,6 +443,8 @@ class Server:
 
             except Shutdown:
                 self._shutdown_event.set()
+                if self._result_sender:
+                    self._result_sender.join()
                 for f in self._futures:
                     f.cancel()
                 self._socket.send_multipart([Mode.Shutdown.value])
