@@ -135,13 +135,21 @@ def register_faulthandler():
         faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
 
-@pytest.fixture(scope='session')
+class QueueListener(logging.handlers.QueueListener):
+    def start(self):
+        # Redefine to provide meaningful thread name
+        self._thread = t = threading.Thread(target=self._monitor, name='QueueListener')
+        t.daemon = True
+        t.start()
+
+
+@pytest.fixture(scope='module')
 def log_queue():
     q = mp.Queue()
 
     logger = logging.getLogger()
 
-    listener = logging.handlers.QueueListener(q, *logger.handlers)
+    listener = QueueListener(q, *logger.handlers)
     listener.start()
 
     yield q
@@ -149,9 +157,9 @@ def log_queue():
     listener.stop()
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='session')
 def assert_threads_cleanup():
     yield
-    running_threads = [str(t) for t in threading.enumerate() if t != threading.current_thread()]
+    running_threads = [str(t) for t in threading.enumerate() if t != threading.current_thread() and not t.daemon]
     if len(running_threads):
         pytest.fail('Threads still running:\n\t%s' % '\n\t'.join(running_threads))

@@ -13,7 +13,7 @@ from functools import wraps
 
 from .exceptions import Shutdown
 from .interface import RPCInterface, get_exposed_methods
-from .types import RPCFuture
+from .types import RPCFuture, isfutureret
 
 
 logger = logging.getLogger(__name__)
@@ -73,22 +73,18 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-import inspect
 
 def create_client(iface_cls: Type[T], conn: Connection) -> T:
     client = MPClient(iface_cls(), conn)
     exposed = get_exposed_methods(iface_cls)
 
     def _make_method(method):
-        sig = inspect.signature(method)
-        is_future_ret = issubclass(sig.return_annotation, Future)
-
         class MethodWrapper:
             @wraps(method)
             def async_(self, *args, **kwargs):
                 return client._invoke(method.__name__, *args, **kwargs)
 
-            if is_future_ret:
+            if isfutureret(method):
                 @wraps(method)
                 def __call__(self, *args, **kwargs) -> Any:
                     return self.async_(*args, **kwargs)
@@ -136,10 +132,9 @@ class MPClient:
         return uuid4().hex
 
     def _start_poller(self):
-
         def _poller():
             while True:
-                if self._conn.poll(timeout=1):
+                if self._conn.poll(timeout=0.3):
                     id_, res = self._conn.recv()
 
                     # signal
@@ -162,6 +157,7 @@ class MPClient:
                     break
 
         self._poller = Thread(target=_poller, name='ClientPoller')
+        self._poller.daemon = True
         self._poller.start()
 
     def _invoke(self, method_name, *args, **kwargs):
@@ -208,10 +204,12 @@ class MPServer:
 
                 meth = getattr(self._api, method_name)
                 res = meth(*args, **kwargs)
-            except Shutdown:
-                self._conn.send([id_, Result.OK(None)])
-                self._conn.send([None, b'shutdown'])
-                break
+
+                if isinstance(res, Shutdown):
+                    self._conn.send([id_, Result.OK(Shutdown())])
+                    self._conn.send([None, b'shutdown'])
+                    break
+
             except Exception as e:
                 self._conn.send([id_, Result.Error(e)])
             else:

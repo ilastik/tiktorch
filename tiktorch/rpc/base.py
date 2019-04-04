@@ -17,7 +17,7 @@ from .interface import RPCInterface, get_exposed_methods
 from .serialization import serialize, deserialize
 from .connections import IConnConf
 from .exceptions import Timeout, Shutdown, Canceled, CallException
-from .types import RPCFuture
+from .types import RPCFuture, isfutureret
 
 
 logger = logging.getLogger(__name__)
@@ -94,14 +94,6 @@ def serialize_return(
 
     # else:
     #     return serialize(sig.return_annotation, value)
-
-
-def isfutureret(func: Callable):
-    sig = inspect.signature(func)
-    return (
-        sig.return_annotation is not None
-        and issubclass(sig.return_annotation, RPCFuture)
-    )
 
 
 def deserialize_return(
@@ -405,9 +397,9 @@ class Server:
             except Exception as e:
                 logger.error('[id: %s]. Future expection', id_, exc_info=1)
                 resp = [id_, State.Error.value, str(e).encode('utf-8')]
-            else:
-                logger.debug('[id: %s]. Sending result', id_)
-                self._results_queue.put(resp)
+
+            logger.debug('[id: %s]. Sending result', id_)
+            self._results_queue.put(resp)
 
         return _done_callback
 
@@ -451,6 +443,8 @@ class Server:
 
             except Shutdown:
                 self._shutdown_event.set()
+                if self._result_sender:
+                    self._result_sender.join()
                 for f in self._futures:
                     f.cancel()
                 self._socket.send_multipart([Mode.Shutdown.value])
