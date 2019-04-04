@@ -15,13 +15,7 @@ def test_initialization(tiny_model_2d):
     model = TinyConvNet2d(in_channels=in_channels)
 
     ip = InferenceProcess(config=config, model=model)
-    raised_shutdown = False
-    try:
-        ip.shutdown()
-    except Shutdown:
-        raised_shutdown = True
-
-    assert raised_shutdown
+    ip.shutdown()
 
 
 def test_inference2d(tiny_model_2d):
@@ -33,10 +27,7 @@ def test_inference2d(tiny_model_2d):
     data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
     pred = inference.forward(data)
     assert isinstance(pred.result(timeout=10), TikTensor)
-    try:
-        inference.shutdown()
-    except Shutdown:
-        pass
+    inference.shutdown()
 
 
 def test_inference2d_in_proc(tiny_model_2d, log_queue):
@@ -66,11 +57,10 @@ def test_inference3d(tiny_model_3d, log_queue):
     inference.set_devices([torch.device('cpu')])
     data = TikTensor(torch.zeros(in_channels, 15, 15, 15), (0,))
     pred = inference.forward(data)
-    assert isinstance(pred.result(timeout=10), TikTensor)
     try:
+        assert isinstance(pred.result(timeout=10), TikTensor)
+    finally:
         inference.shutdown()
-    except Shutdown:
-        pass
 
 
 def test_inference3d_in_proc(tiny_model_3d, log_queue):

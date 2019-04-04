@@ -335,7 +335,7 @@ class HandlerProcess(IHandler):
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
 
-    def shutdown(self) -> None:
+    def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
         self.shutdown_event.set()
         # wait for threads to shutdown
@@ -344,17 +344,18 @@ class HandlerProcess(IHandler):
         except TimeoutError as e:
             self.logger.error(e)
 
+        timeout = 5
         # shutdown processes
         try:
-            self.dry_run.shutdown()
+            self.dry_run.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.inference.shutdown()
+            self.inference.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.training.shutdown()
+            self.training.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
 
@@ -365,7 +366,7 @@ class HandlerProcess(IHandler):
             self.logger.error(e)
 
         self.logger.debug("Shutdown complete")
-        raise Shutdown
+        return Shutdown()
 
     def update_hparams(self, hparams: dict) -> None:
         # todo: check valid shapes if mini batch size changes

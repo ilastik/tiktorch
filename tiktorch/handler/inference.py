@@ -40,7 +40,7 @@ class IInference(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def shutdown(self):
+    def shutdown(self) -> Shutdown:
         raise NotImplementedError
 
     @exposed
@@ -157,7 +157,7 @@ class InferenceProcess(IInference):
     def get_idle(self) -> bool:
         return self.forward_queue.empty()
 
-    def shutdown(self) -> None:
+    def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
         self.shutdown_event.set()
         try:
@@ -172,7 +172,7 @@ class InferenceProcess(IInference):
                 self.logger.error(e)
 
         self.logger.debug("Shutdown complete")
-        raise Shutdown
+        return Shutdown()
 
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         fut = RPCFuture()

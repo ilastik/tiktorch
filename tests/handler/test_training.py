@@ -14,13 +14,7 @@ def test_initialization(tiny_model_2d):
     model = TinyConvNet2d(in_channels=in_channels)
 
     tp = TrainingProcess(config=config, model=model)
-    shutdown_raised = False
-    try:
-        tp.shutdown()
-    except Shutdown:
-        shutdown_raised = True
-
-    assert shutdown_raised
+    tp.shutdown()
 
 
 def test_set_devices(tiny_model_2d):
@@ -29,14 +23,8 @@ def test_set_devices(tiny_model_2d):
     model = TinyConvNet2d(in_channels=in_channels)
 
     tp = TrainingProcess(config=config, model=model)
-    shutdown_raised = False
-    try:
-        tp.set_devices([torch.device("cpu")])
-        tp.shutdown()
-    except Shutdown:
-        shutdown_raised = True
-
-    assert shutdown_raised
+    tp.set_devices([torch.device("cpu")])
+    tp.shutdown()
 
 
 def test_training(tiny_model_2d):
@@ -56,13 +44,7 @@ def test_training(tiny_model_2d):
         training.update_dataset("training", data)
         training.resume_training()
     finally:
-        shutdown_raised = False
-        try:
-            training.shutdown()
-        except Shutdown:
-            shutdown_raised = True
-
-        assert shutdown_raised
+        training.shutdown()
 
 
 def test_training_in_proc(tiny_model_2d, log_queue):

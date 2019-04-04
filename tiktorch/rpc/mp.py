@@ -135,6 +135,7 @@ class MPClient:
         def _poller():
             while True:
                 if self._conn.poll(timeout=0.3):
+                    res: Result
                     id_, res = self._conn.recv()
 
                     # signal
@@ -206,6 +207,7 @@ class MPServer:
                 res = meth(*args, **kwargs)
 
                 if isinstance(res, Shutdown):
+                    self.logger.debug("[id: %s] Sending shutdown", id_)
                     self._conn.send([id_, Result.OK(Shutdown())])
                     self._conn.send([None, b'shutdown'])
                     break
