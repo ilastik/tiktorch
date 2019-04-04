@@ -38,6 +38,7 @@ from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
 from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 from tiktorch import log
+from tiktorch.utils import add_logger
 
 from tiktorch.configkeys import (
     TRAINING_SHAPE,
@@ -171,18 +172,23 @@ class HandlerProcess(IHandler):
 
         # start device setter thread that will wait for dry run processes to finish
         self.new_device_names: queue.Queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(target=self._device_setter_worker, name="DeviceSetter")
+        self.device_setter_thread = threading.Thread(
+            target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter"
+        )
         self.device_setter_thread.start()
 
         self.set_devices(device_names=self.config.get("devices", ["cpu"]))
 
     def _device_setter_worker(self) -> None:
-        self.logger.info("started")
         while not self.shutdown_event.is_set():
-            try:
-                new_device_names, fut = self.new_device_names.get(timeout=3)
-            except queue.Empty:
-                # no new devices; reassign devices if necessary
+            for _ in range(20):  # check new_devices_names queue and shutdown_event in-between
+                try:
+                    new_device_names, fut = self.new_device_names.get(timeout=3)
+                    break
+                except queue.Empty:
+                    if self.shutdown_event.is_set():
+                        return
+            else:  # no new devices in a while; reassign devices if necessary
                 for fut in self._collect_idle_devices():
                     # todo: ret fut fut.result()  # wait for confirmation that idle devices are in fact free
                     pass  # wait for confirmation that idle devices are in fact free
@@ -191,75 +197,69 @@ class HandlerProcess(IHandler):
                     self.logger.debug("reassigning a training device to inference")
                     self.inference_devices = [self.training_devices[-1]]
                     self.training_devices = self.training_devices[:-1]
-                    self.training.set_devices(self.training_devices) # todo: change to futures
+                    self.training.set_devices(self.training_devices)  # todo: change to futures
                     self.inference.set_devices(self.inference_devices)  # no need to wait here
                 else:
                     self._assign_idle_devices()
 
                 continue
-            try:
-                while not self.new_device_names.empty():
-                    fut.cancel()
-                    new_device_names, fut = self.new_device_names.get()
 
-                new_devices = []
-                for dn in new_device_names:
-                    try:
-                        torch_device = torch.device(dn)
-                    except TypeError as e:
-                        self.logger.error(e)
-                    else:
-                        new_devices.append(torch_device)
+            while not self.new_device_names.empty():
+                fut.cancel()
+                new_device_names, fut = self.new_device_names.get()
 
-                # remove old devices that are not in the new list of devices
-                self.idle_devices = [d for d in self.idle_devices if d in new_devices]
+            new_devices = []
+            for dn in new_device_names:
+                try:
+                    torch_device = torch.device(dn)
+                except TypeError as e:
+                    self.logger.error(e)
+                else:
+                    new_devices.append(torch_device)
 
-                freed_training_devices_fut, freed_inference_devices_fut = self._collect_idle_devices(
-                    new_devices=new_devices
-                )
+            # remove old devices that are not in the new list of devices
+            self.idle_devices = [d for d in self.idle_devices if d in new_devices]
 
-                # do dry run for truly new devices
-                new_devices = [d for d in new_devices if d not in self.devices]
-                if new_devices:
-                    approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
-                        new_devices,
-                        training_shape=self.config.get(TRAINING_SHAPE, None),
-                        valid_shapes=self.valid_shapes,
-                        shrinkage=self.shrinkage,
-                    ).result()
-                    self.idle_devices += approved_devices
+            freed_training_devices_fut, freed_inference_devices_fut = self._collect_idle_devices(
+                new_devices=new_devices
+            )
 
-                    if TRAINING_SHAPE in self.config:
-                        assert training_shape == self.config[TRAINING_SHAPE]
-                    else:
-                        self.config[TRAINING_SHAPE] = training_shape
+            # do dry run for truly new devices
+            new_devices = [d for d in new_devices if d not in self.devices]
+            if new_devices:
+                approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
+                    new_devices,
+                    training_shape=self.config.get(TRAINING_SHAPE, None),
+                    valid_shapes=self.valid_shapes,
+                    shrinkage=self.shrinkage,
+                ).result()
+                self.idle_devices += approved_devices
 
-                    if self.valid_shapes is None:
-                        self.valid_shapes = valid_shapes
-                    else:
-                        self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
-                        if not self.valid_shapes:
-                            raise ValueError(f"No valid shapes found after {new_devices}")
+                if TRAINING_SHAPE in self.config:
+                    assert training_shape == self.config[TRAINING_SHAPE]
+                else:
+                    self.config[TRAINING_SHAPE] = training_shape
 
-                    if self.shrinkage is None:
-                        self.shrinkage = shrinkage
-                    else:
-                        assert self.shrinkage == shrinkage
+                if self.valid_shapes is None:
+                    self.valid_shapes = valid_shapes
+                else:
+                    self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
+                    if not self.valid_shapes:
+                        raise ValueError(f"No valid shapes found after {new_devices}")
 
-                # wait for old devices to be free
-                # todo: wait for old devices to be free (when they are returned as futures)
-                # freed_training_devices_fut.result()
-                # freed_inference_devices_fut.result()
+                if self.shrinkage is None:
+                    self.shrinkage = shrinkage
+                else:
+                    assert self.shrinkage == shrinkage
 
-                # (re-)assign freed old and new devices
-                self._assign_idle_devices()
-            except Exception as e:
-                fut.set_exception(e)
-                self.logger.error(e)
-            else:
-                fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
+            # wait for old devices to be free
+            # todo: wait for old devices to be free (when they are returned as futures)
+            # freed_training_devices_fut.result()
+            # freed_inference_devices_fut.result()
 
-        self.logger.info("stopped")
+            # (re-)assign freed old and new devices
+            self._assign_idle_devices()
+            fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
 
     def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
         if self.training.get_idle():
@@ -285,21 +285,32 @@ class HandlerProcess(IHandler):
         self.logger.debug("assigning idle devices")
         training_idle = self.training.get_idle()
         inference_idle = self.inference.get_idle()
+        training_devices_changed = False
+        inference_devices_changed = False
         if training_idle and inference_idle:
             return
         elif training_idle and not inference_idle:  # all for inference
             self.inference_devices = self.idle_devices + self.inference_devices
+            inference_devices_changed = True
         elif not training_idle and inference_idle:  # all for training
             self.training_devices += self.idle_devices
+            training_devices_changed = True
         elif not self.inference_devices:  # one device for inference, rest (if exists) for training
             self.inference_devices.insert(0, self.idle_devices[-1])
-            self.training_devices += self.idle_devices[:-1]
+            inference_devices_changed = True
+            if len(self.idle_devices) > 1:
+                self.training_devices += self.idle_devices[:-1]
+                training_devices_changed = True
         else:  # inference has at least one device already, assign the rest to training
             self.training_devices += self.idle_devices
+            training_devices_changed = True
 
         self.idle_devices = []
-        self.training.set_devices(self.training_devices)
-        self.inference.set_devices(self.inference_devices)
+        if training_devices_changed:
+            self.training.set_devices(self.training_devices)
+
+        if inference_devices_changed:
+            self.inference.set_devices(self.inference_devices)
 
     # device handling and dry run
     @property
