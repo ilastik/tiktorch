@@ -14,7 +14,7 @@ from tiktorch.configkeys import TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND
 @pytest.fixture
 def handler2d(tiny_model_2d, log_queue):
     hp = HandlerProcess(**tiny_model_2d, log_queue=log_queue)
-    yield  hp
+    yield hp
     hp.shutdown()
 
 
@@ -22,7 +22,7 @@ def handler2d(tiny_model_2d, log_queue):
 @pytest.fixture
 def handler3d(tiny_model_3d, log_queue):
     hp = HandlerProcess(**tiny_model_3d, log_queue=log_queue)
-    yield  hp
+    yield hp
     hp.shutdown()
 
 
@@ -38,7 +38,7 @@ def client2d(tiny_model_2d, log_queue):
     cl = create_client(IHandler, client_conn)
     yield cl
 
-    cl.shutdown().result(timeout=20)
+    cl.shutdown.async_().result(timeout=10)
     p.join(timeout=20)
 
 
@@ -54,7 +54,7 @@ def client3d(tiny_model_3d, log_queue):
     cl = create_client(IHandler, client_conn)
     yield cl
 
-    cl.shutdown()
+    cl.shutdown.async_().result(timeout=10)
     p.join(timeout=20)
 
 

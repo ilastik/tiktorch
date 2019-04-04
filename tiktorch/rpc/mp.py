@@ -157,7 +157,7 @@ class MPClient:
                 if self._shutdown_event.is_set():
                     break
 
-        self._poller = Thread(target=_poller, name='ClientPoller')
+        self._poller = Thread(target=_poller, name=f'ClientPoller[{type(self._api).__name__}]')
         self._poller.daemon = True
         self._poller.start()
 
