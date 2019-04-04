@@ -344,7 +344,7 @@ class HandlerProcess(IHandler):
         except TimeoutError as e:
             self.logger.error(e)
 
-        timeout = 5
+        timeout = 20
         # shutdown processes
         try:
             self.dry_run.shutdown.async_().result(timeout=timeout)
