@@ -1,5 +1,6 @@
 import logging
 import multiprocessing as mp
+import weakref
 import types
 
 from uuid import uuid4
@@ -149,11 +150,13 @@ class MPClient:
 
                     # method
                     else:
-                        fut = self._requests.pop(id_, None)
+                        fut = self._requests.get(id_, None)
                         self.logger.debug('[id:%s] Recieved result', id_)
 
                         if fut is not None:
                             res.to_future(fut)
+                        else:
+                            self.logger.debug('[id:%s] Discarding result', id_)
 
                 if self._shutdown_event.is_set():
                     break
@@ -177,7 +180,7 @@ class MPServer:
     def __init__(self, api, conn: Connection):
         self._conn = conn
         self._api = api
-        self._futures = {}
+        self._futures = weakref.WeakKeyDictionary()
         self._logger = None
 
     @property
