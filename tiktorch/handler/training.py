@@ -17,7 +17,7 @@ from inferno.trainers import Trainer as InfernoTrainer
 from .datasets import DynamicDataset
 
 from tiktorch.utils import is_valid_tiktorch_config
-from tiktorch.rpc import RPCInterface, exposed, Shutdown
+from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
@@ -62,7 +62,7 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def shutdown(self):
+    def shutdown(self) -> Shutdown:
         raise NotImplementedError
 
     @exposed
@@ -272,7 +272,7 @@ class TrainingProcess(ITraining):
         else:
             return optimizer
 
-    def shutdown(self) -> None:
+    def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
         self.shutdown_event.set()
         try:
@@ -281,7 +281,7 @@ class TrainingProcess(ITraining):
             self.logger.error(e)
 
         self.logger.debug("Shutdown complete")
-        raise Shutdown()
+        return Shutdown()
 
     def resume_training(self) -> None:
         self._pause_event.clear()

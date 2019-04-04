@@ -92,7 +92,7 @@ class IDryRun(RPCInterface):
         raise NotImplementedError()
 
     @exposed
-    def shutdown(self):
+    def shutdown(self) -> Shutdown:
         raise NotImplementedError()
 
 
@@ -379,7 +379,7 @@ class DryRunProcess(IDryRun):
 
         return None
 
-    def shutdown(self):
+    def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
         self.shutdown_event.set()
         try:
@@ -388,4 +388,4 @@ class DryRunProcess(IDryRun):
             self.logger.error(e)
 
         self.logger.debug("Shutdown complete")
-        raise Shutdown
+        return Shutdown()

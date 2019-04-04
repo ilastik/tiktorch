@@ -15,13 +15,8 @@ def test_initialization(tiny_model_2d):
     model = TinyConvNet2d(in_channels=in_channels)
 
     dr = DryRunProcess(config=config, model=model)
-    raised_shutdown = False
-    try:
-        dr.shutdown()
-    except Shutdown:
-        raised_shutdown = True
+    dr.shutdown()
 
-    assert raised_shutdown
 
 def test_minimal_device_test(tiny_model_2d):
     config = tiny_model_2d["config"]
@@ -32,10 +27,7 @@ def test_minimal_device_test(tiny_model_2d):
     try:
         assert dr.minimal_device_test([torch.device("cpu")])
     finally:
-        try:
-            dr.shutdown()
-        except Shutdown:
-            pass
+        dr.shutdown()
 
 
 def test_with_given_training_shape(tiny_model_2d):
@@ -50,10 +42,7 @@ def test_with_given_training_shape(tiny_model_2d):
     try:
         dr.dry_run(devices=[torch.device("cpu")]).result(timeout=20)
     finally:
-        try:
-            dr.shutdown()
-        except Shutdown:
-            pass
+        dr.shutdown()
 
 
 def test_with_given_malicious_training_shape(tiny_model_2d):
@@ -68,7 +57,4 @@ def test_with_given_malicious_training_shape(tiny_model_2d):
         fut = dr.dry_run(devices=[torch.device("cpu")])
         assert isinstance(fut.exception(timeout=20), ValueError)
     finally:
-        try:
-            dr.shutdown()
-        except Shutdown:
-            pass
+        dr.shutdown()

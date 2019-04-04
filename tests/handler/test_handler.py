@@ -15,26 +15,15 @@ from tiktorch.configkeys import TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND
 def handler2d(tiny_model_2d, log_queue):
     hp = HandlerProcess(**tiny_model_2d, log_queue=log_queue)
     yield  hp
-    shutdown_raised = False
-    try:
-        hp.shutdown()
-    except Shutdown:
-        shutdown_raised = True
+    hp.shutdown()
 
-    assert shutdown_raised
 
 
 @pytest.fixture
 def handler3d(tiny_model_3d, log_queue):
     hp = HandlerProcess(**tiny_model_3d, log_queue=log_queue)
     yield  hp
-    shutdown_raised = False
-    try:
-        hp.shutdown()
-    except Shutdown:
-        shutdown_raised = True
-
-    assert shutdown_raised
+    hp.shutdown()
 
 
 @pytest.fixture
