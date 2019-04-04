@@ -1,7 +1,11 @@
+from logging import Logger
+
 from tiktorch.configkeys import CONFIG
 from tiktorch.rpc import RPCFuture
 from tiktorch.tiktypes import TikTensor
 from tiktorch.types import NDArray
+
+from typing import Callable
 
 
 def is_valid_tiktorch_config(config: dict) -> bool:
@@ -33,3 +37,18 @@ def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[N
 
     tik_fut.add_done_callback(convert)
     return ndarray_fut
+
+
+def add_logger(logger: Logger) -> Callable:
+    def with_logging(target: Callable) -> Callable:
+        def wrapper(*args, **kwargs):
+            logger.info("started")
+            try:
+                target(*args, **kwargs)
+            except Exception as e:
+                logger.error(e)
+            logger.info("stopped")
+
+        return wrapper
+
+    return with_logging
