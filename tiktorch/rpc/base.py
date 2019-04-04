@@ -17,7 +17,7 @@ from .interface import RPCInterface, get_exposed_methods
 from .serialization import serialize, deserialize
 from .connections import IConnConf
 from .exceptions import Timeout, Shutdown, Canceled, CallException
-from .types import RPCFuture
+from .types import RPCFuture, isfutureret
 
 
 logger = logging.getLogger(__name__)
@@ -94,14 +94,6 @@ def serialize_return(
 
     # else:
     #     return serialize(sig.return_annotation, value)
-
-
-def isfutureret(func: Callable):
-    sig = inspect.signature(func)
-    return (
-        sig.return_annotation is not None
-        and issubclass(sig.return_annotation, RPCFuture)
-    )
 
 
 def deserialize_return(
