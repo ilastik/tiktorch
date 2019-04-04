@@ -58,7 +58,7 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def shutdown(self) -> None:
+    def shutdown(self) -> RPCFuture[Shutdown]:
         raise NotImplementedError
 
     @exposed

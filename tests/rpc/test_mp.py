@@ -27,7 +27,7 @@ class ITestApi(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def shutdown(self):
+    def shutdown(self) -> RPCFuture[Shutdown]:
         raise Shutdown()
 
 
@@ -45,9 +45,8 @@ class ApiImpl(ITestApi):
         f.set_result(f"test {a + b}")
         return f
 
-    def shutdown(self):
-        print("shutdown")
-        raise Shutdown()
+    def shutdown(self) -> Future:
+        return Shutdown()
 
 
 def _srv(conn, log_queue):
@@ -89,7 +88,6 @@ def test_future(client: ITestApi):
     assert res.result() == "test 3"
 
 
-
 def test_race_condition(log_queue):
     class SlowConn:
         def __init__(self, conn):
@@ -111,3 +109,5 @@ def test_race_condition(log_queue):
     client = create_client(ITestApi, SlowConn(child))
 
     res = client.fast_compute(2, 2)
+
+    client.shutdown().result()
