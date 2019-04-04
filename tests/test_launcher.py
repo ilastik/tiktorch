@@ -32,7 +32,6 @@ def test_start_local_server(srv_port, pub_port):
 
 def test_start_remote_server(srv_port, pub_port):
     host, ssh_port = os.getenv(SSH_HOST_VAR), os.getenv(SSH_PORT_VAR, 22)
-    conn_conf = TCPConnConf(socket.gethostbyname(host), srv_port, timeout=10)
     user, pwd = os.getenv(SSH_USER_VAR), os.getenv(SSH_PWD_VAR)
     key = os.getenv(SSH_KEY_VAR)
 
