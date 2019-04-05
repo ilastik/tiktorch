@@ -51,7 +51,7 @@ from tiktorch.configkeys import (
 
 class IHandler(RPCInterface):
     @exposed
-    def set_devices(self, device_names: Sequence[str]):
+    def set_devices(self, device_names: Sequence[str]) -> RPCFuture:
         raise NotImplementedError
 
     @exposed
@@ -204,7 +204,7 @@ class HandlerProcess(IHandler):
                     self.inference_devices = [self.training_devices[-1]]
                     self.training_devices = self.training_devices[:-1]
                     self.training.set_devices(self.training_devices)  # todo: change to futures
-                    self.inference.set_devices(self.inference_devices)  # no need to wait here
+                    self.inference.set_devices(self.inference_devices).result(timeout=20)
                 else:
                     self._assign_idle_devices()
 
@@ -281,7 +281,7 @@ class HandlerProcess(IHandler):
             self.inference_devices = [d for d in self.inference_devices if d in new_devices]
 
         freed_training_devices_fut = self.training.set_devices(self.training_devices)
-        freed_inference_devices_fut = self.inference.set_devices(self.inference_devices)
+        freed_inference_devices_fut = self.inference.set_devices(self.inference_devices).result(timeout=20)
         return freed_training_devices_fut, freed_inference_devices_fut
 
     def _assign_idle_devices(self):
@@ -318,7 +318,7 @@ class HandlerProcess(IHandler):
 
         if inference_devices_changed:
             self.logger.debug("assign new inference devices: %s", self.inference_devices)
-            self.inference.set_devices(self.inference_devices)
+            self.inference.set_devices(self.inference_devices).result(timeout=20)
 
     # device handling and dry run
     @property

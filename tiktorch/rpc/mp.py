@@ -138,7 +138,7 @@ class MPClient:
 
                     # method
                     else:
-                        fut = self._requests.get(id_, None)
+                        fut = self._requests.pop(id_, None)
                         self.logger.debug('[id:%s] Recieved result', id_)
 
                         if fut is not None:
@@ -157,9 +157,9 @@ class MPClient:
         # request id, method, args, kwargs
         id_ = self._new_id()
         self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
-        self._requests[id_] = Future()
+        self._requests[id_] = f = Future()
         self._conn.send([id_, method_name, args, kwargs])
-        return self._requests[id_]
+        return f
 
     def _shutdown(self):
         self._shutdown_event.set()
