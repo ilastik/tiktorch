@@ -31,6 +31,25 @@ class NDArray:
     def shape(self):
         return self._numpy.shape
 
+    def add_label(self, label: np.ndarray) -> "LabeledNDArray":
+        return LabeledNDArray(array=self._numpy, label=label, id_=self.id)
+
+
+class LabeledNDArray(NDArray):
+    """
+    Containter for numpy array with a label and an id
+    """
+
+    def __init__(self, array: np.ndarray, label: np.ndarray, id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None) -> None:
+        super().__init__(array, id_)
+        self._label = label
+
+    def as_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
+        return self._numpy, self._label
+
+    def drop_label(self) -> NDArray:
+        return NDArray(array=self._numpy, id_=self.id)
+
 
 class NDArrayBatch:
     """
@@ -52,6 +71,14 @@ class NDArrayBatch:
 
     def as_numpy(self) -> List[np.ndarray]:
         return [arr.as_numpy() for arr in self._arrays]
+
+
+class LabeledNDArrayBatch(NDArrayBatch):
+    """
+    Batch of LabeledNDArrays
+    """
+    def __init__(self, arrays: List[LabeledNDArray]):
+        super().__init__(arrays)
 
 
 # class DataPoint():

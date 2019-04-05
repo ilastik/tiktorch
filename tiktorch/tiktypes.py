@@ -6,7 +6,7 @@ import torch
 from numpy import ndarray
 from typing import List, Tuple, Optional, Union, Sequence
 
-from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
 
 
 class TikTensor:
@@ -15,7 +15,11 @@ class TikTensor:
     e.g. position of array in dataset (id_)
     """
 
-    def __init__(self, tensor: Union[NDArray, ndarray, torch.Tensor], id_: Optional[Tuple[int, ...]] = None, label: Optional[Union[NDArray, ndarray, torch.Tensor]] = None) -> None:
+    def __init__(
+        self,
+        tensor: Union[NDArray, ndarray, torch.Tensor],
+        id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None,
+    ) -> None:
         if isinstance(tensor, NDArray):
             assert id_ is None
             id_ = tensor.id
@@ -24,36 +28,16 @@ class TikTensor:
             tensor = torch.from_numpy(tensor)
 
         self.id = id_
-
-        if isinstance(label, NDArray):
-            assert self.id == label.id
-            label = torch.from_numpy(label.as_numpy())
-        elif isinstance(label, ndarray):
-            label = torch.from_numpy(label)
-
         self._torch = tensor
-        self.label = label
 
-    def add_label(self, label: Union[NDArray, ndarray, torch.Tensor]):
-        if isinstance(label, NDArray):
-            assert self.id == label.id
-            label = torch.from_numpy(label.as_numpy())
-        elif isinstance(label, ndarray):
-            label = torch.from_numpy(label)
+    def add_label(self, label: Union[NDArray, ndarray, torch.Tensor]) -> "LabeledTikTensor":
+        return LabeledTikTensor(tensor=self._torch, label=label, id_=self.id)
 
-        self.label = label
+    def as_torch(self) -> torch.Tensor:
+        return self._torch
 
-    def as_torch(self, with_label=False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        if with_label:
-            return self._torch, self.label
-        else:
-            return self._torch
-
-    def as_numpy(self, with_label=False) -> Union[ndarray, Tuple[ndarray, ndarray]]:
-        if with_label:
-            return self._torch.numpy(), self.label.numpy()
-        else:
-            return  self._torch.numpy()
+    def as_numpy(self) -> ndarray:
+        return self._torch.numpy()
 
     @property
     def dtype(self):
@@ -64,19 +48,58 @@ class TikTensor:
         return self._torch.shape
 
 
+class LabeledTikTensor(TikTensor):
+    """
+    Containter for pytorch tensor with a label to transfer additional properties
+    e.g. position of array in dataset (id_)
+    """
+
+    def __init__(
+        self,
+        tensor: Union[LabeledNDArray, ndarray, torch.Tensor],
+        label: Optional[Union[NDArray, ndarray, torch.Tensor]],
+        id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None,
+    ) -> None:
+        if isinstance(tensor, NDArray):
+            assert id_ is None
+            id_ = tensor.id
+            tensor = torch.from_numpy(tensor.as_numpy())
+        elif isinstance(tensor, ndarray):
+            tensor = torch.from_numpy(tensor)
+
+        super().__init__(tensor, id_)
+
+        if isinstance(tensor, LabeledNDArray):
+            assert label is None
+            label = torch.from_numpy(label.as_numpy())
+        elif isinstance(label, NDArray):
+            assert self.id == label.id
+            label = torch.from_numpy(label.as_numpy())
+        elif isinstance(label, ndarray):
+            label = torch.from_numpy(label)
+        elif label is None:
+            raise ValueError("missing label")
+
+        self._label = label
+
+    def drop_label(self) -> TikTensor:
+        return TikTensor(self._torch, self.id)
+
+    def as_torch(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self._torch, self._label
+
+    def as_numpy(self) -> Tuple[ndarray, ndarray]:
+        return self._torch.numpy(), self._label.numpy()
+
+
 class TikTensorBatch:
     """
     Batch of TikTensor
     """
 
-    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch], labels: Optional[NDArrayBatch] = None):
+    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch]):
         if isinstance(tensors, NDArrayBatch):
             tensors = [TikTensor(a) for a in tensors]
-
-        if labels is not None:
-            assert len(tensors) == len(labels)
-            for t, l in zip(tensors, labels):
-                t.add_label(l)
 
         assert all([isinstance(t, TikTensor) for t in tensors])
         self._tensors = tensors
@@ -91,15 +114,31 @@ class TikTensorBatch:
         for item in self._tensors:
             yield item
 
-    def as_torch(self, with_label=False) -> Union[List[torch.Tensor], List[Tuple[torch.Tensor, torch.Tensor]]]:
-        return [t.as_torch(with_label=with_label) for t in self._tensors]
+    def as_torch(self) -> List[torch.Tensor]:
+        return [t.as_torch() for t in self._tensors]
 
-    def as_numpy(self, with_label=False) -> Union[List[ndarray], List[Tuple[ndarray, ndarray]]]:
-        return [t.as_numpy(with_label=with_label) for t in self._tensors]
+    def as_numpy(self) -> List[ndarray]:
+        return [t.as_numpy() for t in self._tensors]
 
     @property
     def ids(self) -> List[Tuple[int]]:
         return [t.id for t in self._tensors]
+
+    def add_labels(self, labels: Sequence) -> "LabeledTikTensorBatch":
+        assert len(labels) == len(self)
+        return LabeledTikTensorBatch([t.add_label(l) for t, l in zip(self, labels)])
+
+
+class LabeledTikTensorBatch(TikTensorBatch):
+    """
+    Batch of LabeledTikTensor
+    """
+
+    def __init__(self, tensors: Union[List[LabeledTikTensor], LabeledNDArrayBatch]):
+        super().__init__(tensors)
+
+    def drop_labels(self) -> TikTensorBatch:
+        return TikTensorBatch([t.drop_label() for t in self._tensors])
 
 
 class PointAndBatchPointBase:
@@ -212,6 +251,7 @@ class PointAndBatchPointBase:
     def drop_batch(self):
         raise NotImplementedError("To be implemented in subclass!")
 
+
 class BatchPointBase(PointAndBatchPointBase):
     def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
         super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
@@ -305,6 +345,7 @@ class PointBase(PointAndBatchPointBase):
 
     def drop_batch(self) -> "PointBase":
         return self
+
 
 class Point2D(PointBase):
     order: str = "cyx"
