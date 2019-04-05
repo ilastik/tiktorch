@@ -237,7 +237,7 @@ class Client:
         if self._listener is None:
             self._start_listener()
 
-        f = RPCFuture()
+        f = RPCFuture(timeout=self._timeout)
         self._futures[id_] = (f, method)
         return f
 
