@@ -44,7 +44,7 @@ class IInference(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, data: TikTensor):
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         raise NotImplementedError
 
 
