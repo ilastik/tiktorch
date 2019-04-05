@@ -33,7 +33,7 @@ from tiktorch.utils import add_logger
 
 class IInference(RPCInterface):
     @exposed
-    def set_devices(self, device_names: Sequence[str]):
+    def set_devices(self, device_names: Sequence[str]) -> RPCFuture[Set[torch.device]]:
         raise NotImplementedError
 
     @exposed
@@ -88,6 +88,7 @@ class InferenceProcess(IInference):
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
+                print("SET DEVICES", remove)
                 fut.set_result(remove)
             except queue.Empty:
                 pass

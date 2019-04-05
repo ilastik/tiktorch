@@ -37,6 +37,6 @@ def test_forward(datadir, srv, nn_sample):
 
     srv.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
 
-    res = srv.forward(NDArray(input_arr)).result(timeout=20)
+    res = srv.forward(NDArray(input_arr)).result(timeout=30)
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
