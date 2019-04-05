@@ -184,6 +184,7 @@ class HandlerProcess(IHandler):
             for _ in range(20):  # check new_devices_names queue and shutdown_event in-between
                 try:
                     new_device_names, fut = self.new_device_names.get(timeout=3)
+                    self.logger.debug("got new devices: %s", new_device_names)
                     break
                 except queue.Empty:
                     if self.shutdown_event.is_set():
@@ -310,6 +311,7 @@ class HandlerProcess(IHandler):
             self.training.set_devices(self.training_devices)
 
         if inference_devices_changed:
+            self.logger.debug("assign new inference devices: %s", self.inference_devices)
             self.inference.set_devices(self.inference_devices)
 
     # device handling and dry run
@@ -386,6 +388,7 @@ class HandlerProcess(IHandler):
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         # todo: update inference devices
+        self.logger.debug('forward')
         return self.inference.forward(data)
 
     # training

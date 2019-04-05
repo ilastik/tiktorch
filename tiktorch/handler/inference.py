@@ -29,6 +29,7 @@ from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
 
+from tiktorch.utils import add_logger
 
 class IInference(RPCInterface):
     @exposed
@@ -76,14 +77,14 @@ class InferenceProcess(IInference):
         # self.add_devices({torch.device("cpu")})
 
         self.device_change_queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(target=self._device_setter_worker, name="DeviceSetter")
+        self.device_setter_thread = threading.Thread(target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter")
         self.device_setter_thread.start()
 
     def _device_setter_worker(self):
-        self.logger.debug("started")
         while not self.shutdown_event.is_set():
             try:
                 devices, fut = self.device_change_queue.get(block=True, timeout=1)
+                self.logger.warning('got devices %s', devices)
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
@@ -94,8 +95,6 @@ class InferenceProcess(IInference):
         while not self.device_change_queue.empty():
             devices, fut = self.device_change_queue.get()
             fut.set_result(set())
-
-        self.logger.debug("stopped")
 
     def remove_devices(self, devices: Set[torch.device]) -> None:
         """
@@ -116,18 +115,18 @@ class InferenceProcess(IInference):
         self.devices -= devices
 
     def add_devices(self, devices: Set[torch.device]) -> None:
+        self.logger.debug("add devices %s", devices)
         for d in devices:
             assert d not in self.devices
             assert d not in self.shutdown_worker_events
             assert d not in self.forward_worker_threads
             self.shutdown_worker_events[d] = threading.Event()
-            self.forward_worker_threads[d] = threading.Thread(target=self._forward_worker, name=f"ForwardWorker({d})", kwargs={"device": d})
+            self.forward_worker_threads[d] = threading.Thread(target=add_logger(self.logger)(self._forward_worker), name=f"ForwardWorker({d})", kwargs={"device": d})
             self.forward_worker_threads[d].start()
 
         self.devices.update(devices)
 
     def _forward_worker(self, device: torch.device) -> None:
-        self.logger.debug("started")
         local_data = threading.local()
         local_data.increase_batch_size = True
         if self.batch_size is None:
@@ -146,8 +145,6 @@ class InferenceProcess(IInference):
                 local_data.batch_size, local_data.increase_batch_size = self._forward(
                     TikTensorBatch(data_batch), fut_batch, device, local_data.batch_size, local_data.increase_batch_size
                 )
-
-        self.logger.debug("stopped")
 
     def set_devices(self, devices: Collection[torch.device]) -> RPCFuture[Set[torch.device]]:
         fut = RPCFuture()
@@ -185,6 +182,7 @@ class InferenceProcess(IInference):
         """
         :param data: input data to neural network
         """
+        self.logger.debug('this is forward')
         if device.type == "cuda":
             with device:
                 model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
