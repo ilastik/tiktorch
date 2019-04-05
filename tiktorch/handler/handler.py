@@ -308,6 +308,7 @@ class HandlerProcess(IHandler):
 
         self.idle_devices = []
         if training_devices_changed:
+            self.logger.debug("assign new training devices: %s", self.training_devices)
             self.training.set_devices(self.training_devices)
 
         if inference_devices_changed:
