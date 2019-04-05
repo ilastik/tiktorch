@@ -54,6 +54,7 @@ from tiktorch.tiktypes import (
 )
 
 from tiktorch.configkeys import (
+    TRAINING,
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
@@ -182,12 +183,12 @@ class DryRunProcess(IDryRun):
     def _determine_training_shape(
         self, devices: Sequence[torch.device], training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None
     ):
-        batch_size = self.config[BATCH_SIZE]
+        batch_size = self.config[TRAINING][BATCH_SIZE]
         input_channels = self.config[INPUT_CHANNELS]
 
-        if TRAINING_SHAPE in self.config:
+        if TRAINING_SHAPE in self.config[TRAINING]:
             # validate given training shape
-            config_training_shape = PointBase.from_spacetime(input_channels, self.config[TRAINING_SHAPE])
+            config_training_shape = PointBase.from_spacetime(input_channels, self.config[TRAINING][TRAINING_SHAPE])
             if training_shape is None:
                 training_shape = config_training_shape
             else:
@@ -195,18 +196,18 @@ class DryRunProcess(IDryRun):
 
             training_shape = training_shape.add_batch(batch_size)
 
-            if TRAINING_SHAPE_UPPER_BOUND in self.config:
+            if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
                 training_shape_upper_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING_SHAPE_UPPER_BOUND]
+                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND]
                 )
                 if not (training_shape <= training_shape_upper_bound):
                     raise ValueError(
                         f"{TRAINING_SHAPE}: {training_shape} incompatible with {TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
                     )
 
-            if TRAINING_SHAPE_LOWER_BOUND in self.config:
+            if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
                 training_shape_lower_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING_SHAPE_LOWER_BOUND]
+                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
                 )
             else:
                 training_shape_lower_bound = training_shape.__class__()
@@ -227,16 +228,16 @@ class DryRunProcess(IDryRun):
                 raise ValueError(f"{TRAINING_SHAPE}: {training_shape} could not be processed on device: {devices}")
         else:
             # determine a valid training shape
-            if TRAINING_SHAPE_UPPER_BOUND not in self.config:
+            if TRAINING_SHAPE_UPPER_BOUND not in self.config[TRAINING]:
                 raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
             training_shape_upper_bound = BatchPointBase.from_spacetime(
-                batch_size, input_channels, self.config[TRAINING_SHAPE_UPPER_BOUND]
+                batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND]
             )
 
-            if TRAINING_SHAPE_LOWER_BOUND in self.config:
+            if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
                 training_shape_lower_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING_SHAPE_LOWER_BOUND]
+                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
                 )
             else:
                 training_shape_lower_bound = training_shape_upper_bound.__class__()
@@ -281,8 +282,6 @@ class DryRunProcess(IDryRun):
                 y = model(x)
                 del model, x, y
         except Exception as e:
-            # logger = logging.getLogger("DryRunProcess:minimal_device_test")
-            # logger.error(e)
             return False
 
         return True

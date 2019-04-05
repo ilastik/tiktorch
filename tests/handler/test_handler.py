@@ -138,6 +138,7 @@ def test_forward_3d_through_client(client3d, tiny_model_3d):
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
 
 
+@pytest.mark.skip("todo: update hyperparams in order to change TRAINING_SHAPE_UPPER_BOUND")
 def test_dry_run(handler3d, tiny_model_3d):
     config = tiny_model_3d["config"]
     print(config)

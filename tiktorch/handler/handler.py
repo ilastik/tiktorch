@@ -210,10 +210,6 @@ class HandlerProcess(IHandler):
 
                 continue
 
-            while not self.new_device_names.empty():
-                fut.cancel()
-                new_device_names, fut = self.new_device_names.get()
-
             new_devices = []
             for dn in new_device_names:
                 try:
