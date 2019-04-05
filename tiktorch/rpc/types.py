@@ -8,7 +8,15 @@ T = TypeVar('T')
 
 
 class RPCFuture(Future, Generic[T]):
-    pass
+    def __init__(self, timeout=None):
+        self._timeout = timeout
+        super().__init__()
+
+    def result(self, timeout=None):
+        return super().result(timeout or self._timeout)
+
+    def exception(self, timeout=None):
+        return super().exception(timeout or self._timeout)
 
 
 def isfutureret(func: Callable):

@@ -1,7 +1,7 @@
 import pytest
 import time
 import multiprocessing as mp
-from concurrent.futures import Future
+from concurrent.futures import Future, TimeoutError
 from collections import namedtuple
 
 from tiktorch.rpc.mp import MPClient, MPServer, create_client
@@ -111,3 +111,26 @@ def test_race_condition(log_queue):
     res = client.fast_compute(2, 2)
 
     client.shutdown().result()
+
+
+def test_future_timeout(client: ITestApi, log_queue):
+    child, parent = mp.Pipe()
+
+    p = mp.Process(target=_srv, args=(parent, log_queue))
+    p.start()
+
+    client = create_client(ITestApi, child, timeout=0.001)
+
+    with pytest.raises(TimeoutError):
+        client.compute(1, 2)
+
+    with pytest.raises(TimeoutError):
+        res = client.compute.async_(1, 2).result()
+
+    with pytest.raises(TimeoutError):
+        f = client.compute_fut(1, 2).result()
+
+    client.compute.async_(1, 2).result(timeout=3)
+
+    client.shutdown()
+    p.join()
