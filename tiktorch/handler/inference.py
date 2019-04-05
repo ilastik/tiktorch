@@ -88,7 +88,6 @@ class InferenceProcess(IInference):
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
-                print("SET DEVICES", remove)
                 fut.set_result(remove)
             except queue.Empty:
                 pass
