@@ -4,7 +4,7 @@ from torch import multiprocessing as mp
 
 from tiktorch.handler.inference import IInference, InferenceProcess, run
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch.rpc.mp import MPClient, Shutdown
+from tiktorch.rpc.mp import create_client, MPClient, Shutdown
 
 from tests.data.tiny_models import TinyConvNet2d, TinyConvNet3d
 
@@ -39,7 +39,7 @@ def test_inference2d_in_proc(tiny_model_2d, log_queue):
         target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue}
     )
     p.start()
-    client = MPClient(IInference(), handler_conn)
+    client = create_client(IInference, handler_conn)
     try:
         client.set_devices([torch.device('cpu')])
         data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
@@ -72,7 +72,7 @@ def test_inference3d_in_proc(tiny_model_3d, log_queue):
         target=run, kwargs={"conn": inference_conn, "model": model, "config": config, "log_queue": log_queue}
     )
     p.start()
-    client = MPClient(IInference(), handler_conn)
+    client = create_client(IInference, handler_conn)
     try:
         client.set_devices([torch.device('cpu')])
         f = []

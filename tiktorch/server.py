@@ -9,7 +9,7 @@ from torch import multiprocessing as mp
 from typing import Optional, List, Tuple, Generator, Iterable
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
-from tiktorch.rpc.mp import MPClient
+from tiktorch.rpc.mp import MPClient, create_client
 from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
@@ -182,7 +182,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             },
         )
         p.start()
-        self.handler = MPClient(IHandler(), server_conn)
+        self.handler = create_client(IHandler, server_conn)
         self.handler.set_devices(handler_devices)
 
     def active_children(self) -> List[str]:
@@ -218,7 +218,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger.info("Shutting down...")
         if self.handler:
             try:
-                self.handler.shutdown()
+                res = self.handler.shutdown.async_().result(timeout=10)
             except TimeoutError as e:
                 self.logger.error(e)
 

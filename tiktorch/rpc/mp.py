@@ -75,7 +75,7 @@ class MPMethodDispatcher:
 
 
 def create_client(iface_cls: Type[T], conn: Connection) -> T:
-    client = MPClient(iface_cls(), conn)
+    client = MPClient(iface_cls.__name__, conn)
     exposed = get_exposed_methods(iface_cls)
 
     def _make_method(method):
@@ -106,27 +106,19 @@ def create_client(iface_cls: Type[T], conn: Connection) -> T:
 
 
 class MPClient:
-    def __init__(self, api, conn: Connection):
+    def __init__(self, name, conn: Connection):
         self._conn = conn
         self._requests = {}
-        self._api = api
-        self._methods_by_name = get_exposed_methods(api)
-
-        self._start_poller()
+        self._name = name
         self._shutdown_event = Event()
         self._logger = None
+        self._start_poller()
 
     @property
     def logger(self):
         if self._logger is None:
             self._logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         return self._logger
-
-    def __getattr__(self, name) -> Any:
-        method = self._methods_by_name.get(name)
-        if method is None:
-            raise AttributeError(name)
-        return MPMethodDispatcher(name, self)
 
     def _new_id(self) -> str:
         return uuid4().hex
@@ -157,14 +149,14 @@ class MPClient:
                 if self._shutdown_event.is_set():
                     break
 
-        self._poller = Thread(target=_poller, name=f'ClientPoller[{type(self._api).__name__}]')
+        self._poller = Thread(target=_poller, name=f'ClientPoller[{self._name}]')
         self._poller.daemon = True
         self._poller.start()
 
     def _invoke(self, method_name, *args, **kwargs):
         # request id, method, args, kwargs
         id_ = self._new_id()
-        self.logger.debug("[id:%s] Call '%s' method", id_, method_name)
+        self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
         self._requests[id_] = Future()
         self._conn.send([id_, method_name, args, kwargs])
         return self._requests[id_]

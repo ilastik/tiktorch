@@ -3,7 +3,7 @@ from torch import multiprocessing as mp
 
 from tiktorch.handler.training import ITraining, TrainingProcess, run
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch.rpc.mp import MPClient, Shutdown
+from tiktorch.rpc.mp import MPClient, create_client, Shutdown
 
 from tests.data.tiny_models import TinyConvNet2d
 
@@ -55,9 +55,9 @@ def test_training_in_proc(tiny_model_2d, log_queue):
     handler_conn, training_conn = mp.Pipe()
     p = mp.Process(target=run, kwargs={"conn": training_conn, "model": model, "config": config, "log_queue": log_queue})
     p.start()
-    client = MPClient(ITraining(), handler_conn)
+    client = create_client(ITraining, handler_conn)
     try:
-        client.set_devices([torch.device("cpu")]).result(timeout=5)
+        client.set_devices([torch.device("cpu")])
         data = TikTensorBatch(
             [
                 TikTensor(torch.zeros(in_channels, 15, 15), (0,), torch.ones(in_channels, 9, 9)),
@@ -66,7 +66,6 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         )
         client.update_dataset("training", data)
         client.resume_training()
-        print("resumed training")
     finally:
         client.shutdown()
 
