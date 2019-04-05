@@ -74,8 +74,8 @@ class MPMethodDispatcher:
 
 
 
-def create_client(iface_cls: Type[T], conn: Connection) -> T:
-    client = MPClient(iface_cls.__name__, conn)
+def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
+    client = MPClient(iface_cls.__name__, conn, timeout)
     exposed = get_exposed_methods(iface_cls)
 
     def _make_method(method):
@@ -92,7 +92,7 @@ def create_client(iface_cls: Type[T], conn: Connection) -> T:
                 @wraps(method)
                 def __call__(self, *args, **kwargs) -> Any:
                     fut = client._invoke(method.__name__, *args, **kwargs)
-                    return fut.result(timeout=10)
+                    return fut.result(timeout=timeout)
 
         return MethodWrapper()
 
@@ -106,13 +106,14 @@ def create_client(iface_cls: Type[T], conn: Connection) -> T:
 
 
 class MPClient:
-    def __init__(self, name, conn: Connection):
+    def __init__(self, name, conn: Connection, timeout: int):
         self._conn = conn
         self._requests = {}
         self._name = name
         self._shutdown_event = Event()
         self._logger = None
         self._start_poller()
+        self._timeout = timeout
 
     @property
     def logger(self):
@@ -157,7 +158,7 @@ class MPClient:
         # request id, method, args, kwargs
         id_ = self._new_id()
         self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
-        self._requests[id_] = f = Future()
+        self._requests[id_] = f = RPCFuture(timeout=self._timeout)
         self._conn.send([id_, method_name, args, kwargs])
         return f
 
