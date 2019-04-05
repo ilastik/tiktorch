@@ -181,15 +181,20 @@ class HandlerProcess(IHandler):
 
     def _device_setter_worker(self) -> None:
         while not self.shutdown_event.is_set():
-            for _ in range(20):  # check new_devices_names queue and shutdown_event in-between
-                try:
-                    new_device_names, fut = self.new_device_names.get(timeout=3)
-                    self.logger.debug("got new devices: %s", new_device_names)
-                    break
-                except queue.Empty:
-                    if self.shutdown_event.is_set():
-                        return
-            else:  # no new devices in a while; reassign devices if necessary
+            try:
+                new_devices_entry = self.new_device_names.get(timeout=60)
+            except queue.Empty:
+                new_devices_entry = "time_to_check_if_someone_is_idle_dont_you_think?"
+
+            self.training_idle = self.training.get_idle()
+            self.inference_idle = self.inference.get_idle()
+            self.logger.debug("got new devices entry: %s", new_devices_entry)
+            if new_devices_entry is None:  # shutdwon event
+                return
+            elif isinstance(new_devices_entry, tuple):
+                new_device_names, fut = new_devices_entry
+            else:  # idle changed signal
+                # no new devices in a while; reassign devices if necessary
                 for fut in self._collect_idle_devices():
                     # todo: ret fut fut.result()  # wait for confirmation that idle devices are in fact free
                     pass  # wait for confirmation that idle devices are in fact free
@@ -283,9 +288,9 @@ class HandlerProcess(IHandler):
         if not self.idle_devices:
             return
 
-        self.logger.debug("assigning idle devices")
         training_idle = self.training.get_idle()
         inference_idle = self.inference.get_idle()
+        self.logger.debug("assigning idle devices: %s (training idle: %r, inference idle: %r)", self.idle_devices, training_idle, inference_idle)
         training_devices_changed = False
         inference_devices_changed = False
         if training_idle and inference_idle:
@@ -354,6 +359,7 @@ class HandlerProcess(IHandler):
         self.shutdown_event.set()
         # wait for threads to shutdown
         try:
+            self.new_device_names.put(None)
             self.device_setter_thread.join(timeout=30)
         except TimeoutError as e:
             self.logger.error(e)
@@ -388,7 +394,7 @@ class HandlerProcess(IHandler):
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
-        # todo: update inference devices
+        self.new_device_names.put('whatever_just_update_idle_because_this_is_not_a_tuple_nor_None')
         self.logger.debug('forward')
         return self.inference.forward(data)
 
