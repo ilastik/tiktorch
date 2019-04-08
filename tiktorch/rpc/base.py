@@ -314,7 +314,7 @@ class Client:
         if mode_frm.bytes == Mode.Shutdown.value:
             self._socket.close()
 
-            for f, _ in self._futures.values():
+            for f, _ in list(self._futures.values()):
                 f.set_exception(Shutdown())
 
             self._shutdown.set()
@@ -445,7 +445,7 @@ class Server:
                 self._shutdown_event.set()
                 if self._result_sender:
                     self._result_sender.join()
-                for f in self._futures:
+                for f in list(self._futures):
                     f.cancel()
                 self._socket.send_multipart([Mode.Shutdown.value])
                 self._socket.close()
