@@ -69,64 +69,57 @@ def pub_port():
 
 
 @pytest.fixture
-def tiny_model(datadir):
-    with open(path.join(datadir, "tiny_models.py"), "rb") as f:
-        model_file = f.read()
-
+def base_config():
     return {
-        "model_file": model_file,
         "model_state": b"",
         "optimizer_state": b"",
         "config": {
-            "model_class_name": "TestModel0",
             "model_init_kwargs": {},
             "input_channels": 1,
             "training": {
                 "batch_size": 10,
-                "training_shape_upper_bound": (15),
+                "loss_criterion_config": {
+                    "method": "MSELoss"
+                },
             },
         }
     }
+
 
 @pytest.fixture
-def tiny_model_2d(datadir):
+def tiny_model(datadir, base_config):
     with open(path.join(datadir, "tiny_models.py"), "rb") as f:
-        model_file = f.read()
+        base_config["model_file"] = f.read()
 
-    return {
-        "model_file": model_file,
-        "model_state": b"",
-        "optimizer_state": b"",
-        "config": {
-            "model_class_name": "TinyConvNet2d",
-            "model_init_kwargs": {},
-            "input_channels": 1,
-            "training": {
-                "batch_size": 10,
-                "training_shape_upper_bound": (15, 15),
-            },
-        }
-    }
+    base_config["config"]["model_class_name"] = "TestModel0"
+    base_config["config"]["input_axis_order"] = "bcx"
+    base_config["config"]["output_axis_order"] = "bcx"
+    base_config["config"]["training"]["training_shape_upper_bound"] = (15, )
+    return base_config
+
 
 @pytest.fixture
-def tiny_model_3d(datadir):
+def tiny_model_2d(datadir, base_config):
     with open(path.join(datadir, "tiny_models.py"), "rb") as f:
-        model_file = f.read()
+        base_config["model_file"] = f.read()
 
-    return {
-        "model_file": model_file,
-        "model_state": b"",
-        "optimizer_state": b"",
-        "config": {
-            "model_class_name": "TinyConvNet3d",
-            "model_init_kwargs": {},
-            "input_channels": 1,
-            "training": {
-                "batch_size": 10,
-                "training_shape_upper_bound": (15, 15, 15),
-            },
-        }
-    }
+    base_config["config"]["model_class_name"] = "TinyConvNet2d"
+    base_config["config"]["input_axis_order"] = "bcyx"
+    base_config["config"]["output_axis_order"] = "bcyx"
+    base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15)
+    return base_config
+
+
+@pytest.fixture
+def tiny_model_3d(datadir, base_config):
+    with open(path.join(datadir, "tiny_models.py"), "rb") as f:
+        base_config["model_file"] = f.read()
+
+    base_config["config"]["model_class_name"] = "TinyConvNet3d"
+    base_config["config"]["input_axis_order"] = "bczyx"
+    base_config["config"]["output_axis_order"] = "bczyx"
+    base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15, 15)
+    return base_config
 
 
 @pytest.fixture(scope='session', autouse=True)

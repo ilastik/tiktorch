@@ -19,6 +19,7 @@ from torch import multiprocessing as mp
 
 from torch.multiprocessing import Process, Pipe, Queue
 from tiktorch import log
+from inferno.extensions import criteria
 
 from typing import (
     Any,
@@ -54,12 +55,18 @@ from tiktorch.tiktypes import (
 )
 
 from tiktorch.configkeys import (
+    INPUT_CHANNELS,
+    INPUT_AXIS_ORDER,
+    OUTPUT_AXIS_ORDER,
     TRAINING,
+    BATCH_SIZE,
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
-    BATCH_SIZE,
-    INPUT_CHANNELS,
+    NUM_ITERATION_DONE,
+    MAX_NUM_ITERATIONS_PER_UPDATE,
+    LOSS_CRITERION_CONFIG,
+    OPTIMIZER_CONFIG,
 )
 
 
@@ -85,7 +92,7 @@ class IDryRun(RPCInterface):
     @exposed
     def dry_run(
         self,
-        devices: Sequence[torch.device],
+        devices: List[torch.device],
         training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None,
         valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
         shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
@@ -116,6 +123,18 @@ class DryRunProcess(IDryRun):
         self.config = config
         self.model = model
 
+        method = config[TRAINING][LOSS_CRITERION_CONFIG]["method"]
+        # get loss criterion like Inferno does for isinstance(method, str):
+        # Look for criteria in torch
+        criterion_class = getattr(torch.nn, method, None)
+        if criterion_class is None:
+            # Look for it in inferno extensions
+            criterion_class = getattr(criteria, method, None)
+        if criterion_class is None:
+            raise ValueError(f"Criterion {method} not found.")
+
+        self.criterion_class = criterion_class
+
         self.shutdown_event = threading.Event()
 
         self.training_shape = None
@@ -140,26 +159,39 @@ class DryRunProcess(IDryRun):
 
     def dry_run(
         self,
-        devices: Sequence[torch.device],
+        devices: List[torch.device],
         training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None,
         valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
         shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
-    ) -> RPCFuture:
+    ) -> RPCFuture[
+        Union[
+            Tuple[List[torch.device], Point2D, List[Point2D], Point2D],
+            Tuple[List[torch.device], Point3D, List[Point3D], Point3D],
+            Tuple[List[torch.device], Point4D, List[Point4D], Point4D],
+        ]
+    ]:
         fut = RPCFuture()
         self.dry_run_queue.put((devices, training_shape, valid_shapes, shrinkage, fut))
         return fut
 
     def _dry_run(
         self,
-        devices: Sequence[torch.device],
+        devices: List[torch.device],
         training_shape: Optional[Union[Point2D, Point3D, Point4D]],
         valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]],
         shrinkage: Optional[Union[Point2D, Point3D, Point4D]],
         fut: Future,
     ) -> None:
         self.logger.info("Starting dry run for %s", devices)
-        assert devices
         try:
+            if not devices:
+                raise ValueError(f"Dry run on empty device list")
+
+            if self.shrinkage is None:
+                self.shrinkage = shrinkage
+            elif shrinkage is not None and shrinkage != self.shrinkage:
+                raise ValueError(f"given shrinkage {shrinkage} incompatible with self.shrinkage {self.shrinkage}")
+
             working_devices = self.minimal_device_test(devices)
             failed_devices = set(devices) - set(working_devices)
             if failed_devices:
@@ -167,12 +199,12 @@ class DryRunProcess(IDryRun):
 
             if self.training_shape is None:
                 self.training_shape = self._determine_training_shape(training_shape=training_shape, devices=devices)
-            else:
-                assert self.training_shape == training_shape
+            elif training_shape is not None and self.training_shape != training_shape:
+                raise ValueError(
+                    f"given training_shape {training_shape} incompatible with self.training_shape {self.training_shape}"
+                )
 
             self._determine_valid_shapes(devices=devices, valid_shapes=valid_shapes)
-            if shrinkage is not None:
-                assert shrinkage == self.shrinkage
 
             fut.set_result((devices, self.training_shape, self.valid_shapes, self.shrinkage))
             self.logger.info("dry run done")
@@ -183,6 +215,7 @@ class DryRunProcess(IDryRun):
     def _determine_training_shape(
         self, devices: Sequence[torch.device], training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None
     ):
+        self.logger.debug("Determine training shape on %s (previous training shape: %s)", devices, training_shape)
         batch_size = self.config[TRAINING][BATCH_SIZE]
         input_channels = self.config[INPUT_CHANNELS]
 
@@ -192,7 +225,7 @@ class DryRunProcess(IDryRun):
             if training_shape is None:
                 training_shape = config_training_shape
             else:
-                assert training_shape == config_training_shape
+                assert training_shape == config_training_shape, "training shape unequal to config training shape"
 
             training_shape = training_shape.add_batch(batch_size)
 
@@ -217,15 +250,8 @@ class DryRunProcess(IDryRun):
                     f"{TRAINING_SHAPE_LOWER_BOUND}{training_shape_lower_bound} incompatible with {TRAINING_SHAPE}{training_shape}"
                 )
 
-            shrinkage = self.validate_shape(devices=devices, shape=training_shape, train_mode=True)
-            self.logger.debug("shrinkage for training_shape %s", shrinkage)
-            if shrinkage:
-                if self.shrinkage is None:
-                    self.shrinkage = shrinkage
-                else:
-                    assert self.shrinkage == shrinkage, f"self.shrinkage{self.shrinkage} == shrinkage{shrinkage}"
-            else:
-                raise ValueError(f"{TRAINING_SHAPE}: {training_shape} could not be processed on device: {devices}")
+            if not self.validate_shape(devices=devices, shape=training_shape, train_mode=True):
+                raise ValueError(f"{TRAINING_SHAPE}: {training_shape} could not be processed on devices: {devices}")
         else:
             # determine a valid training shape
             if TRAINING_SHAPE_UPPER_BOUND not in self.config[TRAINING]:
@@ -242,10 +268,11 @@ class DryRunProcess(IDryRun):
             else:
                 training_shape_lower_bound = training_shape_upper_bound.__class__()
 
-            assert training_shape_lower_bound <= training_shape_upper_bound, (
-                f"{TRAINING_SHAPE_LOWER_BOUND}: {training_shape_lower_bound} <= "
-                f"{TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
-            )
+            if not (training_shape_lower_bound <= training_shape_upper_bound):
+                raise ValueError(
+                    f"{TRAINING_SHAPE_LOWER_BOUND}: {training_shape_lower_bound} incompatible with "
+                    f"{TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
+                )
 
             # find optimal training shape
             training_shape = self.find_one_shape(
@@ -288,45 +315,91 @@ class DryRunProcess(IDryRun):
 
     def validate_shape(
         self, devices: Sequence[torch.device], shape: Union[BatchPoint2D, BatchPoint3D, BatchPoint4D], train_mode: bool
-    ) -> Optional[PointBase]:
+    ) -> bool:
         assert devices
-        shrinkage_conns = [
-            in_subproc(self._validate_shape, model=self.model, device=d, shape=shape, train_mode=train_mode)
+        if train_mode:
+            crit_class = self.criterion_class
+            criterion_kwargs = {
+                key: value for key, value in self.config[TRAINING][LOSS_CRITERION_CONFIG].items() if key != "method"
+            }
+        else:
+            crit_class = None
+            criterion_kwargs = {}
+
+        return_conns = [
+            in_subproc(
+                self._validate_shape,
+                model=self.model,
+                device=d,
+                shape=[shape[a] for a in self.config[INPUT_AXIS_ORDER]],
+                criterion_class=crit_class,
+                criterion_kwargs=criterion_kwargs,
+            )
             for d in devices
         ]
-        shrinkages = [conn.recv() for conn in shrinkage_conns]
-        if None in shrinkages:
-            return None
+        output_shapes = [conn.recv() for conn in return_conns]
+        for e in output_shapes:
+            if isinstance(e, Exception):
+                self.logger.debug("Shape %s invalid: %r", shape, e)
+                return False
 
-        shrink = shrinkages[0]
-        if len(shrinkages) > 1:
-            assert all([s == shrink for s in shrinkages[1:]])
+        out = output_shapes[0]
+        if any([o != out for o in output_shapes[1:]]):
+            self.logger.warning("different devices returned different output shapes for same input shape!")
+            return False
 
-        return shrink
+        output_axis_order = self.config[OUTPUT_AXIS_ORDER]
+        if "t" in output_axis_order:
+            output_shape = Point4D
+        elif "z" in output_axis_order:
+            output_shape = Point3D
+        else:
+            output_shape = Point2D
+
+        output_shape = output_shape(**{a: s for a, s in zip(output_axis_order, out) if a != "b"})
+
+        shrinkage = shape.drop_batch() - output_shape
+
+        if self.shrinkage is None:
+            self.shrinkage = shrinkage
+            self.logger.info("Determined shrinkage to be {%s}", shrinkage)
+            return True
+        else:
+            return self.shrinkage == shrinkage
 
     @staticmethod
     def _validate_shape(
-        model: torch.nn.Module, device: torch.device, shape: PointAndBatchPointBase, train_mode: bool
-    ) -> Optional[PointBase]:
+        model: torch.nn.Module,
+        device: torch.device,
+        shape: List[int],
+        criterion_class: Optional[type],
+        criterion_kwargs: Dict,
+    ) -> Optional[Tuple[Union[Point2D, Point3D, Point4D], int]]:
         try:
-            input = torch.ones(*shape).to(device=device)
-            if train_mode:
-                with torch.no_grad():
-                    output = model.to(device)(input)
-            else:
-                output = model.to(device)(input)
-                target = torch.randn_like(output)
-                loss = torch.nn.MSELoss()
-                loss(output, target).backward()
-        except Exception:
-            return None
 
-        s_in = numpy.array(input.shape)
-        s_out = numpy.array(output.shape)
-        shrinkage = s_in - s_out
-        assert all([s % 2 == 0 for s in shrinkage]), f"uneven shrinkage: {shrinkage}"
-        shrinkage //= 2
-        return shape.__class__(*shrinkage).drop_batch()
+            def apply_model():
+                input = torch.rand(*shape)
+
+                if criterion_class is None:
+                    with torch.no_grad():
+                        output = model.to(device)(input)
+                else:
+                    output = model.to(device)(input)
+                    target = torch.randn_like(output)
+                    criterion_class(**criterion_kwargs).to(device)(output, target).backward()
+
+                return output
+
+            if device.type == "cpu":
+                output = apply_model()
+            else:
+                with device:
+                    output = apply_model()
+
+        except Exception as e:
+            return e
+
+        return output.shape
 
     def find_one_shape(
         self,
@@ -362,13 +435,7 @@ class DryRunProcess(IDryRun):
             search_order = numpy.argsort(nonzero)[::-1]
             for diff_i in search_order:
                 shape = shape_class(*(lower_limit + diff))
-                shrinkage = self.validate_shape(devices=devices, shape=shape, train_mode=train_mode)
-                if shrinkage:
-                    if self.shrinkage is None:
-                        self.shrinkage = shrinkage
-                    else:
-                        assert self.shrinkage == shrinkage
-
+                if self.validate_shape(devices=devices, shape=shape, train_mode=train_mode):
                     return shape
 
                 reduced = int((1.0 - discard) * nonzero[diff_i] - 1)

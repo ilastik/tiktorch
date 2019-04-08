@@ -1,27 +1,49 @@
 from logging import Logger
 
-from tiktorch.configkeys import CONFIG
+from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.rpc import RPCFuture
 from tiktorch.tiktypes import TikTensor
 from tiktorch.types import NDArray
+from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
 from typing import Callable
 
 
-def is_valid_tiktorch_config(config: dict) -> bool:
+def get_error_msg_for_invalid_config(config: dict) -> str:
     for key in config.keys():
         if key not in CONFIG:
-            return False
+            return f"Unknown config key={key}"
 
         if isinstance(CONFIG[key], dict):
             if not isinstance(config[key], dict):
-                return False
+                return f"config[key={key}] needs to be a dictionary"
             else:
                 for subkey in config[key].keys():
                     if subkey not in CONFIG[key]:
-                        return False
+                        return f"Unknown subkey={subkey}"
+                    elif subkey == LOSS_CRITERION_CONFIG:
+                        if "method" not in config[TRAINING][LOSS_CRITERION_CONFIG]:
+                            return f"'method' entry missing in config[{TRAINING}][{LOSS_CRITERION_CONFIG}]"
 
-    return True
+    return ""
+
+
+def get_error_msg_for_incomplete_config(config: dict) -> str:
+    invalid_msg = get_error_msg_for_invalid_config(config)
+    if invalid_msg:
+        return invalid_msg
+
+    for key in MINIMAL_CONFIG.keys():
+        if key not in config:
+            return f"Missing key={key}"
+
+        if isinstance(MINIMAL_CONFIG[key], dict):
+            assert isinstance(config[key], dict), "should have been checked by 'get_error_msg_for_invalid_config'"
+            for subkey in MINIMAL_CONFIG[key].keys():
+                if subkey not in config[key]:
+                    return f"Missing subkey={subkey} in config[key={key}]"
+
+    return ""
 
 
 def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[NDArray]:
