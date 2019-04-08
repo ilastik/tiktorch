@@ -3,7 +3,7 @@ Types defining interop between client and server
 """
 # This file should only contain types built on primitives
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)
-from typing import List, Tuple, Optional, Union, Sequence
+from typing import List, Tuple, Optional, Union, Sequence, NamedTuple
 
 import numpy as np
 
@@ -334,3 +334,9 @@ class Point4D(PointBase):
 
     def add_batch(self, b: int = 0) -> BatchPoint4D:
         return BatchPoint4D(b=b, t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
+
+
+class SetDeviceReturnType(NamedTuple):
+    training_shape: Tuple[int, int, int, int, int]
+    valid_shapes: List[Tuple[int, int, int, int, int]]
+    shrinkage: Tuple[int, int, int, int, int]

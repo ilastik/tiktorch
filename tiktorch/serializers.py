@@ -5,7 +5,7 @@ import numpy as np
 
 from zmq.utils import jsonapi
 
-from .types import NDArrayBatch, NDArray
+from .types import NDArrayBatch, NDArray, SetDeviceReturnType
 from .rpc.serialization import ISerializer, FusedFrameIterator, serializer_for
 
 
@@ -64,3 +64,24 @@ class NDArraySerializer(ISerializer[NDArray]):
         meta = {"id": obj.id, "shape": obj.shape, "dtype": str(obj.dtype)}
         yield zmq.Frame(jsonapi.dumps(meta))
         yield zmq.Frame(obj.as_numpy())
+
+
+@serializer_for(SetDeviceReturnType, tag=b"setdevices")
+class SetDeviceReturnTypeSerializer(ISerializer[SetDeviceReturnType]):
+    @classmethod
+    def serialize(cls, obj: SetDeviceReturnType) -> Iterator[zmq.Frame]:
+        yield zmq.Frame(
+            jsonapi.dumps(
+                {"shrinkage": obj.shrinkage, "valid_shapes": obj.valid_shapes, "training_shape": obj.training_shape}
+            )
+        )
+
+    @classmethod
+    def deserialize(cls, frames: "FusedFrameIterator") -> SetDeviceReturnType:
+        frm = next(frames)
+        data = jsonapi.loads(frm.bytes)
+        return SetDeviceReturnType(
+            training_shape=tuple(data["training_shape"]),
+            valid_shapes=[tuple(el) for el in data["valid_shapes"]],
+            shrinkage=tuple(data["shrinkage"]),
+        )

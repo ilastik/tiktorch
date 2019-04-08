@@ -3,7 +3,6 @@ from .base import Client, Server, RPCFuture
 from .connections import InprocConnConf, TCPConnConf
 from .interface import RPCInterface, exposed
 from .exceptions import Timeout, Shutdown, Canceled, CallException
-from .types import SetDeviceReturnType
 
 __all__ = [
     "serializer_for",
