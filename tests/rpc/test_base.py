@@ -7,9 +7,14 @@ import pytest
 import zmq
 
 from tiktorch.rpc.base import (
-    serialize_args, deserialize_args,
-    deserialize_return, serialize_return,
-    Server, Client, RPCFuture, isfutureret
+    serialize_args,
+    deserialize_args,
+    deserialize_return,
+    serialize_return,
+    Server,
+    Client,
+    RPCFuture,
+    isfutureret,
 )
 from tiktorch.rpc.connections import InprocConnConf
 from tiktorch.rpc.interface import exposed, RPCInterface, get_exposed_methods
@@ -56,32 +61,19 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def log_debug():
     return
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'default': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'stream': 'ext://sys.stdout',
-            },
-        },
-        'loggers': {
-            '': {
-                'handlers': ['default'],
-                'level': 'DEBUG',
-                'propagate': True
-            },
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "handlers": {"default": {"level": "INFO", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"}},
+            "loggers": {"": {"handlers": ["default"], "level": "DEBUG", "propagate": True}},
         }
-    })
+    )
 
 
 @pytest.fixture
 def spawn(conn_conf, assert_threads_cleanup):
-    d = {
-        'client': None,
-        'thread': None,
-    }
+    d = {"client": None, "thread": None}
 
     def _spawn(iface, service):
         def _target():
@@ -89,38 +81,35 @@ def spawn(conn_conf, assert_threads_cleanup):
             srv = Server(api, conn_conf)
             srv.listen()
 
-        t = Thread(target=_target, name='TestServerThread')
+        t = Thread(target=_target, name="TestServerThread")
         t.start()
 
-        d['thread'] = t
-        d['client'] = Client(iface(), conn_conf)
+        d["thread"] = t
+        d["client"] = Client(iface(), conn_conf)
 
-        return d['client']
+        return d["client"]
 
     yield _spawn
 
-    if d['client']:
+    if d["client"]:
         with pytest.raises(Shutdown):
-            d['client'].shutdown()
+            d["client"].shutdown()
 
-        d['thread'].join()
+        d["thread"].join()
+
 
 def test_get_exposed_methods():
     api = API()
 
-    assert get_exposed_methods(api) == {
-        'foo': api.foo,
-    }, "should return all bound methods"
+    assert get_exposed_methods(api) == {"foo": api.foo}, "should return all bound methods"
 
-    assert get_exposed_methods(API) == {
-        'foo': API.foo,
-    }, "should return all class functions in"
+    assert get_exposed_methods(API) == {"foo": API.foo}, "should return all class functions in"
 
 
 def test_serialize_deserialize_method_args():
     f = Foo()
-    data = {'a': 1}
-    a = b'hello'
+    data = {"a": 1}
+    a = b"hello"
     serialized = list(serialize_args(f.func, [data, a]))
 
     for frame in serialized:
@@ -133,16 +122,16 @@ def test_serialize_deserialize_method_args():
 
 def test_serialize_deserialize_method_return():
     f = Foo()
-    serialized = list(serialize_return(f.func, b'bytes'))
+    serialized = list(serialize_return(f.func, b"bytes"))
 
     deserialized = deserialize_return(f.func, iter(serialized))
-    assert deserialized == b'bytes'
+    assert deserialized == b"bytes"
 
 
 def test_serialize_deserialize_decorated_method_args():
     f = Foo()
-    data = {'a': 1}
-    a = b'hello'
+    data = {"a": 1}
+    a = b"hello"
     serialized = list(serialize_args(f.func_dec, [data, a]))
 
     for frame in serialized:
@@ -155,10 +144,10 @@ def test_serialize_deserialize_decorated_method_args():
 
 def test_serialize_deserialize_decorated_method_return():
     f = Foo()
-    serialized = list(serialize_return(f.func_dec, b'bytes'))
+    serialized = list(serialize_return(f.func_dec, b"bytes"))
 
     deserialized = deserialize_return(f.func_dec, iter(serialized))
-    assert deserialized == b'bytes'
+    assert deserialized == b"bytes"
 
 
 class IConcatRPC(RPCInterface):
@@ -195,7 +184,6 @@ class ConcatRPCSrv(IConcatRPC):
         return a + b
 
     def concat_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
-
         def _slow_concat(a, b):
             sleep(0.4)
             return a + b
@@ -204,27 +192,28 @@ class ConcatRPCSrv(IConcatRPC):
 
     def concat_broken_async(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
         def _broken(a, b):
-            raise Exception('broken')
+            raise Exception("broken")
 
         return self.executor.submit(_broken, a, b)
 
     def raise_outside_future(self, a: bytes, b: bytes) -> RPCFuture[bytes]:
-        raise Exception('broken')
+        raise Exception("broken")
 
     def not_exposed(self) -> None:
         pass
 
+
 @pytest.fixture
 def conn_conf():
     ctx = zmq.Context()
-    return InprocConnConf('test', 'pubsub_test', ctx, timeout=2000)
+    return InprocConnConf("test", "pubsub_test", ctx, timeout=2000)
 
 
 def test_server(spawn):
     cl = spawn(IConcatRPC, ConcatRPCSrv)
 
-    resp = cl.concat(b'foo', b'bar')
-    assert resp == b'foobar'
+    resp = cl.concat(b"foo", b"bar")
+    assert resp == b"foobar"
 
 
 def test_client_dir(conn_conf):
@@ -232,10 +221,10 @@ def test_client_dir(conn_conf):
 
     methods = dir(cl)
 
-    assert 'concat' in methods
-    assert 'shutdown' in methods
+    assert "concat" in methods
+    assert "shutdown" in methods
 
-    assert 'not_exposed' not in methods
+    assert "not_exposed" not in methods
 
 
 def test_method_returning_none(spawn):
@@ -251,11 +240,11 @@ def test_error_doesnt_stop_server(spawn):
     class SomeRPC(RPCInterface):
         @exposed
         def ping(self) -> bytes:
-            return b'pong'
+            return b"pong"
 
         @exposed
         def raise_exc(self) -> None:
-            raise Exception('fail')
+            raise Exception("fail")
 
         @exposed
         def unknown_return_type(self) -> Foo:
@@ -263,26 +252,25 @@ def test_error_doesnt_stop_server(spawn):
 
         @exposed
         def unknown_arg_type(self, f: Foo) -> bytes:
-            return 'ok'
+            return "ok"
 
         @exposed
         def shutdown(self):
             raise Shutdown()
 
-
     cl = spawn(SomeRPC, SomeRPC)
 
-    assert cl.ping() == b'pong'
+    assert cl.ping() == b"pong"
 
     with pytest.raises(Exception):
         cl.raise_exc()
 
-    assert cl.ping() == b'pong'
+    assert cl.ping() == b"pong"
 
     with pytest.raises(Exception):
         cl.unknown_return_type()
 
-    assert cl.ping() == b'pong'
+    assert cl.ping() == b"pong"
 
 
 def test_multithreaded(spawn):
@@ -290,18 +278,18 @@ def test_multithreaded(spawn):
         @exposed
         def ping(self) -> bytes:
             sleep(0.1)
-            return b'pong'
+            return b"pong"
 
         @exposed
         def shutdown(self) -> None:
             raise Shutdown()
 
-
     cl = spawn(SomeRPC, SomeRPC)
 
     res = []
+
     def _client():
-        res.append(cl.ping() == b'pong')
+        res.append(cl.ping() == b"pong")
 
     clients = []
     for _ in range(5):
@@ -335,11 +323,11 @@ def test_rpc_interface_metaclass():
         def foobar(self):
             return None
 
-    assert Foo.__exposedmethods__ == {'foo', 'bar'}
+    assert Foo.__exposedmethods__ == {"foo", "bar"}
 
 
 def test_futures(spawn, log_debug):
-    executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='superexecutor')
+    executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="superexecutor")
 
     class SomeRPC(RPCInterface):
         def __init__(self):
@@ -348,10 +336,10 @@ def test_futures(spawn, log_debug):
         @exposed
         def compute(self) -> RPCFuture[bytes]:
             def _compute():
-                logger.debug('Computing')
+                logger.debug("Computing")
                 sleep(0.5)
-                logger.debug('Computed')
-                res = b'4%d' % self.count
+                logger.debug("Computed")
+                res = b"4%d" % self.count
                 self.count += 1
                 return res
 
@@ -361,14 +349,13 @@ def test_futures(spawn, log_debug):
         def shutdown(self):
             raise Shutdown()
 
-
     cl = spawn(SomeRPC, SomeRPC)
 
     try:
         f = cl.compute()
         f2 = cl.compute()
-        assert f.result(timeout=5) == b'42'
-        assert f2.result(timeout=5) == b'43'
+        assert f.result(timeout=5) == b"42"
+        assert f2.result(timeout=5) == b"43"
     finally:
         executor.shutdown()
 
@@ -376,24 +363,24 @@ def test_futures(spawn, log_debug):
 def test_futures_concat(spawn):
     cl = spawn(IConcatRPC, ConcatRPCSrv)
 
-    f = cl.concat_async(b'4', b'2')
-    f2 = cl.concat_async(b'hello, ', b'world')
+    f = cl.concat_async(b"4", b"2")
+    f2 = cl.concat_async(b"hello, ", b"world")
 
-    assert f.result(timeout=5) == b'42'
-    assert f2.result(timeout=5) == b'hello, world'
+    assert f.result(timeout=5) == b"42"
+    assert f2.result(timeout=5) == b"hello, world"
 
 
 def test_futures_with_exception(spawn):
     cl = spawn(IConcatRPC, ConcatRPCSrv)
 
-    f = cl.concat_broken_async(b'4', b'2')
+    f = cl.concat_broken_async(b"4", b"2")
 
     with pytest.raises(CallException):
-        assert f.result(timeout=5) == b'42'
+        assert f.result(timeout=5) == b"42"
 
-    f = cl.raise_outside_future(b'4', b'2')
+    f = cl.raise_outside_future(b"4", b"2")
     with pytest.raises(CallException):
-        assert f.result(timeout=5) == b'42'
+        assert f.result(timeout=5) == b"42"
 
 
 def test_isfutureret():

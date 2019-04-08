@@ -5,7 +5,6 @@ import tiktorch.utils as utils
 
 
 class TikIO(object):
-
     class ShapeError(Exception):
         pass
 
@@ -21,16 +20,17 @@ class TikIO(object):
             elif isinstance(tensor, torch.Tensor):
                 torch_tensor = tensor
             else:
-                raise TypeError(f"Tensor at position must be numpy.ndarray or "
-                                f"torch.Tensors, got {type(tensor)} instead.")
+                raise TypeError(
+                    f"Tensor at position must be numpy.ndarray or " f"torch.Tensors, got {type(tensor)} instead."
+                )
             torch_tensors.append(torch_tensor)
         return torch_tensors
 
     @property
     def tensors(self):
-        utils.assert_(self._tensors is not None,
-                      "Trying to acess `TikIn.tensors` with it yet to be defined.",
-                      ValueError)
+        utils.assert_(
+            self._tensors is not None, "Trying to acess `TikIn.tensors` with it yet to be defined.", ValueError
+        )
         return self._tensors
 
     @tensors.setter
@@ -39,19 +39,23 @@ class TikIO(object):
 
     @staticmethod
     def validate_shape(tensors):
-        utils.assert_([tensor.shape == tensors[0].shape for tensor in tensors],
-                      f"Input `tensors` to TikIn must all have the same shape. "
-                      f"Got tensors of shape: {[tensor.shape for tensor in tensors]}",
-                      TikIn.ShapeError)
-        utils.assert_(len(tensors[0].shape) in [2, 3, 4], f"Tensors must be of dimensions "
-                                                          f"2 (HW), 3 (CHW/DHw), or 4 (CDHW). "
-                                                          f"Got {len(tensors[0].shape)} instead.",
-                      TikIO.ShapeError)
+        utils.assert_(
+            [tensor.shape == tensors[0].shape for tensor in tensors],
+            f"Input `tensors` to TikIn must all have the same shape. "
+            f"Got tensors of shape: {[tensor.shape for tensor in tensors]}",
+            TikIn.ShapeError,
+        )
+        utils.assert_(
+            len(tensors[0].shape) in [2, 3, 4],
+            f"Tensors must be of dimensions "
+            f"2 (HW), 3 (CHW/DHw), or 4 (CDHW). "
+            f"Got {len(tensors[0].shape)} instead.",
+            TikIO.ShapeError,
+        )
         return tensors
 
 
 class TikIn(TikIO):
-
     def __init__(self, tensors=None):
         """
         Input Object for TikTorch.
@@ -79,7 +83,7 @@ class TikIn(TikIO):
 
     @property
     def format(self):
-        return {2: 'HW', 3: 'CHW/DHW', 4: 'CDHW'}[len(self.shape)]
+        return {2: "HW", 3: "CHW/DHW", 4: "CDHW"}[len(self.shape)]
 
     def reshape(self, *shape):
         return [tensor.reshape(*shape) for tensor in self.tensors]
@@ -98,45 +102,58 @@ class TikIn(TikIO):
         -------
         torch.Tensor
         """
-        network_input_format = {3: 'CHW', 4: 'CDHW'}[len(network_input_shape)]
-        if self.format == 'HW':
-            utils.assert_(network_input_format == 'CHW',
-                          f"Input format is HW, which is not compatible with the network "
-                          f"input format {network_input_format} (must be CHW).",
-                          TikIn.ShapeError)
-            utils.assert_(network_input_shape[0] == 1,
-                          f"Input format is HW, for which the number of input channels (C)"
-                          f"to the network must be 1. Got C = {network_input_shape[0]} instead.",
-                          TikIn.ShapeError)
+        network_input_format = {3: "CHW", 4: "CDHW"}[len(network_input_shape)]
+        if self.format == "HW":
+            utils.assert_(
+                network_input_format == "CHW",
+                f"Input format is HW, which is not compatible with the network "
+                f"input format {network_input_format} (must be CHW).",
+                TikIn.ShapeError,
+            )
+            utils.assert_(
+                network_input_shape[0] == 1,
+                f"Input format is HW, for which the number of input channels (C)"
+                f"to the network must be 1. Got C = {network_input_shape[0]} instead.",
+                TikIn.ShapeError,
+            )
             pre_cat = self.reshape(1, *self.shape)
-        elif self.format == 'CDHW':
-            utils.assert_(network_input_format == 'CDHW',
-                          f"Input format (CDHW) is not compatible with network input format "
-                          f"({network_input_format}).",
-                          TikIn.ShapeError)
-            utils.assert_(self.shape[0] == network_input_shape[0],
-                          f"Number of input channels in input ({self.shape[0]}) is not "
-                          f"consistent with what the network expects ({network_input_shape[0]}).",
-                          TikIn.ShapeError)
+        elif self.format == "CDHW":
+            utils.assert_(
+                network_input_format == "CDHW",
+                f"Input format (CDHW) is not compatible with network input format " f"({network_input_format}).",
+                TikIn.ShapeError,
+            )
+            utils.assert_(
+                self.shape[0] == network_input_shape[0],
+                f"Number of input channels in input ({self.shape[0]}) is not "
+                f"consistent with what the network expects ({network_input_shape[0]}).",
+                TikIn.ShapeError,
+            )
             pre_cat = self.tensors
-        elif self.format == 'CHW/DHW':
-            if network_input_format == 'CHW':
+        elif self.format == "CHW/DHW":
+            if network_input_format == "CHW":
                 # input format is CHW
-                utils.assert_(self.shape[0] == network_input_shape[0],
-                              f"Number of input channels in input ({self.shape[0]}) is "
-                              f"not compatible with the number of input channels to "
-                              f"the network ({network_input_shape[0]})",
-                              TikIn.ShapeError)
+                utils.assert_(
+                    self.shape[0] == network_input_shape[0],
+                    f"Number of input channels in input ({self.shape[0]}) is "
+                    f"not compatible with the number of input channels to "
+                    f"the network ({network_input_shape[0]})",
+                    TikIn.ShapeError,
+                )
                 pre_cat = self.tensors
-            elif network_input_format == 'CDHW':
-                utils.assert_(network_input_shape[0] == 1,
-                              f"Input format DHW requires that the number of input channels (C) "
-                              f"to the network is 1. Got C = {network_input_shape[0]} instead.",
-                              TikIn.ShapeError)
+            elif network_input_format == "CDHW":
+                utils.assert_(
+                    network_input_shape[0] == 1,
+                    f"Input format DHW requires that the number of input channels (C) "
+                    f"to the network is 1. Got C = {network_input_shape[0]} instead.",
+                    TikIn.ShapeError,
+                )
                 pre_cat = self.reshape(1, *self.shape)
             else:
-                raise TikIn.ShapeError(f"Input format {self.format} is not compatible with "
-                                       f"the network input format {network_input_format}.")
+                raise TikIn.ShapeError(
+                    f"Input format {self.format} is not compatible with "
+                    f"the network input format {network_input_format}."
+                )
         else:
             raise ValueError("Internal Error: Invalid Format.")
         # Concatenate to a batch
@@ -150,18 +167,23 @@ class TikOut(TikIO):
         self.tensors = self.unbatcher(batch)
 
     def unbatcher(self, batch):
-        utils.assert_(len(batch.shape) in [4, 5], f"`batch` must either be a NCHW or NCDHW tensor, "
-                                                  f"got one with dimension {len(batch.shape)} "
-                                                  f"instead.",
-                      TikIO.ShapeError)
+        utils.assert_(
+            len(batch.shape) in [4, 5],
+            f"`batch` must either be a NCHW or NCDHW tensor, "
+            f"got one with dimension {len(batch.shape)} "
+            f"instead.",
+            TikIO.ShapeError,
+        )
         return list(batch)
+
 
 def test_tikin():
     tikin = TikIn([np.random.randn(1, 100, 100) for _ in range(3)])
     assert tikin.shape == torch.Size([1, 100, 100])
-    assert tikin.format == 'CHW/DHW'
+    assert tikin.format == "CHW/DHW"
     batch = tikin.batcher(network_input_shape=[1, 10, 10])
     assert batch.shape == torch.Size([3, 1, 100, 100])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_tikin()

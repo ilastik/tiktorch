@@ -10,12 +10,14 @@ class Xcoder(nn.Module):
         assert out_channels % 2 == 0
         self.in_channels = sum(previous_in_channels)
         self.out_channels = out_channels
-        self.conv1 = ConvELU2D(in_channels=self.in_channels,
-                               out_channels=self.out_channels // 2,
-                               kernel_size=kernel_size)
-        self.conv2 = ConvELU2D(in_channels=self.in_channels + (self.out_channels // 2),
-                               out_channels=self.out_channels // 2,
-                               kernel_size=kernel_size)
+        self.conv1 = ConvELU2D(
+            in_channels=self.in_channels, out_channels=self.out_channels // 2, kernel_size=kernel_size
+        )
+        self.conv2 = ConvELU2D(
+            in_channels=self.in_channels + (self.out_channels // 2),
+            out_channels=self.out_channels // 2,
+            kernel_size=kernel_size,
+        )
         self.pre_output = pre_output
 
     # noinspection PyCallingNonCallable
@@ -33,20 +35,21 @@ class Xcoder(nn.Module):
 
 class Encoder(Xcoder):
     def __init__(self, previous_in_channels, out_channels, kernel_size):
-        super(Encoder, self).__init__(previous_in_channels, out_channels, kernel_size,
-                                      pre_output=nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+        super(Encoder, self).__init__(
+            previous_in_channels, out_channels, kernel_size, pre_output=nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
 
 
 class Decoder(Xcoder):
     def __init__(self, previous_in_channels, out_channels, kernel_size):
-        super(Decoder, self).__init__(previous_in_channels, out_channels, kernel_size,
-                                      pre_output=nn.UpsamplingNearest2d(scale_factor=2))
+        super(Decoder, self).__init__(
+            previous_in_channels, out_channels, kernel_size, pre_output=nn.UpsamplingNearest2d(scale_factor=2)
+        )
 
 
 class Base(Xcoder):
     def __init__(self, previous_in_channels, out_channels, kernel_size):
-        super(Base, self).__init__(previous_in_channels, out_channels, kernel_size,
-                                   pre_output=None)
+        super(Base, self).__init__(previous_in_channels, out_channels, kernel_size, pre_output=None)
 
 
 class Output(Conv2D):
@@ -57,8 +60,7 @@ class Output(Conv2D):
 
 
 class DUNetSkeleton(nn.Module):
-    def __init__(self, encoders, decoders, base, output, final_activation=None,
-                 return_hypercolumns=False):
+    def __init__(self, encoders, decoders, base, output, final_activation=None, return_hypercolumns=False):
         super(DUNetSkeleton, self).__init__()
         assert isinstance(encoders, list)
         assert isinstance(decoders, list)
@@ -91,65 +93,37 @@ class DUNetSkeleton(nn.Module):
         e0_2us = self.upx2(e0)
 
         # e1.ssize = 128
-        e1 = self.encoders[1](torch.cat((input_2ds,
-                                         e0), 1))
+        e1 = self.encoders[1](torch.cat((input_2ds, e0), 1))
         e1_2ds = self.poolx2(e1)
         e1_2us = self.upx2(e1)
         e1_4us = self.upx4(e1)
 
         # e2.ssize = 64
-        e2 = self.encoders[2](torch.cat((input_4ds,
-                                         e0_2ds,
-                                         e1), 1))
+        e2 = self.encoders[2](torch.cat((input_4ds, e0_2ds, e1), 1))
         e2_2us = self.upx2(e2)
         e2_4us = self.upx4(e2)
         e2_8us = self.upx8(e2)
 
         # b.ssize = 64
-        b = self.base(torch.cat((input_8ds,
-                                 e0_4ds,
-                                 e1_2ds,
-                                 e2), 1))
+        b = self.base(torch.cat((input_8ds, e0_4ds, e1_2ds, e2), 1))
         b_2us = self.upx2(b)
         b_4us = self.upx4(b)
         b_8us = self.upx8(b)
 
         # d2.ssize = 128
-        d2 = self.decoders[0](torch.cat((input_8ds,
-                                         e0_4ds,
-                                         e1_2ds,
-                                         e2,
-                                         b), 1))
+        d2 = self.decoders[0](torch.cat((input_8ds, e0_4ds, e1_2ds, e2, b), 1))
         d2_2us = self.upx2(d2)
         d2_4us = self.upx4(d2)
 
         # d1.ssize = 256
-        d1 = self.decoders[1](torch.cat((input_4ds,
-                                         e0_2ds,
-                                         e1,
-                                         e2_2us,
-                                         b_2us,
-                                         d2), 1))
+        d1 = self.decoders[1](torch.cat((input_4ds, e0_2ds, e1, e2_2us, b_2us, d2), 1))
         d1_2us = self.upx2(d1)
 
         # d0.ssize = 512
-        d0 = self.decoders[2](torch.cat((input_2ds,
-                                         e0,
-                                         e1_2us,
-                                         e2_4us,
-                                         b_4us,
-                                         d2_2us,
-                                         d1), 1))
+        d0 = self.decoders[2](torch.cat((input_2ds, e0, e1_2us, e2_4us, b_4us, d2_2us, d1), 1))
 
         # out.ssize = 512
-        out = self.output(torch.cat((input_,
-                                     e0_2us,
-                                     e1_4us,
-                                     e2_8us,
-                                     b_8us,
-                                     d2_4us,
-                                     d1_2us,
-                                     d0), 1))
+        out = self.output(torch.cat((input_, e0_2us, e1_4us, e2_8us, b_8us, d2_4us, d1_2us, d0), 1))
 
         if self.final_activation is not None:
             out = self.final_activation(out)
@@ -157,15 +131,7 @@ class DUNetSkeleton(nn.Module):
         if not self.return_hypercolumns:
             return out
         else:
-            out = torch.cat((input_,
-                             e0_2us,
-                             e1_4us,
-                             e2_8us,
-                             b_8us,
-                             d2_4us,
-                             d1_2us,
-                             d0,
-                             out), 1)
+            out = torch.cat((input_, e0_2us, e1_4us, e2_8us, b_8us, d2_4us, d1_2us, d0, out), 1)
             return out
 
 
@@ -175,7 +141,7 @@ class DUNet(DUNetSkeleton):
         encoders = [
             Encoder([in_channels], N, 3),
             Encoder([in_channels, N], 2 * N, 3),
-            Encoder([in_channels, N, 2 * N], 4 * N, 3)
+            Encoder([in_channels, N, 2 * N], 4 * N, 3),
         ]
         # Build base
         base = Base([in_channels, N, 2 * N, 4 * N], 4 * N, 3)
@@ -183,19 +149,21 @@ class DUNet(DUNetSkeleton):
         decoders = [
             Decoder([in_channels, N, 2 * N, 4 * N, 4 * N], 2 * N, 3),
             Decoder([in_channels, N, 2 * N, 4 * N, 4 * N, 2 * N], N, 3),
-            Decoder([in_channels, N, 2 * N, 4 * N, 4 * N, 2 * N, N], N, 3)
+            Decoder([in_channels, N, 2 * N, 4 * N, 4 * N, 2 * N, N], N, 3),
         ]
         # Build output
         output = Output([in_channels, N, 2 * N, 4 * N, 4 * N, 2 * N, N, N], out_channels, 3)
         # Parse final activation
         final_activation = nn.Sigmoid() if out_channels == 1 else nn.Softmax2d()
         # dundundun
-        super(DUNet, self).__init__(encoders=encoders,
-                                    decoders=decoders,
-                                    base=base,
-                                    output=output,
-                                    final_activation=final_activation,
-                                    return_hypercolumns=return_hypercolumns)
+        super(DUNet, self).__init__(
+            encoders=encoders,
+            decoders=decoders,
+            base=base,
+            output=output,
+            final_activation=final_activation,
+            return_hypercolumns=return_hypercolumns,
+        )
 
     def forward(self, input_):
         # CREMI loaders are usually 3D, so we reshape if necessary

@@ -19,6 +19,7 @@ class TestModel0(torch.nn.Module):
         y_pred = self.linear2(h_relu)
         return y_pred
 
+
 class TinyConvNet2d(torch.nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
@@ -30,12 +31,8 @@ class TinyConvNet2d(torch.nn.Module):
         self.nlin3 = torch.nn.Sigmoid()
 
     def forward(self, x):
-        return torch.nn.Sequential(self.conv1,
-                                   self.nlin1,
-                                   self.conv2,
-                                   self.nlin2,
-                                   self.conv3,
-                                   self.nlin3)(x)
+        return torch.nn.Sequential(self.conv1, self.nlin1, self.conv2, self.nlin2, self.conv3, self.nlin3)(x)
+
 
 class TinyConvNet3d(torch.nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
@@ -48,12 +45,9 @@ class TinyConvNet3d(torch.nn.Module):
         self.nlin3 = torch.nn.Sigmoid()
 
     def forward(self, x):
-        return torch.nn.Sequential(self.conv1,
-                                   self.nlin1,
-                                   self.conv2,
-                                   self.nlin2,
-                                   self.conv3,
-                                   self.nlin3)(x)
+        return torch.nn.Sequential(self.conv1, self.nlin1, self.conv2, self.nlin2, self.conv3, self.nlin3)(x)
+
+
 def train(model, x, y):
     loss_fn = torch.nn.MSELoss(reduction="sum")
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -71,7 +65,7 @@ def train(model, x, y):
 
 if __name__ == "__main__":
     test1 = TestModel0()
-    print('train', test1.training)
+    print("train", test1.training)
     # test.to(dtype=torch.float)
     y = test1(test1.x)
     assert y.allclose(test1.y)
@@ -79,21 +73,20 @@ if __name__ == "__main__":
     test2 = test1.__class__()
     test2.eval()
     test2.load_state_dict(test1.state_dict())
-    print('here train2', test2.training)
+    print("here train2", test2.training)
     print(id(test1.state_dict()))
     print(id(test2.state_dict()))
-
 
     sd = test2.state_dict()
     for key, value in sd.items():
         sd[key] = torch.zeros_like(value)
 
-    print('train2', test2.training)
+    print("train2", test2.training)
 
     print(id(test1) == id(test2))
-    print(id(test1.state_dict()['linear1.weight']) == id(test2.state_dict()['linear1.weight']))
-    print(id(test1.state_dict()), test1.state_dict()['linear1.weight'])
-    print(id(test2.state_dict()), test2.state_dict()['linear1.weight'])
+    print(id(test1.state_dict()["linear1.weight"]) == id(test2.state_dict()["linear1.weight"]))
+    print(id(test1.state_dict()), test1.state_dict()["linear1.weight"])
+    print(id(test2.state_dict()), test2.state_dict()["linear1.weight"])
     test2.load_state_dict(sd)
     print(id(test1) == id(test2))
     magic1 = test1.state_dict()
@@ -102,8 +95,7 @@ if __name__ == "__main__":
     print(id(magic1) == id(magic2))
     # print(id(magic1['linear1.weight']) == id(magic2['linear1.weight']))
     # print(id(test1.state_dict()['linear1.weight']) == id(test2.state_dict()['linear1.weight']))
-    print(id(test1.state_dict()), test1.state_dict()['linear1.weight'])
-    print(id(test2.state_dict()), test2.state_dict()['linear1.weight'])
+    print(id(test1.state_dict()), test1.state_dict()["linear1.weight"])
+    print(id(test2.state_dict()), test2.state_dict()["linear1.weight"])
 
-
-    print('train2', test2.training)
+    print("train2", test2.training)

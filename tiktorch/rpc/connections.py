@@ -38,13 +38,7 @@ class IConnConf:
 
 
 class InprocConnConf(IConnConf):
-    def __init__(
-        self,
-        name: str,
-        pubsub: str,
-        ctx: zmq.Context,
-        timeout: Optional[int] = None,
-    ) -> None:
+    def __init__(self, name: str, pubsub: str, ctx: zmq.Context, timeout: Optional[int] = None) -> None:
         """
         Inproc config is dependent on sharing *same context instance*
         """
@@ -54,20 +48,15 @@ class InprocConnConf(IConnConf):
         self.pubsub = pubsub
 
     def get_conn_str(self) -> str:
-        return f'inproc://{self.name}'
+        return f"inproc://{self.name}"
 
     def get_pubsub_conn_str(self) -> str:
-        return f'inproc://{self.pubsub}'
+        return f"inproc://{self.pubsub}"
 
 
 class TCPConnConf(IConnConf):
     def __init__(
-        self,
-        addr: str,
-        port: str,
-        pubsub_port: str,
-        timeout: Optional[int] = None,
-        ctx: Optional[zmq.Context] = None,
+        self, addr: str, port: str, pubsub_port: str, timeout: Optional[int] = None, ctx: Optional[zmq.Context] = None
     ) -> None:
         self.port = port
         self.addr = addr
@@ -76,7 +65,7 @@ class TCPConnConf(IConnConf):
         self.pubsub_port = pubsub_port
 
     def get_conn_str(self) -> str:
-        return f'tcp://{self.addr}:{self.port}'
+        return f"tcp://{self.addr}:{self.port}"
 
     def get_pubsub_conn_str(self) -> str:
-        return f'tcp://{self.addr}:{self.pubsub_port}'
+        return f"tcp://{self.addr}:{self.pubsub_port}"

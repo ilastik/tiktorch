@@ -21,7 +21,16 @@ from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch
 from tiktorch import log
-from tiktorch.configkeys import TRAINING, VALIDATION, BATCH_SIZE, NUM_ITERATION_DONE, MAX_NUM_ITERATIONS, MAX_NUM_ITERATIONS_PER_UPDATE, LOSS_CRITERION_CONFIG, OPTIMIZER_CONFIG
+from tiktorch.configkeys import (
+    TRAINING,
+    VALIDATION,
+    BATCH_SIZE,
+    NUM_ITERATION_DONE,
+    MAX_NUM_ITERATIONS,
+    MAX_NUM_ITERATIONS_PER_UPDATE,
+    LOSS_CRITERION_CONFIG,
+    OPTIMIZER_CONFIG,
+)
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
@@ -33,6 +42,7 @@ INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch c
     LOSS_CRITERION_CONFIG: "criterion_config",
     BATCH_SIZE: "batch_size",
 }
+
 
 class TikTrainer(InfernoTrainer):
     def __init__(self, *args, break_events: Optional[List[threading.Event]] = None, **kwargs):
@@ -289,13 +299,12 @@ class TrainingProcess(ITraining):
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: LabeledTikTensorBatch) -> None:
-        assert name in (
-            TRAINING,
-            VALIDATION,
-        ), f"{name} not in ({TRAINING}, {VALIDATION})"
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data)
         if name == TRAINING:
-            self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(data)
+            self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
+                data
+            )
 
         self.update_trainer_event.set()
 

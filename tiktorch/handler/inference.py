@@ -31,6 +31,7 @@ from tiktorch import log
 
 from tiktorch.utils import add_logger
 
+
 class IInference(RPCInterface):
     @exposed
     def set_devices(self, device_names: Sequence[str]) -> RPCFuture[Set[torch.device]]:
@@ -77,14 +78,16 @@ class InferenceProcess(IInference):
         # self.add_devices({torch.device("cpu")})
 
         self.device_change_queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter")
+        self.device_setter_thread = threading.Thread(
+            target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter"
+        )
         self.device_setter_thread.start()
 
     def _device_setter_worker(self):
         while not self.shutdown_event.is_set():
             try:
                 devices, fut = self.device_change_queue.get(block=True, timeout=1)
-                self.logger.warning('got devices %s', devices)
+                self.logger.warning("got devices %s", devices)
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
@@ -121,7 +124,9 @@ class InferenceProcess(IInference):
             assert d not in self.shutdown_worker_events
             assert d not in self.forward_worker_threads
             self.shutdown_worker_events[d] = threading.Event()
-            self.forward_worker_threads[d] = threading.Thread(target=add_logger(self.logger)(self._forward_worker), name=f"ForwardWorker({d})", kwargs={"device": d})
+            self.forward_worker_threads[d] = threading.Thread(
+                target=add_logger(self.logger)(self._forward_worker), name=f"ForwardWorker({d})", kwargs={"device": d}
+            )
             self.forward_worker_threads[d].start()
 
         self.devices.update(devices)
@@ -182,7 +187,7 @@ class InferenceProcess(IInference):
         """
         :param data: input data to neural network
         """
-        self.logger.debug('this is forward')
+        self.logger.debug("this is forward")
         if device.type == "cuda":
             with device:
                 model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))

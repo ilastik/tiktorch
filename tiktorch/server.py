@@ -10,10 +10,22 @@ from typing import Optional, List, Tuple, Generator, Iterable, Union
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
 from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
-from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch, Point2D, Point3D, Point4D
+from tiktorch.tiktypes import (
+    TikTensor,
+    LabeledTikTensor,
+    TikTensorBatch,
+    LabeledTikTensorBatch,
+    Point2D,
+    Point3D,
+    Point4D,
+)
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import convert_tik_fut_to_ndarray_fut, get_error_msg_for_invalid_config, get_error_msg_for_incomplete_config
+from tiktorch.utils import (
+    convert_tik_fut_to_ndarray_fut,
+    get_error_msg_for_invalid_config,
+    get_error_msg_for_incomplete_config,
+)
 from tiktorch.configkeys import MINIMAL_CONFIG
 
 if torch.cuda.is_available():

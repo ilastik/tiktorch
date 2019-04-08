@@ -23,7 +23,7 @@ def test_inference2d(tiny_model_2d):
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     inference = InferenceProcess(config=config, model=model)
-    inference.set_devices([torch.device('cpu')])
+    inference.set_devices([torch.device("cpu")])
     data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
     pred = inference.forward(data)
     assert isinstance(pred.result(timeout=10), TikTensor)
@@ -41,7 +41,7 @@ def test_inference2d_in_proc(tiny_model_2d, log_queue):
     p.start()
     client = create_client(IInference, handler_conn)
     try:
-        client.set_devices([torch.device('cpu')])
+        client.set_devices([torch.device("cpu")])
         data = TikTensor(torch.zeros(in_channels, 15, 15), (0,))
         f = client.forward(data)
         f.result(timeout=10)
@@ -54,7 +54,7 @@ def test_inference3d(tiny_model_3d, log_queue):
     in_channels = config["input_channels"]
     model = TinyConvNet3d(in_channels=in_channels)
     inference = InferenceProcess(config=config, model=model)
-    inference.set_devices([torch.device('cpu')])
+    inference.set_devices([torch.device("cpu")])
     data = TikTensor(torch.zeros(in_channels, 15, 15, 15), (0,))
     pred = inference.forward(data)
     try:
@@ -74,7 +74,7 @@ def test_inference3d_in_proc(tiny_model_3d, log_queue):
     p.start()
     client = create_client(IInference, handler_conn)
     try:
-        client.set_devices([torch.device('cpu')])
+        client.set_devices([torch.device("cpu")])
         f = []
         n = 10
         for i in range(n):

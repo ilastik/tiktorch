@@ -15,7 +15,7 @@ SSH_KEY_VAR = "TEST_SSH_KEY"
 
 
 def test_start_local_server(srv_port, pub_port):
-    conn_conf = TCPConnConf('127.0.0.1', srv_port, pub_port, timeout=20)
+    conn_conf = TCPConnConf("127.0.0.1", srv_port, pub_port, timeout=20)
     launcher = LocalServerLauncher(conn_conf)
     launcher.start()
 
@@ -23,7 +23,7 @@ def test_start_local_server(srv_port, pub_port):
 
     client = Client(IFlightControl(), conn_conf)
 
-    assert client.ping() == b'pong'
+    assert client.ping() == b"pong"
 
     launcher.stop()
 
@@ -50,7 +50,7 @@ def test_start_remote_server(srv_port, pub_port):
 
         assert launcher.is_server_running()
 
-        assert client.ping() == b'pong'
+        assert client.ping() == b"pong"
     finally:
         launcher.stop()
 

@@ -7,9 +7,7 @@ import enum
 from functools import partial
 from concurrent.futures import Future
 from uuid import uuid4
-from typing import (
-    Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple, Set
-)
+from typing import Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple, Set
 
 import zmq
 
@@ -23,19 +21,20 @@ from .types import RPCFuture, isfutureret
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 @enum.unique
 class Mode(enum.Enum):
-    Normal = b'0'
-    Shutdown = b'1'
+    Normal = b"0"
+    Shutdown = b"1"
 
 
 @enum.unique
 class State(enum.Enum):
-    Return = b'0'
-    Error = b'1'
-    Ack = b'2'
+    Return = b"0"
+    Error = b"1"
+    Ack = b"2"
 
 
 def isfuture(obj):
@@ -43,9 +42,7 @@ def isfuture(obj):
 
 
 def serialize_args(
-    func: Callable,
-    args: Tuple[Any, ...],
-    kwargs: Optional[Dict[str, Any]] = None
+    func: Callable, args: Tuple[Any, ...], kwargs: Optional[Dict[str, Any]] = None
 ) -> Iterator[zmq.Frame]:
 
     kwargs = kwargs or {}
@@ -55,7 +52,7 @@ def serialize_args(
 
     # Ensure that we only handle class methods
     if not ismethod:
-        raise ValueError(f'{func} should be bound instance method')
+        raise ValueError(f"{func} should be bound instance method")
 
     bound_args = sig.bind(*args, **kwargs).arguments
 
@@ -65,10 +62,7 @@ def serialize_args(
         yield from serialize(call_arg)
 
 
-def deserialize_args(
-    func: Callable,
-    frames: Iterator[zmq.Frame],
-) -> List[Any]:
+def deserialize_args(func: Callable, frames: Iterator[zmq.Frame]) -> List[Any]:
     sig = inspect.signature(func)
     args = []
 
@@ -79,10 +73,7 @@ def deserialize_args(
     return args
 
 
-def serialize_return(
-    func: Callable,
-    value: Any,
-) -> Iterator[zmq.Frame]:
+def serialize_return(func: Callable, value: Any) -> Iterator[zmq.Frame]:
     return serialize(value)
     # sig = inspect.signature(func)
 
@@ -96,10 +87,7 @@ def serialize_return(
     #     return serialize(sig.return_annotation, value)
 
 
-def deserialize_return(
-    func: Callable,
-    frames: Iterator[zmq.Frame],
-) -> Any:
+def deserialize_return(func: Callable, frames: Iterator[zmq.Frame]) -> Any:
     sig = inspect.signature(func)
 
     # if sig.return_annotation and issubclass(sig.return_annotation, RPCFuture):
@@ -114,13 +102,9 @@ def deserialize_return(
 
 
 class Result:
-    __slots__ = ('_value', '_exc')
+    __slots__ = ("_value", "_exc")
 
-    def __init__(
-        self,
-        value: Optional[Any] = None,
-        exc: Optional[Exception] = None
-    ) -> None:
+    def __init__(self, value: Optional[Any] = None, exc: Optional[Exception] = None) -> None:
         self._value = value
         self._exc = exc
 
@@ -138,12 +122,9 @@ class Result:
 
 
 class Ack:
-    __slots__ = ('_exc')
+    __slots__ = "_exc"
 
-    def __init__(
-        self,
-        exc: Optional[Exception] = None,
-    ):
+    def __init__(self, exc: Optional[Exception] = None):
         self._exc = exc
 
     def to_future(self, future: RPCFuture) -> None:
@@ -151,10 +132,7 @@ class Ack:
             future.set_exception(self._exc)
 
 
-def deserialize_result(
-    method: Callable,
-    frames: Iterator[zmq.Frame],
-):
+def deserialize_result(method: Callable, frames: Iterator[zmq.Frame]):
 
     ctrl_frm = next(frames)
 
@@ -169,7 +147,7 @@ def deserialize_result(
     elif ctrl_frm.bytes == State.Ack.value:
         raise Exception("Expected return value. But received Future")
 
-    raise Exception('Unexpected control frame %s' % ctrl_frm)
+    raise Exception("Unexpected control frame %s" % ctrl_frm)
 
 
 def deserialize_ack(frames: Iterator[zmq.Frame]):
@@ -182,7 +160,7 @@ def deserialize_ack(frames: Iterator[zmq.Frame]):
     elif ctrl_frm.bytes == State.Ack.value:
         return Ack()
 
-    raise Exception('Unexpected control frame %s' % ctrl_frm)
+    raise Exception("Unexpected control frame %s" % ctrl_frm)
 
 
 class MethodDispatcher:
@@ -190,15 +168,15 @@ class MethodDispatcher:
         self._method_name = method_name
         self._client = client
         self._method = method
-        self._id = uuid4().hex.encode('ascii')
+        self._id = uuid4().hex.encode("ascii")
 
     def __call__(self, *args, **kwargs) -> Any:
-        logger.debug('[id: %s] Send call %s', self._id, self._method_name)
-        method_name = self._method_name.encode('utf-8')
+        logger.debug("[id: %s] Send call %s", self._id, self._method_name)
+        method_name = self._method_name.encode("utf-8")
         frames = [method_name, self._id, *serialize_args(self._method, args, kwargs)]
         is_future = isfutureret(self._method)
         if is_future:
-            logger.debug('[id: %s] Created future', self._id)
+            logger.debug("[id: %s] Created future", self._id)
             fut = self._client.create_future(self._id, self._method)
 
         # temporal dep,
@@ -215,11 +193,7 @@ class MethodDispatcher:
 
 
 class Client:
-    def __init__(
-        self,
-        api: RPCInterface,
-        conn_conf: IConnConf,
-    ) -> None:
+    def __init__(self, api: RPCInterface, conn_conf: IConnConf) -> None:
 
         self._methods_by_name = get_exposed_methods(api)
         self._conn_conf = conn_conf
@@ -256,7 +230,7 @@ class Client:
                 if events == zmq.POLLIN:
                     id_frm, *return_frames = sock.recv_multipart(copy=False)
                     id_ = id_frm.bytes
-                    logger.debug('[id: %s] Recieved return', id_)
+                    logger.debug("[id: %s] Recieved return", id_)
                     fut, method = self._futures.pop(id_, (None, None))
                     if fut is not None:
                         try:
@@ -270,16 +244,13 @@ class Client:
                     sock.close()
                     break
 
-        self._listener = threading.Thread(
-            target=_listen,
-            name=f'ClientNotificationsThread[{self._name}]'
-        )
+        self._listener = threading.Thread(target=_listen, name=f"ClientNotificationsThread[{self._name}]")
         self._listener.daemon = True
         self._listener.start()
 
     @property
     def _socket(self):
-        sock = getattr(self._local, 'sock', None)
+        sock = getattr(self._local, "sock", None)
 
         if sock is None:
             ctx = self._conn_conf.get_ctx()
@@ -288,7 +259,7 @@ class Client:
             sock.RCVTIMEO = self._timeout
             sock.SNDTIMEO = self._timeout
             sock.connect(self._conn_conf.get_conn_str())
-            setattr(self._local, 'sock', sock)
+            setattr(self._local, "sock", sock)
 
         return sock
 
@@ -305,7 +276,7 @@ class Client:
 
         frames = self._socket.send_multipart(frames, copy=False)
 
-        evt = self._socket.poll(1000* self._timeout, flags=zmq.POLLIN)
+        evt = self._socket.poll(1000 * self._timeout, flags=zmq.POLLIN)
         if not evt:
             raise Timeout()
 
@@ -330,12 +301,7 @@ class Client:
 
 
 class Server:
-
-    def __init__(
-        self,
-        api: RPCInterface,
-        conn_conf: IConnConf,
-    ) -> None:
+    def __init__(self, api: RPCInterface, conn_conf: IConnConf) -> None:
 
         self._api = api
 
@@ -375,16 +341,12 @@ class Server:
                     pub.close()
                     break
 
-        t = threading.Thread(target=_sender, name='ResultSender')
+        t = threading.Thread(target=_sender, name="ResultSender")
         t.start()
         return t
 
-    def _make_done_callback(
-        self,
-        id_: bytes,
-        func: Callable[..., Any]
-    ) -> Callable[[Future], None]:
-        logger.debug('[id: %s]. Created done callback', id_)
+    def _make_done_callback(self, id_: bytes, func: Callable[..., Any]) -> Callable[[Future], None]:
+        logger.debug("[id: %s]. Created done callback", id_)
         if self._result_sender is None:
             self._result_sender = self._start_result_sender()
 
@@ -395,10 +357,10 @@ class Server:
                 result = fut.result()
                 resp = [id_, State.Return.value, *serialize_return(func, result)]
             except Exception as e:
-                logger.error('[id: %s]. Future expection', id_, exc_info=1)
-                resp = [id_, State.Error.value, str(e).encode('utf-8')]
+                logger.error("[id: %s]. Future expection", id_, exc_info=1)
+                resp = [id_, State.Error.value, str(e).encode("utf-8")]
 
-            logger.debug('[id: %s]. Sending result', id_)
+            logger.debug("[id: %s]. Sending result", id_)
             self._results_queue.put(resp)
 
         return _done_callback
@@ -407,12 +369,12 @@ class Server:
         frames_it = iter(frames)
         args = deserialize_args(func, frames_it)
 
-        logger.debug('[id: %s]. Invoking method %s', id_, func)
+        logger.debug("[id: %s]. Invoking method %s", id_, func)
         ret = func(*args)
-        logger.debug('[id: %s]. Return value', id_)
+        logger.debug("[id: %s]. Return value", id_)
 
         if isfuture(ret):
-            logger.debug('[id: %s]. Handling future', id_)
+            logger.debug("[id: %s]. Handling future", id_)
 
             self._futures.add(ret)
             ret.add_done_callback(self._make_done_callback(id_, func))
@@ -433,11 +395,11 @@ class Server:
             method_id = method_id_frm.bytes
             logger.debug("Invoking %s method", method_name)
 
-            method = self._method_by_name.get(method_name.decode('utf-8'))
+            method = self._method_by_name.get(method_name.decode("utf-8"))
 
             try:
                 if method is None:
-                    raise Exception(f'Unknown method {method_name}')
+                    raise Exception(f"Unknown method {method_name}")
 
                 resp_frames = self._call(method, method_id, args)
 
@@ -452,11 +414,9 @@ class Server:
                 break
 
             except Exception as e:
-                logger.exception('Exception during method %s call', method)
+                logger.exception("Exception during method %s call", method)
                 # TODO: Better exception serialization
-                self._socket.send_multipart([
-                    Mode.Normal.value, State.Error.value, str(e).encode('ascii')
-                ])
+                self._socket.send_multipart([Mode.Normal.value, State.Error.value, str(e).encode("ascii")])
             # TODO: rearm socket after timeout to avoid being stuck in sending state
             # in case of client missing (dead)
             else:

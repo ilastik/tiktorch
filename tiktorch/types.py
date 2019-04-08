@@ -40,7 +40,9 @@ class LabeledNDArray(NDArray):
     Containter for numpy array with a label and an id
     """
 
-    def __init__(self, array: np.ndarray, label: np.ndarray, id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None) -> None:
+    def __init__(
+        self, array: np.ndarray, label: np.ndarray, id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None
+    ) -> None:
         super().__init__(array, id_)
         self._label = label
 
@@ -77,6 +79,7 @@ class LabeledNDArrayBatch(NDArrayBatch):
     """
     Batch of LabeledNDArrays
     """
+
     def __init__(self, arrays: List[LabeledNDArray]):
         super().__init__(arrays)
 

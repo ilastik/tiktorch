@@ -41,7 +41,7 @@ class IServerLauncher:
     def is_server_running(self):
         try:
             c = Client(IFlightControl(), self._conn_conf)
-            return c.ping() == b'pong'
+            return c.ping() == b"pong"
         except Timeout:
             return False
 
@@ -89,18 +89,24 @@ class LocalServerLauncher(IServerLauncher):
 
         self._process = subprocess.Popen(
             [
-                sys.executable, '-m', 'tiktorch.server',
-                '--port',  str(port),
-                '--notify-port', str(notify_port),
-                '--addr', addr
+                sys.executable,
+                "-m",
+                "tiktorch.server",
+                "--port",
+                str(port),
+                "--notify-port",
+                str(notify_port),
+                "--addr",
+                addr,
             ],
-            stdout=sys.stdout, stderr=sys.stderr
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
 
         try:
             wait(self.is_server_running)
         except Timeout:
-            raise Exception('Failed to start local TikTorchServer')
+            raise Exception("Failed to start local TikTorchServer")
 
 
 class SSHCred:
@@ -172,15 +178,15 @@ class RemoteSSHServerLauncher(IServerLauncher):
                         print(buf.decode("utf-8"))
 
                 if not should_continue:
-                    print('Server exited with status: %s' % channel.recv_exit_status())
+                    print("Server exited with status: %s" % channel.recv_exit_status())
                     transport.close()
 
-        t = threading.Thread(target=_monitor_and_report, name='LauncherSSHMonitoring')
+        t = threading.Thread(target=_monitor_and_report, name="LauncherSSHMonitoring")
         t.start()
 
         self._channel = channel
 
         try:
-            channel.exec_command(f'tiktorch --addr {addr} --port {port} --notify-port {notify_port}')
+            channel.exec_command(f"tiktorch --addr {addr} --port {port} --notify-port {notify_port}")
         except timeout as e:
             raise RuntimeError("Failed to start TiktorchServer")

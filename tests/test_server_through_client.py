@@ -8,6 +8,7 @@ from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
 
+
 @pytest.fixture
 def ctx():
     return zmq.Context()

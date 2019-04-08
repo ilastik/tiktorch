@@ -19,7 +19,8 @@ from .types import RPCFuture, isfutureret
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class Result:
     def __init__(self, *, value=None, err=None):
@@ -73,7 +74,6 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-
 def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
     client = MPClient(iface_cls.__name__, conn, timeout)
     exposed = get_exposed_methods(iface_cls)
@@ -85,10 +85,13 @@ def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
                 return client._invoke(method.__name__, *args, **kwargs)
 
             if isfutureret(method):
+
                 @wraps(method)
                 def __call__(self, *args, **kwargs) -> Any:
                     return self.async_(*args, **kwargs)
+
             else:
+
                 @wraps(method)
                 def __call__(self, *args, **kwargs) -> Any:
                     fut = client._invoke(method.__name__, *args, **kwargs)
@@ -133,24 +136,24 @@ class MPClient:
 
                     # signal
                     if id_ is None:
-                        if res == b'shutdown':
-                            self.logger.debug('[signal] Shutdown')
+                        if res == b"shutdown":
+                            self.logger.debug("[signal] Shutdown")
                             self._shutdown()
 
                     # method
                     else:
                         fut = self._requests.pop(id_, None)
-                        self.logger.debug('[id:%s] Recieved result', id_)
+                        self.logger.debug("[id:%s] Recieved result", id_)
 
                         if fut is not None:
                             res.to_future(fut)
                         else:
-                            self.logger.debug('[id:%s] Discarding result', id_)
+                            self.logger.debug("[id:%s] Discarding result", id_)
 
                 if self._shutdown_event.is_set():
                     break
 
-        self._poller = Thread(target=_poller, name=f'ClientPoller[{self._name}]')
+        self._poller = Thread(target=_poller, name=f"ClientPoller[{self._name}]")
         self._poller.daemon = True
         self._poller.start()
 
@@ -181,7 +184,7 @@ class MPServer:
 
     def _send_result(self, fut):
         id_ = self._futures.pop(fut, None)
-        self.logger.debug('[id: %s] Sending result', id_)
+        self.logger.debug("[id: %s] Sending result", id_)
         if id_:
             self._conn.send([id_, Result.OK(fut.result())])
 
@@ -202,7 +205,7 @@ class MPServer:
                 if isinstance(res, Shutdown):
                     self.logger.debug("[id: %s] Sending shutdown", id_)
                     self._conn.send([id_, Result.OK(Shutdown())])
-                    self._conn.send([None, b'shutdown'])
+                    self._conn.send([None, b"shutdown"])
                     break
 
             except Exception as e:
