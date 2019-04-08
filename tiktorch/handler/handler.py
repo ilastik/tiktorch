@@ -25,7 +25,9 @@ from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
 from tiktorch.tiktypes import (
     TikTensor,
+    LabeledTikTensor,
     TikTensorBatch,
+    LabeledTikTensorBatch,
     PointBase,
     Point2D,
     Point3D,
@@ -62,8 +64,26 @@ class IHandler(RPCInterface):
     def shutdown(self) -> Shutdown:
         raise NotImplementedError
 
+    # Inference
     @exposed
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
+        raise NotImplementedError
+
+    # Training
+    @exposed
+    def resume_training(self) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def pause_training(self) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def update_training_data(self, data: LabeledTikTensorBatch) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def update_validation_data(self, data: LabeledTikTensorBatch) -> None:
         raise NotImplementedError
 
 
@@ -229,11 +249,11 @@ class HandlerProcess(IHandler):
             # do dry run for truly new devices
             new_devices = [d for d in new_devices if d not in self.devices]
             if new_devices:
-                approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
+                approved_devices, training_shape, valid_shapes, output_shape = self.dry_run.dry_run(
                     new_devices,
                     training_shape=self.config.get(TRAINING_SHAPE, None),
                     valid_shapes=self.valid_shapes,
-                    shrinkage=self.shrinkage,
+                    output_shape=self.output_shape,
                 ).result()
                 self.idle_devices += approved_devices
 
@@ -247,12 +267,13 @@ class HandlerProcess(IHandler):
                 else:
                     self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
                     if not self.valid_shapes:
-                        raise ValueError(f"No valid shapes found after {new_devices}")
+                        # todo: make sure this happens inside the dry runa dn these new devcies aren't added at all
+                        raise ValueError(f"No valid shapes found after adding devices: {new_devices}")
 
-                if self.shrinkage is None:
-                    self.shrinkage = shrinkage
+                if self.output_shape is None:
+                    self.output_shape = output_shape
                 else:
-                    assert self.shrinkage == shrinkage
+                    assert self.output_shape == output_shape
 
             # wait for old devices to be free
             # todo: wait for old devices to be free (when they are returned as futures)
@@ -261,7 +282,7 @@ class HandlerProcess(IHandler):
 
             # (re-)assign freed old and new devices
             self._assign_idle_devices()
-            fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
+            fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.output_shape))
 
     def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
         if self.training.get_idle():
@@ -401,9 +422,12 @@ class HandlerProcess(IHandler):
     def pause_training(self) -> None:
         self.training.pause_training()
 
-    # def update_training_dataset(self, keys: Iterable, data: torch.Tensor) -> None:
-    #     self.training_conn.send(("update_dataset", {"name": TRAINING, "keys": keys, "data": data}))
-    #
+    def update_training_dataset(self, data: LabeledTikTensorBatch) -> None:
+        self.training.update_dataset(TRAINING, data)
+
+    def update_validation_dataset(self, data: LabeledTikTensorBatch) -> None:
+        self.training.update_dataset(VALIDATION, data)
+
     # def request_state(self) -> None:
     #     model_state = pickle.dumps(self.model.state_dict())
     #     optimizer_state = pickle.dumps(self.model.optimizer.state_dict())

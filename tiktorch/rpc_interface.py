@@ -1,7 +1,10 @@
-from tiktorch.rpc import RPCInterface, exposed, RPCFuture
-from tiktorch.types import NDArray, NDArrayBatch
+from typing import List, Tuple, Union
 
-from typing import List, Tuple
+from tiktorch.rpc import RPCInterface, exposed, RPCFuture
+from tiktorch.types import NDArray, LabeledNDArrayBatch
+from tiktorch.tiktypes import Point2D, Point3D, Point4D
+
+
 
 class IFlightControl(RPCInterface):
     @exposed
@@ -17,27 +20,39 @@ class INeuralNetworkAPI(RPCInterface):
     @exposed
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> None:
+    ) -> RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]:
         raise NotImplementedError
 
     @exposed
     def set_hparams(self, params: dict) -> None:
         raise NotImplementedError
 
+    # inference
     @exposed
     def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
         raise NotImplementedError
 
+    # training
     @exposed
-    def pause(self) -> None:
+    def pause_training(self) -> None:
         raise NotImplementedError
 
     @exposed
-    def resume(self) -> None:
+    def resume_training(self) -> None:
         raise NotImplementedError
 
     @exposed
-    def train(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
+    def update_training_data(self, data: LabeledNDArrayBatch) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
         raise NotImplementedError
 
     # for information

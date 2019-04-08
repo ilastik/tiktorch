@@ -5,16 +5,16 @@ import torch
 import os
 
 from torch import multiprocessing as mp
-
-from typing import Optional, List, Tuple, Generator, Iterable
+from typing import Optional, List, Tuple, Generator, Iterable, Union
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
-from tiktorch.types import NDArray, NDArrayBatch
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
+from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch, Point2D, Point3D, Point4D
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import convert_tik_fut_to_ndarray_fut
+from tiktorch.utils import convert_tik_fut_to_ndarray_fut, get_error_msg_for_invalid_config, get_error_msg_for_incomplete_config
+from tiktorch.configkeys import MINIMAL_CONFIG
 
 if torch.cuda.is_available():
     torch.multiprocessing.set_start_method("spawn", force=True)
@@ -158,7 +158,17 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
 
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> None:
+    ) -> RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]:
+        incomplete_msg = get_error_msg_for_incomplete_config(config)
+        if incomplete_msg:
+            raise ValueError(incomplete_msg)
+
         if not devices:
             devices = ["cpu"]
 
@@ -183,7 +193,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         )
         p.start()
         self.handler = create_client(IHandler, server_conn)
-        self.handler.set_devices(handler_devices)
+        return self.handler.set_devices(handler_devices)
 
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
@@ -192,16 +202,16 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         tik_fut = self.handler.forward(data=TikTensor(batch))
         return convert_tik_fut_to_ndarray_fut(tik_fut)
 
-    def train(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
-        return self.handler.train(TikTensorBatch(raw, labels))
+    def update_training_data(self, data: LabeledNDArrayBatch) -> None:
+        return self.handler.update_training_data(LabeledTikTensorBatch(data))
 
-    def validate(self, raw: NDArrayBatch, labels: NDArrayBatch) -> RPCFuture:
-        return self.handler.validate(raw, labels)
+    def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
+        return self.handler.update_validation_data(LabeledTikTensorBatch(data))
 
-    def pause(self) -> None:
+    def pause_training(self) -> None:
         self.handler.pause_training()
 
-    def resume(self) -> None:
+    def resume_training(self) -> None:
         self.handler.resume_training()
 
     def set_hparams(self, hparams: dict) -> None:
@@ -218,7 +228,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger.info("Shutting down...")
         if self.handler:
             try:
-                res = self.handler.shutdown.async_().result(timeout=10)
+                res = self.handler.shutdown.async_().result(timeout=20)
             except TimeoutError as e:
                 self.logger.error(e)
 

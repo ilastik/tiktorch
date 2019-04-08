@@ -16,10 +16,10 @@ from inferno.trainers import Trainer as InfernoTrainer
 
 from .datasets import DynamicDataset
 
-from tiktorch.utils import is_valid_tiktorch_config
+from tiktorch.utils import get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch
 from tiktorch import log
 from tiktorch.configkeys import TRAINING, VALIDATION, BATCH_SIZE, NUM_ITERATION_DONE, MAX_NUM_ITERATIONS, MAX_NUM_ITERATIONS_PER_UPDATE, LOSS_CRITERION_CONFIG, OPTIMIZER_CONFIG
 
@@ -66,11 +66,11 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def resume_training(self):
+    def resume_training(self) -> None:
         raise NotImplementedError
 
     @exposed
-    def pause_training(self):
+    def pause_training(self) -> None:
         raise NotImplementedError
 
     @exposed
@@ -78,11 +78,11 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_dataset(self, name: str, data: TikTensorBatch):
+    def update_dataset(self, name: str, data: LabeledTikTensorBatch):
         raise NotImplementedError
 
     @exposed
-    def update_hparams(self, name: str, hparams: Dict):
+    def update_hparams(self, hparams: dict) -> None:
         raise NotImplementedError
 
 
@@ -158,10 +158,7 @@ class TrainingProcess(ITraining):
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
         for key, default in self.trainer_defaults.items():
-            if key in self.config[TRAINING]:
-                trainer_config[INFERNO_NAMES.get(key, key)] = self.config[TRAINING][key]
-            else:
-                trainer_config[INFERNO_NAMES.get(key, key)] = default
+            trainer_config[INFERNO_NAMES.get(key, key)] = self.config[TRAINING].get(key, default)
 
         trainer_config[INFERNO_LOGGER_CONFIG] = {"name": "InfernoTrainer"}
         trainer_config[INFERNO_MAX_NUM_EPOCHS] = "inf"
@@ -291,7 +288,7 @@ class TrainingProcess(ITraining):
         # with self.training_settings_lock:
         #     self.trainer.set_max_num_iterations(0)
 
-    def update_dataset(self, name: str, data: TikTensorBatch) -> None:
+    def update_dataset(self, name: str, data: LabeledTikTensorBatch) -> None:
         assert name in (
             TRAINING,
             VALIDATION,
@@ -302,8 +299,8 @@ class TrainingProcess(ITraining):
 
         self.update_trainer_event.set()
 
-    def update_hparams(self, hparams: dict):
-        assert is_valid_tiktorch_config(hparams)
+    def update_hparams(self, hparams: dict) -> None:
+        assert not get_error_msg_for_invalid_config(hparams)
 
         with self.training_settings_lock:
             self.update_trainer_event.set()

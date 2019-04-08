@@ -3,7 +3,7 @@ import torch
 
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.tiktypes import LabeledTikTensorBatch
 
 
 class DynamicDataset(Dataset):
@@ -13,14 +13,14 @@ class DynamicDataset(Dataset):
     Comparison to the current generator implementation at: https://stackoverflow.com/a/47202816
     """
 
-    def __init__(self, data: TikTensorBatch = None, transforms=None, gamma: float = 0.9) -> None:
+    def __init__(self, data: LabeledTikTensorBatch = None, transforms=None, gamma: float = 0.9) -> None:
         assert transforms is None or callable(transforms), "Given 'transforms' is not callable"
         self.transforms = transforms
         # the data dict holds values for each key, these values are typically a tuple of (raw img, label img)
         if data is None:
-            data = TikTensorBatch([])
+            data = LabeledTikTensorBatch([])
 
-        self.data = dict(zip(data.ids, data.as_torch(with_label=True)))
+        self.data = dict(zip(data.ids, data.as_torch()))
         # update counts keeps track of how many times a specific key has been added/updated
         self.weights = {key: 1.0 for key in data.ids}
         self.update_counts = {key: 1 for key in data.ids}
@@ -41,7 +41,7 @@ class DynamicDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def update(self, data: TikTensorBatch) -> None:
+    def update(self, data: LabeledTikTensorBatch) -> None:
         """
         :param keys: list of keys to identify each value by
         :param values: list of new values. (remove from dataset if not bool(value). The count will be kept.)
@@ -50,7 +50,7 @@ class DynamicDataset(Dataset):
         # update update counts
 
         for d in data:
-            key, value = d.id, d.as_torch(with_label=True)
+            key, value = d.id, d.as_torch()
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
             # remove deleted samples (values)
             if value is None:
