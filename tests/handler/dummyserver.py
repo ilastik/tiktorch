@@ -13,7 +13,6 @@ from tiktorch.tiktypes import TikTensor, TikTensorBatch
 logger = logging.getLogger(__name__)
 
 
-
 class DummyServer(INeuralNetworkAPI, IFlightControl):
     def __init__(self, **kwargs):
         self.handler_conn, server_conn = Pipe()

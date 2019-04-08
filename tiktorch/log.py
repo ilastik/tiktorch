@@ -17,19 +17,11 @@ CONFIG = {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
             "formatter": "default",
-        },
+        }
     },
     "loggers": {
-        "": {
-            "handlers": ["default"],
-            "level": "INFO",
-            "propagate": True
-        },
-        "tiktorch": {
-            "handlers": ["default"],
-            "level": "DEBUG",
-            "propagate": False
-        }
+        "": {"handlers": ["default"], "level": "INFO", "propagate": True},
+        "tiktorch": {"handlers": ["default"], "level": "DEBUG", "propagate": False},
     },
 }
 logging.config.dictConfig(CONFIG)
@@ -38,12 +30,6 @@ logging.config.dictConfig(CONFIG)
 def configure(queue: mp.Queue) -> None:
     config = {
         **CONFIG,
-        "handlers": {
-            "default": {
-                "level": "DEBUG",
-                "class": "logging.handlers.QueueHandler",
-                "queue": queue,
-            }
-        },
+        "handlers": {"default": {"level": "DEBUG", "class": "logging.handlers.QueueHandler", "queue": queue}},
     }
     logging.config.dictConfig(config)

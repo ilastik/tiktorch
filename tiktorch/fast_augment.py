@@ -12,10 +12,20 @@ class AugmentationSuite(object):
     # This is not debugged yet :-(
     USE_NATIVE_ELASTIC_TRAFO = False
 
-    def __init__(self, normalize=True, random_flips=True, random_transpose=True,
-                 random_rotate=True, elastic_transform=True, patch_ignore_labels=True,
-                 allow_z_flips=False, elastic_transform_scale=2000, elastic_transform_sigma=50,
-                 elastic_transform_kernel_size=None, invert_binary_labels=False):
+    def __init__(
+        self,
+        normalize=True,
+        random_flips=True,
+        random_transpose=True,
+        random_rotate=True,
+        elastic_transform=True,
+        patch_ignore_labels=True,
+        allow_z_flips=False,
+        elastic_transform_scale=2000,
+        elastic_transform_sigma=50,
+        elastic_transform_kernel_size=None,
+        invert_binary_labels=False,
+    ):
         self.do_normalize = normalize
         self.do_random_flips = random_flips
         self.do_random_transpose = random_transpose
@@ -31,29 +41,26 @@ class AugmentationSuite(object):
             self.elastic_transform_kernel_size = 2 * self.elastic_transform_sigma + 1
         else:
             self.elastic_transform_kernel_size = elastic_transform_kernel_size
-        self._elastic_transformer = ElasticTransform(self.elastic_transform_scale,
-                                                     self.elastic_transform_sigma)
+        self._elastic_transformer = ElasticTransform(self.elastic_transform_scale, self.elastic_transform_sigma)
         # Privates
         self._gaussian_kernels = {}
 
     def normalize(self, data):
-        data = F.batch_norm(data[None], None, None, None, None, True, 0.)[0]
+        data = F.batch_norm(data[None], None, None, None, None, True, 0.0)[0]
         return data
 
     def random_flips(self, data, label):
-        mode = random.choice(['ud', 'lr', 'z',
-                              'udlr', 'udz', 'lrz',
-                              'udlrz', '---'])
-        if 'ud' in mode:
+        mode = random.choice(["ud", "lr", "z", "udlr", "udz", "lrz", "udlrz", "---"])
+        if "ud" in mode:
             # Negative step not supported as of yet in 0.4.1
             rev_idx = list(reversed(list(range(data.shape[-2]))))
             data = data[..., rev_idx, :]
             label = label[..., rev_idx, :]
-        if 'lr' in mode:
+        if "lr" in mode:
             rev_idx = list(reversed(list(range(data.shape[-1]))))
             data = data[..., rev_idx]
             label = label[..., rev_idx]
-        if 'z' in mode and self.allow_z_flips:
+        if "z" in mode and self.allow_z_flips:
             rev_idx = list(reversed(list(range(data.shape[-3]))))
             data = data[..., rev_idx, :, :]
             label = label[..., rev_idx, :, :]
@@ -72,13 +79,19 @@ class AugmentationSuite(object):
 
     def elastic_transform(self, data, label):
         if self.USE_NATIVE_ELASTIC_TRAFO:
-            data, perturbation = self._random_flow(data, sigma=self.elastic_transform_sigma,
-                                                   kernel_size=self.elastic_transform_kernel_size,
-                                                   scale=self.elastic_transform_scale)
-            label, _ = self._random_flow(label, sigma=self.elastic_transform_sigma,
-                                         scale=self.elastic_transform_scale,
-                                         kernel_size=self.elastic_transform_kernel_size,
-                                         perturbation=perturbation)
+            data, perturbation = self._random_flow(
+                data,
+                sigma=self.elastic_transform_sigma,
+                kernel_size=self.elastic_transform_kernel_size,
+                scale=self.elastic_transform_scale,
+            )
+            label, _ = self._random_flow(
+                label,
+                sigma=self.elastic_transform_sigma,
+                scale=self.elastic_transform_scale,
+                kernel_size=self.elastic_transform_kernel_size,
+                perturbation=perturbation,
+            )
         else:
             data_np = data.cpu().numpy()
             label_np = label.cpu().numpy()
@@ -100,7 +113,7 @@ class AugmentationSuite(object):
         return label, weights.float()
 
     def __call__(self, data, label):
-        logger = logging.getLogger('AugmentationSuite.__call__')
+        logger = logging.getLogger("AugmentationSuite.__call__")
         init_data_shape = data.shape
         init_label_shape = label.shape
         with torch.no_grad():
@@ -120,8 +133,10 @@ class AugmentationSuite(object):
                 if self.do_elastic_transform:
                     data, label = self.elastic_transform(data, label)
             except Exception:
-                logger.error(f"data.shape = {data.shape} (initially {init_data_shape}), "
-                             f"label.shape = {label.shape} (initially {init_label_shape})")
+                logger.error(
+                    f"data.shape = {data.shape} (initially {init_data_shape}), "
+                    f"label.shape = {label.shape} (initially {init_label_shape})"
+                )
                 raise
         return data, label, weights
 
@@ -142,17 +157,15 @@ class AugmentationSuite(object):
             y_grid = x_grid.t()
             xy_grid = torch.stack([x_grid, y_grid], dim=-1).float()
 
-            mean = (kernel_size - 1) / 2.
-            variance = sigma ** 2.
+            mean = (kernel_size - 1) / 2.0
+            variance = sigma ** 2.0
 
             # Calculate the 2-dimensional gaussian kernel which is
             # the product of two gaussian distributions for two different
             # variables (in this case called x and y)
-            gaussian_kernel = (1. / (2. * np.pi * variance)) * \
-                              torch.exp(
-                                  -torch.sum((xy_grid - mean) ** 2., dim=-1) / \
-                                  (2 * variance)
-                              )
+            gaussian_kernel = (1.0 / (2.0 * np.pi * variance)) * torch.exp(
+                -torch.sum((xy_grid - mean) ** 2.0, dim=-1) / (2 * variance)
+            )
             # Make sure sum of values in gaussian kernel equals 1.
             gaussian_kernel = gaussian_kernel / torch.sum(gaussian_kernel)
 
@@ -178,8 +191,7 @@ class AugmentationSuite(object):
     def _smooth_random_image(self, like, num_images, sigma, kernel_size):
         assert like.dim() == 3, "Only 2D supported for now."
         # Generate a random NCHW tensor scaled between [-1, 1] (modulo smoothing)
-        rand_image = torch.rand((num_images, 1, like.shape[-2], like.shape[-1]),
-                                device=like.device).sub_(0.5).mul_(2.)
+        rand_image = torch.rand((num_images, 1, like.shape[-2], like.shape[-1]), device=like.device).sub_(0.5).mul_(2.0)
         # Smooth
         smoothed_image = self._gaussian_smoothing_2d(rand_image, sigma, kernel_size)
         # Squeeze out the channel and return (NHW)
@@ -193,15 +205,15 @@ class AugmentationSuite(object):
             assert image.shape[1] == 1, "Only 2D supported for now."
             image = image.squeeze(1)
         # Image is now CHW
-        ii, jj = np.meshgrid(np.linspace(-1, 1, image.shape[-2], dtype='float32'),
-                             np.linspace(-1, 1, image.shape[-1], dtype='float32'))
+        ii, jj = np.meshgrid(
+            np.linspace(-1, 1, image.shape[-2], dtype="float32"), np.linspace(-1, 1, image.shape[-1], dtype="float32")
+        )
         ii, jj = map(torch.from_numpy, [ii, jj])
         # The grid is 2HW
         ij_grid = torch.stack([ii, jj], dim=0).float()
         # Perturb grid with a random field (2HW)
         if perturbation is None:
-            perturbation = self._smooth_random_image(image, num_images=2, sigma=sigma,
-                                                     kernel_size=kernel_size)
+            perturbation = self._smooth_random_image(image, num_images=2, sigma=sigma, kernel_size=kernel_size)
         perturbed_grid = ij_grid + (scale * perturbation)
         # Reshape to 1HW2
         perturbed_grid = perturbed_grid.transpose(0, -1)[None]
@@ -223,6 +235,5 @@ def test_augmentor():
     assert out_weight.shape == (1, 1, 100, 100)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_augmentor()
-

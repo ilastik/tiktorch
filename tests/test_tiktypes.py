@@ -8,6 +8,7 @@ def test_tt():
     assert isinstance(a.as_torch(), tuple)
     assert len(a.as_torch()) == 2
 
+
 def test_ttb():
     a = LabeledTikTensorBatch([LabeledTikTensor(torch.zeros(5, 5), torch.zeros(5, 5))])
     assert isinstance(a.as_torch(), list)

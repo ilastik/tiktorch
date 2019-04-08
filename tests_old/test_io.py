@@ -27,7 +27,7 @@ class SimpleIOTest(TestCase):
         tik_torch = TikTorch(model=wannabe)
 
         with tempdir() as d:
-            the_path = '{}/testfile.nn'.format(d)
+            the_path = "{}/testfile.nn".format(d)
             tik_torch.serialize(to_path=the_path)
             new_torch = TikTorch.unserialize(from_path=the_path)
             self.assertIsInstance(new_torch, TikTorch)
@@ -37,7 +37,7 @@ class SimpleIOTest(TestCase):
         tik_torch = TikTorch(model=wannabe)
 
         with tempdir() as d:
-            the_path = '{}/testfile.nn'.format(d)
+            the_path = "{}/testfile.nn".format(d)
             tik_torch.serialize(to_path=the_path)
             new_torch = TikTorch.unserialize(from_path=the_path)
             self.assertIsInstance(new_torch, TikTorch)
@@ -47,7 +47,7 @@ class SimpleIOTest(TestCase):
         tik_torch = TikTorch(model=wannabe)
         tik_torch.cuda()
         with tempdir() as d:
-            the_path = '{}/testfile.nn'.format(d)
+            the_path = "{}/testfile.nn".format(d)
             tik_torch.serialize(to_path=the_path)
             new_torch = TikTorch.unserialize(from_path=the_path)
             self.assertIsInstance(new_torch, TikTorch)

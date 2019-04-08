@@ -307,7 +307,12 @@ class HandlerProcess(IHandler):
 
         training_idle = self.training.get_idle()
         inference_idle = self.inference.get_idle()
-        self.logger.debug("assigning idle devices: %s (training idle: %r, inference idle: %r)", self.idle_devices, training_idle, inference_idle)
+        self.logger.debug(
+            "assigning idle devices: %s (training idle: %r, inference idle: %r)",
+            self.idle_devices,
+            training_idle,
+            inference_idle,
+        )
         training_devices_changed = False
         inference_devices_changed = False
         if training_idle and inference_idle:
@@ -411,8 +416,8 @@ class HandlerProcess(IHandler):
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
-        self.new_device_names.put('whatever_just_update_idle_because_this_is_not_a_tuple_nor_None')
-        self.logger.debug('forward')
+        self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
+        self.logger.debug("forward")
         return self.inference.forward(data)
 
     # training

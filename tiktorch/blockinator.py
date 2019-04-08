@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from functools import reduce
 import logging
 
-logger = logging.getLogger('Blockinator')
+logger = logging.getLogger("Blockinator")
 
 
 class slicey(object):
@@ -48,9 +48,7 @@ class slicey(object):
     @classmethod
     def from_(cls, sl, padding=None, shape=None):
         if isinstance(sl, slice):
-            return cls(sl.start, sl.stop, sl.step,
-                       padding=((0, 0) if padding is None else padding),
-                       shape=shape)
+            return cls(sl.start, sl.stop, sl.step, padding=((0, 0) if padding is None else padding), shape=shape)
         elif isinstance(sl, slicey):
             return sl
         else:
@@ -66,13 +64,11 @@ class slicey(object):
         return slice(self.__istart, self.__istop, self.__istep)
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.start}:{self.stop}/{self.shape}:{self.step} + " \
-               f"{self.padding})"
+        return f"{self.__class__.__name__}({self.start}:{self.stop}/{self.shape}:{self.step} + " f"{self.padding})"
 
 
 class Blockinator(object):
-    def __init__(self, data, base_shape, num_channel_axes=0,
-                 pad_fn=(lambda tensor, padding: tensor)):
+    def __init__(self, data, base_shape, num_channel_axes=0, pad_fn=(lambda tensor, padding: tensor)):
         """
         Parameters
         ----------
@@ -94,15 +90,14 @@ class Blockinator(object):
 
     @property
     def spatial_shape(self):
-        return self.data.shape[self.num_channel_axes:]
+        return self.data.shape[self.num_channel_axes :]
 
     @property
     def num_blocks(self):
-        return tuple(shape//size for shape, size in zip(self.spatial_shape, self.block_shape))
+        return tuple(shape // size for shape, size in zip(self.spatial_shape, self.block_shape))
 
     def get_slice(self, *block):
-        return tuple(slice(_size * _block, _size * (_block + 1))
-                     for _block, _size in zip(block, self.block_shape))
+        return tuple(slice(_size * _block, _size * (_block + 1)) for _block, _size in zip(block, self.block_shape))
 
     def space_cake(self, *slices):
         # This function slices the data, and adds a halo if requested.
@@ -110,8 +105,9 @@ class Blockinator(object):
         slices = [slicey.from_(sl) for sl in slices]
         # Pad out-of-array values
         # Get unpadded volume
-        unpadded_volume = self.data[tuple(slice(0, None) for _ in range(self.num_channel_axes)) +
-                                    tuple(sl.slice for sl in slices)]
+        unpadded_volume = self.data[
+            tuple(slice(0, None) for _ in range(self.num_channel_axes)) + tuple(sl.slice for sl in slices)
+        ]
         padding = [None] * self.num_channel_axes + [sl.padding for sl in slices]
         padded_volume = self.pad_fn(unpadded_volume, padding)
         return padded_volume
@@ -145,34 +141,34 @@ class Blockinator(object):
                         return num_blocks + stop - 1
 
                 # Get the full slice
-                starts = [_process_starts(_sl.start, _num_blocks)
-                          for _sl, _num_blocks in zip(item, self.num_blocks)]
-                stops = [_process_stops(_sl.stop, _num_blocks)
-                         for _sl, _num_blocks in zip(item, self.num_blocks)]
+                starts = [_process_starts(_sl.start, _num_blocks) for _sl, _num_blocks in zip(item, self.num_blocks)]
+                stops = [_process_stops(_sl.stop, _num_blocks) for _sl, _num_blocks in zip(item, self.num_blocks)]
                 slice_starts = [_sl.start for _sl in self.get_slice(*starts)]
                 slice_stops = [_sl.stop for _sl in self.get_slice(*stops)]
-                full_slice = [slice(starts, stops)
-                              for starts, stops in zip(slice_starts, slice_stops)]
+                full_slice = [slice(starts, stops) for starts, stops in zip(slice_starts, slice_stops)]
             else:
                 raise NotImplementedError
         else:
             raise NotImplementedError
         # Time to throw in the halo. Check if a processor is attached
-        if self._processor is not None and hasattr(self._processor, 'halo'):
+        if self._processor is not None and hasattr(self._processor, "halo"):
             halo = self._processor.halo
         else:
             halo = None
         if halo is not None:
             assert len(halo) == len(self.spatial_shape)
             # Compute halo in units of block size
-            num_halo_blocks = [int(np.ceil(_halo / _block_shape))
-                               for _halo, _block_shape in zip(halo, self.block_shape)]
-            spatial_padding = [(_num_halo_blocks * _block_shape,) * 2
-                               for _num_halo_blocks, _block_shape in zip(num_halo_blocks,
-                                                                         self.block_shape)]
-            sliceys = [slicey.from_(_sl, _padding, _shape)
-                       for _sl, _padding, _shape in zip(full_slice, spatial_padding,
-                                                        self.spatial_shape)]
+            num_halo_blocks = [
+                int(np.ceil(_halo / _block_shape)) for _halo, _block_shape in zip(halo, self.block_shape)
+            ]
+            spatial_padding = [
+                (_num_halo_blocks * _block_shape,) * 2
+                for _num_halo_blocks, _block_shape in zip(num_halo_blocks, self.block_shape)
+            ]
+            sliceys = [
+                slicey.from_(_sl, _padding, _shape)
+                for _sl, _padding, _shape in zip(full_slice, spatial_padding, self.spatial_shape)
+            ]
             sliced = self.space_cake(*sliceys)
         else:
             sliced = self.space_cake(*full_slice)
@@ -197,7 +193,7 @@ class Blockinator(object):
         # if it does not work, process it blockwise
         halo = self.processor.halo_in_blocks
         output_tensor = torch.empty_like(self.data).cpu()
-        
+
         for i in range(halo[0], self.num_blocks[0] - halo[0]):
             for j in range(halo[1], self.num_blocks[1] - halo[1]):
                 if len(self.num_blocks) == 3:
@@ -205,14 +201,14 @@ class Blockinator(object):
                         with torch.no_grad():
                             out = self.processor.process_tensor(self[i, j, k]).cpu()
                         out = self.processor.crop_halo(out, self.num_channel_axes)
-                        output_tensor[[slice(None)] * self.num_channel_axes +
-                                      [sl for sl in self.get_slice(i, j, k)]] = out
+                        output_tensor[
+                            [slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j, k)]
+                        ] = out
                 else:
                     with torch.no_grad():
                         out = self.processor.process_tensor(self[i, j]).cpu()
                         out = self.processor.crop_halo(out, self.num_channel_axes)
-                        output_tensor[[slice(None)] * self.num_channel_axes +
-                                      [sl for sl in self.get_slice(i, j)]] = out
+                        output_tensor[[slice(None)] * self.num_channel_axes + [sl for sl in self.get_slice(i, j)]] = out
         return self.processor.crop_output_tensor(output_tensor, self.num_channel_axes)
 
     @property
@@ -231,10 +227,10 @@ def np_pad(x, padding):
     np_padding = []
     for _dim_pad in padding:
         if _dim_pad is None:
-            np_padding.append((0,0))
+            np_padding.append((0, 0))
         else:
             np_padding.append(_dim_pad)
-    return np.pad(x, np_padding, mode='reflect')
+    return np.pad(x, np_padding, mode="reflect")
 
 
 def th_pad(x, padding):
@@ -248,11 +244,11 @@ def th_pad(x, padding):
         if _dim_pad is not None:
             torch_padding.extend(_dim_pad)
     # pytorch 0.4.1 only implements reflect padding for tensors of shape (N, C, H, W) (or smaller)
-    return thf.pad(x, torch_padding, mode='reflect') if x.dim() < 5 else thf.pad(x, torch_padding)
+    return thf.pad(x, torch_padding, mode="reflect") if x.dim() < 5 else thf.pad(x, torch_padding)
 
 
 def _test_blocky_basic():
-    dynamic_shape = DynamicShape('(32 * (nH + 1), 32 * (nW + 1))')
+    dynamic_shape = DynamicShape("(32 * (nH + 1), 32 * (nW + 1))")
     block = Blockinator(torch.rand(256, 256), dynamic_shape)
     assert block.num_blocks == (8, 8)
     assert block.get_slice(0, 0) == (slice(0, 32, None), slice(0, 32, None))
@@ -261,12 +257,14 @@ def _test_blocky_basic():
 
 def _test_blocky_halo():
     from argparse import Namespace
-    dynamic_shape = DynamicShape('(32 * (nH + 1), 32 * (nW + 1))')
+
+    dynamic_shape = DynamicShape("(32 * (nH + 1), 32 * (nW + 1))")
     block = Blockinator(torch.rand(256, 256), dynamic_shape)
     processor = Namespace(halo=[4, 4])
     with block.attach(processor):
         out = block[1:3, 2:4]
     print(out.shape)
+
 
 def _test_pad_function():
     t4d = torch.rand(1, 1, 32, 32)
@@ -279,10 +277,11 @@ def _test_pad_function():
     p5d = (None, None, (5, 5), (8, 8), (16, 16))
     assert th_pad(t5d, p5d).shape == np_pad(n5d, p5d).shape
 
-if __name__ == '__main__':
-    #dynamic_shape = DynamicShape('(32 * (nH + 1), 32 * (nW + 1))')
-    #block = Blockinator(torch.rand(256, 256), dynamic_shape)
-    #for i in range(block.num_blocks[0]):
+
+if __name__ == "__main__":
+    # dynamic_shape = DynamicShape('(32 * (nH + 1), 32 * (nW + 1))')
+    # block = Blockinator(torch.rand(256, 256), dynamic_shape)
+    # for i in range(block.num_blocks[0]):
     #    for j in range(block.num_blocks[1]):
     #        print(block[i, j].shape, block.get_slice(i, j))
     _test_blocky_halo()

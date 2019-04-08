@@ -5,7 +5,6 @@ from tiktorch.types import NDArray, LabeledNDArrayBatch
 from tiktorch.tiktypes import Point2D, Point3D, Point4D
 
 
-
 class IFlightControl(RPCInterface):
     @exposed
     def ping(self) -> bytes:

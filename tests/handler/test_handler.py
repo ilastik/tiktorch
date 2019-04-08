@@ -18,7 +18,6 @@ def handler2d(tiny_model_2d, log_queue):
     hp.shutdown()
 
 
-
 @pytest.fixture
 def handler3d(tiny_model_3d, log_queue):
     hp = HandlerProcess(**tiny_model_3d, log_queue=log_queue)
@@ -103,7 +102,6 @@ def test_forward_2d_through_client(client2d, tiny_model_2d):
     for i, fut in enumerate(futs):
         fut.result(timeout=10)
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
-
 
 
 def test_forward_3d(handler3d, tiny_model_3d):

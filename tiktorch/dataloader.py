@@ -19,15 +19,11 @@ class TikTorchDataset(Dataset):
 
     def get_transforms(self):
         # TODO: data augmentation via config file
-        transforms = Compose(RandomFlip(),
-                             RandomRotate(),
-                             ElasticTransform(alpha=2000., sigma=50.),
-                             AsTorchBatch(2))
+        transforms = Compose(RandomFlip(), RandomRotate(), ElasticTransform(alpha=2000.0, sigma=50.0), AsTorchBatch(2))
         return transforms
 
     def __getitem__(self, index):
-        return self.transform(self.transform_raw(self.raw_volume[index][0, 0, :, :]),
-                              self.labels[index][0, 0, :, :])
+        return self.transform(self.transform_raw(self.raw_volume[index][0, 0, :, :]), self.labels[index][0, 0, :, :])
 
     def __len__(self):
         assert len(self.raw_volume) == len(self.labels)
@@ -48,7 +44,7 @@ def get_dataloader(raw, labels, config=None):
     torch.utils.data.dataloader.DataLoader
         Data loader built as configured.
     """
-    #config = yaml2dict(config)
+    # config = yaml2dict(config)
     dataset = TikTorchDataset(raw, labels)
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
     return loader

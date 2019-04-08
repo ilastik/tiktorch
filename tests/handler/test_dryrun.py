@@ -44,6 +44,7 @@ def test_with_given_training_shape(tiny_model_2d):
     finally:
         dr.shutdown()
 
+
 def test_with_given_training_shape_intervall(tiny_model_2d):
     config = tiny_model_2d["config"]
     if TRAINING_SHAPE in config[TRAINING]:
