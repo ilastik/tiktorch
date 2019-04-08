@@ -1,10 +1,11 @@
-from logging import getLogger
-from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
-from collections import namedtuple
-
 import zmq
 
+from collections import namedtuple
+from logging import getLogger
+from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
 from zmq.utils import jsonapi
+
+from tiktorch.rpc import SetDeviceReturnType
 
 
 T = TypeVar("T")
@@ -233,3 +234,13 @@ class BoolSerializer(ISerializer[bool]):
     def deserialize(cls, frames: FusedFrameIterator) -> bool:
         frame = next(frames)
         return bool(frame.bytes)
+
+@serializer_for(SetDeviceReturnType, tag=b"SetDeviceReturnType")
+class SetDeviceReturnTypeSerializer(ISerializer[SetDeviceReturnType]):
+    @classmethod
+    def serialize(cls, obj: SetDeviceReturnType) -> Iterator[zmq.Frame]:
+        yield zmq.Frame(obj[0])  # todo: make amazing!
+
+    @classmethod
+    def deserialize(cls, frames: "FusedFrameIterator") -> SetDeviceReturnType:
+        raise NotImplementedError

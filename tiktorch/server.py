@@ -7,7 +7,7 @@ import os
 from torch import multiprocessing as mp
 from typing import Optional, List, Tuple, Generator, Iterable, Union
 
-from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture, SetDeviceReturnType
 from tiktorch.rpc.mp import MPClient, create_client
 from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
 from tiktorch.tiktypes import (
@@ -170,13 +170,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
 
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> RPCFuture[
-        Union[
-            Tuple[Point2D, List[Point2D], Point2D],
-            Tuple[Point3D, List[Point3D], Point3D],
-            Tuple[Point4D, List[Point4D], Point4D],
-        ]
-    ]:
+    ) -> RPCFuture[SetDeviceReturnType]:
         incomplete_msg = get_error_msg_for_incomplete_config(config)
         if incomplete_msg:
             raise ValueError(incomplete_msg)

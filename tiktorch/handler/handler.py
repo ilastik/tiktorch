@@ -135,7 +135,7 @@ class HandlerProcess(IHandler):
         self.logger = logging.getLogger(__name__)
         self.logger.info("started")
         self.valid_shapes: Optional[Union[List[Point2D], List[Point3D], List[Point4D]]] = None
-        self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
+        self.output_shape: Optional[Union[Point2D, Point3D, Point4D]] = None
         self.idle_devices: List[torch.device] = [torch.device("cpu")]
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
@@ -209,7 +209,7 @@ class HandlerProcess(IHandler):
             self.training_idle = self.training.get_idle()
             self.inference_idle = self.inference.get_idle()
             self.logger.debug("got new devices entry: %s", new_devices_entry)
-            if new_devices_entry is None:  # shutdwon event
+            if new_devices_entry is None:  # shutdown event
                 return
             elif isinstance(new_devices_entry, tuple):
                 new_device_names, fut = new_devices_entry
