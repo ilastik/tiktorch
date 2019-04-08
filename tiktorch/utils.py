@@ -1,9 +1,9 @@
 from logging import Logger
 
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
-from tiktorch.rpc import RPCFuture, SetDeviceReturnType
+from tiktorch.rpc import RPCFuture
 from tiktorch.tiktypes import TikTensor
-from tiktorch.types import NDArray, PointBase, Point2D, Point3D, Point4D
+from tiktorch.types import NDArray, PointBase, Point2D, Point3D, Point4D, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
 from typing import Callable, Union, Tuple, List
