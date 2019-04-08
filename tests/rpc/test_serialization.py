@@ -118,3 +118,9 @@ def test_deserializing_from_empty_iterator_should_raise(ser):
 
     with pytest.raises(DeserializationError):
         foo = ser.deserialize(iter([]))
+
+
+def test_tuple_serialization():
+    data = (1, 2, 3, 42, 5)
+    serialized = serialize(data)
+    assert deserialize(serialized) == data
