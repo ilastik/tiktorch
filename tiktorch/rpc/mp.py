@@ -1,5 +1,7 @@
 import logging
 import multiprocessing as mp
+import threading
+import queue
 import weakref
 import types
 
@@ -23,6 +25,8 @@ T = TypeVar("T")
 
 
 class Result:
+    __slots__ = ("_value", "_err")
+
     def __init__(self, *, value=None, err=None):
         self._value = value
         self._err = err
@@ -111,7 +115,7 @@ def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
 class MPClient:
     def __init__(self, name, conn: Connection, timeout: int):
         self._conn = conn
-        self._requests = {}
+        self._request_by_id = {}
         self._name = name
         self._shutdown_event = Event()
         self._logger = None
@@ -132,23 +136,26 @@ class MPClient:
             while True:
                 if self._conn.poll(timeout=0.3):
                     res: Result
-                    id_, res = self._conn.recv()
+                    msg = self._conn.recv()
+                    print("RCV", msg)
 
                     # signal
-                    if id_ is None:
-                        if res == b"shutdown":
+                    if isinstance(msg, Signal):
+                        if msg.payload == b"shutdown":
                             self.logger.debug("[signal] Shutdown")
                             self._shutdown()
 
                     # method
-                    else:
-                        fut = self._requests.pop(id_, None)
-                        self.logger.debug("[id:%s] Recieved result", id_)
+                    elif isinstance(msg, MethodReturn):
+                        fut = self._request_by_id.pop(msg.id, None)
+                        self.logger.debug("[id:%s] Recieved result", msg.id)
 
                         if fut is not None:
-                            res.to_future(fut)
+                            print("msg", msg.result)
+                            msg.result.to_future(fut)
+                            print("DONE")
                         else:
-                            self.logger.debug("[id:%s] Discarding result", id_)
+                            self.logger.debug("[id:%s] Discarding result", msg.id)
 
                 if self._shutdown_event.is_set():
                     break
@@ -157,24 +164,71 @@ class MPClient:
         self._poller.daemon = True
         self._poller.start()
 
+    def _cancellation_cb(self, fut):
+        if fut.cancelled():
+            self._conn.send(Cancellation(fut.id))
+
+    def _make_future(self):
+        f = RPCFuture(timeout=self._timeout)
+        f.add_done_callback(self._cancellation_cb)
+        return f
+
     def _invoke(self, method_name, *args, **kwargs):
         # request id, method, args, kwargs
         id_ = self._new_id()
         self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
-        self._requests[id_] = f = RPCFuture(timeout=self._timeout)
-        self._conn.send([id_, method_name, args, kwargs])
+        self._request_by_id[id_] = f = self._make_future()
+        f.id = id_
+        self._conn.send(MethodCall(id_, method_name, args, kwargs))
         return f
 
     def _shutdown(self):
         self._shutdown_event.set()
 
 
+class Message:
+    def __init__(self, id_):
+        self.id = id
+
+
+class Signal:
+    def __init__(self, payload):
+        self.payload = payload
+
+
+class MethodCall(Message):
+    def __init__(self, id_, method_name, args, kwargs):
+        self.id = id_
+        self.method_name = method_name
+        self.args = args
+        self.kwargs = kwargs
+
+
+class Cancellation(Message):
+    def __init__(self, id_):
+        self.id = id_
+
+
+class MethodReturn(Message):
+    def __init__(self, id_, result: Result):
+        self.id = id_
+        self.result = result
+
+
+class Stop(Exception):
+    pass
+
+
 class MPServer:
+    _sentinel = object()
+
     def __init__(self, api, conn: Connection):
-        self._conn = conn
         self._api = api
-        self._futures = weakref.WeakKeyDictionary()
+        self._futures = {}
         self._logger = None
+        self._conn = conn
+        self._results_queue = queue.Queue()
+        self._start_result_sender(conn)
 
     @property
     def logger(self):
@@ -182,11 +236,90 @@ class MPServer:
             self._logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         return self._logger
 
+    def _send(self, msg):
+        print("PUT", msg)
+        self._results_queue.put(msg)
+
+    def _start_result_sender(self, conn):
+        def _sender():
+            while True:
+                try:
+                    print("HEY")
+                    result = self._results_queue.get()
+                    print("HOO", result)
+                    if result is self._sentinel:
+                        break
+
+                    conn.send(result)
+                except Exception:
+                    self.logger.exception("Error in result sender")
+
+        t = threading.Thread(target=_sender, name="MPResultSender")
+        t.daemon = True
+        t.start()
+        print("STARTED", t)
+
+    def _wrap_with_future(func, args, kwargs):
+        try:
+            res = func(*args, **kwargs)
+            if isinstance(res, Future):
+                return res
+
+            if isinstance(res, Shutdown):
+                raise Stop()
+
+            f = RPCFuture()
+            f.set_result(result)
+
+        except Exception as e:
+            f = RPCFuture()
+            f.set_exception(e)
+
+        return f
+
     def _send_result(self, fut):
+        if fut.cancelled():
+            return
+
         id_ = self._futures.pop(fut, None)
         self.logger.debug("[id: %s] Sending result", id_)
         if id_:
-            self._conn.send([id_, Result.OK(fut.result())])
+            try:
+                self._send(MethodReturn(id_, Result.OK(fut.result())))
+            except Exception as e:
+                self._send(MethodReturn(id_, Result.Error(e)))
+        else:
+            self.logger.warning("Discarding result for future %s", fut)
+
+    def _make_future(self):
+        f = RPCFuture()
+        f.add_done_callback(self._send_result)
+        return f
+
+    def _call_method(self, call: MethodCall):
+        self.logger.debug("[id: %s] Recieved '%s' method call", call.id, call.method_name)
+        fut = self._make_future()
+        self._futures[fut] = call.id
+        print(self._futures)
+
+        try:
+            meth = getattr(self._api, call.method_name)
+            res = meth(*args, **kwargs)
+
+        except Exception as e:
+            fut.set_exception(e)
+
+        else:
+            if isinstance(res, Shutdown):
+                fut.set_result(Shutdown())
+                raise Stop()
+
+            if isinstance(res, Future):
+                fut.attach(res)
+            else:
+                fut.set_result(res)
+
+        return fut
 
     def listen(self):
         while True:
@@ -195,24 +328,18 @@ class MPServer:
                 continue
 
             try:
-                id_, method_name, args, kwargs = self._conn.recv()
-                self.logger.debug("[id: %s] Recieved '%s' method call", id_, method_name)
-                # TODO: handle signals
+                msg = self._conn.recv()
 
-                meth = getattr(self._api, method_name)
-                res = meth(*args, **kwargs)
+                if isinstance(msg, MethodCall):
+                    try:
+                        fut = self._call_method(msg)
+                    except Stop:
+                        self.logger.debug("[id: %s] Shutdown", msg.id)
+                        self._send(Signal(b"shutdown"))
+                        self._send(self._sentinel)
+                        break
 
-                if isinstance(res, Shutdown):
-                    self.logger.debug("[id: %s] Sending shutdown", id_)
-                    self._conn.send([id_, Result.OK(Shutdown())])
-                    self._conn.send([None, b"shutdown"])
-                    break
-
+                elif isinstance(msg, Cancellation):
+                    print("CANCEL RCV")
             except Exception as e:
-                self._conn.send([id_, Result.Error(e)])
-            else:
-                if isinstance(res, Future):
-                    self._futures[res] = id_
-                    res.add_done_callback(self._send_result)
-                else:
-                    self._conn.send([id_, Result.OK(res)])
+                self.logger.error("Error in main loop", exc_info=1)
