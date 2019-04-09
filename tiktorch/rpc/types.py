@@ -1,6 +1,6 @@
 import inspect
 
-from concurrent.futures import Future
+from concurrent.futures import Future, CancelledError
 from typing import Generic, TypeVar, Callable, Tuple, List, Type, _GenericAlias
 
 
@@ -8,10 +8,45 @@ T = TypeVar("T")
 S = TypeVar("S")
 
 
+def _map_future(fut: Future, func: Callable[[T], S]) -> "RPCFuture[S]":
+    new_fut: RPCFuture[S] = RPCFuture()
+
+    def _do_map(f):
+        try:
+            res = func(f.result())
+            new_fut.set_result(res)
+        except Exception as e:
+            new_fut.set_exception(e)
+
+    fut.add_done_callback(_do_map)
+    return new_fut
+
+
 class RPCFuture(Future, Generic[T]):
     def __init__(self, timeout=None):
         self._timeout = timeout
         super().__init__()
+
+    @staticmethod
+    def Done(value):
+        f = RPCFuture()
+        f.set_result(value)
+        return f
+
+    @staticmethod
+    def Exception(exc):
+        f = RPCFuture()
+        f.set_exception(f)
+        return f
+
+    def attach(self, future):
+        def _handle(fut):
+            try:
+                self.set_result(future.result())
+            except Exception as e:
+                self.set_exception(e)
+
+        future.add_done_callback(self._handle)
 
     def result(self, timeout=None):
         return super().result(timeout or self._timeout)
@@ -38,17 +73,7 @@ class RPCFuture(Future, Generic[T]):
             ...
         ZeroDivisionError: division by zero
         """
-        new_fut: RPCFuture[S] = RPCFuture()
-
-        def _do_map(f):
-            try:
-                res = func(f.result())
-                new_fut.set_result(res)
-            except Exception as e:
-                new_fut.set_exception(e)
-
-        self.add_done_callback(_do_map)
-        return new_fut
+        return _map_future(self, func)
 
 
 def _checkgenericfut(type_: Type) -> bool:
