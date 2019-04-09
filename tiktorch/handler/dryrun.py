@@ -1,13 +1,7 @@
-import importlib
 import logging
 import logging.config
-import os.path
-import pickle
-import shutil
-import sys
-import tempfile
 import torch
-import time
+import traceback
 import numpy
 import bisect
 import queue
@@ -40,6 +34,7 @@ from typing import (
 
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
+from tiktorch.utils import add_logger
 from tiktorch.tiktypes import (
     TikTensor,
     TikTensorBatch,
@@ -146,7 +141,7 @@ class DryRunProcess(IDryRun):
         self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
 
         self.dry_run_queue = queue.Queue()
-        self.dry_run_thread = threading.Thread(target=self._dry_run_worker, name="DryRun")
+        self.dry_run_thread = threading.Thread(target=add_logger(self.logger)(self._dry_run_worker), name="DryRun")
         self.dry_run_thread.start()
 
     def update_config(self, partial_config: dict) -> None:
@@ -165,7 +160,6 @@ class DryRunProcess(IDryRun):
                 self.config[key] = value
 
     def _dry_run_worker(self) -> None:
-        self.logger.debug("started")
         while not self.shutdown_event.is_set():
             try:
                 args = self.dry_run_queue.get(block=True, timeout=1)
@@ -173,8 +167,6 @@ class DryRunProcess(IDryRun):
                 pass
             else:
                 self._dry_run(*args)
-
-        self.logger.debug("stopped")
 
     def dry_run(
         self,
@@ -228,7 +220,7 @@ class DryRunProcess(IDryRun):
             fut.set_result((devices, self.training_shape, self.valid_shapes, self.shrinkage))
             self.logger.info("dry run done")
         except Exception as e:
-            self.logger.error(e)
+            self.logger.error(traceback.format_exc())
             fut.set_exception(e)
 
     def _determine_training_shape(
@@ -239,13 +231,13 @@ class DryRunProcess(IDryRun):
         input_channels = self.config[INPUT_CHANNELS]
 
         if TRAINING_SHAPE in self.config[TRAINING]:
-            # validate given training shape
             config_training_shape = PointBase.from_spacetime(input_channels, self.config[TRAINING][TRAINING_SHAPE])
             if training_shape is None:
                 training_shape = config_training_shape
             else:
                 assert training_shape == config_training_shape, "training shape unequal to config training shape"
 
+            self.logger.debug("Validate given training shape: %s", training_shape)
             training_shape = training_shape.add_batch(batch_size)
 
             if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
@@ -272,7 +264,7 @@ class DryRunProcess(IDryRun):
             if not self.validate_shape(devices=devices, shape=training_shape, train_mode=True):
                 raise ValueError(f"{TRAINING_SHAPE}: {training_shape} could not be processed on devices: {devices}")
         else:
-            # determine a valid training shape
+            self.logger.debug("Determine training shape from lower and upper bound...")
             if TRAINING_SHAPE_UPPER_BOUND not in self.config[TRAINING]:
                 raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
@@ -293,7 +285,11 @@ class DryRunProcess(IDryRun):
                     f"{TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
                 )
 
-            # find optimal training shape
+            self.logger.debug(
+                "Determine training shape from lower and upper bound (%s, %s)",
+                training_shape_lower_bound,
+                training_shape_upper_bound,
+            )
             training_shape = self.find_one_shape(
                 training_shape_lower_bound, training_shape_upper_bound, devices=devices
             )

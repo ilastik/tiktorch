@@ -14,6 +14,9 @@ INPUT_AXIS_ORDER = "input_axis_order"
 OUTPUT_AXIS_ORDER = "output_axis_order"
 HALO = "halo"
 
+# inference
+INFERENCE_BATCH_SIZE = "inference_batch_size"
+
 # training
 BATCH_SIZE = "batch_size"
 TRAINING_SHAPE = "training_shape"  # in tzyx, zyx, or yx (without batch_size and input_channels)
@@ -31,7 +34,7 @@ MINIMAL_CONFIG = {
     INPUT_CHANNELS: None,
     INPUT_AXIS_ORDER: None,
     OUTPUT_AXIS_ORDER: None,
-    TRAINING: {LOSS_CRITERION_CONFIG: None, OPTIMIZER_CONFIG: None},
+    TRAINING: {BATCH_SIZE: None, LOSS_CRITERION_CONFIG: None, OPTIMIZER_CONFIG: None},
     VALIDATION: {},
 }
 
@@ -44,6 +47,7 @@ CONFIG = {
     INPUT_AXIS_ORDER: None,
     OUTPUT_AXIS_ORDER: None,
     HALO: None,
+    INFERENCE_BATCH_SIZE: None,
     TRAINING: {
         BATCH_SIZE: None,
         TRAINING_SHAPE: None,

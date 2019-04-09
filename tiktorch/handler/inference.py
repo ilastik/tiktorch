@@ -28,8 +28,9 @@ from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
-
 from tiktorch.utils import add_logger
+
+from tiktorch.configkeys import INFERENCE_BATCH_SIZE
 
 
 class IInference(RPCInterface):
@@ -70,7 +71,7 @@ class InferenceProcess(IInference):
 
         self.shutdown_event = threading.Event()
 
-        self.batch_size: int = config.get("inference_batch_size", None)
+        self.batch_size: int = config.get(INFERENCE_BATCH_SIZE, None)
         self.forward_queue = queue.Queue()
         self.shutdown_worker_events = {}
         self.forward_worker_threads = {}

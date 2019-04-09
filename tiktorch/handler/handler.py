@@ -3,17 +3,12 @@ import io
 import logging
 import logging.config
 import os.path
-import pickle
 
-import queue
 import shutil
 import sys
 import tempfile
 import threading
 import torch
-import time
-import numpy as np
-import bisect
 import queue
 
 from multiprocessing.connection import Connection, wait
@@ -156,8 +151,8 @@ class HandlerProcess(IHandler):
         self.logger = logging.getLogger(__name__)
         self.logger.info("started")
         self.valid_shapes: Optional[Union[List[Point2D], List[Point3D], List[Point4D]]] = None
-        self.output_shape: Optional[Union[Point2D, Point3D, Point4D]] = None
-        self.idle_devices: List[torch.device] = [torch.device("cpu")]
+        self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
+        self.idle_devices: List[torch.device] = []
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
 
@@ -218,8 +213,6 @@ class HandlerProcess(IHandler):
         )
         self.device_setter_thread.start()
 
-        self.set_devices(device_names=self.config.get("devices", ["cpu"]))
-
     def _device_setter_worker(self) -> None:
         while not self.shutdown_event.is_set():
             try:
@@ -270,11 +263,12 @@ class HandlerProcess(IHandler):
             # do dry run for truly new devices
             new_devices = [d for d in new_devices if d not in self.devices]
             if new_devices:
-                approved_devices, training_shape, valid_shapes, output_shape = self.dry_run.dry_run(
+                self.logger.debug("Requesting dry run for new devices: %s", new_devices)
+                approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
                     new_devices,
                     training_shape=self.config.get(TRAINING_SHAPE, None),
                     valid_shapes=self.valid_shapes,
-                    output_shape=self.output_shape,
+                    shrinkage=self.shrinkage,
                 ).result()
                 self.idle_devices += approved_devices
 
@@ -291,10 +285,10 @@ class HandlerProcess(IHandler):
                         # todo: make sure this happens inside the dry runa dn these new devcies aren't added at all
                         raise ValueError(f"No valid shapes found after adding devices: {new_devices}")
 
-                if self.output_shape is None:
-                    self.output_shape = output_shape
+                if self.shrinkage is None:
+                    self.shrinkage = shrinkage
                 else:
-                    assert self.output_shape == output_shape
+                    assert self.shrinkage == shrinkage
 
             # wait for old devices to be free
             # todo: wait for old devices to be free (when they are returned as futures)
@@ -303,7 +297,7 @@ class HandlerProcess(IHandler):
 
             # (re-)assign freed old and new devices
             self._assign_idle_devices()
-            fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.output_shape))
+            fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
 
     def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
         if self.training.get_idle():
