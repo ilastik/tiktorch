@@ -211,8 +211,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         return [c.name for c in mp.active_children()]
 
     def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
-        tik_fut = self.handler.forward(data=TikTensor(batch))
-        return convert_tik_fut_to_ndarray_fut(tik_fut)
+        return self.handler.forward(data=TikTensor(batch)).map(lambda val: NDArray(val.as_numpy()))
 
     def update_training_data(self, data: LabeledNDArrayBatch) -> None:
         return self.handler.update_training_data(LabeledTikTensorBatch(data))
