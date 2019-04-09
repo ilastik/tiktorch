@@ -4,7 +4,6 @@ from .connections import InprocConnConf, TCPConnConf
 from .interface import RPCInterface, exposed
 from .exceptions import Timeout, Shutdown, Canceled, CallException
 
-
 __all__ = [
     "serializer_for",
     "ISerializer",

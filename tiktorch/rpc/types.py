@@ -1,7 +1,7 @@
 import inspect
 
 from concurrent.futures import Future
-from typing import Generic, TypeVar, Callable
+from typing import Generic, TypeVar, Callable, Tuple, List
 
 
 T = TypeVar("T")

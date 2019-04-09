@@ -5,6 +5,7 @@ TRAINING = "training"
 VALIDATION = "validation"
 
 # general
+NAME = "name"
 TORCH_VERSION = "torch_version"
 INPUT_CHANNELS = "input_channels"
 MODEL_CLASS_NAME = "model_class_name"
@@ -35,6 +36,7 @@ MINIMAL_CONFIG = {
 }
 
 CONFIG = {
+    NAME: None,
     TORCH_VERSION: None,
     MODEL_CLASS_NAME: None,
     MODEL_INIT_KWARGS: None,

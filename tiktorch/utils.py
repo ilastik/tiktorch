@@ -3,10 +3,10 @@ from logging import Logger
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.rpc import RPCFuture
 from tiktorch.tiktypes import TikTensor
-from tiktorch.types import NDArray
+from tiktorch.types import NDArray, PointBase, Point2D, Point3D, Point4D, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
-from typing import Callable
+from typing import Callable, Union, Tuple, List
 
 
 def get_error_msg_for_invalid_config(config: dict) -> str:
@@ -59,6 +59,48 @@ def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[N
 
     tik_fut.add_done_callback(convert)
     return ndarray_fut
+
+
+def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase]):
+    if isinstance(obj, tuple):
+        return tuple([convert_points_to_5d_tuples(p) for p in obj])
+    elif isinstance(obj, list):
+        return [convert_points_to_5d_tuples(p) for p in obj]
+    elif isinstance(obj, PointBase):
+        return (obj.t, obj.c, obj.z, obj.y, obj.x)
+    else:
+        return obj
+
+
+def convert_to_SetDeviceReturnType(
+    fut: RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]
+):
+    outside_fut = RPCFuture()
+
+    def convert(
+        fut: RPCFuture[
+            Union[
+                Tuple[Point2D, List[Point2D], Point2D],
+                Tuple[Point3D, List[Point3D], Point3D],
+                Tuple[Point4D, List[Point4D], Point4D],
+            ]
+        ]
+    ):
+        try:
+            res = fut.result()
+        except Exception as e:
+            outside_fut.set_exception(e)
+        else:
+            outside_fut.set_result(SetDeviceReturnType(*convert_points_to_5d_tuples(res)))
+
+    fut.add_done_callback(convert)
+    return outside_fut
 
 
 def add_logger(logger: Logger) -> Callable:
