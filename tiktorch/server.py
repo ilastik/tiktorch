@@ -172,6 +172,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
     ) -> RPCFuture[SetDeviceReturnType]:
+        self._start_logging_handler()
         incomplete_msg = get_error_msg_for_incomplete_config(config)
         if incomplete_msg:
             raise ValueError(incomplete_msg)
@@ -184,7 +185,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(cuda_visible_devices)
         self.logger.info("Set CUDA_VISIBLE_DEVICES to '%s'", os.environ["CUDA_VISIBLE_DEVICES"])
 
-        self._start_logging_handler()
         server_conn, handler_conn = mp.Pipe()
         p = mp.Process(
             target=run_handler,

@@ -16,7 +16,7 @@ from inferno.trainers import Trainer as InfernoTrainer
 
 from .datasets import DynamicDataset
 
-from tiktorch.utils import get_error_msg_for_invalid_config
+from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch
@@ -160,7 +160,7 @@ class TrainingProcess(ITraining):
             model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
         )
 
-        self.training_thread = threading.Thread(target=self._training_worker, name="Training")
+        self.training_thread = threading.Thread(target=add_logger(self.logger)(self._training_worker), name="Training")
         self.training_thread.start()
 
     # def end_of_training_iteration(self, iteration_num, trigger):
@@ -180,7 +180,6 @@ class TrainingProcess(ITraining):
         return trainer_config
 
     def _training_worker(self):
-        self.logger.info("started")
         # todo: configure (create/load) inferno trainer fully
         trainer = TikTrainer.build(
             model=self.model,
@@ -234,8 +233,6 @@ class TrainingProcess(ITraining):
                 else:
                     self.idle = True
                     time.sleep(1)
-
-        self.logger.info("stopped")
 
     def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
         """

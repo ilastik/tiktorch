@@ -1,13 +1,7 @@
-import importlib
 import logging
 import logging.config
-import os.path
-import pickle
-import shutil
-import sys
-import tempfile
 import torch
-import time
+import traceback
 import numpy
 import bisect
 import queue
@@ -40,6 +34,7 @@ from typing import (
 
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
+from tiktorch.utils import add_logger
 from tiktorch.tiktypes import (
     TikTensor,
     TikTensorBatch,
@@ -146,7 +141,7 @@ class DryRunProcess(IDryRun):
         self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
 
         self.dry_run_queue = queue.Queue()
-        self.dry_run_thread = threading.Thread(target=self._dry_run_worker, name="DryRun")
+        self.dry_run_thread = threading.Thread(target=add_logger(self.logger)(self._dry_run_worker), name="DryRun")
         self.dry_run_thread.start()
 
     def update_config(self, partial_config: dict) -> None:
@@ -165,7 +160,6 @@ class DryRunProcess(IDryRun):
                 self.config[key] = value
 
     def _dry_run_worker(self) -> None:
-        self.logger.debug("started")
         while not self.shutdown_event.is_set():
             try:
                 args = self.dry_run_queue.get(block=True, timeout=1)
@@ -173,8 +167,6 @@ class DryRunProcess(IDryRun):
                 pass
             else:
                 self._dry_run(*args)
-
-        self.logger.debug("stopped")
 
     def dry_run(
         self,
@@ -228,7 +220,7 @@ class DryRunProcess(IDryRun):
             fut.set_result((devices, self.training_shape, self.valid_shapes, self.shrinkage))
             self.logger.info("dry run done")
         except Exception as e:
-            self.logger.error(e)
+            self.logger.error(traceback.format_exc())
             fut.set_exception(e)
 
     def _determine_training_shape(

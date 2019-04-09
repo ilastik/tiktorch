@@ -3,17 +3,12 @@ import io
 import logging
 import logging.config
 import os.path
-import pickle
 
-import queue
 import shutil
 import sys
 import tempfile
 import threading
 import torch
-import time
-import numpy as np
-import bisect
 import queue
 
 from multiprocessing.connection import Connection, wait
@@ -270,7 +265,8 @@ class HandlerProcess(IHandler):
             # do dry run for truly new devices
             new_devices = [d for d in new_devices if d not in self.devices]
             if new_devices:
-                approved_devices, training_shape, valid_shapes, output_shape = self.dry_run.dry_run(
+                self.logger.debug("Requesting dry run for new devices: %s", new_devices)
+                approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
                     new_devices,
                     training_shape=self.config.get(TRAINING_SHAPE, None),
                     valid_shapes=self.valid_shapes,
