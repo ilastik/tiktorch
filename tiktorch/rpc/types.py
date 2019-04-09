@@ -18,6 +18,37 @@ class RPCFuture(Future, Generic[T]):
     def exception(self, timeout=None):
         return super().exception(timeout or self._timeout)
 
+    def map(self, func):
+        """
+        Apply function and return new future
+        Note: Function should return plain object not wrapped in future
+
+        >>> fut = RPCFuture()
+        >>> new_fut = fut.map(lambda val: val + 1)
+        >>> fut.set_result(12)
+        >>> new_fut.result()
+        13
+
+        >>> fut = RPCFuture()
+        >>> new_fut = fut.map(lambda val: val / 0)
+        >>> fut.set_result(12)
+        >>> new_fut.result()
+        Traceback (most recent call last):
+            ...
+        ZeroDivisionError: division by zero
+        """
+        new_fut = RPCFuture()
+
+        def _do_map(f):
+            try:
+                res = func(f.result())
+                new_fut.set_result(res)
+            except Exception as e:
+                new_fut.set_exception(e)
+
+        self.add_done_callback(_do_map)
+        return new_fut
+
 
 def isfutureret(func: Callable):
     sig = inspect.signature(func)
