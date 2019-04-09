@@ -62,7 +62,15 @@ from tiktorch.configkeys import (
 
 class IHandler(RPCInterface):
     @exposed
-    def set_devices(self, device_names: Sequence[str]) -> RPCFuture:
+    def set_devices(
+        self, device_names: Sequence[str]
+    ) -> RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]:
         raise NotImplementedError
 
     @exposed
@@ -458,7 +466,7 @@ class HandlerProcess(IHandler):
             self._idle_devices = []
             self.training.set_devices([])
             self.inference.set_devices([])
-            self.set_devices(["cpu" if d.type == 'cpu' else f"{d.type}:{d.index}" for d in current_devices])
+            self.set_devices(["cpu" if d.type == "cpu" else f"{d.type}:{d.index}" for d in current_devices])
 
         self.training.update_config(partial_config)
         # todo: reset config to previous on failure

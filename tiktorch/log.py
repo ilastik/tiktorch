@@ -22,6 +22,7 @@ CONFIG = {
     "loggers": {
         "": {"handlers": ["default"], "level": "INFO", "propagate": True},
         "tiktorch": {"handlers": ["default"], "level": "DEBUG", "propagate": False},
+        "tiktorch.rpc": {"handlers": ["default"], "level": "WARNING", "propagate": False},
     },
 }
 logging.config.dictConfig(CONFIG)

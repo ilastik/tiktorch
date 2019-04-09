@@ -1,8 +1,7 @@
 from typing import List, Tuple, Union
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
-from tiktorch.types import NDArray, LabeledNDArrayBatch
-from tiktorch.tiktypes import Point2D, Point3D, Point4D
+from tiktorch.types import NDArray, LabeledNDArrayBatch, SetDeviceReturnType
 
 
 class IFlightControl(RPCInterface):
@@ -19,13 +18,7 @@ class INeuralNetworkAPI(RPCInterface):
     @exposed
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> RPCFuture[
-        Union[
-            Tuple[Point2D, List[Point2D], Point2D],
-            Tuple[Point3D, List[Point3D], Point3D],
-            Tuple[Point4D, List[Point4D], Point4D],
-        ]
-    ]:
+    ) -> RPCFuture[SetDeviceReturnType]:
         raise NotImplementedError
 
     @exposed
