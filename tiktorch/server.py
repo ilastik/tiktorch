@@ -7,9 +7,9 @@ import os
 from torch import multiprocessing as mp
 from typing import Optional, List, Tuple, Generator, Iterable, Union
 
-from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture, SetDeviceReturnType
+from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
-from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
+from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType
 from tiktorch.tiktypes import (
     TikTensor,
     LabeledTikTensor,
