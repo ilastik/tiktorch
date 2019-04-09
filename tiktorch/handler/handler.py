@@ -18,6 +18,7 @@ import queue
 
 from multiprocessing.connection import Connection, wait
 from torch import multiprocessing as mp
+from concurrent.futures import wait as wait_for_futures
 
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
 
@@ -40,20 +41,36 @@ from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
 from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 from tiktorch import log
-from tiktorch.utils import add_logger
+from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_error_msg_for_incomplete_config
 
 from tiktorch.configkeys import (
+    NAME,
+    TORCH_VERSION,
+    TRAINING,
+    VALIDATION,
+    BATCH_SIZE,
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
-    BATCH_SIZE,
-    INPUT_CHANNELS,
+    NUM_ITERATION_DONE,
+    MAX_NUM_ITERATIONS,
+    MAX_NUM_ITERATIONS_PER_UPDATE,
+    LOSS_CRITERION_CONFIG,
+    OPTIMIZER_CONFIG,
 )
 
 
 class IHandler(RPCInterface):
     @exposed
-    def set_devices(self, device_names: Sequence[str]) -> RPCFuture:
+    def set_devices(
+        self, device_names: Sequence[str]
+    ) -> RPCFuture[
+        Union[
+            Tuple[Point2D, List[Point2D], Point2D],
+            Tuple[Point3D, List[Point3D], Point3D],
+            Tuple[Point4D, List[Point4D], Point4D],
+        ]
+    ]:
         raise NotImplementedError
 
     @exposed
@@ -62,6 +79,10 @@ class IHandler(RPCInterface):
 
     @exposed
     def shutdown(self) -> Shutdown:
+        raise NotImplementedError
+
+    @exposed
+    def update_config(self, partial_config: dict) -> RPCFuture[bool]:
         raise NotImplementedError
 
     # Inference
@@ -410,9 +431,48 @@ class HandlerProcess(IHandler):
         self.logger.debug("Shutdown complete")
         return Shutdown()
 
-    def update_hparams(self, hparams: dict) -> None:
+    def update_config(self, partial_config: dict) -> None:
         # todo: check valid shapes if mini batch size changes
-        pass
+        error_msg = get_error_msg_for_invalid_config(partial_config)
+        if error_msg:
+            raise ValueError(error_msg)
+
+        previous_config = {key: value for key, value in self.config.items() if key in partial_config}
+        need_dry_run = False
+        # todo: update inference, if needed
+        for key, value in partial_config.items():
+            if key in [TRAINING, VALIDATION]:
+                for subkey, subvalue in partial_config[key].items():
+                    if subvalue is None:
+                        # remove key from config
+                        if subkey == TRAINING_SHAPE:
+                            need_dry_run = True
+                        else:
+                            raise NotImplementedError(f"How to delete {subkey} from {key}?")
+
+                        if subkey in self.config[key]:
+                            del self.config[key][subkey]
+                    elif subkey in [BATCH_SIZE]:
+                        self.config[key][subkey] = subvalue
+            elif key in [NAME, TORCH_VERSION]:
+                self.config[key] = value
+            else:
+                raise NotImplementedError(f"How to set {key} as a hyper parameter?")
+
+        self.dry_run.update_config(partial_config)
+        if need_dry_run:
+            self.logger.info("Executing new dry run after config update...")
+            current_devices = list(self.devices)
+            self._idle_devices = []
+            self.training.set_devices([])
+            self.inference.set_devices([])
+            self.set_devices(["cpu" if d.type == "cpu" else f"{d.type}:{d.index}" for d in current_devices])
+
+        self.training.update_config(partial_config)
+        # todo: reset config to previous on failure
+        incomplete_msg = get_error_msg_for_incomplete_config(self.config)
+        if incomplete_msg:
+            raise ValueError(incomplete_msg)
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:

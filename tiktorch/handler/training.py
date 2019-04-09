@@ -22,9 +22,14 @@ from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch
 from tiktorch import log
 from tiktorch.configkeys import (
+    NAME,
+    TORCH_VERSION,
     TRAINING,
     VALIDATION,
     BATCH_SIZE,
+    TRAINING_SHAPE,
+    TRAINING_SHAPE_LOWER_BOUND,
+    TRAINING_SHAPE_UPPER_BOUND,
     NUM_ITERATION_DONE,
     MAX_NUM_ITERATIONS,
     MAX_NUM_ITERATIONS_PER_UPDATE,
@@ -92,7 +97,7 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_hparams(self, hparams: dict) -> None:
+    def update_config(self, partial_config: dict) -> None:
         raise NotImplementedError
 
 
@@ -308,34 +313,31 @@ class TrainingProcess(ITraining):
 
         self.update_trainer_event.set()
 
-    def update_hparams(self, hparams: dict) -> None:
-        assert not get_error_msg_for_invalid_config(hparams)
+    def update_config(self, partial_config: dict) -> None:
+        assert not get_error_msg_for_invalid_config(partial_config)
 
         with self.training_settings_lock:
             self.update_trainer_event.set()
-            for key, value in hparams.items():
-                if key == TRAINING:
-                    for subkey, subvalue in hparams[key].items():
-                        if subkey == BATCH_SIZE:
+            for key, value in partial_config.items():
+                if key in [TRAINING, VALIDATION]:
+                    for subkey, subvalue in partial_config[key].items():
+                        if subvalue is None:
+                            # remove key from config
+                            if subkey == TRAINING_SHAPE:
+                                if len(self.datasets[TRAINING]) or len(self.datasets[VALIDATION]):
+                                    raise NotImplementedError(
+                                        "Cannot change training_shape after adding training or validation data"
+                                    )
+                            else:
+                                raise NotImplementedError(f"How to remove {subkey} form config[{key}]?")
+
+                            if subkey in self.config[key]:
+                                del self.config[key][subkey]
+                        elif subkey == BATCH_SIZE:
                             self.update_loader[key] = True
                             self.loader_kwargs[key][INFERNO_NAMES[BATCH_SIZE]] = subvalue
+                    pass
+                elif key in [NAME, TORCH_VERSION]:
+                    self.config[key] = value
                 else:
                     raise NotImplementedError(f"How to set {key} as a hyper parameter?")
-
-    # def update_devices(self, devices: List[torch.device]):
-    #     if devices != self.devices:
-    #         # todo: switch devices for inferno trainer
-    #         if "cpu" in devices:
-    #             assert all(["cpu" in d for d in devices]), "cannot mix cpu and gpu atm"
-    #             trainer.cpu()
-    #         else:
-    #             trainer.cuda(devices=devices)
-    #
-    #     now_idle = [d for d in self.devices if d not in devices]
-    #     if now_idle:
-    #         self.handler_conn.send(("report_idle", {"name": self.name, "devices": now_idle}))
-    #
-    #     self.devices = devices
-    #     if self.devices:
-    #         while self.waiting_for_devices:
-    #             self.waiting_for_devices.pop()()

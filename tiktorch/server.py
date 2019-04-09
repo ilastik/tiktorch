@@ -23,6 +23,7 @@ from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.utils import (
     convert_tik_fut_to_ndarray_fut,
+    convert_to_SetDeviceReturnType,
     get_error_msg_for_invalid_config,
     get_error_msg_for_incomplete_config,
 )
@@ -199,7 +200,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         )
         p.start()
         self.handler = create_client(IHandler, server_conn)
-        return self.handler.set_devices(handler_devices)
+        return convert_to_SetDeviceReturnType(self.handler.set_devices(handler_devices))
 
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
@@ -220,8 +221,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def resume_training(self) -> None:
         self.handler.resume_training()
 
-    def set_hparams(self, hparams: dict) -> None:
-        self.handler.set_hparams(hparams)
+    def update_config(self, partial_config: dict) -> None:
+        self.handler.update_config(partial_config)
 
     def request_state(self) -> RPCFuture:
         self.logger.info("Requesting model state dict from handler...")
