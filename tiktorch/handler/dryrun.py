@@ -231,13 +231,13 @@ class DryRunProcess(IDryRun):
         input_channels = self.config[INPUT_CHANNELS]
 
         if TRAINING_SHAPE in self.config[TRAINING]:
-            # validate given training shape
             config_training_shape = PointBase.from_spacetime(input_channels, self.config[TRAINING][TRAINING_SHAPE])
             if training_shape is None:
                 training_shape = config_training_shape
             else:
                 assert training_shape == config_training_shape, "training shape unequal to config training shape"
 
+            self.logger.debug("Validate given training shape: %s", training_shape)
             training_shape = training_shape.add_batch(batch_size)
 
             if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
@@ -264,7 +264,7 @@ class DryRunProcess(IDryRun):
             if not self.validate_shape(devices=devices, shape=training_shape, train_mode=True):
                 raise ValueError(f"{TRAINING_SHAPE}: {training_shape} could not be processed on devices: {devices}")
         else:
-            # determine a valid training shape
+            self.logger.debug("Determine training shape from lower and upper bound...")
             if TRAINING_SHAPE_UPPER_BOUND not in self.config[TRAINING]:
                 raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
@@ -285,7 +285,11 @@ class DryRunProcess(IDryRun):
                     f"{TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
                 )
 
-            # find optimal training shape
+            self.logger.debug(
+                "Determine training shape from lower and upper bound (%s, %s)",
+                training_shape_lower_bound,
+                training_shape_upper_bound,
+            )
             training_shape = self.find_one_shape(
                 training_shape_lower_bound, training_shape_upper_bound, devices=devices
             )
