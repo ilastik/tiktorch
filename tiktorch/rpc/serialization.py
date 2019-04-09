@@ -222,6 +222,18 @@ class ListSerializer(ISerializer[list]):
         return jsonapi.loads(frame.bytes)
 
 
+@serializer_for(tuple, tag=b"tuple")
+class TupleSerializer(ISerializer[tuple]):
+    @classmethod
+    def serialize(cls, obj: tuple) -> Iterator[zmq.Frame]:
+        yield zmq.Frame(jsonapi.dumps(obj))
+
+    @classmethod
+    def deserialize(cls, frames: FusedFrameIterator) -> list:
+        frame = next(frames)
+        return tuple(jsonapi.loads(frame.bytes))
+
+
 @serializer_for(bool, tag=b"bool")
 class BoolSerializer(ISerializer[bool]):
     @classmethod
