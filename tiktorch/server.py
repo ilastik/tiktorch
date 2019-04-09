@@ -220,8 +220,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def resume_training(self) -> None:
         self.handler.resume_training()
 
-    def set_hparams(self, hparams: dict) -> None:
-        self.handler.set_hparams(hparams)
+    def update_config(self, partial_config: dict) -> None:
+        self.handler.update_config(partial_config)
 
     def request_state(self) -> RPCFuture:
         self.logger.info("Requesting model state dict from handler...")

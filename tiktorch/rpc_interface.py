@@ -29,7 +29,7 @@ class INeuralNetworkAPI(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def set_hparams(self, params: dict) -> None:
+    def update_config(self, partial_config: dict) -> None:
         raise NotImplementedError
 
     # inference

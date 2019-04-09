@@ -77,7 +77,12 @@ def base_config():
         "config": {
             "model_init_kwargs": {},
             "input_channels": 1,
-            "training": {"batch_size": 10, "loss_criterion_config": {"method": "MSELoss"}},
+            "training": {
+                "batch_size": 10,
+                "loss_criterion_config": {"method": "MSELoss"},
+                "optimizer_config": {"method": "Adam"},
+            },
+            "validation": {},
         },
     }
 

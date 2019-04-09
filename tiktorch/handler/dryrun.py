@@ -97,11 +97,15 @@ class IDryRun(RPCInterface):
         valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
         shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
     ) -> RPCFuture:
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    @exposed
+    def update_config(self, partial_config: dict) -> None:
+        raise NotImplementedError
 
     @exposed
     def shutdown(self) -> Shutdown:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 def run(conn: Connection, config: dict, model: torch.nn.Module, log_queue: Optional[mp.Queue] = None):
@@ -144,6 +148,21 @@ class DryRunProcess(IDryRun):
         self.dry_run_queue = queue.Queue()
         self.dry_run_thread = threading.Thread(target=self._dry_run_worker, name="DryRun")
         self.dry_run_thread.start()
+
+    def update_config(self, partial_config: dict) -> None:
+        for key, value in partial_config.items():
+            if isinstance(partial_config[key], dict):
+                for subkey, subvalue in partial_config[key].items():
+                    if subvalue is None:
+                        if subkey in self.config[key]:
+                            del self.config[key][subkey]
+                    else:
+                        self.config[key][subkey] = subvalue
+            elif value is None:
+                if key in self.config:
+                    del self.config[key]
+            else:
+                self.config[key] = value
 
     def _dry_run_worker(self) -> None:
         self.logger.debug("started")
