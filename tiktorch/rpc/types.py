@@ -5,6 +5,7 @@ from typing import Generic, TypeVar, Callable
 
 
 T = TypeVar("T")
+S = TypeVar("S")
 
 
 class RPCFuture(Future, Generic[T]):
@@ -18,7 +19,7 @@ class RPCFuture(Future, Generic[T]):
     def exception(self, timeout=None):
         return super().exception(timeout or self._timeout)
 
-    def map(self, func):
+    def map(self, func: Callable[[T], S]) -> "RPCFuture[S]":
         """
         Apply function and return new future
         Note: Function should return plain object not wrapped in future
@@ -37,7 +38,7 @@ class RPCFuture(Future, Generic[T]):
             ...
         ZeroDivisionError: division by zero
         """
-        new_fut = RPCFuture()
+        new_fut: RPCFuture[S] = RPCFuture()
 
         def _do_map(f):
             try:
