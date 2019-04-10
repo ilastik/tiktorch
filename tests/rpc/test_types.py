@@ -1,6 +1,9 @@
+from typing import Any
+
 import pytest
 
 from tiktorch.rpc import RPCFuture
+from tiktorch.rpc.types import isfutureret
 
 
 class TExc(Exception):
@@ -36,3 +39,28 @@ def test_future_on_chained_exception():
 
     with pytest.raises(TExc):
         assert new.result()
+
+
+def case_object() -> object():
+    return object()
+
+
+def case_elipsis() -> ...:
+    return ...
+
+
+def case_none() -> None:
+    return ...
+
+
+def case_not_annotated():
+    pass
+
+
+def case_any() -> Any:
+    pass
+
+
+@pytest.mark.parametrize("func", [case_object, case_elipsis, case_none, case_not_annotated, case_any])
+def test_isfutureret_doesnt_raise_on_object_returns(func):
+    assert not isfutureret(func)

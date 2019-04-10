@@ -53,4 +53,4 @@ class RPCFuture(Future, Generic[T]):
 
 def isfutureret(func: Callable):
     sig = inspect.signature(func)
-    return sig.return_annotation is not None and issubclass(sig.return_annotation, Future)
+    return inspect.isclass(sig.return_annotation) and issubclass(sig.return_annotation, Future)
