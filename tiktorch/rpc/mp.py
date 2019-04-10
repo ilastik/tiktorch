@@ -10,7 +10,7 @@ from threading import Thread
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
 from threading import Event
-from typing import Any, Type, TypeVar
+from typing import Any, Type, TypeVar, Optional
 from functools import wraps
 
 from .exceptions import Shutdown
@@ -136,8 +136,11 @@ class MPClient:
             while True:
                 if self._conn.poll(timeout=0.3):
                     res: Result
-                    msg = self._conn.recv()
-                    print("RCV", msg)
+                    try:
+                        msg = self._conn.recv()
+                    except EOFError:
+                        self.logger.warning("Communication channel closed. Shutting Down.")
+                        self._shutdown()
 
                     # signal
                     if isinstance(msg, Signal):
@@ -151,9 +154,7 @@ class MPClient:
                         self.logger.debug("[id:%s] Recieved result", msg.id)
 
                         if fut is not None:
-                            print("msg", msg.result)
                             msg.result.to_future(fut)
-                            print("DONE")
                         else:
                             self.logger.debug("[id:%s] Discarding result", msg.id)
 
@@ -219,12 +220,42 @@ class Stop(Exception):
     pass
 
 
+class FutureStore:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._future_by_id = {}
+        self._id_by_future = {}
+
+    def put(self, id_: str, fut: Future):
+        with self._lock:
+            self._future_by_id[id_] = fut
+            self._id_by_future[fut] = id_
+
+    def pop_id(self, id_: str) -> Optional[Future]:
+        with self._lock:
+            if id_ not in self._future_by_id:
+                return None
+
+            fut = self._future_by_id.pop(id_, None)
+            del self._id_by_future[fut]
+            return fut
+
+    def pop_future(self, fut: Future) -> Optional[str]:
+        with self._lock:
+            if fut not in self._id_by_future:
+                return None
+
+            id_ = self._id_by_future.pop(fut, None)
+            del self._future_by_id[id_]
+            return id_
+
+
 class MPServer:
     _sentinel = object()
 
     def __init__(self, api, conn: Connection):
         self._api = api
-        self._futures = {}
+        self._futures = FutureStore()
         self._logger = None
         self._conn = conn
         self._results_queue = queue.Queue()
@@ -237,16 +268,13 @@ class MPServer:
         return self._logger
 
     def _send(self, msg):
-        print("PUT", msg)
         self._results_queue.put(msg)
 
     def _start_result_sender(self, conn):
         def _sender():
             while True:
                 try:
-                    print("HEY")
                     result = self._results_queue.get()
-                    print("HOO", result)
                     if result is self._sentinel:
                         break
 
@@ -257,7 +285,6 @@ class MPServer:
         t = threading.Thread(target=_sender, name="MPResultSender")
         t.daemon = True
         t.start()
-        print("STARTED", t)
 
     def _wrap_with_future(func, args, kwargs):
         try:
@@ -281,9 +308,10 @@ class MPServer:
         if fut.cancelled():
             return
 
-        id_ = self._futures.pop(fut, None)
-        self.logger.debug("[id: %s] Sending result", id_)
+        id_ = self._futures.pop_future(fut)
+
         if id_:
+            self.logger.debug("[id: %s] Sending result", id_)
             try:
                 self._send(MethodReturn(id_, Result.OK(fut.result())))
             except Exception as e:
@@ -299,12 +327,11 @@ class MPServer:
     def _call_method(self, call: MethodCall):
         self.logger.debug("[id: %s] Recieved '%s' method call", call.id, call.method_name)
         fut = self._make_future()
-        self._futures[fut] = call.id
-        print(self._futures)
+        self._futures.put(call.id, fut)
 
         try:
             meth = getattr(self._api, call.method_name)
-            res = meth(*args, **kwargs)
+            res = meth(*call.args, **call.kwargs)
 
         except Exception as e:
             fut.set_exception(e)
@@ -320,6 +347,12 @@ class MPServer:
                 fut.set_result(res)
 
         return fut
+
+    def _cancel_request(self, cancel: Cancellation):
+        fut = self._futures.pop_id(cancel.id)
+        if fut:
+            fut.cancel()
+            self.logger.debug("[id: %s] Cancelled", cancel.id)
 
     def listen(self):
         while True:
@@ -340,6 +373,7 @@ class MPServer:
                         break
 
                 elif isinstance(msg, Cancellation):
-                    print("CANCEL RCV")
+                    self._cancel_request(msg)
+
             except Exception as e:
                 self.logger.error("Error in main loop", exc_info=1)

@@ -1,4 +1,5 @@
 import inspect
+import threading
 
 from concurrent.futures import Future, CancelledError
 from typing import Generic, TypeVar, Callable, Tuple, List, Type, _GenericAlias
@@ -22,31 +23,62 @@ def _map_future(fut: Future, func: Callable[[T], S]) -> "RPCFuture[S]":
     return new_fut
 
 
+class _OneShotConnection:
+    """
+    Copies state from one completed future to another
+    Used to propagate results and cancelations
+    """
+
+    __slots__ = ("_fired", "_lock", "_fut1", "_fut2")
+
+    def __init__(self, fut1: Future, fut2: Future) -> None:
+        self._fired = False
+        self._lock = threading.Lock()
+
+        self._fut1 = fut1
+        self._fut1.add_done_callback(self._handle_fut1_completion)
+
+        self._fut2 = fut2
+        self._fut2.add_done_callback(self._handle_fut2_completion)
+
+    def _copy(self, src: Future, dst: Future) -> None:
+        gotit = self._lock.acquire(blocking=False)
+        if not gotit:
+            return
+
+        try:
+            if self._fired:
+                return
+
+            self._fired = True
+
+            if src.cancelled():
+                dst.cancel()
+                return
+
+            try:
+                dst.set_result(src.result())
+            except Exception as e:
+                dst.set_exception(e)
+        finally:
+            self._lock.release()
+
+    def _handle_fut1_completion(self, fut):
+        assert fut == self._fut1
+        self._copy(fut, self._fut2)
+
+    def _handle_fut2_completion(self, fut):
+        assert fut == self._fut2
+        self._copy(fut, self._fut1)
+
+
 class RPCFuture(Future, Generic[T]):
     def __init__(self, timeout=None):
         self._timeout = timeout
         super().__init__()
 
-    @staticmethod
-    def Done(value):
-        f = RPCFuture()
-        f.set_result(value)
-        return f
-
-    @staticmethod
-    def Exception(exc):
-        f = RPCFuture()
-        f.set_exception(f)
-        return f
-
     def attach(self, future):
-        def _handle(fut):
-            try:
-                self.set_result(future.result())
-            except Exception as e:
-                self.set_exception(e)
-
-        future.add_done_callback(self._handle)
+        _OneShotConnection(self, future)
 
     def result(self, timeout=None):
         return super().result(timeout or self._timeout)
