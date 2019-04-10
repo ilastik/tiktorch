@@ -3,10 +3,10 @@ import time
 import multiprocessing as mp
 import queue
 import threading
-from concurrent.futures import Future, TimeoutError
+from concurrent.futures import Future, TimeoutError, CancelledError
 from collections import namedtuple
 
-from tiktorch.rpc.mp import MPClient, MPServer, create_client
+from tiktorch.rpc.mp import MPClient, MPServer, create_client, FutureStore
 from tiktorch.rpc import exposed, RPCInterface, RPCFuture, Shutdown
 from tiktorch import log
 
@@ -148,7 +148,7 @@ class ICancelable(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def canceled_count(self) -> int:
+    def cancelled_count(self) -> int:
         return self._executor.canceled_count
 
     @exposed
@@ -205,25 +205,22 @@ class CancelableSrv(ICancelable):
     def __init__(self):
         self._executor = CancelledExecutor()
 
-    @exposed
     def compute(self) -> RPCFuture:
         return self._executor.submit(lambda: 42)
 
-    @exposed
     def process_queued(self) -> None:
         self._executor.process_queued()
 
-    def canceled_count(self) -> int:
-        return self._executor.canceled_count
+    def cancelled_count(self) -> int:
+        return self._executor.cancelled_count
 
-    @exposed
     def shutdown(self) -> Shutdown:
         self._executor.stop()
         return Shutdown()
 
 
 def test_canceled_executor():
-    executor = CancelledExector()
+    executor = CancelledExecutor()
 
     assert executor.cancelled_count == 0
     f = executor.submit(lambda: 42)
@@ -282,5 +279,30 @@ def test_future_cancelation(spawn):
     client.process_queued()
     assert f2.result(timeout=1) == 42
 
-    assert f.result(timeout=1) is cancelled
+    with pytest.raises(CancelledError):
+        assert f.result(timeout=1)
+
     assert client.cancelled_count() == 1
+
+
+@pytest.fixture
+def fut_store():
+    return FutureStore()
+
+
+def test_future_store(fut_store):
+    id1, f1 = "testid1", Future()
+    id2, f2 = "testid2", Future()
+
+    fut_store.put(id1, f1)
+    fut_store.put(id2, f2)
+
+    popped_id1 = fut_store.pop_future(f1)
+
+    assert popped_id1 == id1
+    assert fut_store.pop_id(id1) is None
+
+    popped_fut2 = fut_store.pop_id(id2)
+
+    assert popped_fut2 == f2
+    assert fut_store.pop_future(f2) is None

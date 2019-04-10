@@ -1,3 +1,5 @@
+from concurrent.futures import Future, CancelledError
+
 import pytest
 
 from tiktorch.rpc import RPCFuture
@@ -36,3 +38,48 @@ def test_future_on_chained_exception():
 
     with pytest.raises(TExc):
         assert new.result()
+
+
+def test_rpcfuture_attach():
+    rpc_fut = RPCFuture()
+    fut = Future()
+
+    rpc_fut.attach(fut)
+
+    fut.set_result(42)
+
+    assert rpc_fut.result(timeout=1) == 42
+
+
+def test_rpcfuture_cancellation():
+    rpc_fut = RPCFuture()
+    fut = Future()
+
+    rpc_fut.attach(fut)
+
+    rpc_fut.cancel()
+
+    assert fut.cancelled()
+
+
+def test_propagates_only_once_1():
+    rpc_fut = RPCFuture()
+    fut = Future()
+
+    rpc_fut.attach(fut)
+    rpc_fut.cancel()
+    rpc_fut.set_result(42)
+
+    with pytest.raises(CancelledError):
+        assert fut.result(timeout=1)
+
+
+def test_propagates_only_once_2():
+    rpc_fut = RPCFuture()
+    fut = Future()
+
+    rpc_fut.attach(fut)
+    fut.set_result(42)
+    fut.cancel()
+
+    assert rpc_fut.result(timeout=1) == 42
