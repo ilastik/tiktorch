@@ -1,4 +1,5 @@
 from typing import Any
+from concurrent.futures import Future
 
 import pytest
 
@@ -64,3 +65,20 @@ def case_any() -> Any:
 @pytest.mark.parametrize("func", [case_object, case_elipsis, case_none, case_not_annotated, case_any])
 def test_isfutureret_doesnt_raise_on_object_returns(func):
     assert not isfutureret(func)
+
+
+def case_rpc_future() -> RPCFuture:
+    return RPCFuture()
+
+
+def case_future() -> Future:
+    return Future()
+
+
+def case_rpc_future_generic() -> RPCFuture[int]:
+    return RPCFuture()
+
+
+@pytest.mark.parametrize("func", [case_rpc_future, case_future, case_rpc_future_generic])
+def test_isfutureret_generic(func):
+    assert isfutureret(func)

@@ -1,7 +1,7 @@
 import inspect
 
 from concurrent.futures import Future
-from typing import Generic, TypeVar, Callable, Tuple, List
+from typing import Generic, TypeVar, Callable, Tuple, List, Type, _GenericAlias
 
 
 T = TypeVar("T")
@@ -51,6 +51,18 @@ class RPCFuture(Future, Generic[T]):
         return new_fut
 
 
+def _checkgenericfut(type_: Type) -> bool:
+    # XXX: py3.7 regression isclass returns False on parametrized generics
+    if not isinstance(type_, (type, _GenericAlias)):
+        return False
+
+    origin = getattr(type_, "__origin__", None)
+
+    return origin and issubclass(origin, RPCFuture)
+
+
 def isfutureret(func: Callable):
     sig = inspect.signature(func)
-    return inspect.isclass(sig.return_annotation) and issubclass(sig.return_annotation, Future)
+    ret = sig.return_annotation
+
+    return (inspect.isclass(ret) and issubclass(sig.return_annotation, Future)) or _checkgenericfut(ret)
