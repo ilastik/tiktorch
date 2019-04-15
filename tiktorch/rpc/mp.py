@@ -286,24 +286,6 @@ class MPServer:
         t.daemon = True
         t.start()
 
-    def _wrap_with_future(func, args, kwargs):
-        try:
-            res = func(*args, **kwargs)
-            if isinstance(res, Future):
-                return res
-
-            if isinstance(res, Shutdown):
-                raise Stop()
-
-            f = RPCFuture()
-            f.set_result(result)
-
-        except Exception as e:
-            f = RPCFuture()
-            f.set_exception(e)
-
-        return f
-
     def _send_result(self, fut):
         if fut.cancelled():
             return
@@ -349,6 +331,7 @@ class MPServer:
         return fut
 
     def _cancel_request(self, cancel: Cancellation):
+        self.logger.debug("[id: %s] Recieved cancel request", cancel.id)
         fut = self._futures.pop_id(cancel.id)
         if fut:
             fut.cancel()
