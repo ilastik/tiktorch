@@ -36,43 +36,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("TikTorchServer")
 
 
-from functools import wraps
-
-
-class State:
-    INIT = "init"
-    WORKING = "working"
-
-    STATES = {INIT: [WORKING], WORKING: [INIT]}
-
-    def __init__(self):
-        self.current = self.INIT
-
-    def next(self, state):
-        allowed = self.STATES.get(self.current)
-        if state not in allowed:
-            raise Exception(f"Transition from {self.current} to {state} not allowed")
-
-    def __repr__(self):
-        return f"State({self.current})"
-
-
-def expect_state(*allowed):
-    def decorator(func):
-        # return func
-
-        @wraps(func)
-        def wrapped(self, *args, **kwargs):
-            if self.state.current not in allowed:
-                raise Exception(f"Call to {func} not allowed in {self.state}")
-
-            func(*args, **kwargs)
-
-        return wrapped
-
-    return decorator
-
-
 class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     RANK = 1
     SIZE = 2
@@ -81,7 +44,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger = logging.getLogger(__name__)
         self._log_listener: Optional[logging.handlers.QueueListener] = None
         self._handler: Optional[IHandler] = None
-        self.state = State()
 
     @property
     def handler(self):
@@ -256,8 +218,10 @@ class ServerProcess:
         self._port = port
         self._notify_port = notify_port
 
-    def listen(self):
-        api_provider = TikTorchServer()
+    def listen(self, api_provider: Optional[INeuralNetworkAPI]=None):
+        if api_provider is None:
+            api_provider = TikTorchServer()
+
         srv = Server(api_provider, TCPConnConf(self._addr, self._port, self._notify_port))
         srv.listen()
 
@@ -270,11 +234,15 @@ if __name__ == "__main__":
     parsey.add_argument("--addr", type=str, default="127.0.0.1")
     parsey.add_argument("--port", type=str, default="29500")
     parsey.add_argument("--notify-port", type=str, default="29501")
-    parsey.add_argument("--debug", type=bool, default=False)
+    parsey.add_argument("--debug", action="store_true")
+    parsey.add_argument("--dummy", action="store_true")
 
     args = parsey.parse_args()
-
     logger.info("Starting server on %s:%s", args.addr, args.port)
 
     srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
-    srv.listen()
+    if args.dummy:
+        from tiktorch.dev import DummyServerForFrontendDev
+        srv.listen(api_provider=DummyServerForFrontendDev())
+    else:
+        srv.listen()

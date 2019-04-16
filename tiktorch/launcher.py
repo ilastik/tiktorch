@@ -45,7 +45,7 @@ class IServerLauncher:
         except Timeout:
             return False
 
-    def start(self, addr):
+    def start(self):
         raise NotImplementedError
 
     def stop(self):
@@ -72,9 +72,10 @@ def wait(done, interval=0.1, max_wait=10):
 
 
 class LocalServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf):
+    def __init__(self, conn_conf: TCPConnConf, dummy: bool = False):
         self._conn_conf = conn_conf
         self._process = None
+        self.dummy = dummy
 
     def start(self):
         addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
@@ -87,8 +88,7 @@ class LocalServerLauncher(IServerLauncher):
 
         self.logger.info("Starting local TikTorchServer on %s:%s", addr, port)
 
-        self._process = subprocess.Popen(
-            [
+        cmd = [
                 sys.executable,
                 "-m",
                 "tiktorch.server",
@@ -98,7 +98,12 @@ class LocalServerLauncher(IServerLauncher):
                 str(notify_port),
                 "--addr",
                 addr,
-            ],
+            ]
+        if self.dummy:
+            cmd.append("--dummy")
+
+        self._process = subprocess.Popen(
+            cmd,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
@@ -120,12 +125,13 @@ class SSHCred:
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22) -> None:
+    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22, dummy: bool = False) -> None:
 
         self._ssh_port = ssh_port
         self._channel = None
         self._conn_conf = conn_conf
         self._cred = cred
+        self.dummy = dummy
 
         self._setup_ssh_client()
 
@@ -187,6 +193,10 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            channel.exec_command(f"tiktorch --addr {addr} --port {port} --notify-port {notify_port}")
+            cmd = f"tiktorch --addr {addr} --port {port} --notify-port {notify_port}"
+            if self.dummy:
+                cmd += " --dummy"
+
+            channel.exec_command(cmd)
         except timeout as e:
             raise RuntimeError("Failed to start TiktorchServer")
