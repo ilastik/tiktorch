@@ -37,7 +37,7 @@ class DummyServerForFrontendDev(INeuralNetworkAPI, IFlightControl):
             devices,
         )
         fut = RPCFuture()
-        ret = SetDeviceReturnType((1, 1, 1, 10, 10), [(1, 1, 1, 10, 10), (1, 1, 1, 20, 20)], (0, 0, 0, 5, 5))
+        ret = SetDeviceReturnType((1, 1, 1, 10, 10), [(1, 1, 1, 10, 10), (1, 1, 1, 20, 20)], (0, 0, 0, 4, 4))
         fut.set_result(ret)
         return fut
 
