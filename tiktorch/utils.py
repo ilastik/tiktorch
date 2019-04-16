@@ -1,5 +1,3 @@
-import traceback
-
 from logging import Logger
 
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
@@ -111,8 +109,8 @@ def add_logger(logger: Logger) -> Callable:
             logger.info("started")
             try:
                 target(*args, **kwargs)
-            except Exception:
-                logger.error(traceback.format_exc())
+            except Exception as e:
+                logger.exception(e)
             logger.info("stopped")
 
         return wrapper

@@ -170,48 +170,57 @@ class HandlerProcess(IHandler):
         self.logger.debug("created user model")
 
         if model_state:
-            self.model.load_state_dict(torch.load(io.BytesIO(model_state)))
-            self.logger.info("restored model state")
+            self.logger.debug("load model state")
+            try:
+                self.model.load_state_dict(torch.load(io.BytesIO(model_state)))
+            except Exception as e:
+                self.logger.exception(e)
+            else:
+                self.logger.info("restored model state")
 
-        # start training process
-        handler2training_conn, training2handler_conn = mp.Pipe()
-        mp.Process(
-            target=run_training,
-            name="Training",
-            kwargs={
-                "conn": training2handler_conn,
-                "config": config,
-                "model": self.model,
-                "optimizer_state": optimizer_state,
-                "log_queue": log_queue,
-            },
-        ).start()
-        self._training: ITraining = create_client(ITraining, handler2training_conn)
+        try:
+            self.logger.debug("start training process")
+            handler2training_conn, training2handler_conn = mp.Pipe()
+            mp.Process(
+                target=run_training,
+                name="Training",
+                kwargs={
+                    "conn": training2handler_conn,
+                    "config": config,
+                    "model": self.model,
+                    "optimizer_state": optimizer_state,
+                    "log_queue": log_queue,
+                },
+            ).start()
+            self._training: ITraining = create_client(ITraining, handler2training_conn)
 
-        # start inference process
-        handler2inference_conn, inference2handler_conn = mp.Pipe()
-        mp.Process(
-            target=run_inference,
-            name="Inference",
-            kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
-        ).start()
-        self._inference: IInference = create_client(IInference, handler2inference_conn)
+            self.logger.debug("start inference process")
+            handler2inference_conn, inference2handler_conn = mp.Pipe()
+            mp.Process(
+                target=run_inference,
+                name="Inference",
+                kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
+            ).start()
+            self._inference: IInference = create_client(IInference, handler2inference_conn)
 
-        # start dryrun process
-        handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
-        mp.Process(
-            name="DryRun",
-            target=run_dryrun,
-            kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
-        ).start()
-        self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
+            self.logger.debug("start dryrun process")
+            handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
+            mp.Process(
+                name="DryRun",
+                target=run_dryrun,
+                kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
+            ).start()
+            self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
 
-        # start device setter thread that will wait for dry run processes to finish
-        self.new_device_names: queue.Queue = queue.Queue()
-        self.device_setter_thread = threading.Thread(
-            target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter"
-        )
-        self.device_setter_thread.start()
+            # start device setter thread that will wait for dry run processes to finish
+            self.new_device_names: queue.Queue = queue.Queue()
+            self.device_setter_thread = threading.Thread(
+                target=add_logger(self.logger)(self._device_setter_worker), name="DeviceSetter"
+            )
+            self.device_setter_thread.start()
+        except Exception as e:
+            self.logger.exception(e)
+            self.shutdown()
 
     def _device_setter_worker(self) -> None:
         while not self.shutdown_event.is_set():

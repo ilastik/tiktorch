@@ -198,9 +198,16 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 "log_queue": self.log_queue,
             },
         )
-        p.start()
-        self.handler = create_client(IHandler, server_conn)
-        return convert_to_SetDeviceReturnType(self.handler.set_devices(handler_devices))
+        try:
+            p.start()
+        except Exception as e:
+            self.logger.error(e)
+            err_fut = RPCFuture()
+            err_fut.set_exception(e)
+            return err_fut
+        else:
+            self.handler = create_client(IHandler, server_conn)
+            return convert_to_SetDeviceReturnType(self.handler.set_devices(handler_devices))
 
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
