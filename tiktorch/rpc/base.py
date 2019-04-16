@@ -211,7 +211,8 @@ class Client:
         if self._listener is None:
             self._start_listener()
 
-        f = RPCFuture(timeout=self._timeout)
+        fut_timeout = self._timeout if self._timeout != -1 else None  # infinite timeout: zmq: -1, Future: None
+        f = RPCFuture(timeout=fut_timeout)
         self._futures[id_] = (f, method)
         return f
 
