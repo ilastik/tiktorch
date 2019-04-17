@@ -177,9 +177,9 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
                 err_fut.set_exception(e)
                 return err_fut
             else:
-                self.logger.debug("got tik_fut")
-                fut = convert_to_SetDeviceReturnType(tik_fut)
-                self.logger.debug("converted tik_fut")
+                self.logger.info("got tik_fut")
+                fut = tik_fut.map(convert_to_SetDeviceReturnType)
+                self.logger.info("converted tik_fut")
                 return fut
 
     def active_children(self) -> List[str]:

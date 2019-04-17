@@ -73,34 +73,13 @@ def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase]):
 
 
 def convert_to_SetDeviceReturnType(
-    fut: RPCFuture[
-        Union[
-            Tuple[Point2D, List[Point2D], Point2D],
-            Tuple[Point3D, List[Point3D], Point3D],
-            Tuple[Point4D, List[Point4D], Point4D],
-        ]
+    res: Union[
+        Tuple[Point2D, List[Point2D], Point2D],
+        Tuple[Point3D, List[Point3D], Point3D],
+        Tuple[Point4D, List[Point4D], Point4D],
     ]
 ):
-    outside_fut = RPCFuture()
-
-    def convert(
-        fut: RPCFuture[
-            Union[
-                Tuple[Point2D, List[Point2D], Point2D],
-                Tuple[Point3D, List[Point3D], Point3D],
-                Tuple[Point4D, List[Point4D], Point4D],
-            ]
-        ]
-    ):
-        try:
-            res = fut.result()
-        except Exception as e:
-            outside_fut.set_exception(e)
-        else:
-            outside_fut.set_result(SetDeviceReturnType(*convert_points_to_5d_tuples(res)))
-
-    fut.add_done_callback(convert)
-    return outside_fut
+    return SetDeviceReturnType(*convert_points_to_5d_tuples(res))
 
 
 def add_logger(logger: Logger) -> Callable:
