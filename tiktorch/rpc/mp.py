@@ -121,6 +121,7 @@ class MPClient:
         self._logger = None
         self._start_poller()
         self._timeout = timeout
+        self._send_lock = threading.Lock()
 
     @property
     def logger(self):
@@ -167,7 +168,8 @@ class MPClient:
 
     def _cancellation_cb(self, fut):
         if fut.cancelled():
-            self._conn.send(Cancellation(fut.id))
+            with self._send_lock:
+                self._conn.send(Cancellation(fut.id))
 
     def _make_future(self):
         f = RPCFuture(timeout=self._timeout)
@@ -180,7 +182,8 @@ class MPClient:
         self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
         self._request_by_id[id_] = f = self._make_future()
         f.id = id_
-        self._conn.send(MethodCall(id_, method_name, args, kwargs))
+        with self._send_lock:
+            self._conn.send(MethodCall(id_, method_name, args, kwargs))
         return f
 
     def _shutdown(self):
