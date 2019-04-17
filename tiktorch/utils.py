@@ -61,13 +61,13 @@ def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[N
     return ndarray_fut
 
 
-def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase]):
+def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase], missing_axis_value: int):
     if isinstance(obj, tuple):
-        return tuple([convert_points_to_5d_tuples(p) for p in obj])
+        return tuple([convert_points_to_5d_tuples(p, missing_axis_value) for p in obj])
     elif isinstance(obj, list):
-        return [convert_points_to_5d_tuples(p) for p in obj]
+        return [convert_points_to_5d_tuples(p, missing_axis_value) for p in obj]
     elif isinstance(obj, PointBase):
-        return (obj.t, obj.c, obj.z, obj.y, obj.x)
+        return tuple([getattr(obj, a) if a in obj.order else missing_axis_value for a in "tczyx"])
     else:
         return obj
 
@@ -79,7 +79,11 @@ def convert_to_SetDeviceReturnType(
         Tuple[Point4D, List[Point4D], Point4D],
     ]
 ):
-    return SetDeviceReturnType(*convert_points_to_5d_tuples(res))
+    return SetDeviceReturnType(
+        convert_points_to_5d_tuples(res[0], 1),  # training shape needs singleton 1
+        convert_points_to_5d_tuples(res[1], 1),  # valid shapes need singleton 1
+        convert_points_to_5d_tuples(res[2], 0),  # shrinkage needs 0 values as it is a difference
+    )
 
 
 def add_logger(logger: Logger) -> Callable:
