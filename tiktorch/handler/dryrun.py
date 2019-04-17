@@ -254,7 +254,7 @@ class DryRunProcess(IDryRun):
                     batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
                 )
             else:
-                training_shape_lower_bound = training_shape.__class__()
+                training_shape_lower_bound = training_shape.__class__(**{a: 1 for a in training_shape.order})
 
             if not (training_shape_lower_bound <= training_shape):
                 raise ValueError(
@@ -277,7 +277,9 @@ class DryRunProcess(IDryRun):
                     batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
                 )
             else:
-                training_shape_lower_bound = training_shape_upper_bound.__class__()
+                training_shape_lower_bound = training_shape_upper_bound.__class__(
+                    **{a: 1 for a in training_shape_upper_bound.order}
+                )
 
             if not (training_shape_lower_bound <= training_shape_upper_bound):
                 raise ValueError(

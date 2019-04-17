@@ -93,13 +93,12 @@ class PointAndBatchPointBase:
     y: int
     x: int
 
-    def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
-        self.b = b
-        self.t = t
-        self.c = c
-        self.z = z
-        self.y = y
-        self.x = x
+    def __init__(self, **kwargs):
+        assert len(kwargs) == len(self.order)
+        for a, v in kwargs.items():
+            assert a in self.order
+            setattr(self, a, v)
+
         super().__init__()
 
     def __getitem__(self, key: Union[int, str]):
@@ -212,8 +211,8 @@ class PointAndBatchPointBase:
 
 
 class BatchPointBase(PointAndBatchPointBase):
-    def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
-        super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     @staticmethod
     def from_spacetime(
@@ -246,7 +245,7 @@ class BatchPointBase(PointAndBatchPointBase):
 class BatchPoint2D(BatchPointBase):
     order: str = "bcyx"
 
-    def __init__(self, b: int = 0, c: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, b: int, c: int, y: int, x: int):
         super().__init__(b=b, c=c, y=y, x=x)
 
     def drop_batch(self) -> "Point2D":
@@ -256,7 +255,7 @@ class BatchPoint2D(BatchPointBase):
 class BatchPoint3D(BatchPointBase):
     order: str = "bczyx"
 
-    def __init__(self, b: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, b: int, c: int, z: int, y: int, x: int):
         super().__init__(b=b, c=c, z=z, y=y, x=x)
 
     def drop_batch(self) -> "Point3D":
@@ -266,7 +265,7 @@ class BatchPoint3D(BatchPointBase):
 class BatchPoint4D(BatchPointBase):
     order: str = "btczyx"
 
-    def __init__(self, b: int = 0, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, b: int, t: int, c: int, z: int, y: int, x: int):
         super().__init__(b=b, t=t, c=c, z=z, y=y, x=x)
 
     def drop_batch(self):
@@ -274,8 +273,9 @@ class BatchPoint4D(BatchPointBase):
 
 
 class PointBase(PointAndBatchPointBase):
-    def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
-        super().__init__(t=t, c=c, z=z, y=y, x=x)
+    def __init__(self, **kwargs):
+        assert all([a in self.order for a in kwargs])
+        super().__init__(**kwargs)
 
     @staticmethod
     def from_spacetime(c: int, spacetime: Sequence[int]) -> Union["Point2D", "Point3D", "Point4D"]:
@@ -309,30 +309,30 @@ class PointBase(PointAndBatchPointBase):
 class Point2D(PointBase):
     order: str = "cyx"
 
-    def __init__(self, c: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, c: int, y: int, x: int):
         super().__init__(c=c, y=y, x=x)
 
-    def add_batch(self, b: int = 0) -> BatchPoint2D:
+    def add_batch(self, b: int) -> BatchPoint2D:
         return BatchPoint2D(b=b, c=self.c, y=self.y, x=self.x)
 
 
 class Point3D(PointBase):
     order: str = "czyx"
 
-    def __init__(self, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, c: int, z: int, y: int, x: int):
         super().__init__(c=c, z=z, y=y, x=x)
 
-    def add_batch(self, b: int = 0) -> BatchPoint3D:
+    def add_batch(self, b: int) -> BatchPoint3D:
         return BatchPoint3D(b=b, c=self.c, z=self.z, y=self.y, x=self.x)
 
 
 class Point4D(PointBase):
     order: str = "tczyx"
 
-    def __init__(self, t: int = 0, c: int = 0, z: int = 0, y: int = 0, x: int = 0):
+    def __init__(self, t: int, c: int, z: int, y: int, x: int):
         super().__init__(t=t, c=c, z=z, y=y, x=x)
 
-    def add_batch(self, b: int = 0) -> BatchPoint4D:
+    def add_batch(self, b: int) -> BatchPoint4D:
         return BatchPoint4D(b=b, t=self.t, c=self.c, z=self.z, y=self.y, x=self.x)
 
 
