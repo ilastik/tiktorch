@@ -1,6 +1,7 @@
 """
 Types defining interop between processes on the server
 """
+import numpy
 import torch
 
 from numpy import ndarray
@@ -32,33 +33,95 @@ class TikTensor:
         self,
         tensor: Union[NDArray, ndarray, torch.Tensor],
         id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None,
+        permute_to: str = "btczyx",
     ) -> None:
+        """
+        :param tensor: 5d NDArray or ndarray treated as tczyx or torch.Tensor of arbitrary shape (for torch.Tensor permute_to has no effect)
+        :param id_: optional id
+        :param permute_to: represent internal data in this order (only has an effect on tensor/label if they are not torch.Tensor)
+        """
         if isinstance(tensor, NDArray):
-            assert id_ is None
+            assert id_ is None or id_ == tensor.id
             id_ = tensor.id
-            tensor = torch.from_numpy(tensor.as_numpy())
-        elif isinstance(tensor, ndarray):
-            tensor = torch.from_numpy(tensor)
+            tensor = tensor.as_numpy()
 
         self.id = id_
+        if isinstance(tensor, torch.Tensor):
+            # no permuations for torch.Tensor
+            self.un_subselect = ...
+            self.un_permute = [i for i in range(len(tensor.shape))]
+        else:
+            if len(tensor.shape) != 5:
+                raise ValueError(f"Expected 5d tensor, but got tensor with shape {tensor.shape}")
+
+            tczyx = "tczyx"
+            btczyx = "btczyx"
+            subselect = []
+            for a in btczyx:
+                if a in permute_to:
+                    if a == "b":
+                        subselect.append(None)
+                    else:
+                        subselect.append(slice(None))
+                elif a != "b":
+                    if tensor.shape[tczyx.index(a)] != 1:
+                        raise ValueError(f"tensor shape {tensor.shape} cannot be permuted to {permute_to}")
+
+                    subselect.append(0)
+
+            self.subselect = subselect
+            un_subselect = []
+            for a in btczyx:
+                if a in permute_to:
+                    if a == "b":
+                        un_subselect.append(0)
+                    else:
+                        un_subselect.append(slice(None))
+                elif a != "b":
+                    un_subselect.append(None)
+
+            self.un_subselect = un_subselect
+            reduced_btczyx = [a for a in btczyx if a in permute_to]
+            self.permute = [reduced_btczyx.index(a) for a in permute_to]
+            self.un_permute = [permute_to.index(a) for a in reduced_btczyx]
+
+            tensor = torch.from_numpy(tensor[self.subselect].transpose(self.permute))
+
         self._torch = tensor
 
     def add_label(self, label: Union[NDArray, ndarray, torch.Tensor]) -> "LabeledTikTensor":
         return LabeledTikTensor(tensor=self._torch, label=label, id_=self.id)
 
     def as_torch(self) -> torch.Tensor:
+        """
+        :return: underlyin torch tensor (with internal axis order)
+        """
         return self._torch
 
     def as_numpy(self) -> ndarray:
-        return self._torch.numpy()
+        """
+        :return: 5d numpy array with axis order btczyx
+        """
+        return self._torch.numpy().transpose(self.un_permute)[self.un_subselect]
 
     @property
     def dtype(self):
         return self._torch.dtype
 
     @property
-    def shape(self):
+    def torch_shape(self):
+        """
+        :return: shape of torch tensor (specified by 'permute_to')
+        """
         return self._torch.shape
+
+    @property
+    def numpy_shape(self):
+        """
+        :return: 5d shape of numpy array
+        """
+        # todo: test this for correctness
+        return numpy.array(self._torch.shape).transpose(self.un_permute)[self.un_subselect]
 
 
 class LabeledTikTensor(TikTensor):
@@ -72,28 +135,30 @@ class LabeledTikTensor(TikTensor):
         tensor: Union[LabeledNDArray, ndarray, torch.Tensor],
         label: Optional[Union[NDArray, ndarray, torch.Tensor]],
         id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None,
+        permute_to: str = "btczyx",
     ) -> None:
-        if isinstance(tensor, NDArray):
-            assert id_ is None
-            id_ = tensor.id
-            tensor = torch.from_numpy(tensor.as_numpy())
-        elif isinstance(tensor, ndarray):
-            tensor = torch.from_numpy(tensor)
-
-        super().__init__(tensor, id_)
-
+        """
+        :param tensor: 5d NDArray or ndarray treated as tczyx or torch.Tensor of arbitrary shape (for torch.Tensor permute_to has no effect)
+        :param label: 5d NDArray or ndarray treated as tczyx or torch.Tensor of arbitrary shape (for torch.Tensor permute_to has no effect)
+        :param id_: optional id
+        :param permute_to: represent internal data in this order (only has an effect on tensor/label if they are not torch.Tensor)
+        """
         if isinstance(tensor, LabeledNDArray):
             assert label is None
-            label = torch.from_numpy(label.as_numpy())
+            tensor, label = tensor.as_numpy()
         elif isinstance(label, NDArray):
             assert self.id == label.id
-            label = torch.from_numpy(label.as_numpy())
-        elif isinstance(label, ndarray):
-            label = torch.from_numpy(label)
+            label = label.as_numpy()
         elif label is None:
             raise ValueError("missing label")
 
-        self._label = label
+        super().__init__(tensor, id_, permute_to)
+
+        if isinstance(label, torch.Tensor):
+            # no permuations for torch.Tensor
+            self._label = label
+        else:
+            self._label = torch.from_numpy(label[self.subselect].transpose(self.permute))
 
     def drop_label(self) -> TikTensor:
         return TikTensor(self._torch, self.id)
@@ -102,7 +167,10 @@ class LabeledTikTensor(TikTensor):
         return self._torch, self._label
 
     def as_numpy(self) -> Tuple[ndarray, ndarray]:
-        return self._torch.numpy(), self._label.numpy()
+        return (
+            self._torch.numpy().transpose(self.un_permute)[self.un_subselect],
+            self._label.numpy().transpose(self.un_permute)[self.un_subselect],
+        )
 
 
 class TikTensorBatch:
@@ -110,9 +178,9 @@ class TikTensorBatch:
     Batch of TikTensor
     """
 
-    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch]):
+    def __init__(self, tensors: Union[List[TikTensor], NDArrayBatch], permute_to: str = "btczyx"):
         if isinstance(tensors, NDArrayBatch):
-            tensors = [TikTensor(a) for a in tensors]
+            tensors = [TikTensor(a, id_=a.id, permute_to=permute_to) for a in tensors]
 
         assert all([isinstance(t, TikTensor) for t in tensors])
         self._tensors = tensors
@@ -147,8 +215,11 @@ class LabeledTikTensorBatch(TikTensorBatch):
     Batch of LabeledTikTensor
     """
 
-    def __init__(self, tensors: Union[List[LabeledTikTensor], LabeledNDArrayBatch]):
-        super().__init__(tensors)
+    def __init__(self, tensors: Union[List[LabeledTikTensor], LabeledNDArrayBatch], permute_to: str = "btczyx"):
+        super().__init__(tensors, permute_to)
 
     def drop_labels(self) -> TikTensorBatch:
         return TikTensorBatch([t.drop_label() for t in self._tensors])
+
+    def add_labels(self, labels: Sequence) -> "LabeledTikTensorBatch":
+        raise NotImplementedError(f"Cannot add labels to {self.__class__}")
