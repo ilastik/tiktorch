@@ -33,7 +33,6 @@ if torch.cuda.is_available():
     torch.multiprocessing.set_start_method("spawn", force=True)
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("TikTorchServer")
 
 
 class TikTorchServer(INeuralNetworkAPI, IFlightControl):
@@ -41,7 +40,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     SIZE = 2
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("tiktorch.server")
         self._log_listener: Optional[logging.handlers.QueueListener] = None
         self._handler: Optional[IHandler] = None
 
@@ -238,6 +237,8 @@ class ServerProcess:
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger(__name__)
+
     # Output pid for process tracking
     print(os.getpid(), flush=True)
 
