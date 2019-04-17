@@ -31,9 +31,10 @@ def test_forward(datadir, srv, nn_sample):
     import os
     import numpy as np
 
-    input_arr = np.load(os.path.join(datadir, "fwd_input.npy"))
+    input_arr = np.load(os.path.join(datadir, "fwd_input.npy"))[None, ...]
+    assert len(input_arr.shape) == 5
     out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
-    out_arr.shape = (1, 320, 320)
+    out_arr.shape = (1, 1, 1, 320, 320)
 
     srv.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
 
