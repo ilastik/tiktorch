@@ -379,7 +379,7 @@ class DryRunProcess(IDryRun):
 
         if self.shrinkage is None:
             self.shrinkage = shrinkage
-            self.logger.info("Determined shrinkage to be {%s}", shrinkage)
+            self.logger.info("Determined shrinkage to be %s", shrinkage)
             return True
         else:
             return self.shrinkage == shrinkage

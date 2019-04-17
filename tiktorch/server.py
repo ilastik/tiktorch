@@ -169,7 +169,18 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             return err_fut
         else:
             self.handler = create_client(IHandler, server_conn)
-            return convert_to_SetDeviceReturnType(self.handler.set_devices(handler_devices))
+            try:
+                tik_fut = self.handler.set_devices(handler_devices)
+            except Exception as e:
+                self.logger.exception("set_devices failed")
+                err_fut = RPCFuture()
+                err_fut.set_exception(e)
+                return err_fut
+            else:
+                self.logger.debug("got tik_fut")
+                fut = convert_to_SetDeviceReturnType(tik_fut)
+                self.logger.debug("converted tik_fut")
+                return fut
 
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
@@ -218,7 +229,7 @@ class ServerProcess:
         self._port = port
         self._notify_port = notify_port
 
-    def listen(self, api_provider: Optional[INeuralNetworkAPI]=None):
+    def listen(self, api_provider: Optional[INeuralNetworkAPI] = None):
         if api_provider is None:
             api_provider = TikTorchServer()
 
@@ -243,6 +254,7 @@ if __name__ == "__main__":
     srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
     if args.dummy:
         from tiktorch.dev import DummyServerForFrontendDev
+
         srv.listen(api_provider=DummyServerForFrontendDev())
     else:
         srv.listen()

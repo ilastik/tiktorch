@@ -273,12 +273,14 @@ class HandlerProcess(IHandler):
             new_devices = [d for d in new_devices if d not in self.devices]
             if new_devices:
                 self.logger.debug("Requesting dry run for new devices: %s", new_devices)
-                approved_devices, training_shape, valid_shapes, shrinkage = self.dry_run.dry_run(
+                dry_run_fut = self.dry_run.dry_run(
                     new_devices,
                     training_shape=self.config.get(TRAINING_SHAPE, None),
                     valid_shapes=self.valid_shapes,
                     shrinkage=self.shrinkage,
-                ).result()
+                )
+                approved_devices, training_shape, valid_shapes, shrinkage = dry_run_fut.result()
+                self.logger.debug("got approved devices: %s", approved_devices)
                 self.idle_devices += approved_devices
 
                 if TRAINING_SHAPE in self.config:
@@ -291,8 +293,10 @@ class HandlerProcess(IHandler):
                 else:
                     self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
                     if not self.valid_shapes:
-                        # todo: make sure this happens inside the dry runa dn these new devcies aren't added at all
-                        raise ValueError(f"No valid shapes found after adding devices: {new_devices}")
+                        # todo: make sure this happens inside the dry run and that these new devcies aren't added at all
+                        e = ValueError(f"No valid shapes found after adding devices: {new_devices}")
+                        fut.set_exception(e)
+                        raise e
 
                 if self.shrinkage is None:
                     self.shrinkage = shrinkage
@@ -306,6 +310,7 @@ class HandlerProcess(IHandler):
 
             # (re-)assign freed old and new devices
             self._assign_idle_devices()
+            self.logger.debug("added devices: %s", approved_devices)
             fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
 
     def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):

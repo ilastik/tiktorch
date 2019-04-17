@@ -89,24 +89,20 @@ class LocalServerLauncher(IServerLauncher):
         self.logger.info("Starting local TikTorchServer on %s:%s", addr, port)
 
         cmd = [
-                sys.executable,
-                "-m",
-                "tiktorch.server",
-                "--port",
-                str(port),
-                "--notify-port",
-                str(notify_port),
-                "--addr",
-                addr,
-            ]
+            sys.executable,
+            "-m",
+            "tiktorch.server",
+            "--port",
+            str(port),
+            "--notify-port",
+            str(notify_port),
+            "--addr",
+            addr,
+        ]
         if self.dummy:
             cmd.append("--dummy")
 
-        self._process = subprocess.Popen(
-            cmd,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        self._process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
         try:
             wait(self.is_server_running)
