@@ -40,7 +40,7 @@ def client2d(tiny_model_2d, log_queue):
     cl.set_devices(["cpu"])
     yield cl
 
-    cl.shutdown.async_().result(timeout=10)
+    cl.shutdown.async_().result(timeout=30)
     p.join(timeout=20)
 
 
@@ -57,7 +57,7 @@ def client3d(tiny_model_3d, log_queue):
     cl.set_devices(["cpu"])
     yield cl
 
-    cl.shutdown.async_().result(timeout=10)
+    cl.shutdown.async_().result(timeout=30)
     p.join(timeout=20)
 
 
@@ -88,7 +88,7 @@ def test_forward_2d(handler2d, tiny_model_2d):
         futs.append(handler2d.forward(data))
 
     for i, fut in enumerate(futs):
-        fut.result(timeout=10)
+        fut.result(timeout=30)
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
 
 
@@ -104,7 +104,7 @@ def test_forward_2d_through_client(client2d, tiny_model_2d):
         futs.append(client2d.forward(data))
 
     for i, fut in enumerate(futs):
-        fut.result(timeout=10)
+        fut.result(timeout=30)
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
 
 
@@ -120,7 +120,7 @@ def test_forward_3d(handler3d, tiny_model_3d):
         futs.append(handler3d.forward(data))
 
     for i, fut in enumerate(futs):
-        fut.result(timeout=10)
+        fut.result(timeout=30)
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
 
 
@@ -136,7 +136,7 @@ def test_forward_3d_through_client(client3d, tiny_model_3d):
         futs.append(client3d.forward(data))
 
     for i, fut in enumerate(futs):
-        fut.result(timeout=10)
+        fut.result(timeout=30)
         print(f"got fut {i + 1}/{len(futs)}", flush=True)
 
 
@@ -144,7 +144,7 @@ def test_dry_run(handler3d, tiny_model_3d):
     handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [14, 43, 47], TRAINING_SHAPE: None}})
     approved_devices, training_shape, valid_shapes, shrinkage = handler3d.dry_run.dry_run(
         devices=[torch.device("cpu")]
-    ).result(timeout=20)
+    ).result(timeout=30)
     assert len(approved_devices) == 1
     assert training_shape.z == 14
     assert training_shape.y == 43
