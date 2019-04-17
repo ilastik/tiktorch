@@ -141,22 +141,22 @@ class MPClient:
                     except EOFError:
                         self.logger.warning("Communication channel closed. Shutting Down.")
                         self._shutdown()
+                    else:
+                        # signal
+                        if isinstance(msg, Signal):
+                            if msg.payload == b"shutdown":
+                                self.logger.debug("[signal] Shutdown")
+                                self._shutdown()
 
-                    # signal
-                    if isinstance(msg, Signal):
-                        if msg.payload == b"shutdown":
-                            self.logger.debug("[signal] Shutdown")
-                            self._shutdown()
+                        # method
+                        elif isinstance(msg, MethodReturn):
+                            fut = self._request_by_id.pop(msg.id, None)
+                            self.logger.debug("[id:%s] Recieved result", msg.id)
 
-                    # method
-                    elif isinstance(msg, MethodReturn):
-                        fut = self._request_by_id.pop(msg.id, None)
-                        self.logger.debug("[id:%s] Recieved result", msg.id)
-
-                        if fut is not None:
-                            msg.result.to_future(fut)
-                        else:
-                            self.logger.debug("[id:%s] Discarding result", msg.id)
+                            if fut is not None:
+                                msg.result.to_future(fut)
+                            else:
+                                self.logger.debug("[id:%s] Discarding result", msg.id)
 
                 if self._shutdown_event.is_set():
                     break
@@ -283,7 +283,6 @@ class MPServer:
                     self.logger.exception("Error in result sender")
 
         t = threading.Thread(target=_sender, name="MPResultSender")
-        t.daemon = True
         t.start()
 
     def _send_result(self, fut):
