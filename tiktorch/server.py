@@ -22,7 +22,6 @@ from tiktorch.tiktypes import (
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.utils import (
-    convert_tik_fut_to_ndarray_fut,
     convert_to_SetDeviceReturnType,
     get_error_msg_for_invalid_config,
     get_error_msg_for_incomplete_config,

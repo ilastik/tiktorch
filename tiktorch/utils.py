@@ -46,21 +46,6 @@ def get_error_msg_for_incomplete_config(config: dict) -> str:
     return ""
 
 
-def convert_tik_fut_to_ndarray_fut(tik_fut: RPCFuture[TikTensor]) -> RPCFuture[NDArray]:
-    ndarray_fut = RPCFuture()
-
-    def convert(tik_fut: RPCFuture[TikTensor]):
-        try:
-            res = tik_fut.result()
-        except Exception as e:
-            ndarray_fut.set_exception(e)
-        else:
-            ndarray_fut.set_result(NDArray(res.as_numpy()))
-
-    tik_fut.add_done_callback(convert)
-    return ndarray_fut
-
-
 def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase], missing_axis_value: int):
     if isinstance(obj, tuple):
         return tuple([convert_points_to_5d_tuples(p, missing_axis_value) for p in obj])
