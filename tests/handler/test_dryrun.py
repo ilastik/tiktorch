@@ -40,7 +40,7 @@ def test_with_given_training_shape(tiny_model_2d):
 
     dr = DryRunProcess(config=config, model=model)
     try:
-        dr.dry_run(devices=[torch.device("cpu")]).result(timeout=20)
+        dr.dry_run(devices=[torch.device("cpu")]).result(timeout=30)
     finally:
         dr.shutdown()
 
@@ -58,7 +58,7 @@ def test_with_given_training_shape_intervall(tiny_model_2d):
 
     dr = DryRunProcess(config=config, model=model)
     try:
-        dr.dry_run(devices=[torch.device("cpu")]).result(timeout=20)
+        dr.dry_run(devices=[torch.device("cpu")]).result(timeout=30)
     finally:
         dr.shutdown()
 
