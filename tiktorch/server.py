@@ -5,7 +5,7 @@ import torch
 import os
 
 from torch import multiprocessing as mp
-from typing import Optional, List, Tuple, Generator, Iterable, Union, Callable
+from typing import Optional, List, Tuple, Generator, Iterable, Union
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
@@ -26,7 +26,7 @@ from tiktorch.utils import (
     get_error_msg_for_invalid_config,
     get_error_msg_for_incomplete_config,
 )
-from tiktorch.configkeys import INPUT_AXIS_ORDER
+from tiktorch.configkeys import MINIMAL_CONFIG
 
 if torch.cuda.is_available():
     torch.multiprocessing.set_start_method("spawn", force=True)
@@ -37,7 +37,6 @@ logging.basicConfig(level=logging.INFO)
 class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     RANK = 1
     SIZE = 2
-    input_axis_order: str
 
     def __init__(self):
         self.logger = logging.getLogger("tiktorch.server")
@@ -138,8 +137,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         if incomplete_msg:
             raise ValueError(incomplete_msg)
 
-        self.input_axis_order = config[INPUT_AXIS_ORDER]
-
         if not devices:
             devices = ["cpu"]
 
@@ -187,22 +184,13 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         return [c.name for c in mp.active_children()]
 
     def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
-        # return self.handler.forward(data=TikTensor(batch, permute_to=self.input_axis_order)).map(lambda val: NDArray(val.as_numpy()))
-        def myfunc(val):
-            print("callback")
-            valnumpy = val.as_numpy()
-            print("after as numpy")
-            valnd = NDArray(valnumpy)
-            print("after as NDArray")
-            return valnd
-
-        return self.handler.forward(data=TikTensor(batch, permute_to=self.input_axis_order)).map(myfunc)
+        return self.handler.forward(data=TikTensor(batch)).map(lambda val: NDArray(val.as_numpy()))
 
     def update_training_data(self, data: LabeledNDArrayBatch) -> None:
-        return self.handler.update_training_data(LabeledTikTensorBatch(data, permute_to=self.input_axis_order))
+        return self.handler.update_training_data(LabeledTikTensorBatch(data))
 
     def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
-        return self.handler.update_validation_data(LabeledTikTensorBatch(data, permute_to=self.input_axis_order))
+        return self.handler.update_validation_data(LabeledTikTensorBatch(data))
 
     def pause_training(self) -> None:
         self.handler.pause_training()

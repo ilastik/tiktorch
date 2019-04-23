@@ -30,7 +30,7 @@ from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
 from tiktorch.utils import add_logger
 
-from tiktorch.configkeys import INFERENCE_BATCH_SIZE, INPUT_AXIS_ORDER
+from tiktorch.configkeys import INFERENCE_BATCH_SIZE
 
 
 class IInference(RPCInterface):
@@ -179,7 +179,6 @@ class InferenceProcess(IInference):
 
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         fut = RPCFuture()
-        assert all([len(d.shape) == 5 for d in data]), "expecting data in tczyx"
         self.forward_queue.put((data, fut))
         return fut
 
@@ -202,6 +201,8 @@ class InferenceProcess(IInference):
         keys: List = [d.id for d in data]
         data: List[torch.Tensor] = data.as_torch()
 
+        # TODO: fixT        return data
+
         self.logger.debug("forward with batch_size %d (increasing: %s)", batch_size, increase_batch_size)
 
         start = 0
@@ -218,8 +219,7 @@ class InferenceProcess(IInference):
             end = next(end_generator)
             try:
                 with torch.no_grad():
-                    pred = model(torch.concatenate(data[start:end], axis=self.config[INPUT_AXIS_ORDER].index["b"])).cpu()
-
+                    pred = model(torch.stack(data[start:end])).cpu()
             except Exception as e:
                 if batch_size > last_batch_size:
                     self.logger.info(

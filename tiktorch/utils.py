@@ -1,9 +1,10 @@
 from logging import Logger
 
+from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.rpc import RPCFuture
 from tiktorch.tiktypes import TikTensor
 from tiktorch.types import NDArray, PointBase, Point2D, Point3D, Point4D, SetDeviceReturnType
-from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG, INPUT_AXIS_ORDER, OUTPUT_AXIS_ORDER, TRAINING, LOSS_CRITERION_CONFIG
+from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
 from typing import Callable, Union, Tuple, List
 
@@ -23,16 +24,6 @@ def get_error_msg_for_invalid_config(config: dict) -> str:
                     elif subkey == LOSS_CRITERION_CONFIG:
                         if "method" not in config[TRAINING][LOSS_CRITERION_CONFIG]:
                             return f"'method' entry missing in config[{TRAINING}][{LOSS_CRITERION_CONFIG}]"
-        else:
-            if key == INPUT_AXIS_ORDER:
-                if "b" not in config[key]:
-                    return f"missing batch dimesion 'b' in config[{key}]"
-                for a in config[key]:
-                    if a not in "btczyx":
-                        return f"unknown dimension '{a}' in config[{key}]"
-            if key == OUTPUT_AXIS_ORDER:
-                if config[key] != config[INPUT_AXIS_ORDER]:
-                    return f"Unequal config[{INPUT_AXIS_ORDER}] and config[{OUTPUT_AXIS_ORDER}] not (yet) supported!"
 
     return ""
 
