@@ -1,4 +1,4 @@
-from logging import Logger
+import logging
 
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.rpc import RPCFuture
@@ -8,13 +8,15 @@ from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
 from typing import Callable, Union, Tuple, List
 
+logger = logging.getLogger()
+
 
 def get_error_msg_for_invalid_config(config: dict) -> str:
     for key in config.keys():
         if key not in CONFIG:
-            return f"Unknown config key={key}"
-
-        if isinstance(CONFIG[key], dict):
+            logger.warning("Encountered unknown config key: %s", key)
+            # return f"Unknown config key={key}"
+        elif isinstance(CONFIG[key], dict):
             if not isinstance(config[key], dict):
                 return f"config[key={key}] needs to be a dictionary"
             else:
@@ -71,7 +73,7 @@ def convert_to_SetDeviceReturnType(
     )
 
 
-def add_logger(logger: Logger) -> Callable:
+def add_logger(logger: logging.Logger) -> Callable:
     def with_logging(target: Callable) -> Callable:
         def wrapper(*args, **kwargs):
             logger.info("started")
