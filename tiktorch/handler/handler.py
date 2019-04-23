@@ -291,6 +291,9 @@ class HandlerProcess(IHandler):
                 if self.valid_shapes is None:
                     self.valid_shapes = valid_shapes
                 else:
+                    self.logger.debug(
+                        "old valid shapes: %s; valid shapes of new devices: %s", self.valid_shapes, valid_shapes
+                    )
                     self.valid_shapes = [v for v in self.valid_shapes if v in valid_shapes]
                     if not self.valid_shapes:
                         # todo: make sure this happens inside the dry run and that these new devcies aren't added at all
