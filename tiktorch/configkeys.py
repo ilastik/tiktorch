@@ -10,8 +10,6 @@ TORCH_VERSION = "torch_version"
 INPUT_CHANNELS = "input_channels"
 MODEL_CLASS_NAME = "model_class_name"
 MODEL_INIT_KWARGS = "model_init_kwargs"
-INPUT_AXIS_ORDER = "input_axis_order"
-OUTPUT_AXIS_ORDER = "output_axis_order"
 HALO = "halo"
 
 # inference
@@ -32,8 +30,6 @@ OPTIMIZER_CONFIG = "optimizer_config"
 MINIMAL_CONFIG = {
     MODEL_CLASS_NAME: None,
     INPUT_CHANNELS: None,
-    INPUT_AXIS_ORDER: None,
-    OUTPUT_AXIS_ORDER: None,
     TRAINING: {BATCH_SIZE: None, LOSS_CRITERION_CONFIG: None, OPTIMIZER_CONFIG: None},
     VALIDATION: {},
 }
@@ -44,8 +40,6 @@ CONFIG = {
     MODEL_CLASS_NAME: None,
     MODEL_INIT_KWARGS: None,
     INPUT_CHANNELS: None,
-    INPUT_AXIS_ORDER: None,
-    OUTPUT_AXIS_ORDER: None,
     HALO: None,
     INFERENCE_BATCH_SIZE: None,
     TRAINING: {

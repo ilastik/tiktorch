@@ -93,8 +93,6 @@ def tiny_model(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TestModel0"
-    base_config["config"]["input_axis_order"] = "bcx"
-    base_config["config"]["output_axis_order"] = "bcx"
     base_config["config"]["training"]["training_shape_upper_bound"] = (15,)
     return base_config
 
@@ -105,8 +103,6 @@ def tiny_model_2d(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TinyConvNet2d"
-    base_config["config"]["input_axis_order"] = "bcyx"
-    base_config["config"]["output_axis_order"] = "bcyx"
     base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15)
     return base_config
 
@@ -117,8 +113,6 @@ def tiny_model_3d(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TinyConvNet3d"
-    base_config["config"]["input_axis_order"] = "bczyx"
-    base_config["config"]["output_axis_order"] = "bczyx"
     base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15, 15)
     return base_config
 

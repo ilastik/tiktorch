@@ -51,8 +51,6 @@ from tiktorch.tiktypes import (
 
 from tiktorch.configkeys import (
     INPUT_CHANNELS,
-    INPUT_AXIS_ORDER,
-    OUTPUT_AXIS_ORDER,
     TRAINING,
     BATCH_SIZE,
     TRAINING_SHAPE,
@@ -348,7 +346,7 @@ class DryRunProcess(IDryRun):
                 self._validate_shape,
                 model=self.model,
                 device=d,
-                shape=[shape[a] for a in self.config[INPUT_AXIS_ORDER]],
+                shape=shape,
                 criterion_class=crit_class,
                 criterion_kwargs=criterion_kwargs,
             )
@@ -365,15 +363,9 @@ class DryRunProcess(IDryRun):
             self.logger.warning("different devices returned different output shapes for same input shape!")
             return False
 
-        output_axis_order = self.config[OUTPUT_AXIS_ORDER]
-        if "t" in output_axis_order:
-            output_shape = Point4D
-        elif "z" in output_axis_order:
-            output_shape = Point3D
-        else:
-            output_shape = Point2D
 
-        output_shape = output_shape(**{a: s for a, s in zip(output_axis_order, out) if a != "b"})
+
+        output_shape = shape.__class__(**{a: s for a, s in zip(shape.order, out)}).drop_batch()
 
         shrinkage = shape.drop_batch() - output_shape
 
