@@ -8,19 +8,6 @@ from typing import List, Tuple, Optional, Union, Sequence
 
 from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
 
-# import Point classes, because these used to be defined here.  # todo: change imports
-from tiktorch.types import (
-    PointAndBatchPointBase,
-    PointBase,
-    Point2D,
-    Point3D,
-    Point4D,
-    BatchPointBase,
-    BatchPoint2D,
-    BatchPoint3D,
-    BatchPoint4D,
-)
-
 
 class TikTensor:
     """

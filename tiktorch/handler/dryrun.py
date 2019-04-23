@@ -212,8 +212,6 @@ class DryRunProcess(IDryRun):
             config_training_shape = Point(
                 c=input_channels, **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE])}
             )
-            print('config training shape', config_training_shape)
-            print('training shape', training_shape)
             if training_shape is None:
                 training_shape = config_training_shape
             else:
@@ -221,7 +219,6 @@ class DryRunProcess(IDryRun):
 
             self.logger.debug("Validate given training shape: %s", training_shape)
             training_shape = training_shape.add_batch(batch_size)
-            print('training shape', training_shape)
 
             if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
                 training_shape_upper_bound = Point(
@@ -229,7 +226,6 @@ class DryRunProcess(IDryRun):
                     c=input_channels,
                     **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
                 )
-                print("training_shape_upper_bound", training_shape_upper_bound)
                 if not (training_shape <= training_shape_upper_bound):
                     raise ValueError(
                         f"{TRAINING_SHAPE}: {training_shape} incompatible with {TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"

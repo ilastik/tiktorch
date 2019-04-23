@@ -15,9 +15,6 @@ from tiktorch.tiktypes import (
     LabeledTikTensor,
     TikTensorBatch,
     LabeledTikTensorBatch,
-    Point2D,
-    Point3D,
-    Point4D,
 )
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
