@@ -12,14 +12,11 @@ class NDArray:
     """
     Containter for numpy array to transfer additional properties
     e.g. position of array in dataset (id_)
+    Numpy array
     """
 
     # TODO: Maybe convert id_ from Optional[Tuple[int, ...]] to str
     def __init__(self, array: np.ndarray, id_: Optional[Tuple[int, ...]] = None) -> None:
-        """
-        :param array: 5 dimensional numpy array. axis are interpreted as tczyx
-        :param id_: optional id
-        """
         self._numpy = array
         self.id = id_
 
@@ -46,11 +43,6 @@ class LabeledNDArray(NDArray):
     def __init__(
         self, array: np.ndarray, label: np.ndarray, id_: Optional[Tuple[Tuple[int, ...], Tuple[int, ...]]] = None
     ) -> None:
-        """
-        :param array: 5 dimensional numpy array. axis are interpreted as tczyx
-        :param label: 5 dimensional numpy array. axis are interpreted as tczyx
-        :param id_: optional id
-        """
         super().__init__(array, id_)
         self._label = label
 
