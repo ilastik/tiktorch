@@ -363,8 +363,6 @@ class DryRunProcess(IDryRun):
             self.logger.warning("different devices returned different output shapes for same input shape!")
             return False
 
-
-
         output_shape = shape.__class__(**{a: s for a, s in zip(shape.order, out)}).drop_batch()
 
         shrinkage = shape.drop_batch() - output_shape
