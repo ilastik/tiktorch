@@ -5,7 +5,6 @@ Types defining interop between client and server
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)
 import numpy as np
 
-from collections.abc import Mapping
 from typing import List, Tuple, Optional, Union, Sequence, NamedTuple
 
 
@@ -85,7 +84,7 @@ class LabeledNDArrayBatch(NDArrayBatch):
         super().__init__(arrays)
 
 
-class Point(Mapping):
+class Point:
     order: list
 
     def __init__(self, order: Optional[list] = None, **axes: int):
@@ -105,6 +104,7 @@ class Point(Mapping):
         super().__init__()
 
     def __getitem__(self, key: Union[int, str]):
+        print("key", key)
         if isinstance(key, int):
             key = self.order[key]
 

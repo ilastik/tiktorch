@@ -293,7 +293,9 @@ class DryRunProcess(IDryRun):
             self.valid_shapes = [
                 s
                 for s in valid_shapes
-                if self.validate_shape(devices=devices, shape=Point(**s).add_batch(1), train_mode=False)
+                if self.validate_shape(
+                    devices=devices, shape=Point(**{a: s[a] for a in s.order}).add_batch(1), train_mode=False
+                )
             ]
 
     def minimal_device_test(self, devices: Sequence[torch.device]) -> Sequence[torch.device]:

@@ -145,17 +145,20 @@ def test_dry_run(handler3d, tiny_model_3d):
     approved_devices, training_shape, valid_shapes, shrinkage = handler3d.dry_run.dry_run(
         devices=[torch.device("cpu")]
     ).result(timeout=30)
+    input_channels = tiny_model_3d["config"]["input_channels"]
     assert len(approved_devices) == 1
-    assert training_shape.z == 14
-    assert training_shape.y == 43
-    assert training_shape.x == 47
+    for expected, received in zip([input_channels, 14, 43, 47], training_shape):
+        assert expected == received, training_shape
+
     assert len(valid_shapes) >= 1
 
 
 def test_dry_run_through_handler(handler3d, tiny_model_3d):
     handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [14, 43, 47], TRAINING_SHAPE: None}})
     training_shape, valid_shapes, shrinkage = handler3d.set_devices(device_names=["cpu"]).result(timeout=30)
-    assert training_shape.z == 14
-    assert training_shape.y == 43
-    assert training_shape.x == 47
+
+    input_channels = tiny_model_3d["config"]["input_channels"]
+    for expected, received in zip([input_channels, 14, 43, 47], training_shape):
+        assert expected == received, training_shape
+
     assert len(valid_shapes) >= 1
