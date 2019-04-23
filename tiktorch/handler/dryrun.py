@@ -35,19 +35,7 @@ from typing import (
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.utils import add_logger
-from tiktorch.tiktypes import (
-    TikTensor,
-    TikTensorBatch,
-    PointAndBatchPointBase,
-    PointBase,
-    Point2D,
-    Point3D,
-    Point4D,
-    BatchPointBase,
-    BatchPoint2D,
-    BatchPoint3D,
-    BatchPoint4D,
-)
+from tiktorch.types import Point
 
 from tiktorch.configkeys import (
     INPUT_CHANNELS,
@@ -86,9 +74,9 @@ class IDryRun(RPCInterface):
     def dry_run(
         self,
         devices: List[torch.device],
-        training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None,
-        valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
-        shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
+        training_shape: Optional[Point] = None,
+        valid_shapes: Optional[List[Point]] = None,
+        shrinkage: Optional[Point] = None,
     ) -> RPCFuture:
         raise NotImplementedError
 
@@ -136,7 +124,7 @@ class DryRunProcess(IDryRun):
 
         self.training_shape = None
         self.valid_shapes = None
-        self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
+        self.shrinkage: Optional[Point] = None
 
         self.dry_run_queue = queue.Queue()
         self.dry_run_thread = threading.Thread(target=add_logger(self.logger)(self._dry_run_worker), name="DryRun")
@@ -169,16 +157,10 @@ class DryRunProcess(IDryRun):
     def dry_run(
         self,
         devices: List[torch.device],
-        training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None,
-        valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]] = None,
-        shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None,
-    ) -> RPCFuture[
-        Union[
-            Tuple[List[torch.device], Point2D, List[Point2D], Point2D],
-            Tuple[List[torch.device], Point3D, List[Point3D], Point3D],
-            Tuple[List[torch.device], Point4D, List[Point4D], Point4D],
-        ]
-    ]:
+        training_shape: Optional[Point] = None,
+        valid_shapes: Optional[List[Point]] = None,
+        shrinkage: Optional[Point] = None,
+    ) -> RPCFuture[Tuple[List[torch.device], Point, List[Point], Point]]:
         fut = RPCFuture()
         self.dry_run_queue.put((devices, training_shape, valid_shapes, shrinkage, fut))
         return fut
@@ -186,9 +168,9 @@ class DryRunProcess(IDryRun):
     def _dry_run(
         self,
         devices: List[torch.device],
-        training_shape: Optional[Union[Point2D, Point3D, Point4D]],
-        valid_shapes: Optional[List[Union[Point2D, Point3D, Point4D]]],
-        shrinkage: Optional[Union[Point2D, Point3D, Point4D]],
+        training_shape: Optional[Point],
+        valid_shapes: Optional[List[Point]],
+        shrinkage: Optional[Point],
         fut: Future,
     ) -> None:
         self.logger.info("Starting dry run for %s", devices)
@@ -221,15 +203,17 @@ class DryRunProcess(IDryRun):
             self.logger.error(traceback.format_exc())
             fut.set_exception(e)
 
-    def _determine_training_shape(
-        self, devices: Sequence[torch.device], training_shape: Optional[Union[Point2D, Point3D, Point4D]] = None
-    ):
+    def _determine_training_shape(self, devices: Sequence[torch.device], training_shape: Optional[Point] = None):
         self.logger.debug("Determine training shape on %s (previous training shape: %s)", devices, training_shape)
         batch_size = self.config[TRAINING][BATCH_SIZE]
         input_channels = self.config[INPUT_CHANNELS]
 
         if TRAINING_SHAPE in self.config[TRAINING]:
-            config_training_shape = PointBase.from_spacetime(input_channels, self.config[TRAINING][TRAINING_SHAPE])
+            config_training_shape = Point(
+                c=input_channels, **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE])}
+            )
+            print('config training shape', config_training_shape)
+            print('training shape', training_shape)
             if training_shape is None:
                 training_shape = config_training_shape
             else:
@@ -237,22 +221,28 @@ class DryRunProcess(IDryRun):
 
             self.logger.debug("Validate given training shape: %s", training_shape)
             training_shape = training_shape.add_batch(batch_size)
+            print('training shape', training_shape)
 
             if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
-                training_shape_upper_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND]
+                training_shape_upper_bound = Point(
+                    b=batch_size,
+                    c=input_channels,
+                    **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
                 )
+                print("training_shape_upper_bound", training_shape_upper_bound)
                 if not (training_shape <= training_shape_upper_bound):
                     raise ValueError(
                         f"{TRAINING_SHAPE}: {training_shape} incompatible with {TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
                     )
 
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
-                training_shape_lower_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
+                training_shape_lower_bound = Point(
+                    b=batch_size,
+                    c=input_channels,
+                    **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND])},
                 )
             else:
-                training_shape_lower_bound = training_shape.__class__(**{a: 1 for a in training_shape.order})
+                training_shape_lower_bound = Point(**{a: 1 for a in training_shape.order})
 
             if not (training_shape_lower_bound <= training_shape):
                 raise ValueError(
@@ -266,18 +256,20 @@ class DryRunProcess(IDryRun):
             if TRAINING_SHAPE_UPPER_BOUND not in self.config[TRAINING]:
                 raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
-            training_shape_upper_bound = BatchPointBase.from_spacetime(
-                batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND]
+            training_shape_upper_bound = Point(
+                b=batch_size,
+                c=input_channels,
+                **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
             )
 
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
-                training_shape_lower_bound = BatchPointBase.from_spacetime(
-                    batch_size, input_channels, self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND]
+                training_shape_lower_bound = Point(
+                    b=batch_size,
+                    c=input_channels,
+                    **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND])},
                 )
             else:
-                training_shape_lower_bound = training_shape_upper_bound.__class__(
-                    **{a: 1 for a in training_shape_upper_bound.order}
-                )
+                training_shape_lower_bound = Point(**{a: 1 for a in training_shape_upper_bound.order})
 
             if not (training_shape_lower_bound <= training_shape_upper_bound):
                 raise ValueError(
@@ -294,17 +286,18 @@ class DryRunProcess(IDryRun):
                 training_shape_lower_bound, training_shape_upper_bound, devices=devices
             )
 
-        return training_shape.drop_batch()
+        training_shape.drop_batch()
+        return training_shape
 
-    def _determine_valid_shapes(
-        self, devices: Sequence[torch.device], valid_shapes: Sequence[Union[Point2D, Point3D, Point4D]]
-    ):
+    def _determine_valid_shapes(self, devices: Sequence[torch.device], valid_shapes: Sequence[Point]):
         # todo: find valid shapes
         if valid_shapes is None:
             self.valid_shapes = [self.training_shape]
         else:
             self.valid_shapes = [
-                s for s in valid_shapes if self.validate_shape(devices=devices, shape=s.add_batch(1), train_mode=False)
+                s
+                for s in valid_shapes
+                if self.validate_shape(devices=devices, shape=Point(**s).add_batch(1), train_mode=False)
             ]
 
     def minimal_device_test(self, devices: Sequence[torch.device]) -> Sequence[torch.device]:
@@ -328,9 +321,7 @@ class DryRunProcess(IDryRun):
 
         return True
 
-    def validate_shape(
-        self, devices: Sequence[torch.device], shape: Union[BatchPoint2D, BatchPoint3D, BatchPoint4D], train_mode: bool
-    ) -> bool:
+    def validate_shape(self, devices: Sequence[torch.device], shape: Point, train_mode: bool) -> bool:
         assert devices
         if train_mode:
             crit_class = self.criterion_class
@@ -381,7 +372,7 @@ class DryRunProcess(IDryRun):
         shape: List[int],
         criterion_class: Optional[type],
         criterion_kwargs: Dict,
-    ) -> Optional[Tuple[Union[Point2D, Point3D, Point4D], int]]:
+    ) -> Optional[Tuple[Point, int]]:
         try:
 
             def apply_model():
@@ -410,20 +401,17 @@ class DryRunProcess(IDryRun):
 
     def find_one_shape(
         self,
-        lower_limit: Union[BatchPoint2D, BatchPoint3D, BatchPoint4D],
-        upper_limit: Union[BatchPoint2D, BatchPoint3D, BatchPoint4D],
+        lower_limit: Point,
+        upper_limit: Point,
         devices: Sequence[torch.device],
         train_mode: bool = False,
         discard: float = 0,
-    ) -> Optional[Union[BatchPoint2D, BatchPoint3D, BatchPoint4D]]:
-        shape_class = type(lower_limit)
-        assert (
-            type(upper_limit) == shape_class
-        ), f"type(upper_limit){type(upper_limit)} == type(lower_limit){type(lower_limit)}"
-        lower_limit = numpy.array(lower_limit)
-        upper_limit = numpy.array(upper_limit)
-        diff = upper_limit - lower_limit
-        assert all(diff >= 0), f"negative diff: {diff} = upper_limit({upper_limit}) - lower_limit({lower_limit}) "
+    ) -> Optional[Point]:
+        assert lower_limit.order == upper_limit.order
+        lower = numpy.array(lower_limit)
+        upper = numpy.array(upper_limit)
+        diff = upper - lower
+        assert all(diff >= 0), f"negative diff: {diff} = upper({upper}) - lower({lower}) "
         assert 0 <= discard < 1
 
         def update_nonzero(diff):
@@ -441,7 +429,7 @@ class DryRunProcess(IDryRun):
         while ndiff:
             search_order = numpy.argsort(nonzero)[::-1]
             for diff_i in search_order:
-                shape = shape_class(*(lower_limit + diff))
+                shape = Point(**dict(zip(lower_limit.order, lower + diff)))
                 if self.validate_shape(devices=devices, shape=shape, train_mode=train_mode):
                     return shape
 

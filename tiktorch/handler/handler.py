@@ -19,18 +19,8 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, D
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
-from tiktorch.tiktypes import (
-    TikTensor,
-    LabeledTikTensor,
-    TikTensorBatch,
-    LabeledTikTensorBatch,
-    PointBase,
-    Point2D,
-    Point3D,
-    Point4D,
-    BatchPointBase,
-    PointAndBatchPointBase,
-)
+from tiktorch.types import Point
+from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.configkeys import TRAINING, VALIDATION, MODEL_CLASS_NAME, MODEL_INIT_KWARGS
 from tiktorch.handler.training import run as run_training, ITraining
 from tiktorch.handler.inference import run as run_inference, IInference
@@ -57,15 +47,7 @@ from tiktorch.configkeys import (
 
 class IHandler(RPCInterface):
     @exposed
-    def set_devices(
-        self, device_names: Sequence[str]
-    ) -> RPCFuture[
-        Union[
-            Tuple[Point2D, List[Point2D], Point2D],
-            Tuple[Point3D, List[Point3D], Point3D],
-            Tuple[Point4D, List[Point4D], Point4D],
-        ]
-    ]:
+    def set_devices(self, device_names: Sequence[str]) -> RPCFuture[Tuple[Point, List[Point], Point]]:
         raise NotImplementedError
 
     @exposed
@@ -150,8 +132,8 @@ class HandlerProcess(IHandler):
 
         self.logger = logging.getLogger(__name__)
         self.logger.info("started")
-        self.valid_shapes: Optional[Union[List[Point2D], List[Point3D], List[Point4D]]] = None
-        self.shrinkage: Optional[Union[Point2D, Point3D, Point4D]] = None
+        self.valid_shapes: Optional[List[Point]] = None
+        self.shrinkage: Optional[Point] = None
         self.idle_devices: List[torch.device] = []
         self.training_devices: List[torch.device] = []
         self.inference_devices: List[torch.device] = []
@@ -391,15 +373,7 @@ class HandlerProcess(IHandler):
     def dry_run(self):
         return self._dry_run
 
-    def set_devices(
-        self, device_names: Sequence[str]
-    ) -> RPCFuture[
-        Union[
-            Tuple[Point2D, List[Point2D], Point2D],
-            Tuple[Point3D, List[Point3D], Point3D],
-            Tuple[Point4D, List[Point4D], Point4D],
-        ]
-    ]:
+    def set_devices(self, device_names: Sequence[str]) -> RPCFuture[Tuple[Point, List[Point], Point]]:
         fut = RPCFuture()
         self.new_device_names.put((device_names, fut))
         return fut

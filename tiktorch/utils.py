@@ -1,9 +1,7 @@
 import logging
 
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
-from tiktorch.rpc import RPCFuture
-from tiktorch.tiktypes import TikTensor
-from tiktorch.types import NDArray, PointBase, Point2D, Point3D, Point4D, SetDeviceReturnType
+from tiktorch.types import Point, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
 from typing import Callable, Union, Tuple, List
@@ -48,24 +46,18 @@ def get_error_msg_for_incomplete_config(config: dict) -> str:
     return ""
 
 
-def convert_points_to_5d_tuples(obj: Union[tuple, list, PointBase], missing_axis_value: int):
+def convert_points_to_5d_tuples(obj: Union[tuple, list, Point], missing_axis_value: int):
     if isinstance(obj, tuple):
         return tuple([convert_points_to_5d_tuples(p, missing_axis_value) for p in obj])
     elif isinstance(obj, list):
         return [convert_points_to_5d_tuples(p, missing_axis_value) for p in obj]
-    elif isinstance(obj, PointBase):
-        return tuple([getattr(obj, a) if a in obj.order else missing_axis_value for a in "tczyx"])
+    elif isinstance(obj, Point):
+        return tuple(*obj)
     else:
         return obj
 
 
-def convert_to_SetDeviceReturnType(
-    res: Union[
-        Tuple[Point2D, List[Point2D], Point2D],
-        Tuple[Point3D, List[Point3D], Point3D],
-        Tuple[Point4D, List[Point4D], Point4D],
-    ]
-):
+def convert_to_SetDeviceReturnType(res: Tuple[Point, List[Point], Point]):
     return SetDeviceReturnType(
         convert_points_to_5d_tuples(res[0], 1),  # training shape needs singleton 1
         convert_points_to_5d_tuples(res[1], 1),  # valid shapes need singleton 1
