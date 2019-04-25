@@ -38,7 +38,6 @@ from tiktorch.utils import add_logger
 from tiktorch.types import Point
 
 from tiktorch.configkeys import (
-    INPUT_CHANNELS,
     TRAINING,
     BATCH_SIZE,
     TRAINING_SHAPE,
@@ -206,12 +205,9 @@ class DryRunProcess(IDryRun):
     def _determine_training_shape(self, devices: Sequence[torch.device], training_shape: Optional[Point] = None):
         self.logger.debug("Determine training shape on %s (previous training shape: %s)", devices, training_shape)
         batch_size = self.config[TRAINING][BATCH_SIZE]
-        input_channels = self.config[INPUT_CHANNELS]
 
         if TRAINING_SHAPE in self.config[TRAINING]:
-            config_training_shape = Point(
-                c=input_channels, **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE])}
-            )
+            config_training_shape = Point(**{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE])})
             if training_shape is None:
                 training_shape = config_training_shape
             else:
@@ -223,7 +219,6 @@ class DryRunProcess(IDryRun):
             if TRAINING_SHAPE_UPPER_BOUND in self.config[TRAINING]:
                 training_shape_upper_bound = Point(
                     b=batch_size,
-                    c=input_channels,
                     **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
                 )
                 if not (training_shape <= training_shape_upper_bound):
@@ -234,7 +229,6 @@ class DryRunProcess(IDryRun):
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
                 training_shape_lower_bound = Point(
                     b=batch_size,
-                    c=input_channels,
                     **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND])},
                 )
             else:
@@ -254,14 +248,12 @@ class DryRunProcess(IDryRun):
 
             training_shape_upper_bound = Point(
                 b=batch_size,
-                c=input_channels,
                 **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
             )
 
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
                 training_shape_lower_bound = Point(
                     b=batch_size,
-                    c=input_channels,
                     **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_LOWER_BOUND])},
                 )
             else:

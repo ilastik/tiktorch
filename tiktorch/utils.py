@@ -52,7 +52,7 @@ def convert_points_to_5d_tuples(obj: Union[tuple, list, Point], missing_axis_val
     elif isinstance(obj, list):
         return [convert_points_to_5d_tuples(p, missing_axis_value) for p in obj]
     elif isinstance(obj, Point):
-        return tuple(*obj)
+        return tuple(obj)
     else:
         return obj
 

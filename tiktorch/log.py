@@ -1,6 +1,5 @@
 import multiprocessing as mp
 import logging.config
-import pprint
 
 CONFIG = {
     "version": 1,
@@ -22,7 +21,7 @@ CONFIG = {
     "loggers": {
         "": {"handlers": ["default"], "level": "INFO", "propagate": True},
         "concurrent.futures": {"handlers": ["default"], "level": "ERROR", "propagate": False},
-        "tiktorch": {"handlers": ["default"], "level": "DEBUG", "propagate": False},
+        "tiktorch": {"handlers": ["default"], "level": "WARNING", "propagate": False},
         "tiktorch.rpc": {"handlers": ["default"], "level": "WARNING", "propagate": False},
     },
 }
