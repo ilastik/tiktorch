@@ -2,7 +2,7 @@ import torch
 from torch import multiprocessing as mp
 
 from tiktorch.handler.training import ITraining, TrainingProcess, run
-from tiktorch.tiktypes import LabeledTikTensor, LabeledTikTensorBatch
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.rpc.mp import MPClient, create_client, Shutdown
 
 from tests.data.tiny_models import TinyConvNet2d
@@ -35,14 +35,13 @@ def test_training(tiny_model_2d):
     training = TrainingProcess(config=config, model=model)
     try:
         training.set_devices([torch.device("cpu")])
-        data = LabeledTikTensorBatch(
-            [
-                LabeledTikTensor(torch.zeros(in_channels, 15, 15), torch.ones(in_channels, 9, 9)),
-                LabeledTikTensor(torch.ones(in_channels, 15, 15), torch.zeros(in_channels, 9, 9)),
-            ]
-        )
-        training.update_dataset("training", data)
+        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
+        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15)), TikTensor(torch.zeros(in_channels, 9, 9))])
+        training.update_dataset("training", data, labels)
         training.resume_training()
+        import time
+
+        time.sleep(10)
     finally:
         training.shutdown()
 
@@ -58,13 +57,9 @@ def test_training_in_proc(tiny_model_2d, log_queue):
     client = create_client(ITraining, handler_conn)
     try:
         client.set_devices([torch.device("cpu")])
-        data = LabeledTikTensorBatch(
-            [
-                LabeledTikTensor(torch.zeros(in_channels, 15, 15), torch.ones(in_channels, 9, 9)),
-                LabeledTikTensor(torch.ones(in_channels, 15, 15), torch.zeros(in_channels, 9, 9)),
-            ]
-        )
-        client.update_dataset("training", data)
+        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
+        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15)), TikTensor(torch.zeros(in_channels, 9, 9))])
+        client.update_dataset("training", data, labels)
         client.resume_training()
     finally:
         client.shutdown()
