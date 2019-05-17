@@ -214,13 +214,13 @@ class TrainingProcess(ITraining):
             if self.shutdown_event.is_set():
                 self.logger.info("SHUT IS SET")
                 break
-            self.logger.info("Trainer is init %s", self.trainer.max_num_iterations)
+            self.logger.info("Trainer is init %s", trainer.max_num_iterations)
             if self._pause_event.is_set():
                 self.logger.info("Shutdown event %s", self.shutdown_event.is_set())
                 self.logger.info("PAUSE IS SET")
                 self.idle = True
                 time.sleep(1)
-                self.logger.info("WOKE")
+                self.logger.info("WOKEN UP")
             else:
                 if self.update_trainer_event.is_set():
                     self.logger.info("Update trainer settings")
@@ -228,7 +228,6 @@ class TrainingProcess(ITraining):
                         self.update_trainer_event.clear()
                         if not self.devices:
                             self.trainer.cpu()
-                            continue  # wait for a device
                         elif self.base_device == "cpu":
                             self.trainer.cpu()
                         elif self.base_device == "cuda":
@@ -236,19 +235,19 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
+                        self.logger.info("UPDATE SETTING MAX %s", self.config[TRAINING][MAX_NUM_ITERATIONS])
                         trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
                         for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
                                 trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
 
-                self.logger.info("MAX NUM ITERATIONS %s %s", self.trainer.max_num_iterations, trainer.iteration_count)
-                if self.trainer.max_num_iterations >= trainer.iteration_count:
+                self.logger.info("MAX NUM ITERATIONS %s %s", trainer.max_num_iterations, trainer.iteration_count)
+                if trainer.max_num_iterations > trainer.iteration_count:
                     self.idle = False
                     if self.devices:
                         self.logger.info(
-                            "Start training for %d iterations",
-                            self.trainer.max_num_iterations - trainer.iteration_count,
+                            "Start training for %d iterations", trainer.max_num_iterations - trainer.iteration_count
                         )
                         trainer.fit()
                     else:
@@ -332,6 +331,9 @@ class TrainingProcess(ITraining):
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data, labels)
         if name == TRAINING:
+            self.logger.warning(
+                "UPDATE DATASET MAX NUM ITERATIONS %s", self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE]
+            )
             self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
                 data
             )
