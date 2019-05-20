@@ -36,7 +36,6 @@ from tiktorch.configkeys import (
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
 )
-from inferno.trainers.callbacks.base import Callback
 
 
 # inferno names
@@ -49,15 +48,6 @@ INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch c
     LOSS_CRITERION_CONFIG: "criterion_config",
     BATCH_SIZE: "batch_size",
 }
-
-
-class ReporterCb(Callback):
-    def end_of_training_iteration(self, **_):
-        # The callback object has the trainer as an attribute.
-        # The trainer populates its 'states' with torch tensors (NOT VARIABLES!)
-        training_loss = self.trainer.get_state("training_loss")
-        # Extract float from torch tensor
-        print("TRAINING LOSS", training_loss)
 
 
 class TikTrainer(InfernoTrainer):
@@ -167,6 +157,7 @@ class TrainingProcess(ITraining):
         self._pause_event.set()
         self.update_trainer_event = threading.Event()
         self.update_trainer_event.set()
+        # TODO: remove self.trainer (currently only local trainer used in worker)
         self.trainer = TikTrainer.build(
             model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
         )
@@ -182,7 +173,7 @@ class TrainingProcess(ITraining):
         pass  # todo: return validation
 
     def end_of_training_iteration(self, iteration_num, trigger):
-        self.logger.warning("END OF TRAINGIN INTEREATION")
+        pass
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
@@ -201,7 +192,6 @@ class TrainingProcess(ITraining):
             **self.create_trainer_config(),
         )
         trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
-        trainer.register_callback(ReporterCb())
         trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
 
         if self.optimizer_state:
@@ -209,18 +199,13 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 trainer.optimizer = optimizer
 
-        self.logger.info("Shutdown event %s", self.shutdown_event.is_set())
         while True:
             if self.shutdown_event.is_set():
-                self.logger.info("SHUT IS SET")
                 break
-            self.logger.info("Trainer is init %s", trainer.max_num_iterations)
+
             if self._pause_event.is_set():
-                self.logger.info("Shutdown event %s", self.shutdown_event.is_set())
-                self.logger.info("PAUSE IS SET")
                 self.idle = True
                 time.sleep(1)
-                self.logger.info("WOKEN UP")
             else:
                 if self.update_trainer_event.is_set():
                     self.logger.info("Update trainer settings")
@@ -235,14 +220,12 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
-                        self.logger.info("UPDATE SETTING MAX %s", self.config[TRAINING][MAX_NUM_ITERATIONS])
                         trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
                         for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
                                 trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
 
-                self.logger.info("MAX NUM ITERATIONS %s %s", trainer.max_num_iterations, trainer.iteration_count)
                 if trainer.max_num_iterations > trainer.iteration_count:
                     self.idle = False
                     if self.devices:
@@ -255,7 +238,6 @@ class TrainingProcess(ITraining):
                         # waiting for a device
                         time.sleep(1)
                 else:
-                    self.logger.info("IDLING")
                     self.idle = True
                     time.sleep(1)
 
@@ -327,13 +309,9 @@ class TrainingProcess(ITraining):
         #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
-        self.logger.warning("UPDATE DATASET %s", len(data))
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data, labels)
         if name == TRAINING:
-            self.logger.warning(
-                "UPDATE DATASET MAX NUM ITERATIONS %s", self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE]
-            )
             self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
                 data
             )

@@ -188,9 +188,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.handler.pause_training()
 
     def resume_training(self) -> None:
-        self.logger.warning("training resume srv")
         self.handler.resume_training()
-        self.logger.warning("training resume done srv")
 
     def update_config(self, partial_config: dict) -> None:
         self.handler.update_config(partial_config)
