@@ -189,6 +189,8 @@ class InferenceProcess(IInference):
         :param data: input data to neural network
         """
         self.logger.debug("this is forward")
+        # TODO: Maybe use todevice
+        # TODO(novikov): Move model creation to worker
         if device.type == "cuda":
             with device:
                 model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
