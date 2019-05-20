@@ -77,7 +77,7 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_training_data(self, data: LabeledTikTensorBatch) -> None:
+    def update_training_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         raise NotImplementedError
 
     @exposed
@@ -467,13 +467,15 @@ class HandlerProcess(IHandler):
 
     # training
     def resume_training(self) -> None:
+        self.logger.debug("resume training")
         self.training.resume_training()
 
     def pause_training(self) -> None:
         self.training.pause_training()
 
-    def update_training_dataset(self, data: LabeledTikTensorBatch) -> None:
-        self.training.update_dataset(TRAINING, data)
+    def update_training_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
+        self.logger.debug("update training data")
+        self.training.update_dataset(TRAINING, data, labels)
 
     def update_validation_dataset(self, data: LabeledTikTensorBatch) -> None:
         self.training.update_dataset(VALIDATION, data)

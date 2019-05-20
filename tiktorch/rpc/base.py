@@ -54,6 +54,7 @@ def serialize_args(
     if not ismethod:
         raise ValueError(f"{func} should be bound instance method")
 
+    print("GOT ARGS FOR", args, sig)
     bound_args = sig.bind(*args, **kwargs).arguments
 
     for arg in sig.parameters.values():

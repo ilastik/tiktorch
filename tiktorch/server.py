@@ -178,8 +178,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
         return self.handler.forward(data=TikTensor(batch)).map(lambda val: NDArray(val.as_numpy()))
 
-    def update_training_data(self, data: LabeledNDArrayBatch) -> None:
-        return self.handler.update_training_data(LabeledTikTensorBatch(data))
+    def update_training_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
+        self.handler.update_training_data(TikTensorBatch(data), TikTensorBatch(labels))
 
     def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
         return self.handler.update_validation_data(LabeledTikTensorBatch(data))

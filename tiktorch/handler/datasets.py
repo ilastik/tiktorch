@@ -3,7 +3,7 @@ import torch
 
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import LabeledTikTensorBatch
+from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensorBatch
 
 
 class DynamicDataset(Dataset):
@@ -41,26 +41,35 @@ class DynamicDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def update(self, data: LabeledTikTensorBatch) -> None:
+    def update(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         """
         :param keys: list of keys to identify each value by
         :param values: list of new values. (remove from dataset if not bool(value). The count will be kept.)
         """
         # self.data.update(zip(keys, values))
         # update update counts
-
-        for d in data:
-            key, value = d.id, d.as_torch()
+        for d, l in zip(data, labels):
+            assert d.id == l.id
+            key = d.id
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
             # remove deleted samples (values)
-            if value is None:
+
+            # TODO: unreachable
+            # previously we had here followin line:
+            #
+            # key, value = d.id, d.as_torch()
+            #
+            # where as torch returned two element tuple
+            #
+            # if value
+            if False:
                 if key in self.data.keys():
                     # del self.data[key]  # todo: make truly dynamic. problem: let sampler know
                     self.data[key] = tuple([*self.data[key][:-1], torch.zeros_like(self.data[key][-1])])
                     self.removed_in_this_epoch.add(key)
                     self.weights[key] = 0
             else:
-                self.data[key] = value
+                self.data[key] = d.as_torch(), l.as_torch()
                 self.removed_in_this_epoch.discard(key)
 
                 self.weights[key] = 1.0  # todo: take update counts into account

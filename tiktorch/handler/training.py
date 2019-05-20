@@ -19,7 +19,7 @@ from .datasets import DynamicDataset
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
-from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch
+from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch, TikTensorBatch
 from tiktorch import log
 from tiktorch.configkeys import (
     NAME,
@@ -36,6 +36,7 @@ from tiktorch.configkeys import (
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
 )
+
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
@@ -93,7 +94,7 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_dataset(self, name: str, data: LabeledTikTensorBatch):
+    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch):
         raise NotImplementedError
 
     @exposed
@@ -156,6 +157,7 @@ class TrainingProcess(ITraining):
         self._pause_event.set()
         self.update_trainer_event = threading.Event()
         self.update_trainer_event.set()
+        # TODO: remove self.trainer (currently only local trainer used in worker)
         self.trainer = TikTrainer.build(
             model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
         )
@@ -169,6 +171,9 @@ class TrainingProcess(ITraining):
     #
     def end_of_validation_iteration(self, trigger):
         pass  # todo: return validation
+
+    def end_of_training_iteration(self, iteration_num, trigger):
+        pass
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
@@ -186,7 +191,7 @@ class TrainingProcess(ITraining):
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
             **self.create_trainer_config(),
         )
-        # trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
+        trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
         trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
 
         if self.optimizer_state:
@@ -194,7 +199,10 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 trainer.optimizer = optimizer
 
-        while not self.shutdown_event.is_set():
+        while True:
+            if self.shutdown_event.is_set():
+                break
+
             if self._pause_event.is_set():
                 self.idle = True
                 time.sleep(1)
@@ -205,7 +213,6 @@ class TrainingProcess(ITraining):
                         self.update_trainer_event.clear()
                         if not self.devices:
                             self.trainer.cpu()
-                            break  # wait for a device
                         elif self.base_device == "cpu":
                             self.trainer.cpu()
                         elif self.base_device == "cuda":
@@ -219,15 +226,15 @@ class TrainingProcess(ITraining):
                                 self.update_loader[name] = False
                                 trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
 
-                if self.trainer.max_num_iterations >= trainer.iteration_count:
+                if trainer.max_num_iterations > trainer.iteration_count:
                     self.idle = False
                     if self.devices:
                         self.logger.info(
-                            "Start training for %d iterations",
-                            self.trainer.max_num_iterations - trainer.iteration_count,
+                            "Start training for %d iterations", trainer.max_num_iterations - trainer.iteration_count
                         )
                         trainer.fit()
                     else:
+                        self.logger.info("Waiting for device %s", self.devices)
                         # waiting for a device
                         time.sleep(1)
                 else:
@@ -252,7 +259,7 @@ class TrainingProcess(ITraining):
                 assert len(devices) <= 1, "Cannot train on cpu and gpu at the same time"
                 # train on cpu
                 self.base_device = "cpu"
-                self.devices = []
+                self.devices = [torch.device("cpu")]
             else:
                 self.base_device = "cuda"
                 self.devices = devices
@@ -293,6 +300,7 @@ class TrainingProcess(ITraining):
         return Shutdown()
 
     def resume_training(self) -> None:
+        self.logger.warning("RESUME")
         self._pause_event.clear()
 
     def pause_training(self) -> None:
@@ -300,9 +308,9 @@ class TrainingProcess(ITraining):
         # with self.training_settings_lock:
         #     self.trainer.set_max_num_iterations(0)
 
-    def update_dataset(self, name: str, data: LabeledTikTensorBatch) -> None:
+    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        self.datasets[name].update(data)
+        self.datasets[name].update(data, labels)
         if name == TRAINING:
             self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
                 data
