@@ -223,7 +223,8 @@ class DryRunProcess(IDryRun):
                 )
                 if not (training_shape <= training_shape_upper_bound):
                     raise ValueError(
-                        f"{TRAINING_SHAPE}: {training_shape} incompatible with {TRAINING_SHAPE_UPPER_BOUND}: {training_shape_upper_bound}"
+                        f"{TRAINING_SHAPE}: {training_shape} incompatible with {TRAINING_SHAPE_UPPER_BOUND}: "
+                        f"{training_shape_upper_bound}"
                     )
 
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
@@ -236,7 +237,8 @@ class DryRunProcess(IDryRun):
 
             if not (training_shape_lower_bound <= training_shape):
                 raise ValueError(
-                    f"{TRAINING_SHAPE_LOWER_BOUND}{training_shape_lower_bound} incompatible with {TRAINING_SHAPE}{training_shape}"
+                    f"{TRAINING_SHAPE_LOWER_BOUND}{training_shape_lower_bound} incompatible with {TRAINING_SHAPE}"
+                    f"{training_shape}"
                 )
 
             if not self.validate_shape(devices=devices, shape=training_shape, train_mode=True):
@@ -272,6 +274,11 @@ class DryRunProcess(IDryRun):
             training_shape = self.find_one_shape(
                 training_shape_lower_bound, training_shape_upper_bound, devices=devices
             )
+            if training_shape is None:
+                raise ValueError(
+                    f"No valid training shape found between lower bound {training_shape_lower_bound} and upper bound "
+                    f"{training_shape_upper_bound}"
+                )
 
         training_shape.drop_batch()
         return training_shape
