@@ -336,7 +336,7 @@ class DryRunProcess(IDryRun):
         output_shapes = [conn.recv() for conn in return_conns]
         for e in output_shapes:
             if isinstance(e, Exception):
-                self.logger.debug("Shape %s invalid: %r", shape, e)
+                self.logger.debug("Shape %s invalid: %r", shape, e, exc_info=(type(e), e, e.__traceback__ ))
                 return False
 
         out = output_shapes[0]
