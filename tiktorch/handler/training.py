@@ -308,9 +308,9 @@ class TrainingProcess(ITraining):
         # with self.training_settings_lock:
         #     self.trainer.set_max_num_iterations(0)
 
-    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
+    def update_dataset(self, name: str, data: LabeledTikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        self.datasets[name].update(data, labels)
+        self.datasets[name].update(data)
         if name == TRAINING:
             self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
                 data
