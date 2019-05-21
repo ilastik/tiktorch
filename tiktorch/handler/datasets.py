@@ -50,6 +50,7 @@ class DynamicDataset(Dataset):
         # update update counts
         for image, label in zip(images, labels):
             assert image.id == label.id
+            assert image.id is not None
             key = image.id
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
             image = image.as_torch()
@@ -66,11 +67,10 @@ class DynamicDataset(Dataset):
                 self.weights[key] = 0
                 self.recently_removed.add(key)
 
-                # the following line is obsolete. It's put here for safety (better to train on an empty patch than on
-                # an old label, if this patch somehow gets sampled anyway somehow) todo: remove after testing
-                self.data[key] = image, label
+    def get_weights(self) -> torch.DoubleTensor:
+        return torch.DoubleTensor([self.weights[key] for key in self.data.keys()])
 
-    def reset_indices(self) -> torch.Tensor:
+    def reset_indices(self) -> None:
         """
         Removes deleted samples from the dataset.
         :return: new weights
@@ -78,5 +78,3 @@ class DynamicDataset(Dataset):
         for deleted_key in self.recently_removed:
             del self.data[deleted_key]
             del self.weights[deleted_key]
-
-        return torch.DoubleTensor([self.weights[key] for key in self.data.keys()])
