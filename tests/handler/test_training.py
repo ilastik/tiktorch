@@ -35,11 +35,11 @@ def test_training(tiny_model_2d):
     training = TrainingProcess(config=config, model=model)
     try:
         training.set_devices([torch.device("cpu")])
-        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
+        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15), ((1, ),(1, ))), TikTensor(torch.ones(in_channels, 9, 9), ((2, ), (2, )))])
         labels = TikTensorBatch(
             [
-                TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8)),
-                TikTensor(torch.zeros(in_channels, 9, 9, dtype=torch.uint8)),
+                TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8), ((1, ), (1, ))),
+                TikTensor(torch.full((in_channels, 9, 9), 2, dtype=torch.uint8), ((2, ), (2, ))),
             ]
         )
         training.update_dataset("training", data, labels)
@@ -62,11 +62,11 @@ def test_training_in_proc(tiny_model_2d, log_queue):
     client = create_client(ITraining, handler_conn)
     try:
         client.set_devices([torch.device("cpu")])
-        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
+        data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15), ((1, ), (1, ))), TikTensor(torch.ones(in_channels, 9, 9), ((2, ), (2, )))])
         labels = TikTensorBatch(
             [
-                TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8)),
-                TikTensor(torch.zeros(in_channels, 9, 9, dtype=torch.uint8)),
+                TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8), ((1, ), (1, ))),
+                TikTensor(torch.full((in_channels, 9, 9), 2, dtype=torch.uint8), ((2, ), (2, ))),
             ]
         )
         client.update_dataset("training", data, labels)
