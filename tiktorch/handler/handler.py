@@ -81,7 +81,7 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_validation_data(self, data: LabeledTikTensorBatch) -> None:
+    def update_validation_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         raise NotImplementedError
 
 
@@ -477,8 +477,8 @@ class HandlerProcess(IHandler):
         self.logger.debug("update training data")
         self.training.update_dataset(TRAINING, data, labels)
 
-    def update_validation_dataset(self, data: LabeledTikTensorBatch) -> None:
-        self.training.update_dataset(VALIDATION, data)
+    def update_validation_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
+        self.training.update_dataset(VALIDATION, data, labels)
 
     # def request_state(self) -> None:
     #     model_state = pickle.dumps(self.model.state_dict())

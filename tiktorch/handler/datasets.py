@@ -4,7 +4,7 @@ import torch
 from collections import OrderedDict
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import LabeledTikTensorBatch
+from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensorBatch
 
 
 class DynamicDataset(Dataset):
@@ -41,21 +41,23 @@ class DynamicDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def update(self, data: LabeledTikTensorBatch) -> None:
+    def update(self, images: TikTensorBatch, labels: TikTensorBatch) -> None:
         """
         :param keys: list of keys to identify each value by
         :param values: list of new values. (remove from dataset if not bool(value). The count will be kept.)
         """
         # self.data.update(zip(keys, values))
         # update update counts
-        for d in data:
-            key = d.id
+        for image, label in zip(images, labels):
+            assert image.id == label.id
+            key = image.id
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
-            raw, label = d.as_torch()
+            image = image.as_torch()
+            label = label.as_torch()
 
             if label.any():
                 # add sample-label pair to dataset
-                self.data[key] = raw, label
+                self.data[key] = image, label
                 self.recently_removed.discard(key)
                 self.weights[key] = self.weights.get(key, 0) + 1  # todo: take update counts into account properly
             elif key in self.data.keys():
@@ -66,7 +68,7 @@ class DynamicDataset(Dataset):
 
                 # the following line is obsolete. It's put here for safety (better to train on an empty patch than on
                 # an old label, if this patch somehow gets sampled anyway somehow) todo: remove after testing
-                self.data[key] = raw, label
+                self.data[key] = image, label
 
     def reset_indices(self) -> torch.Tensor:
         """

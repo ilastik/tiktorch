@@ -141,11 +141,11 @@ def test_forward_3d_through_client(client3d, tiny_model_3d):
 
 
 def test_dry_run(handler3d, tiny_model_3d):
-    handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [14, 43, 47], TRAINING_SHAPE: None}})
+    input_channels = tiny_model_3d["config"]["input_channels"]
+    handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [input_channels, 14, 43, 47], TRAINING_SHAPE: None}})
     approved_devices, training_shape, valid_shapes, shrinkage = handler3d.dry_run.dry_run(
         devices=[torch.device("cpu")]
     ).result(timeout=30)
-    input_channels = tiny_model_3d["config"]["input_channels"]
     assert len(approved_devices) == 1
     for expected, received in zip([input_channels, 14, 43, 47], training_shape):
         assert expected == received, training_shape
@@ -154,10 +154,10 @@ def test_dry_run(handler3d, tiny_model_3d):
 
 
 def test_dry_run_through_handler(handler3d, tiny_model_3d):
-    handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [14, 43, 47], TRAINING_SHAPE: None}})
+    input_channels = tiny_model_3d["config"]["input_channels"]
+    handler3d.update_config({TRAINING: {TRAINING_SHAPE_UPPER_BOUND: [input_channels, 14, 43, 47], TRAINING_SHAPE: None}})
     training_shape, valid_shapes, shrinkage = handler3d.set_devices(device_names=["cpu"]).result(timeout=30)
 
-    input_channels = tiny_model_3d["config"]["input_channels"]
     for expected, received in zip([input_channels, 14, 43, 47], training_shape):
         assert expected == received, training_shape
 

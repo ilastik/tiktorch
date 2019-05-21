@@ -181,8 +181,8 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def update_training_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         self.handler.update_training_data(TikTensorBatch(data), TikTensorBatch(labels))
 
-    def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
-        return self.handler.update_validation_data(LabeledTikTensorBatch(data))
+    def update_validation_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
+        return self.handler.update_validation_data(TikTensorBatch(data), TikTensorBatch(labels))
 
     def pause_training(self) -> None:
         self.handler.pause_training()
