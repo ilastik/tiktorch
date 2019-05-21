@@ -84,6 +84,10 @@ class IHandler(RPCInterface):
     def update_validation_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         raise NotImplementedError
 
+    @exposed
+    def get_state(self) -> bytes:
+        raise NotImplementedError
+
 
 def run(
     conn: Connection,
@@ -479,6 +483,9 @@ class HandlerProcess(IHandler):
 
     def update_validation_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         self.training.update_dataset(VALIDATION, data, labels)
+
+    def get_state(self) -> bytes:
+        return self.training.get_state()
 
     # def request_state(self) -> None:
     #     model_state = pickle.dumps(self.model.state_dict())
