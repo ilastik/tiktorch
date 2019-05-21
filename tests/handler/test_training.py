@@ -36,7 +36,7 @@ def test_training(tiny_model_2d):
     try:
         training.set_devices([torch.device("cpu")])
         data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
-        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15)), TikTensor(torch.zeros(in_channels, 9, 9))])
+        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8)), TikTensor(torch.zeros(in_channels, 9, 9, dtype=torch.uint8))])
         training.update_dataset("training", data, labels)
         training.resume_training()
         import time
@@ -58,7 +58,7 @@ def test_training_in_proc(tiny_model_2d, log_queue):
     try:
         client.set_devices([torch.device("cpu")])
         data = TikTensorBatch([TikTensor(torch.zeros(in_channels, 15, 15)), TikTensor(torch.ones(in_channels, 9, 9))])
-        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15)), TikTensor(torch.zeros(in_channels, 9, 9))])
+        labels = TikTensorBatch([TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8)), TikTensor(torch.zeros(in_channels, 9, 9, dtype=torch.uint8))])
         client.update_dataset("training", data, labels)
         client.resume_training()
     finally:
