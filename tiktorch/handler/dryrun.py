@@ -247,8 +247,7 @@ class DryRunProcess(IDryRun):
                 raise ValueError(f"config is missing {TRAINING_SHAPE} and/or {TRAINING_SHAPE_UPPER_BOUND}.")
 
             training_shape_upper_bound = Point(
-                b=batch_size,
-                **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])},
+                b=batch_size, **{f"d{i}": v for i, v in enumerate(self.config[TRAINING][TRAINING_SHAPE_UPPER_BOUND])}
             )
 
             if TRAINING_SHAPE_LOWER_BOUND in self.config[TRAINING]:
@@ -336,7 +335,7 @@ class DryRunProcess(IDryRun):
         output_shapes = [conn.recv() for conn in return_conns]
         for e in output_shapes:
             if isinstance(e, Exception):
-                self.logger.debug("Shape %s invalid: %r", shape, e, exc_info=(type(e), e, e.__traceback__ ))
+                self.logger.debug("Shape %s invalid: %r", shape, e, exc_info=(type(e), e, e.__traceback__))
                 return False
 
         out = output_shapes[0]
