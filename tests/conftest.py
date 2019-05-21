@@ -93,7 +93,7 @@ def tiny_model(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TestModel0"
-    base_config["config"]["training"]["training_shape_upper_bound"] = (1, 15,)
+    base_config["config"]["training"]["training_shape_upper_bound"] = (1, 15)
     return base_config
 
 
