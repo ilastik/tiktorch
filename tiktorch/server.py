@@ -193,12 +193,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def update_config(self, partial_config: dict) -> None:
         self.handler.update_config(partial_config)
 
-    def request_state(self) -> RPCFuture:
-        self.logger.info("Requesting model state dict from handler...")
-        return self.handler.get_state()
-
     def ping(self) -> bytes:
         return b"pong"
+
+    def get_model_state(self) -> bytes:
+        return self.handler.get_state()
 
     def shutdown(self):
         self.logger.info("Shutting down...")

@@ -64,3 +64,7 @@ class INeuralNetworkAPI(RPCInterface):
     @exposed
     def log(self, msg: str) -> None:
         raise NotImplementedError
+
+    @exposed
+    def get_model_state(self) -> bytes:
+        raise NotImplementedError
