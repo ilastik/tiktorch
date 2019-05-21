@@ -14,7 +14,9 @@ class DynamicDataset(Dataset):
     Comparison to the current generator implementation at: https://stackoverflow.com/a/47202816
     """
 
-    def __init__(self, data: LabeledTikTensorBatch = None, transform=None, gamma: float = 0.9) -> None:
+    def __init__(
+        self, data: LabeledTikTensorBatch = None, transform=None, gamma: float = 0.9, minimum_weight: float = 0.1
+    ) -> None:
         assert transform is None or callable(transform), "Given 'transforms' is not callable"
         self.transform = transform
         # the data dict holds values for each key, these values are typically a tuple of (raw img, label img)
@@ -27,11 +29,13 @@ class DynamicDataset(Dataset):
         self.update_counts = {key: 1 for key in data.ids}
         self.recently_removed = set()
         self.gamma = gamma
+        self.minimum_weight = minimum_weight
 
     def __getitem__(self, index, update_weight=True):
         key, fetched = next(itertools.islice(self.data.items(), index, index + 1))
         if update_weight:
             self.weights[key] *= self.gamma
+            self.weights[key] = max(self.weights[key], self.minimum_weight)
 
         if self.transform is None:
             return fetched
