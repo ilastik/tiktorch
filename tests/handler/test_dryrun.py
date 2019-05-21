@@ -31,8 +31,8 @@ def test_minimal_device_test(tiny_model_2d):
 
 def test_given_training_shape(tiny_model_2d):
     config = tiny_model_2d["config"]
-    config[TRAINING][TRAINING_SHAPE] = (15, 15)
-    config[TRAINING][TRAINING_SHAPE_UPPER_BOUND] = (15, 15)
+    config[TRAINING][TRAINING_SHAPE] = (1, 15, 15)
+    config[TRAINING][TRAINING_SHAPE_UPPER_BOUND] = (1, 15, 15)
 
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
@@ -49,8 +49,8 @@ def test_given_training_shape_intervall(tiny_model_2d):
     if TRAINING_SHAPE in config[TRAINING]:
         del config[TRAINING][TRAINING_SHAPE]
 
-    config[TRAINING][TRAINING_SHAPE_LOWER_BOUND] = (20, 20)
-    config[TRAINING][TRAINING_SHAPE_UPPER_BOUND] = (25, 25)
+    config[TRAINING][TRAINING_SHAPE_LOWER_BOUND] = (1, 20, 20)
+    config[TRAINING][TRAINING_SHAPE_UPPER_BOUND] = (1, 25, 25)
 
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
@@ -64,7 +64,7 @@ def test_given_training_shape_intervall(tiny_model_2d):
 
 def test_malicious_training_shape(tiny_model_2d):
     config = tiny_model_2d["config"]
-    config[TRAINING].update({TRAINING_SHAPE: (20, 20), TRAINING_SHAPE_UPPER_BOUND: (2, 2)})
+    config[TRAINING].update({TRAINING_SHAPE: (1, 0, 20), TRAINING_SHAPE_UPPER_BOUND: (1, 2, 2)})
 
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
@@ -84,7 +84,7 @@ class PickyModel(TinyConvNet2d):
 
 def test_invalid_training_shape(tiny_model_2d):
     config = tiny_model_2d["config"]
-    config[TRAINING][TRAINING_SHAPE] = (15, 15)
+    config[TRAINING][TRAINING_SHAPE] = (1, 15, 15)
 
     in_channels = config["input_channels"]
 

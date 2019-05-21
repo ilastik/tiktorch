@@ -78,7 +78,7 @@ def base_config():
             "model_init_kwargs": {},
             "input_channels": 1,
             "training": {
-                "batch_size": 10,
+                "batch_size": 2,
                 "loss_criterion_config": {"method": "MSELoss"},
                 "optimizer_config": {"method": "Adam"},
             },
@@ -93,7 +93,7 @@ def tiny_model(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TestModel0"
-    base_config["config"]["training"]["training_shape_upper_bound"] = (15,)
+    base_config["config"]["training"]["training_shape_upper_bound"] = (1, 15,)
     return base_config
 
 
@@ -103,7 +103,7 @@ def tiny_model_2d(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TinyConvNet2d"
-    base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15)
+    base_config["config"]["training"]["training_shape_upper_bound"] = (1, 15, 15)
     return base_config
 
 
@@ -113,7 +113,7 @@ def tiny_model_3d(datadir, base_config):
         base_config["model_file"] = f.read()
 
     base_config["config"]["model_class_name"] = "TinyConvNet3d"
-    base_config["config"]["training"]["training_shape_upper_bound"] = (15, 15, 15)
+    base_config["config"]["training"]["training_shape_upper_bound"] = (1, 15, 15, 15)
     return base_config
 
 
