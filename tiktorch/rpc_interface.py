@@ -40,7 +40,7 @@ class INeuralNetworkAPI(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def update_training_data(self, data: LabeledNDArrayBatch) -> None:
+    def update_training_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         raise NotImplementedError
 
     @exposed
