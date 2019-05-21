@@ -101,6 +101,10 @@ class ITraining(RPCInterface):
     def update_config(self, partial_config: dict) -> None:
         raise NotImplementedError
 
+    @exposed
+    def get_state(self) -> bytes:
+        raise NotImplementedError
+
 
 def run(
     conn: Connection,
@@ -346,3 +350,8 @@ class TrainingProcess(ITraining):
                     self.config[key] = value
                 else:
                     raise NotImplementedError(f"How to set {key} as a hyper parameter?")
+
+    def get_state(self) -> bytes:
+        out = io.BytesIO()
+        torch.save(self.model.state_dict(), out)
+        return out.getvalue()
