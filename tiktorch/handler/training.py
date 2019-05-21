@@ -9,12 +9,10 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import closing
 from copy import deepcopy
 from multiprocessing.connection import Connection
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from inferno.trainers import Trainer as InfernoTrainer
-
-from .datasets import DynamicDataset
 
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
@@ -37,6 +35,7 @@ from tiktorch.configkeys import (
     OPTIMIZER_CONFIG,
 )
 
+from tiktorch.handler.datasets import DynamicDataset
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
@@ -309,16 +308,19 @@ class TrainingProcess(ITraining):
 
     def pause_training(self) -> None:
         self._pause_event.set()
-        # with self.training_settings_lock:
-        #     self.trainer.set_max_num_iterations(0)
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data, labels)
+        self.datasets[name].reset_indices()
         if name == TRAINING:
             self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
                 data
             )
+            ds = self.datasets[TRAINING]
+            self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(ds.get_weights(), len(ds), replacement=True)
+            # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
+            #       (and others more than once)
 
         self.update_trainer_event.set()
 
