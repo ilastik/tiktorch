@@ -243,6 +243,12 @@ def _cancel_srv(conn, log_queue):
     srv.listen()
 
 
+def _run_srv(srv_cls, conn, log_queue):
+    log.configure(log_queue)
+    srv = MPServer(srv_cls(), conn)
+    srv.listen()
+
+
 @pytest.fixture
 def spawn(log_queue):
     data = {}
@@ -250,12 +256,7 @@ def spawn(log_queue):
     def _spawn(iface_cls, srv_cls):
         child, parent = mp.Pipe()
 
-        def _srv(conn, log_queue):
-            log.configure(log_queue)
-            srv = MPServer(srv_cls(), conn)
-            srv.listen()
-
-        p = mp.Process(target=_srv, args=(parent, log_queue))
+        p = mp.Process(target=_run_srv, args=(srv_cls, parent, log_queue))
         p.start()
 
         data["client"] = client = create_client(iface_cls, child)

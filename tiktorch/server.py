@@ -20,8 +20,8 @@ from tiktorch.utils import (
 )
 from tiktorch.configkeys import MINIMAL_CONFIG
 
-if torch.cuda.is_available():
-    torch.multiprocessing.set_start_method("spawn", force=True)
+
+mp.set_start_method("spawn", force=True)
 
 logging.basicConfig(level=logging.INFO)
 
