@@ -321,6 +321,7 @@ class TrainingProcess(ITraining):
             self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(ds.get_weights(), len(ds), replacement=True)
             # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
             #       (and others more than once)
+            # todo: add more samplers (e.g. WeighedRandomBachSampler without replacement per batch)
 
         self.update_trainer_event.set()
 

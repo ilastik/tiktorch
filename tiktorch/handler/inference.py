@@ -88,7 +88,7 @@ class InferenceProcess(IInference):
         while not self.shutdown_event.is_set():
             try:
                 devices, fut = self.device_change_queue.get(block=True, timeout=1)
-                self.logger.warning("got devices %s", devices)
+                self.logger.debug("got devices %s", devices)
                 self.add_devices(devices - self.devices)
                 remove = self.devices - devices
                 self.remove_devices(remove)
