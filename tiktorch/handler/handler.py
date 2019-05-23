@@ -19,7 +19,7 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, D
 
 from tiktorch.rpc import RPCInterface, exposed, RPCFuture
 from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
-from tiktorch.types import Point
+from tiktorch.types import Point, ModelState
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.configkeys import TRAINING, VALIDATION, MODEL_CLASS_NAME, MODEL_INIT_KWARGS
 from tiktorch.handler.training import run as run_training, ITraining
@@ -465,7 +465,9 @@ class HandlerProcess(IHandler):
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
-        self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
+        if not self.inference_devices:
+            self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
+
         self.logger.debug("forward")
         return self.inference.forward(data)
 
@@ -484,7 +486,7 @@ class HandlerProcess(IHandler):
     def update_validation_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         self.training.update_dataset(VALIDATION, data, labels)
 
-    def get_state(self) -> bytes:
+    def get_state(self) -> ModelState:
         return self.training.get_state()
 
     # def request_state(self) -> None:

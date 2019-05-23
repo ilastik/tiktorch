@@ -11,6 +11,7 @@ from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Ma
 
 from inferno.trainers import Trainer as InfernoTrainer
 from inferno.io.transform import Compose
+from inferno.utils.exceptions import NotSetError
 
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_transform
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
@@ -33,9 +34,11 @@ from tiktorch.configkeys import (
     MAX_NUM_ITERATIONS_PER_UPDATE,
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
+    TRAINING_LOSS,
 )
 
 from tiktorch.handler.datasets import DynamicDataset
+
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
@@ -46,6 +49,7 @@ INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch c
     VALIDATION: "validate",
     LOSS_CRITERION_CONFIG: "criterion_config",
     BATCH_SIZE: "batch_size",
+    TRAINING_LOSS: "training_loss",
 }
 
 
@@ -377,6 +381,16 @@ class TrainingProcess(ITraining):
                     raise NotImplementedError(f"How to set {key} as a hyper parameter?")
 
     def get_state(self) -> ModelState:
-        out = io.BytesIO()
-        torch.save(self.model.state_dict(), out)
-        return ModelState(0.0, 0, out.getvalue(), b"")
+        training_loss = self.trainer.get_state(INFERNO_NAMES[TRAINING_LOSS], default=float("Inf"))
+        epoch = self.trainer.epoch_count()
+        weights = io.BytesIO()
+        torch.save(self.model.state_dict(), weights)
+        optim_state = io.BytesIO()
+        try:
+            torch.save(self.trainer.optimizer.state_dict(), optim_state)
+        except NotSetError:
+            optim_state = b""
+        else:
+            optim_state = optim_state.getvalue()
+
+        return ModelState(training_loss, epoch, weights.getvalue(), optim_state)

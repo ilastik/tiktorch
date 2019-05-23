@@ -26,6 +26,7 @@ MAX_NUM_ITERATIONS = "max_num_iterations"
 MAX_NUM_ITERATIONS_PER_UPDATE = "max_num_iterations_per_update"
 LOSS_CRITERION_CONFIG = "loss_criterion_config"
 OPTIMIZER_CONFIG = "optimizer_config"
+TRAINING_LOSS = "training_loss"
 
 # structure of config
 MINIMAL_CONFIG = {
