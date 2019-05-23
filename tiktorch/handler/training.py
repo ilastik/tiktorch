@@ -146,13 +146,13 @@ class TrainingProcess(ITraining):
         training_transform = Compose(
             *[
                 get_transform(name, **kwargs)
-                for name, kwargs in config[TRAINING].get(TRANSFORMS, {"Normalize": {"apply_to": 0}}).items()
+                for name, kwargs in config[TRAINING].get(TRANSFORMS, {"Normalize": {"apply_to": [0]}}).items()
             ]
         )
         validation_transform = Compose(
             *[
                 get_transform(name, **kwargs)
-                for name, kwargs in config[VALIDATION].get(TRANSFORMS, {"Normalize": {"apply_to": 0}}).items()
+                for name, kwargs in config[VALIDATION].get(TRANSFORMS, {"Normalize": {"apply_to": [0]}}).items()
             ]
         )
 

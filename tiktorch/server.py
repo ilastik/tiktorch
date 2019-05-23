@@ -129,7 +129,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             raise ValueError(incomplete_msg)
 
         # todo: move test_transforms elsewhere
-        self.test_transforms = config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {"apply_to": 0}})
+        self.test_transforms = config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
 
         if not devices:
             devices = ["cpu"]
