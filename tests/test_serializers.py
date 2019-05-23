@@ -24,3 +24,11 @@ def test_set_devices_return_serialization_deserialization():
     serialized = list(serialize(ret))
     assert all(isinstance(f, zmq.Frame) for f in serialized)
     assert deserialize(iter(serialized)) == ret
+
+
+def test_model_state_serializer():
+    s = ser.ModelStateSerializer()
+    state = types.ModelState(2.3, 12, b"model_state", b"opt_state")
+    serialized = s.serialize(state)
+    deserialized = s.deserialize(iter(serialized))
+    assert state == deserialized

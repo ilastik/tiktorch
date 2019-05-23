@@ -18,6 +18,7 @@ from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch, TikTensorBatch
+from tiktorch.types import ModelState
 from tiktorch import log
 from tiktorch.configkeys import (
     NAME,
@@ -101,7 +102,7 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def get_state(self) -> bytes:
+    def get_state(self) -> ModelState:
         raise NotImplementedError
 
 
@@ -354,7 +355,7 @@ class TrainingProcess(ITraining):
                 else:
                     raise NotImplementedError(f"How to set {key} as a hyper parameter?")
 
-    def get_state(self) -> bytes:
+    def get_state(self) -> ModelState:
         out = io.BytesIO()
         torch.save(self.model.state_dict(), out)
-        return out.getvalue()
+        return ModelState(0.0, 0, out.getvalue(), b"")
