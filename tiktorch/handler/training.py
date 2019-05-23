@@ -335,9 +335,11 @@ class TrainingProcess(ITraining):
             )
             ds = self.datasets[TRAINING]
             if ds:
-                self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(ds.get_weights(), len(ds), replacement=True)
+                self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(
+                    ds.get_weights(), len(ds), replacement=True
+                )
             else:
-                del self.loader_kwargs[TRAINING]["sampler"]
+                self.loader_kwargs[TRAINING].pop("sampler", None)
 
             # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
             #       (and others more than once)
