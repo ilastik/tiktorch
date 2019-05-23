@@ -334,7 +334,11 @@ class TrainingProcess(ITraining):
                 data
             )
             ds = self.datasets[TRAINING]
-            self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(ds.get_weights(), len(ds), replacement=True)
+            if ds:
+                self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(ds.get_weights(), len(ds), replacement=True)
+            else:
+                del self.loader_kwargs[TRAINING]["sampler"]
+
             # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
             #       (and others more than once)
             # todo: add more samplers (e.g. WeighedRandomBachSampler without replacement per batch)
