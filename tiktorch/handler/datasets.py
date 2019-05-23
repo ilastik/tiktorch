@@ -57,12 +57,12 @@ class DynamicDataset(Dataset):
             assert image.id is not None
             key = image.id
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
-            image = image.as_torch()
-            label = label.as_torch()
+            image = image.as_numpy()
+            label = label.as_numpy()
 
             if label.any():
                 # add sample-label pair to dataset
-                self.data[key] = image.as_numpy(), label.as_numpy()
+                self.data[key] = image, label
                 self.recently_removed.discard(key)
                 self.weights[key] = self.weights.get(key, 0) + 1  # todo: take update counts into account properly
             elif key in self.data.keys():
