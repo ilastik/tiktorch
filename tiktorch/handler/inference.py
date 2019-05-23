@@ -31,7 +31,7 @@ from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
 from tiktorch.utils import add_logger
 
-from tiktorch.configkeys import INFERENCE_BATCH_SIZE, TESTING, TRANSFORMS
+from tiktorch.configkeys import INFERENCE_BATCH_SIZE
 
 
 class IInference(RPCInterface):
