@@ -4,7 +4,7 @@ import torch
 from collections import OrderedDict
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensorBatch
+from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensorBatch, TikTensor
 
 
 class DynamicDataset(Dataset):
@@ -37,10 +37,10 @@ class DynamicDataset(Dataset):
             self.weights[key] *= self.gamma
             self.weights[key] = max(self.weights[key], self.minimum_weight)
 
-        if self.transform is None:
-            return fetched
-        else:
-            return self.transform(*fetched)
+        if self.transform is not None:
+            fetched = self.transform(*fetched)
+
+        return [TikTensor(f, id_=key) for f in fetched]
 
     def __len__(self):
         return len(self.data)
@@ -62,7 +62,7 @@ class DynamicDataset(Dataset):
 
             if label.any():
                 # add sample-label pair to dataset
-                self.data[key] = image, label
+                self.data[key] = image.as_numpy(), label.as_numpy()
                 self.recently_removed.discard(key)
                 self.weights[key] = self.weights.get(key, 0) + 1  # todo: take update counts into account properly
             elif key in self.data.keys():
