@@ -3,6 +3,7 @@
 #############
 TRAINING = "training"
 VALIDATION = "validation"
+TESTING = "testing"
 
 # general
 NAME = "name"
@@ -10,6 +11,7 @@ TORCH_VERSION = "torch_version"
 MODEL_CLASS_NAME = "model_class_name"
 MODEL_INIT_KWARGS = "model_init_kwargs"
 HALO = "halo"
+TRANSFORMS = "transforms"
 
 # inference
 INFERENCE_BATCH_SIZE = "inference_batch_size"
@@ -49,6 +51,8 @@ CONFIG = {
         MAX_NUM_ITERATIONS_PER_UPDATE: None,
         LOSS_CRITERION_CONFIG: None,
         OPTIMIZER_CONFIG: None,
+        TRANSFORMS: None,
     },
-    VALIDATION: {},
+    VALIDATION: {TRANSFORMS: None},
+    TESTING: {TRANSFORMS: None},
 }

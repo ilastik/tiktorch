@@ -7,18 +7,17 @@ import os
 from torch import multiprocessing as mp
 from typing import Optional, List, Tuple, Generator, Iterable, Union
 
+from inferno.io.transform import Compose
+
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
 from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import (
-    convert_to_SetDeviceReturnType,
-    get_error_msg_for_invalid_config,
-    get_error_msg_for_incomplete_config,
-)
-from tiktorch.configkeys import MINIMAL_CONFIG
+from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config, get_transform
+
+from tiktorch.configkeys import TESTING, TRANSFORMS
 
 
 mp.set_start_method("spawn", force=True)
@@ -129,6 +128,9 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         if incomplete_msg:
             raise ValueError(incomplete_msg)
 
+        # todo: move test_transforms elsewhere
+        self.test_transforms = config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
+
         if not devices:
             devices = ["cpu"]
 
@@ -175,8 +177,12 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def active_children(self) -> List[str]:
         return [c.name for c in mp.active_children()]
 
-    def forward(self, batch: NDArray) -> RPCFuture[NDArray]:
-        return self.handler.forward(data=TikTensor(batch)).map(lambda val: NDArray(val.as_numpy()))
+    def forward(self, image: NDArray) -> RPCFuture[NDArray]:
+        # todo: do transform in separate thread
+        transform = Compose(*[get_transform(name, **kwargs) for name, kwargs in self.test_transforms.items()])
+        return self.handler.forward(data=TikTensor(transform(image.as_numpy()), id_=image.id)).map(
+            lambda val: NDArray(val.as_numpy())
+        )
 
     def update_training_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         self.handler.update_training_data(TikTensorBatch(data), TikTensorBatch(labels))

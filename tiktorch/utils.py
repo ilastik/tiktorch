@@ -4,6 +4,14 @@ from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.types import Point, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
 
+from inferno.io.transform import (
+    Transform,
+    Compose,
+    generic as generic_transforms,
+    image as image_transforms,
+    volume as volume_transforms,
+)
+
 from typing import Callable, Union, Tuple, List
 
 logger = logging.getLogger()
@@ -78,3 +86,16 @@ def add_logger(logger: logging.Logger) -> Callable:
         return wrapper
 
     return with_logging
+
+
+def get_transform(name: str, **transform_kwargs) -> Transform:
+    for module in [generic_transforms, image_transforms, volume_transforms]:
+        ret = getattr(module, name, None)
+        if ret is not None:
+            try:
+                return ret(**transform_kwargs)
+            except Exception as e:
+                logger.exception(e)
+                raise ValueError(f"Transform {name} could not be initialized with kwargs {transform_kwargs}")
+
+    raise NotImplementedError(f"Tranformation {name} could not be found")

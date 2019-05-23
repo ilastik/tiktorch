@@ -24,13 +24,14 @@ from typing import (
     Collection,
 )
 
+
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import log
 from tiktorch.utils import add_logger
 
-from tiktorch.configkeys import INFERENCE_BATCH_SIZE
+from tiktorch.configkeys import INFERENCE_BATCH_SIZE, TESTING, TRANSFORMS
 
 
 class IInference(RPCInterface):
@@ -202,8 +203,6 @@ class InferenceProcess(IInference):
 
         keys: List = [d.id for d in data]
         data: List[torch.Tensor] = data.as_torch()
-
-        # TODO: fixT        return data
 
         self.logger.debug("forward with batch_size %d (increasing: %s)", batch_size, increase_batch_size)
 

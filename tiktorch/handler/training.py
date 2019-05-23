@@ -5,16 +5,14 @@ import multiprocessing as mp
 import time
 import threading
 
-from concurrent.futures import ThreadPoolExecutor, Future
-from contextlib import closing
-from copy import deepcopy
 from multiprocessing.connection import Connection
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
 
 from inferno.trainers import Trainer as InfernoTrainer
+from inferno.io.transform import Compose
 
-from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
+from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_transform
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch, TikTensorBatch
@@ -25,6 +23,7 @@ from tiktorch.configkeys import (
     TRAINING,
     VALIDATION,
     BATCH_SIZE,
+    TRANSFORMS,
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
@@ -143,7 +142,23 @@ class TrainingProcess(ITraining):
         self.devices = []
         self.base_device = ""
 
-        self.datasets = {TRAINING: DynamicDataset(), VALIDATION: DynamicDataset()}
+        training_transform = Compose(
+            *[
+                get_transform(name, **kwargs)
+                for name, kwargs in config[TRAINING].get(TRANSFORMS, {"Normalize": {}}).items()
+            ]
+        )
+        validation_transform = Compose(
+            *[
+                get_transform(name, **kwargs)
+                for name, kwargs in config[VALIDATION].get(TRANSFORMS, {"Normalize": {}}).items()
+            ]
+        )
+
+        self.datasets = {
+            TRAINING: DynamicDataset(transform=training_transform),
+            VALIDATION: DynamicDataset(transform=validation_transform),
+        }
         self.update_loader = {TRAINING: True, VALIDATION: True}
         self.loader_kwargs = {
             TRAINING: {"dataset": self.datasets[TRAINING]},
