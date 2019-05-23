@@ -4,6 +4,7 @@ Types defining interop between client and server
 # This file should only contain types built on primitives
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)
 import numpy as np
+from dataclasses import dataclass
 
 from typing import List, Tuple, Optional, Union, Sequence, NamedTuple
 
@@ -230,3 +231,11 @@ class SetDeviceReturnType(NamedTuple):
     training_shape: Tuple[int, ...]
     valid_shapes: List[Tuple[int, ...]]
     shrinkage: Tuple[int, ...]
+
+
+@dataclass
+class ModelState:
+    loss: float
+    epoch: int
+    optimizer_state: bytes
+    model_state: bytes

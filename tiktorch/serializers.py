@@ -5,7 +5,7 @@ import numpy as np
 
 from zmq.utils import jsonapi
 
-from .types import NDArrayBatch, NDArray, SetDeviceReturnType
+from .types import NDArrayBatch, NDArray, SetDeviceReturnType, ModelState
 from .rpc.serialization import ISerializer, FusedFrameIterator, serializer_for
 
 
@@ -85,3 +85,22 @@ class SetDeviceReturnTypeSerializer(ISerializer[SetDeviceReturnType]):
             valid_shapes=[tuple(el) for el in data["valid_shapes"]],
             shrinkage=tuple(data["shrinkage"]),
         )
+
+
+@serializer_for(ModelState, tag=b"model_st")
+class ModelStateSerializer(ISerializer[ModelState]):
+    @classmethod
+    def serialize(cls, obj: ModelState) -> Iterator[zmq.Frame]:
+        yield zmq.Frame(jsonapi.dumps({"epoch": obj.epoch, "loss": obj.loss}))
+        yield zmq.Frame(obj.model_state)
+        yield zmq.Frame(obj.optimizer_state)
+
+    @classmethod
+    def deserialize(cls, frames: "FusedFrameIterator") -> ModelState:
+        frm = next(frames)
+        epoch_loss = jsonapi.loads(frm.bytes)
+
+        model_state = next(frames)
+        optimizer_state = next(frames)
+
+        return ModelState(**epoch_loss, model_state=model_state.bytes, optimizer_state=optimizer_state.bytes)

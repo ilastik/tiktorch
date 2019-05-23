@@ -11,7 +11,7 @@ from inferno.io.transform import Compose
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
-from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType
+from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType, ModelState
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
@@ -202,7 +202,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def ping(self) -> bytes:
         return b"pong"
 
-    def get_model_state(self) -> bytes:
+    def get_model_state(self) -> ModelState:
         return self.handler.get_state()
 
     def shutdown(self):
