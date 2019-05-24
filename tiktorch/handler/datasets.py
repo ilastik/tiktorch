@@ -40,7 +40,7 @@ class DynamicDataset(Dataset):
         if self.transform is not None:
             fetched = self.transform(*fetched)
 
-        return [TikTensor(f, id_=key) for f in fetched]
+        return [torch.as_tensor(f, dtype=torch.float) for f in fetched]
 
     def __len__(self):
         return len(self.data)
