@@ -28,7 +28,7 @@ def get_error_msg_for_invalid_config(config: dict) -> str:
             else:
                 for subkey in config[key].keys():
                     if subkey not in CONFIG[key]:
-                        return f"Unknown subkey={subkey}"
+                        return f"Unknown subkey={subkey} under key={key}"
                     elif subkey == LOSS_CRITERION_CONFIG:
                         if "method" not in config[TRAINING][LOSS_CRITERION_CONFIG]:
                             return f"'method' entry missing in config[{TRAINING}][{LOSS_CRITERION_CONFIG}]"
