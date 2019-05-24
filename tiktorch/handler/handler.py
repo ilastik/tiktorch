@@ -211,7 +211,7 @@ class HandlerProcess(IHandler):
     def _device_setter_worker(self) -> None:
         while not self.shutdown_event.is_set():
             try:
-                new_devices_entry = self.new_device_names.get(timeout=60)
+                new_devices_entry = self.new_device_names.get(timeout=20)
             except queue.Empty:
                 new_devices_entry = "time_to_check_if_someone_is_idle_dont_you_think?"
 

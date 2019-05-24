@@ -209,7 +209,7 @@ class TrainingProcess(ITraining):
 
     def _training_worker(self):
         # todo: configure (create/load) inferno trainer fully
-        trainer = TikTrainer.build(
+        self.trainer = trainer = TikTrainer.build(
             model=self.model,
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
             **self.create_trainer_config(),
@@ -382,7 +382,7 @@ class TrainingProcess(ITraining):
 
     def get_state(self) -> ModelState:
         training_loss = self.trainer.get_state(INFERNO_NAMES[TRAINING_LOSS], default=float("Inf"))
-        epoch = self.trainer.epoch_count()
+        epoch = self.trainer.epoch_count
         weights = io.BytesIO()
         torch.save(self.model.state_dict(), weights)
         optim_state = io.BytesIO()
@@ -393,4 +393,4 @@ class TrainingProcess(ITraining):
         else:
             optim_state = optim_state.getvalue()
 
-        return ModelState(training_loss, epoch, weights.getvalue(), optim_state)
+        return ModelState(float(training_loss[0]), epoch, weights.getvalue(), optim_state)
