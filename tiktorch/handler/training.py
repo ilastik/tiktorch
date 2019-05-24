@@ -386,6 +386,10 @@ class TrainingProcess(ITraining):
         weights = io.BytesIO()
         torch.save(self.model.state_dict(), weights)
         optim_state = io.BytesIO()
+
+        if not isinstance(training_loss, float):
+            training_loss = training_loss.item()
+
         try:
             torch.save(self.trainer.optimizer.state_dict(), optim_state)
         except NotSetError:
@@ -393,4 +397,4 @@ class TrainingProcess(ITraining):
         else:
             optim_state = optim_state.getvalue()
 
-        return ModelState(float(training_loss[0]), epoch, weights.getvalue(), optim_state)
+        return ModelState(training_loss, epoch, weights.getvalue(), optim_state)
