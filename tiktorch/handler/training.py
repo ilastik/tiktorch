@@ -77,7 +77,7 @@ class TikTrainer(InfernoTrainer):
 
 class ITraining(RPCInterface):
     @exposed
-    def set_devices(self, devices: Sequence[torch.device]):
+    def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
         raise NotImplementedError
 
     @exposed
