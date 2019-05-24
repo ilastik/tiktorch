@@ -371,28 +371,18 @@ class DryRunProcess(IDryRun):
         criterion_kwargs: Dict,
     ) -> Union[Point, str]:
         try:
+            input = torch.rand(*shape, device=device)
 
-            def apply_model():
-                input = torch.rand(*shape)
-
-                if criterion_class is None:
-                    with torch.no_grad():
-                        output = model.to(device)(input)
-                else:
+            if criterion_class is None:
+                with torch.no_grad():
                     output = model.to(device)(input)
-                    target = torch.randn_like(output)
-                    criterion_class(**criterion_kwargs).to(device)(output, target).backward()
-
-                return output
-
-            if device.type == "cpu":
-                output = apply_model()
             else:
-                with device:
-                    output = apply_model()
+                output = model.to(device)(input)
+                target = torch.randn_like(output)
+                criterion_class(**criterion_kwargs).to(device)(output, target).backward()
 
         except Exception as e:
-            msg = '\n'.join(traceback.format_exception(type(e), e, e.__traceback__))
+            msg = "\n".join(traceback.format_exception(type(e), e, e.__traceback__))
             return msg
 
         return output.shape
