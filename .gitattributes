@@ -1,1 +1,3 @@
 * text=auto eol=lf
+*.zip binary
+*.npy binary
