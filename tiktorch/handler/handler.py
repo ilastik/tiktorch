@@ -13,11 +13,10 @@ import queue
 
 from multiprocessing.connection import Connection, wait
 from torch import multiprocessing as mp
-from concurrent.futures import wait as wait_for_futures
 
 from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
 
-from tiktorch.rpc import RPCInterface, exposed, RPCFuture
+from tiktorch.rpc import RPCInterface, exposed, RPCFuture, Timeout
 from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
 from tiktorch.types import Point, ModelState
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
@@ -302,7 +301,9 @@ class HandlerProcess(IHandler):
             self.logger.debug("added devices: %s", approved_devices)
             fut.set_result((self.config.get(TRAINING_SHAPE, None), self.valid_shapes, self.shrinkage))
 
-    def _collect_idle_devices(self, new_devices: Optional[Sequence[torch.device]] = None):
+    def _collect_idle_devices(
+        self, new_devices: Optional[Sequence[torch.device]] = None
+    ) -> Tuple[List[torch.device], List[torch.device]]:
         if self.training.get_idle():
             self.idle_devices = self.training_devices + self.idle_devices
             self.training_devices = []
@@ -315,9 +316,13 @@ class HandlerProcess(IHandler):
         elif new_devices is not None:
             self.inference_devices = [d for d in self.inference_devices if d in new_devices]
 
-        freed_training_devices_fut = self.training.set_devices(self.training_devices)
-        freed_inference_devices_fut = self.inference.set_devices(self.inference_devices).result(timeout=20)
-        return freed_training_devices_fut, freed_inference_devices_fut
+        freed_training_devices = self.training.set_devices(self.training_devices)
+        try:
+            freed_inference_devices = self.inference.set_devices(self.inference_devices).result(timeout=10)
+        except Timeout:
+            freed_inference_devices = []
+
+        return freed_training_devices, freed_inference_devices
 
     def _assign_idle_devices(self):
         if not self.idle_devices:
