@@ -1,6 +1,7 @@
 import argparse
 import logging
 import logging.handlers
+import numpy
 import torch
 import os
 
@@ -180,7 +181,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def forward(self, image: NDArray) -> RPCFuture[NDArray]:
         # todo: do transform in separate thread
         transform = Compose(*[get_transform(name, **kwargs) for name, kwargs in self.test_transforms.items()])
-        return self.handler.forward(data=TikTensor(transform(image.as_numpy()), id_=image.id)).map(
+        return self.handler.forward(data=TikTensor(transform(image.as_numpy()).astype(numpy.float32), id_=image.id)).map(
             lambda val: NDArray(val.as_numpy())
         )
 
