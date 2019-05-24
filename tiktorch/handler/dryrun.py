@@ -343,7 +343,7 @@ class DryRunProcess(IDryRun):
         output_shapes = [conn.recv() for conn in return_conns]
         for e in output_shapes:
             if isinstance(e, str):
-                self.logger.info("Shape %s invalid: %r", shape, e)
+                self.logger.info("Shape %s invalid: %s", shape, e)
                 return False
 
         out = output_shapes[0]
@@ -373,24 +373,13 @@ class DryRunProcess(IDryRun):
         try:
             input = torch.rand(*shape, device=device)
 
-            def apply_model():
-                input = torch.rand(*shape)
-
-                if criterion_class is None:
-                    with torch.no_grad():
-                        output = model.to(device)(input)
-                else:
+            if criterion_class is None:
+                with torch.no_grad():
                     output = model.to(device)(input)
-                    target = torch.randn_like(output)
-                    criterion_class(**criterion_kwargs).to(device)(output, target).backward()
-
-                return output
-
-            if device.type == "cpu":
-                output = apply_model()
             else:
-                with torch.cuda.device(device.index):
-                    output = apply_model()
+                output = model.to(device)(input)
+                target = torch.randn_like(output, device=device)
+                criterion_class(**criterion_kwargs).to(device)(output, target).backward()
 
         except Exception as e:
             msg = "\n".join(traceback.format_exception(type(e), e, e.__traceback__))
