@@ -6,6 +6,7 @@ import numpy
 import bisect
 import queue
 import threading
+import traceback
 
 from concurrent.futures import ThreadPoolExecutor, Future
 from multiprocessing.connection import Connection
@@ -341,8 +342,8 @@ class DryRunProcess(IDryRun):
         ]
         output_shapes = [conn.recv() for conn in return_conns]
         for e in output_shapes:
-            if isinstance(e, Exception):
-                self.logger.info("Shape %s invalid: %r", shape, e, exc_info=(type(e), e, e.__traceback__))
+            if isinstance(e, str):
+                self.logger.info("Shape %s invalid: %r", shape, e)
                 return False
 
         out = output_shapes[0]
@@ -368,7 +369,7 @@ class DryRunProcess(IDryRun):
         shape: List[int],
         criterion_class: Optional[type],
         criterion_kwargs: Dict,
-    ) -> Optional[Tuple[Point, int]]:
+    ) -> Union[Point, str]:
         try:
 
             def apply_model():
@@ -391,7 +392,8 @@ class DryRunProcess(IDryRun):
                     output = apply_model()
 
         except Exception as e:
-            return e
+            msg = '\n'.join(traceback.format_exception(type(e), e, e.__traceback__))
+            return msg
 
         return output.shape
 
