@@ -264,7 +264,13 @@ class HandlerProcess(IHandler):
                     valid_shapes=self.valid_shapes,
                     shrinkage=self.shrinkage,
                 )
-                approved_devices, training_shape, valid_shapes, shrinkage = dry_run_fut.result()
+                dry_run_exception = dry_run_fut.exception()
+                if dry_run_exception is None:
+                    approved_devices, training_shape, valid_shapes, shrinkage = dry_run_fut.result()
+                else:
+                    self.logger.exception(dry_run_exception)
+                    continue
+
                 self.logger.debug("got approved devices: %s", approved_devices)
                 self.idle_devices += approved_devices
 
