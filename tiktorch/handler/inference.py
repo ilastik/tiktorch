@@ -263,7 +263,7 @@ class InferenceProcess(IInference):
                     try:
                         fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
                     except Exception as e:
-                        self.logger.error("pred: %s, keys: %s, i: %s", pred.shape, len(keys), i)
+                        self.logger.error("start: %s, end: %s, pred: %s, keys: %s, i: %s", start, end, pred.shape, len(keys), i)
                         self.logger.exception(e)
                         raise e
                 last_batch_size = batch_size
