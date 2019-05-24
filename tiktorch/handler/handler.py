@@ -322,10 +322,14 @@ class HandlerProcess(IHandler):
         elif new_devices is not None:
             self.inference_devices = [d for d in self.inference_devices if d in new_devices]
 
-        freed_training_devices = self.training.set_devices(self.training_devices)
+        try:
+            freed_training_devices = self.training.set_devices(self.training_devices)
+        except Exception:
+            freed_training_devices = []
+
         try:
             freed_inference_devices = self.inference.set_devices(self.inference_devices).result(timeout=10)
-        except Timeout:
+        except Exception:
             freed_inference_devices = []
 
         return freed_training_devices, freed_inference_devices
