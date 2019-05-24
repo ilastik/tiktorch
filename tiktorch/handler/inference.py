@@ -260,7 +260,12 @@ class InferenceProcess(IInference):
                 end_generator = create_end_generator(start, len(keys), batch_size)
             else:
                 for i in range(start, end):
-                    fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
+                    try:
+                        fut[i].set_result(TikTensor(pred[i], id_=keys[i]))
+                    except Exception as e:
+                        self.logger.error("pred: %s, keys: %s, i: %s", pred.shape, len(keys), i)
+                        self.logger.exception(e)
+                        raise e
                 last_batch_size = batch_size
                 if increase_batch_size and end - start >= batch_size:  # do not increase batch size after successfully
                     #                                                    computing an incomplete batch
