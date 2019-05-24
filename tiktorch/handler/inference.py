@@ -3,6 +3,7 @@ import os
 import queue
 import torch.nn
 import threading
+import traceback
 import multiprocessing as mp
 
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -200,6 +201,7 @@ class InferenceProcess(IInference):
 
         model.load_state_dict(self.training_model.state_dict())
         model.eval()
+        model = model.to(device=device)
 
         keys: List = [d.id for d in data]
         data: List[torch.Tensor] = data.as_torch()
@@ -220,7 +222,7 @@ class InferenceProcess(IInference):
             end = next(end_generator)
             try:
                 with torch.no_grad():
-                    pred = model(torch.stack(data[start:end]).to(device)).cpu()
+                    pred = model(torch.stack(data[start:end]).to(device=device)).cpu()
             except Exception as e:
                 if batch_size > last_batch_size:
                     self.logger.info(
@@ -236,9 +238,10 @@ class InferenceProcess(IInference):
                     batch_size //= 2
                     if batch_size == 0:
                         self.logger.error(
-                            "Forward pass with batch size %d threw exeption '%s'. Processed %d/%d",
+                            "Forward pass with batch size %d threw exception '%s'\nwith traceback: %s. Processed %d/%d",
                             last_batch_size,
                             e,
+                            traceback.format_exception(type(e), e, e.__traceback__),
                             start,
                             len(keys),
                         )
