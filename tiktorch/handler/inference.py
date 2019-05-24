@@ -220,7 +220,7 @@ class InferenceProcess(IInference):
             end = next(end_generator)
             try:
                 with torch.no_grad():
-                    pred = model(torch.stack(data[start:end]).to_device(device)).cpu()
+                    pred = model(torch.stack(data[start:end]).to(device)).cpu()
             except Exception as e:
                 if batch_size > last_batch_size:
                     self.logger.info(
