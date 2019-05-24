@@ -193,7 +193,7 @@ class InferenceProcess(IInference):
         # TODO: Maybe use todevice
         # TODO(novikov): Move model creation to worker
         if device.type == "cuda":
-            with device:
+            with torch.cuda.device(device.index):
                 model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
         else:
             model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))

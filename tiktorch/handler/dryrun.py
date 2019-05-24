@@ -373,13 +373,24 @@ class DryRunProcess(IDryRun):
         try:
             input = torch.rand(*shape, device=device)
 
-            if criterion_class is None:
-                with torch.no_grad():
+            def apply_model():
+                input = torch.rand(*shape)
+
+                if criterion_class is None:
+                    with torch.no_grad():
+                        output = model.to(device)(input)
+                else:
                     output = model.to(device)(input)
+                    target = torch.randn_like(output)
+                    criterion_class(**criterion_kwargs).to(device)(output, target).backward()
+
+                return output
+
+            if device.type == "cpu":
+                output = apply_model()
             else:
-                output = model.to(device)(input)
-                target = torch.randn_like(output)
-                criterion_class(**criterion_kwargs).to(device)(output, target).backward()
+                with torch.cuda.device(device.index):
+                    output = apply_model()
 
         except Exception as e:
             msg = "\n".join(traceback.format_exception(type(e), e, e.__traceback__))
