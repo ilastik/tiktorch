@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from asyncio import Future
@@ -5,7 +6,7 @@ from asyncio import Future
 import numpy
 import yaml
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Awaitable
 
 from tiktorch.types import SetDeviceReturnType, NDArray
 from tiktorch.server import TikTorchServer
@@ -64,12 +65,12 @@ class ImJoyPlugin():
             return ret
 
         choose_devices_schema = {"fields": [fill_template({"model": d[0], "label": d[1]}) for d in available_devices]}
-        self.dialog = await api.showDialog(
+        self.device_dialog = await api.showDialog(
             {
                 "name": "Select from available devices",
                 "type": "SchemaIO",
-                "w": 40,
-                "h": 15,
+                "w": 20,
+                "h": 3*len(available_devices),
                 "data": {
                     "title": f"Select devices for TikTorch server",
                     "schema": choose_devices_schema,
@@ -81,19 +82,58 @@ class ImJoyPlugin():
                 },
             }
         )
-        # self.dialog.onClose(self._choose_devices_close_callback)
+        # self.device_dialog.onClose(self._choose_devices_close_callback)
 
     # def _choose_devices_close_callback(self) -> None:
     #     api.log("select device dialog closed")
     #     self._chosen_devices = []
-    def _choose_devices_callback(self, data) -> None:
+    async def _choose_devices_callback(self, data) -> None:
         api.log("before chosen devices callback")
         chosen_devices = [d for d, selected in data.items() if selected]
         api.log(f"chosen devices callback: {chosen_devices}")
-        self.dialog.close()
-        self._load_model(chosen_devices)
+        self.device_dialog.close()
+        self.server_devices = self._load_model(chosen_devices)
+        forward_schema = {"fields":[
+            {
+              "type": "upload",
+              "label": "Photo",
+              "model": "photo",
+              "inputName": "photo",
+              "onChanged"(model, schema, event) {
+                console.log(model, schema, event);
+              }
+            },
+            # {
+            #     "type": "switch",
+            #     "label": "image",
+            #     "model": "path",
+            #     "multi": True,
+            #     "readonly": False,
+            #     "featured": False,
+            #     "disabled": False,
+            #     "default": False,
+            #     "textOn": "Selected",
+            #     "textOff": "Not Selected",
+            # },
+        ]}
+        self.data_dialog = await api.showDialog({
+                "name": "Inference",
+                "type": "SchemaIO",
+                "w": 40,
+                "h": 15,
+                "data": {
+                    "title": "Inference",
+                    "schema": forward_schema,
+                    "model": {},
+                    "callback": self._new_user_input,
+                    "show": True,
+                    "formOptions": {"validateAfterLoad": True, "validateAfterChanged": True},
+                    "id": 0,
+                },
+            }
+        )
 
-    def _load_model(self, chosen_devices) -> RPCFuture[SetDeviceReturnType]:
+    def _load_model(self, chosen_devices) -> Awaitable[SetDeviceReturnType]:
         # todo: select individual files through gui
         # load config
         config_file_name = os.path.join(self.config.config_folder, "tiktorch_config.yml")
@@ -121,11 +161,15 @@ class ImJoyPlugin():
             else:
                 binary_states.append(b"")
 
-        return self.server.load_model(tiktorch_config, binary_model_file, *binary_states, devices=chosen_devices)
+        return asyncio.wrap_future(self.server.load_model(tiktorch_config, binary_model_file, *binary_states, devices=chosen_devices), loop=asyncio.get_event_loop())
 
-    async def forward(self, data: numpy.ndarray, id_: Optional[Tuple] = None) -> Tuple[numpy.ndarray, Optional[Tuple]]:
+    async def _new_user_input(self, data):
+        api.log(str(data))
+
+    async def forward(self, data: numpy.ndarray, id_: Optional[Tuple] = None) -> Awaitable[Tuple[numpy.ndarray, Optional[Tuple]]]:
+        await self.server_devices
         tikfut = self.server.forward(NDArray(data, id_=id_))
-        return tikfut.map(lambda x: (x.as_numpy(), id_)).result()
+        return asyncio.wrap_future(tikfut.map(lambda x: (x.as_numpy(), id_)))
 
     async def exit(self):
         api.log("shutting down...")
@@ -140,7 +184,6 @@ class ImJoyPlugin():
 
 
 if __name__ == "__main__":
-    import asyncio
     from dataclasses import dataclass, field
 
     @dataclass
