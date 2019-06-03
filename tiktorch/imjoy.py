@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import os
 from asyncio import Future
@@ -35,9 +36,30 @@ except ImportError:
 class ImJoyPlugin():
     def setup(self) -> None:
         self.server = TikTorchServer()
+        self.window = None
         api.log("initialized")
 
     async def run(self, ctx) -> None:
+        ctx.config.image_path = "/Users/fbeut/Downloads/chair.png"
+        with open(ctx.config.image_path, 'rb') as f:
+            data = f.read()
+            result = base64.b64encode(data).decode('ascii')
+
+        imgurl = 'data:image/png;base64,' + result
+        data = {"src": imgurl}
+
+        data_plot = {
+                'name':'show png',
+                'type':'imjoy/image',
+                'w':12, 'h':15,
+                'data':data}
+
+        ## Check if window was defined
+        if self.window is None:
+            self.window = await api.createWindow(data_plot)
+            print(f'Window created')
+
+        assert False
         # todo: remvoe  this (set through ui)
         ctx.config.config_folder = "/repos/tiktorch/tests/data/CREMI_DUNet_pretrained_new"
         available_devices = self.server.get_available_devices()
@@ -87,6 +109,10 @@ class ImJoyPlugin():
     # def _choose_devices_close_callback(self) -> None:
     #     api.log("select device dialog closed")
     #     self._chosen_devices = []
+    @staticmethod
+    async def _on_upload_change(model, schema, event):
+        api.log(str((model, schema, event)))
+
     async def _choose_devices_callback(self, data) -> None:
         api.log("before chosen devices callback")
         chosen_devices = [d for d, selected in data.items() if selected]
@@ -99,9 +125,7 @@ class ImJoyPlugin():
               "label": "Photo",
               "model": "photo",
               "inputName": "photo",
-              "onChanged"(model, schema, event) {
-                console.log(model, schema, event);
-              }
+              "onChanged": self._on_upload_change,
             },
             # {
             #     "type": "switch",
@@ -165,6 +189,16 @@ class ImJoyPlugin():
 
     async def _new_user_input(self, data):
         api.log(str(data))
+        # data_plot = {
+        #         'name':'Plot charts: show png',
+        #         'type':'imjoy/image',
+        #         'w':12, 'h':15,
+        #         'data':data}
+        #
+        # ## Check if window was defined
+        # if self.window is None:
+        #     self.window = await api.createWindow(data_plot)
+        #     print(f'Window created')
 
     async def forward(self, data: numpy.ndarray, id_: Optional[Tuple] = None) -> Awaitable[Tuple[numpy.ndarray, Optional[Tuple]]]:
         await self.server_devices
