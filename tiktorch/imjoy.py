@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 try:
     from imjoy import api
 except ImportError:
+
     class ImjoyApi:
         def log(self, msg) -> None:
             logger.info(msg)
@@ -31,9 +32,7 @@ except ImportError:
     api = ImjoyApi()
 
 
-
-
-class ImJoyPlugin():
+class ImJoyPlugin:
     def setup(self) -> None:
         self.server = TikTorchServer()
         self.window = None
@@ -41,23 +40,19 @@ class ImJoyPlugin():
 
     async def run(self, ctx) -> None:
         ctx.config.image_path = "/Users/fbeut/Downloads/chair.png"
-        with open(ctx.config.image_path, 'rb') as f:
+        with open(ctx.config.image_path, "rb") as f:
             data = f.read()
-            result = base64.b64encode(data).decode('ascii')
+            result = base64.b64encode(data).decode("ascii")
 
-        imgurl = 'data:image/png;base64,' + result
+        imgurl = "data:image/png;base64," + result
         data = {"src": imgurl}
 
-        data_plot = {
-                'name':'show png',
-                'type':'imjoy/image',
-                'w':12, 'h':15,
-                'data':data}
+        data_plot = {"name": "show png", "type": "imjoy/image", "w": 12, "h": 15, "data": data}
 
         ## Check if window was defined
         if self.window is None:
             self.window = await api.createWindow(data_plot)
-            print(f'Window created')
+            print(f"Window created")
 
         assert False
         # todo: remvoe  this (set through ui)
@@ -92,7 +87,7 @@ class ImJoyPlugin():
                 "name": "Select from available devices",
                 "type": "SchemaIO",
                 "w": 20,
-                "h": 3*len(available_devices),
+                "h": 3 * len(available_devices),
                 "data": {
                     "title": f"Select devices for TikTorch server",
                     "schema": choose_devices_schema,
@@ -119,28 +114,31 @@ class ImJoyPlugin():
         api.log(f"chosen devices callback: {chosen_devices}")
         self.device_dialog.close()
         self.server_devices = self._load_model(chosen_devices)
-        forward_schema = {"fields":[
+        forward_schema = {
+            "fields": [
+                {
+                    "type": "upload",
+                    "label": "Photo",
+                    "model": "photo",
+                    "inputName": "photo",
+                    "onChanged": self._on_upload_change,
+                },
+                # {
+                #     "type": "switch",
+                #     "label": "image",
+                #     "model": "path",
+                #     "multi": True,
+                #     "readonly": False,
+                #     "featured": False,
+                #     "disabled": False,
+                #     "default": False,
+                #     "textOn": "Selected",
+                #     "textOff": "Not Selected",
+                # },
+            ]
+        }
+        self.data_dialog = await api.showDialog(
             {
-              "type": "upload",
-              "label": "Photo",
-              "model": "photo",
-              "inputName": "photo",
-              "onChanged": self._on_upload_change,
-            },
-            # {
-            #     "type": "switch",
-            #     "label": "image",
-            #     "model": "path",
-            #     "multi": True,
-            #     "readonly": False,
-            #     "featured": False,
-            #     "disabled": False,
-            #     "default": False,
-            #     "textOn": "Selected",
-            #     "textOff": "Not Selected",
-            # },
-        ]}
-        self.data_dialog = await api.showDialog({
                 "name": "Inference",
                 "type": "SchemaIO",
                 "w": 40,
@@ -185,7 +183,10 @@ class ImJoyPlugin():
             else:
                 binary_states.append(b"")
 
-        return asyncio.wrap_future(self.server.load_model(tiktorch_config, binary_model_file, *binary_states, devices=chosen_devices), loop=asyncio.get_event_loop())
+        return asyncio.wrap_future(
+            self.server.load_model(tiktorch_config, binary_model_file, *binary_states, devices=chosen_devices),
+            loop=asyncio.get_event_loop(),
+        )
 
     async def _new_user_input(self, data):
         api.log(str(data))
@@ -200,7 +201,9 @@ class ImJoyPlugin():
         #     self.window = await api.createWindow(data_plot)
         #     print(f'Window created')
 
-    async def forward(self, data: numpy.ndarray, id_: Optional[Tuple] = None) -> Awaitable[Tuple[numpy.ndarray, Optional[Tuple]]]:
+    async def forward(
+        self, data: numpy.ndarray, id_: Optional[Tuple] = None
+    ) -> Awaitable[Tuple[numpy.ndarray, Optional[Tuple]]]:
         await self.server_devices
         tikfut = self.server.forward(NDArray(data, id_=id_))
         return asyncio.wrap_future(tikfut.map(lambda x: (x.as_numpy(), id_)))
@@ -213,8 +216,6 @@ class ImJoyPlugin():
             api.log("shutdown successful")
         else:
             api.log("shutdown failed")
-
-
 
 
 if __name__ == "__main__":
