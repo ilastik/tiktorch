@@ -18,8 +18,7 @@ from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config, get_transform
 
-from tiktorch.configkeys import TESTING, TRANSFORMS
-
+from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
 
 mp.set_start_method("spawn", force=True)
 
@@ -124,6 +123,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def load_model(
         self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
     ) -> RPCFuture[SetDeviceReturnType]:
+        log_dir = config.get(LOGGING, {}).get(DIRECTORY, "")
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+            self.logger.info("log dir: %s", os.path.abspath(log_dir))
+
         self._start_logging_handler()
         incomplete_msg = get_error_msg_for_incomplete_config(config)
         if incomplete_msg:

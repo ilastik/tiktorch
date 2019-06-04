@@ -4,6 +4,7 @@
 TRAINING = "training"
 VALIDATION = "validation"
 TESTING = "testing"
+LOGGING = "logging"
 
 # general
 NAME = "name"
@@ -27,6 +28,10 @@ MAX_NUM_ITERATIONS_PER_UPDATE = "max_num_iterations_per_update"
 LOSS_CRITERION_CONFIG = "loss_criterion_config"
 OPTIMIZER_CONFIG = "optimizer_config"
 TRAINING_LOSS = "training_loss"
+
+# logging
+DIRECTORY = "directory"
+
 
 # structure of config
 MINIMAL_CONFIG = {
@@ -56,4 +61,5 @@ CONFIG = {
     },
     VALIDATION: {TRANSFORMS: None},
     TESTING: {TRANSFORMS: None},
+    LOGGING: {DIRECTORY: None},
 }

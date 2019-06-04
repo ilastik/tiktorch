@@ -1,4 +1,6 @@
 import io
+import os
+
 import logging
 import torch.nn, torch.optim
 import multiprocessing as mp
@@ -7,11 +9,27 @@ import threading
 
 from multiprocessing.connection import Connection
 from torch.utils.data import DataLoader, WeightedRandomSampler
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, TypeVar, Mapping, Callable, Dict, Optional, Tuple
+from typing import (
+    Any,
+    List,
+    Generic,
+    Iterator,
+    Iterable,
+    Sequence,
+    TypeVar,
+    Mapping,
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+    Type,
+)
 
 from inferno.trainers import Trainer as InfernoTrainer
-from inferno.io.transform import Compose
+from inferno.trainers.callbacks.logging import TensorboardLogger
+from inferno.io.transform import Compose, Transform
 from inferno.utils.exceptions import NotSetError
+from inferno.extensions import criteria as inferno_criteria
 
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_transform
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
@@ -35,6 +53,8 @@ from tiktorch.configkeys import (
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
     TRAINING_LOSS,
+    LOGGING,
+    DIRECTORY,
 )
 
 from tiktorch.handler.datasets import DynamicDataset
@@ -130,7 +150,7 @@ class TrainingProcess(ITraining):
     trainer_defaults = {
         LOSS_CRITERION_CONFIG: {"method": "MSELoss"},
         MAX_NUM_ITERATIONS: 0,
-        MAX_NUM_ITERATIONS_PER_UPDATE: 100,
+        MAX_NUM_ITERATIONS_PER_UPDATE: 10,
         OPTIMIZER_CONFIG: {"method": "Adam"},
     }
 
@@ -145,7 +165,7 @@ class TrainingProcess(ITraining):
         self.training_settings_lock = threading.Lock()
         # self.devices = [torch.device("cpu")]
         self.devices = []
-        self.base_device = ""
+        self.base_device = "cpu"
 
         training_transform = Compose(
             *[
@@ -201,10 +221,25 @@ class TrainingProcess(ITraining):
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
         for key, default in self.trainer_defaults.items():
-            trainer_config[INFERNO_NAMES.get(key, key)] = self.config[TRAINING].get(key, default)
+            value = self.config[TRAINING].get(key, default)
+            if key == LOSS_CRITERION_CONFIG:
+                kwargs = dict(value)
+                method = kwargs.pop("method")
+                assert isinstance(method, str)
+                # Look for criteria in torch
+                criterion_class = getattr(torch.nn, method, None)
+                if criterion_class is None:
+                    # Look for it in extensions
+                    criterion_class = getattr(inferno_criteria, method, None)
+                assert criterion_class is not None, "Criterion {} not found.".format(method)
+                criterion_config = {"method": LossWrapper(criterion_class(**kwargs), MaskZeros())}
+                trainer_config[INFERNO_NAMES.get(key, key)] = criterion_config
+            else:
+                trainer_config[INFERNO_NAMES.get(key, key)] = value
 
         trainer_config[INFERNO_LOGGER_CONFIG] = {"name": "InfernoTrainer"}
         trainer_config[INFERNO_MAX_NUM_EPOCHS] = "inf"
+
         return trainer_config
 
     def _training_worker(self):
@@ -214,13 +249,21 @@ class TrainingProcess(ITraining):
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
             **self.create_trainer_config(),
         )
+        log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
+        if os.path.exists(log_dir):
+            trainer.build_logger(
+                TensorboardLogger,
+                log_directory=log_dir,
+                log_scalars_every=(1, "iteration"),
+                log_images_every=(1, "epoch"),
+            )
         trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
         trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
 
         if self.optimizer_state:
             optimizer = self.create_optimizer(self.optimizer_state)
             if optimizer is not None:
-                trainer.optimizer = optimizer
+                trainer.build_optimizer(optimizer)
 
         while True:
             if self.shutdown_event.is_set():
@@ -234,9 +277,7 @@ class TrainingProcess(ITraining):
                     self.logger.info("Update trainer settings")
                     with self.training_settings_lock:
                         self.update_trainer_event.clear()
-                        if not self.devices:
-                            self.trainer.cpu()
-                        elif self.base_device == "cpu":
+                        if self.base_device == "cpu":
                             self.trainer.cpu()
                         elif self.base_device == "cuda":
                             self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
@@ -300,14 +341,22 @@ class TrainingProcess(ITraining):
 
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
-            optimizer: torch.optim.Optimizer = getattr(torch.optim, self.config["optimizer_config"]["method"])
-            optimizer.load_state_dict(torch.load(io.BytesIO(optimizer_state)))
+            kwargs = dict(self.config[TRAINING][OPTIMIZER_CONFIG])
+            optimizer_class: Type[torch.optim.Optimizer] = getattr(torch.optim, kwargs.pop("method"))
+            optimizer = optimizer_class(self.model.parameters(), **kwargs)
+            try:
+                optimizer.load_state_dict(torch.load(io.BytesIO(optimizer_state), map_location="cpu"))
+            except Exception as e:
+                self.logger.warning(
+                    "Could not load optimizer state due to %s.\nCreating new optimizer from %s",
+                    e,
+                    self.config[TRAINING][OPTIMIZER_CONFIG],
+                )
+            else:
+                self.logger.info("restored optimizer state")
         except Exception as e:
-            self.logger.warning(
-                "Could not load optimizer state due to %s.\nCreating new optimizer from %s",
-                e,
-                self.config["optimizer_config"],
-            )
+            self.logger.exception(e)
+            return None
         else:
             return optimizer
 
@@ -383,18 +432,93 @@ class TrainingProcess(ITraining):
     def get_state(self) -> ModelState:
         training_loss = self.trainer.get_state(INFERNO_NAMES[TRAINING_LOSS], default=float("Inf"))
         epoch = self.trainer.epoch_count
-        weights = io.BytesIO()
-        torch.save(self.model.state_dict(), weights)
-        optim_state = io.BytesIO()
+        weights_io = io.BytesIO()
+        torch.save(self.model.state_dict(), weights_io)
+        optim_state_io = io.BytesIO()
 
         if not isinstance(training_loss, float):
             training_loss = training_loss.item()
 
         try:
-            torch.save(self.trainer.optimizer.state_dict(), optim_state)
+            torch.save(self.trainer.optimizer.state_dict(), optim_state_io)
         except NotSetError:
             optim_state = b""
         else:
-            optim_state = optim_state.getvalue()
+            optim_state = optim_state_io.getvalue()
 
-        return ModelState(training_loss, epoch, weights.getvalue(), optim_state)
+        return ModelState(
+            loss=training_loss, epoch=epoch, model_state=weights_io.getvalue(), optimizer_state=optim_state
+        )
+
+
+class MaskZeros(Transform):
+    """Mask out the zero label """
+
+    def __init__(self, **super_kwargs):
+        super().__init__(**super_kwargs)
+
+    def batch_function(self, tensors):
+        prediction, target = tensors
+        mask = torch.zeros_like(prediction)
+        mask[target > 0] = 1
+        mask.requires_grad = False
+
+        # mask prediction with mask
+        masked_prediction = prediction * mask
+        return masked_prediction, target
+
+
+# LossWrapper from neurofire.
+# todo: add to inferno
+class LossWrapper(torch.nn.Module):
+    """
+    Wrapper around a torch criterion.
+    Enables transforms before applying the criterion.
+    Should be subclassed for implementation.
+    """
+
+    def __init__(self, criterion, transforms=None, weight_function=None):
+        super().__init__()
+        # validate: the criterion needs to inherit from nn.Module
+        # assert isinstance(criterion, nn.Module)
+        self.criterion = criterion
+        # validate: transforms need to be callable
+        if transforms is not None:
+            assert callable(transforms)
+        self.transforms = transforms
+        if weight_function is not None:
+            assert callable(weight_function)
+        self.weight_function = weight_function
+
+    def apply_transforms(self, prediction, target):
+        # check if the tensors (prediction and target are lists)
+        # if so , we need to loop and apply the transforms to each element inidvidually
+        is_listlike = isinstance(prediction, (list, tuple))
+        if is_listlike:
+            assert isinstance(target, (list, tuple))
+        # list-like input
+        if is_listlike:
+            transformed_prediction, transformed_target = [], []
+            for pred, targ in zip(prediction, target):
+                tr_pred, tr_targ = self.transforms(pred, targ)
+                transformed_prediction.append(tr_pred)
+                transformed_target.append(tr_targ)
+        # tensor input
+        else:
+            transformed_prediction, transformed_target = self.transforms(prediction, target)
+        return transformed_prediction, transformed_target
+
+    def forward(self, prediction, target):
+        # calculate the weight based on prediction and target
+        if self.weight_function is not None:
+            weight = self.weight_function(prediction, target)
+            self.criterion.weight = weight
+
+        # apply the transforms to prediction and target or a list of predictions and targets
+        if self.transforms is None:
+            transformed_prediction, transformed_target = prediction, target
+        else:
+            transformed_prediction, transformed_target = self.apply_transforms(prediction, target)
+
+        loss = self.criterion(transformed_prediction, transformed_target)
+        return loss
