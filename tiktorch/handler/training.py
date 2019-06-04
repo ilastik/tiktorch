@@ -394,14 +394,19 @@ class TrainingProcess(ITraining):
         self.datasets[name].update(data, labels)
         self.datasets[name].reset_indices()
         if name == TRAINING:
-            self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
-            ds = self.datasets[TRAINING]
-            if ds:
-                self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(
-                    ds.get_weights(), len(ds), replacement=True
+            old = self.config[TRAINING][NUM_ITERATIONS_MAX]
+            with self.training_settings_lock:
+                self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
+                self.logger.info(
+                    "increased %s from %d to %d", NUM_ITERATIONS_MAX, old, self.config[TRAINING][NUM_ITERATIONS_MAX]
                 )
-            else:
-                self.loader_kwargs[TRAINING].pop("sampler", None)
+                ds = self.datasets[TRAINING]
+                if ds:
+                    self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(
+                        ds.get_weights(), len(ds), replacement=True
+                    )
+                else:
+                    self.loader_kwargs[TRAINING].pop("sampler", None)
 
             # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
             #       (and others more than once)
