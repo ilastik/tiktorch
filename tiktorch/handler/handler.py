@@ -36,9 +36,9 @@ from tiktorch.configkeys import (
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
-    NUM_ITERATION_DONE,
-    MAX_NUM_ITERATIONS,
-    MAX_NUM_ITERATIONS_PER_UPDATE,
+    NUM_ITERATIONS_DONE,
+    NUM_ITERATIONS_MAX,
+    NUM_ITERATIONS_PER_UPDATE,
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
 )
@@ -256,6 +256,7 @@ class HandlerProcess(IHandler):
 
             # do dry run for truly new devices
             new_devices = [d for d in new_devices if d not in self.devices]
+            approved_devices = []
             if new_devices:
                 self.logger.debug("Requesting dry run for new devices: %s", new_devices)
                 dry_run_fut = self.dry_run.dry_run(

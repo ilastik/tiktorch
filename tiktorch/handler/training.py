@@ -49,9 +49,9 @@ from tiktorch.configkeys import (
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
-    NUM_ITERATION_DONE,
-    MAX_NUM_ITERATIONS,
-    MAX_NUM_ITERATIONS_PER_UPDATE,
+    NUM_ITERATIONS_DONE,
+    NUM_ITERATIONS_MAX,
+    NUM_ITERATIONS_PER_UPDATE,
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
     TRAINING_LOSS,
@@ -151,8 +151,8 @@ class TrainingProcess(ITraining):
 
     trainer_defaults = {
         LOSS_CRITERION_CONFIG: {"method": "MSELoss"},
-        MAX_NUM_ITERATIONS: 0,
-        MAX_NUM_ITERATIONS_PER_UPDATE: 10,
+        NUM_ITERATIONS_MAX: 0,
+        NUM_ITERATIONS_PER_UPDATE: 10,
         OPTIMIZER_CONFIG: {"method": "Adam"},
     }
 
@@ -263,6 +263,7 @@ class TrainingProcess(ITraining):
             )
         self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
         self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
+        self.trainer._iteration_count = self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0)
 
         if self.optimizer_state:
             optimizer = self.create_optimizer(self.optimizer_state)
@@ -288,8 +289,10 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
-                        self.trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
-                        self.logger.info("set trainer max iterations to %s", self.config[TRAINING][MAX_NUM_ITERATIONS])
+                        self.trainer.set_max_num_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
+                        self.logger.info(
+                            "trainer iterations: %d/%d", self.trainer.iteration_count, self.trainer.max_num_iterations
+                        )
                         for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
@@ -303,6 +306,7 @@ class TrainingProcess(ITraining):
                             self.trainer.max_num_iterations - self.trainer.iteration_count,
                         )
                         self.trainer.fit()
+                        self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
                         self.logger.info("Waiting for device %s", self.devices)
                         # waiting for a device
@@ -389,9 +393,7 @@ class TrainingProcess(ITraining):
         self.datasets[name].update(data, labels)
         self.datasets[name].reset_indices()
         if name == TRAINING:
-            self.config[TRAINING][MAX_NUM_ITERATIONS] += self.config[TRAINING][MAX_NUM_ITERATIONS_PER_UPDATE] * len(
-                data
-            )
+            self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
             ds = self.datasets[TRAINING]
             if ds:
                 self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(
@@ -457,7 +459,8 @@ class TrainingProcess(ITraining):
             epoch=epoch,
             model_state=weights_io.getvalue(),
             optimizer_state=optim_state,
-            max_num_iterations=self.config[TRAINING][MAX_NUM_ITERATIONS],
+            num_iterations_done=self.config[TRAINING][NUM_ITERATIONS_DONE],
+            num_iterations_max=self.config[TRAINING][NUM_ITERATIONS_MAX],
         )
 
 

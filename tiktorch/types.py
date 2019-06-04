@@ -239,4 +239,5 @@ class ModelState:
     epoch: int
     model_state: bytes
     optimizer_state: bytes
-    max_num_iterations: int
+    num_iterations_done: int
+    num_iterations_max: int
