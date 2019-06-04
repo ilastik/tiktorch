@@ -459,7 +459,7 @@ class TrainingProcess(ITraining):
             epoch=epoch,
             model_state=weights_io.getvalue(),
             optimizer_state=optim_state,
-            num_iterations_done=self.config[TRAINING][NUM_ITERATIONS_DONE],
+            num_iterations_done=self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0),
             num_iterations_max=self.config[TRAINING][NUM_ITERATIONS_MAX],
         )
 
