@@ -234,7 +234,7 @@ class TrainingProcess(ITraining):
                     # Look for it in extensions
                     criterion_class = getattr(inferno_criteria, method, None)
                 assert criterion_class is not None, "Criterion {} not found.".format(method)
-                criterion_config = {"method": LossWrapper(criterion_class(**kwargs), MaskZeros())}
+                criterion_config = {"method": LossWrapper(criterion_class(**kwargs), SparseOneHot())}
                 trainer_config[INFERNO_NAMES.get(key, key)] = criterion_config
             else:
                 trainer_config[INFERNO_NAMES.get(key, key)] = value
@@ -457,7 +457,7 @@ class TrainingProcess(ITraining):
         )
 
 
-class MaskZeros(Transform):
+class SparseOneHot(Transform):
     """Mask out the zero label """
 
     def __init__(self, **super_kwargs):
@@ -468,10 +468,14 @@ class MaskZeros(Transform):
         mask = torch.zeros_like(prediction)
         mask[target > 0] = 1
         mask.requires_grad = False
+        one_hot_target = torch.zeros_like(prediction)
+        for c in range(one_hot_target.shape[1]):
+            label = c + 1
+            one_hot_target[:, c] = target == label
 
         # mask prediction with mask
         masked_prediction = prediction * mask
-        return masked_prediction, target
+        return masked_prediction, one_hot_target
 
 
 # LossWrapper from neurofire.
