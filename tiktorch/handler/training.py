@@ -1,4 +1,6 @@
 import io
+from datetime import datetime
+
 import os
 
 import logging
@@ -251,6 +253,8 @@ class TrainingProcess(ITraining):
         )
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
+            log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+            os.makedirs(log_dir, exist_ok=True)
             self.trainer.build_logger(
                 TensorboardLogger,
                 log_directory=log_dir,

@@ -127,7 +127,6 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     ) -> RPCFuture[SetDeviceReturnType]:
         log_dir = config.get(LOGGING, {}).get(DIRECTORY, "")
         if log_dir:
-            log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
             os.makedirs(log_dir, exist_ok=True)
             self.logger.info("log dir: %s", os.path.abspath(log_dir))
 
