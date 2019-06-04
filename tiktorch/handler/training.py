@@ -282,13 +282,6 @@ class TrainingProcess(ITraining):
                     self.logger.info("Update trainer settings")
                     with self.training_settings_lock:
                         self.update_trainer_event.clear()
-                        if self.base_device == "cpu":
-                            self.trainer.cpu()
-                        elif self.base_device == "cuda":
-                            self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
-                        else:
-                            raise ValueError(self.base_device)
-
                         self.trainer.set_max_num_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
                         self.logger.info(
                             "trainer iterations: %d/%d", self.trainer.iteration_count, self.trainer.max_num_iterations
@@ -305,6 +298,14 @@ class TrainingProcess(ITraining):
                             "Start training for %d iterations",
                             self.trainer.max_num_iterations - self.trainer.iteration_count,
                         )
+
+                        if self.base_device == "cpu":
+                            self.trainer.cpu()
+                        elif self.base_device == "cuda":
+                            self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
+                        else:
+                            raise ValueError(self.base_device)
+
                         self.trainer.fit()
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
