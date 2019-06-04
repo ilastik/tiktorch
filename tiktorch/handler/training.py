@@ -244,26 +244,26 @@ class TrainingProcess(ITraining):
 
     def _training_worker(self):
         # todo: configure (create/load) inferno trainer fully
-        self.trainer = trainer = TikTrainer.build(
+        self.trainer = TikTrainer.build(
             model=self.model,
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
             **self.create_trainer_config(),
         )
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
-            trainer.build_logger(
+            self.trainer.build_logger(
                 TensorboardLogger,
                 log_directory=log_dir,
                 log_scalars_every=(1, "iteration"),
                 log_images_every=(1, "epoch"),
             )
-        trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
-        trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
+        self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
+        self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
 
         if self.optimizer_state:
             optimizer = self.create_optimizer(self.optimizer_state)
             if optimizer is not None:
-                trainer.build_optimizer(optimizer)
+                self.trainer.build_optimizer(optimizer)
 
         while True:
             if self.shutdown_event.is_set():
@@ -284,19 +284,21 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
-                        trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
+                        self.trainer.set_max_num_iterations(self.config[TRAINING][MAX_NUM_ITERATIONS])
+                        self.logger.info("set trainer max iterations to %s", self.config[TRAINING][MAX_NUM_ITERATIONS])
                         for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
-                                trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
+                                self.trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
 
-                if trainer.max_num_iterations > trainer.iteration_count:
+                if self.trainer.max_num_iterations > self.trainer.iteration_count:
                     self.idle = False
                     if self.devices:
                         self.logger.info(
-                            "Start training for %d iterations", trainer.max_num_iterations - trainer.iteration_count
+                            "Start training for %d iterations",
+                            self.trainer.max_num_iterations - self.trainer.iteration_count,
                         )
-                        trainer.fit()
+                        self.trainer.fit()
                     else:
                         self.logger.info("Waiting for device %s", self.devices)
                         # waiting for a device
