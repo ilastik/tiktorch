@@ -356,7 +356,7 @@ class TrainingProcess(ITraining):
             optimizer_class: Type[torch.optim.Optimizer] = getattr(torch.optim, kwargs.pop("method"))
             optimizer = optimizer_class(self.model.parameters(), **kwargs)
             try:
-                optimizer.load_state_dict(torch.load(io.BytesIO(optimizer_state), map_location="cpu"))
+                optimizer.load_state_dict(torch.load(io.BytesIO(optimizer_state), map_location=self.base_device))
             except Exception as e:
                 self.logger.warning(
                     "Could not load optimizer state due to %s.\nCreating new optimizer from %s",
