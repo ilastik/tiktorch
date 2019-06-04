@@ -489,6 +489,9 @@ class HandlerProcess(IHandler):
     # training
     def resume_training(self) -> None:
         self.logger.debug("resume training")
+        if not self.training_devices:
+            self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
+
         self.training.resume_training()
 
     def pause_training(self) -> None:
