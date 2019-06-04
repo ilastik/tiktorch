@@ -157,7 +157,7 @@ class HandlerProcess(IHandler):
         if model_state:
             self.logger.debug("load model state")
             try:
-                self.model.load_state_dict(torch.load(io.BytesIO(model_state), map_location='cpu'))
+                self.model.load_state_dict(torch.load(io.BytesIO(model_state), map_location="cpu"))
             except Exception as e:
                 self.logger.exception(e)
             else:

@@ -453,7 +453,11 @@ class TrainingProcess(ITraining):
             optim_state = optim_state_io.getvalue()
 
         return ModelState(
-            loss=training_loss, epoch=epoch, model_state=weights_io.getvalue(), optimizer_state=optim_state
+            loss=training_loss,
+            epoch=epoch,
+            model_state=weights_io.getvalue(),
+            optimizer_state=optim_state,
+            max_num_iterations=self.config[TRAINING][MAX_NUM_ITERATIONS],
         )
 
 
