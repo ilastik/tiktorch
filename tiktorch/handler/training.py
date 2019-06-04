@@ -306,6 +306,12 @@ class TrainingProcess(ITraining):
                         else:
                             raise ValueError(self.base_device)
 
+                        # make sure optimizer states are on correct device
+                        for k in self.trainer.optimizer.state.keys():
+                            param_state = self.trainer.optimizer.state[k]
+                            for p in param_state.keys():
+                                param_state[p] = param_state[p].to(self.base_device)
+
                         self.trainer.fit()
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
@@ -396,7 +402,9 @@ class TrainingProcess(ITraining):
         if name == TRAINING:
             old = self.config[TRAINING][NUM_ITERATIONS_MAX]
             with self.training_settings_lock:
-                self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
+                self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(
+                    data
+                )
                 self.logger.info(
                     "increased %s from %d to %d", NUM_ITERATIONS_MAX, old, self.config[TRAINING][NUM_ITERATIONS_MAX]
                 )
