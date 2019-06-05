@@ -1,3 +1,4 @@
+import copy
 import io
 from datetime import datetime
 
@@ -481,7 +482,7 @@ class TrainingProcess(ITraining):
         )
 
     def get_model_state_dict(self) -> dict:
-        return self.model.state_dict()
+        return copy.deepcopy(self.model.state_dict()).cpu()
 
 
 class SparseOneHot(Transform):
