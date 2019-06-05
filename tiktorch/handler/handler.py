@@ -214,7 +214,7 @@ class HandlerProcess(IHandler):
     def _device_setter_worker(self) -> None:
         while not self.shutdown_event.is_set():
             try:
-                new_devices_entry = self.new_device_names.get(timeout=5)
+                new_devices_entry = self.new_device_names.get(timeout=10)
             except queue.Empty:
                 new_devices_entry = "time_to_check_if_someone_is_idle_dont_you_think?"
 
@@ -500,6 +500,8 @@ class HandlerProcess(IHandler):
     def resume_training(self) -> None:
         self.logger.debug("resume training")
         self.training.resume_training()
+        if not self.training_devices:
+            self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
 
     def pause_training(self) -> None:
         self.training.pause_training()

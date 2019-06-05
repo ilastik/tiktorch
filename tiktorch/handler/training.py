@@ -321,6 +321,8 @@ class TrainingProcess(ITraining):
 
                         self.logger.debug("here training before fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
                         self.trainer.fit()
+                        # update common cpu model, as the trainer's model might be a gpu copy
+                        self.model.load_state_dict(self.trainer.model.state_dict())
                         self.model.tik_iteration += 1
                         self.logger.debug("here training after fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
