@@ -210,7 +210,7 @@ class TrainingProcess(ITraining):
         self.update_trainer_event = threading.Event()
         self.update_trainer_event.set()
 
-        self.model.tik_iteration = 0
+        self.common_model = self.model
         self.trainer = TikTrainer.build(
             model=self.model,
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
@@ -319,12 +319,25 @@ class TrainingProcess(ITraining):
                                 except Exception as e:
                                     self.logger.debug(e)
 
-                        self.logger.debug("here training before fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
+                        self.logger.debug(
+                            "here training before fit %s",
+                            self.model._modules["final_conv"]._parameters["weight"].data.mean(),
+                        )
                         self.trainer.fit()
                         # update common cpu model, as the trainer's model might be a gpu copy
-                        self.model.load_state_dict(self.trainer.model.state_dict())
-                        self.model.tik_iteration += 1
-                        self.logger.debug("here training after fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
+                        self.logger.debug(
+                            "here training after fit %s",
+                            self.model._modules["final_conv"]._parameters["weight"].data.mean(),
+                        )
+                        self.logger.debug(
+                            "here training after fit common before update %s",
+                            self.common_model._modules["final_conv"]._parameters["weight"].data.mean(),
+                        )
+                        self.common_model.load_state_dict(self.trainer.model.state_dict())
+                        self.logger.debug(
+                            "here training after fit common %s",
+                            self.common_model._modules["final_conv"]._parameters["weight"].data.mean(),
+                        )
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
                         self.logger.info("Waiting for device")

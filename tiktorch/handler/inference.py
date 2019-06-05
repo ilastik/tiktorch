@@ -204,7 +204,7 @@ class InferenceProcess(IInference):
 
         model.load_state_dict(self.training_model.state_dict())
         self.logger.debug(
-            "here inference forward %s", self.training_model._modules["final_conv"]._parameters["weight"].data.mean()
+            "here inference forward %s %s", self.training_model._modules["final_conv"]._parameters["weight"].data.mean(), model._modules["final_conv"]._parameters["weight"].data.mean()
         )
         model.eval()
         model = model.to(device=device)
