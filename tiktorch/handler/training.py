@@ -283,7 +283,6 @@ class TrainingProcess(ITraining):
                     self.logger.info("Update trainer settings")
                     with self.training_settings_lock:
                         self.update_trainer_event.clear()
-                        self.config[TRAINING][NUM_ITERATIONS_MAX] = max(self.config[TRAINING][NUM_ITERATIONS_MAX], len(self.datasets[TRAINING]))
                         self.trainer.set_max_num_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
                         self.logger.info(
                             "trainer iterations: %d/%d", self.trainer.iteration_count, self.trainer.max_num_iterations
@@ -313,7 +312,8 @@ class TrainingProcess(ITraining):
                             param_state = self.trainer.optimizer.state[k]
                             for p in param_state.keys():
                                 try:
-                                    param_state[p] = param_state[p].to(self.base_device)
+                                    if not isinstance(param_state[p], int):
+                                        param_state[p] = param_state[p].to(self.base_device)
                                 except Exception as e:
                                     self.logger.warning(e)
 
