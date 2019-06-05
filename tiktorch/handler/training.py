@@ -167,7 +167,11 @@ class TrainingProcess(ITraining):
         self.shutdown_event = threading.Event()
         self.idle = False
 
-        self.model = model
+        self.common_model = model
+        self.model = copy.deepcopy(model)
+        self.logger.debug(
+            "here training init common %s", self.common_model._modules["final_conv"]._parameters["weight"].data.mean()
+        )
         self.logger.debug("here training init %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
 
         self.optimizer_state = optimizer_state
@@ -210,7 +214,6 @@ class TrainingProcess(ITraining):
         self.update_trainer_event = threading.Event()
         self.update_trainer_event.set()
 
-        self.common_model = self.model
         self.trainer = TikTrainer.build(
             model=self.model,
             break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
