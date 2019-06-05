@@ -492,8 +492,7 @@ class HandlerProcess(IHandler):
             self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
 
         self.logger.debug("forward")
-        current_state = self.training.get_model_state_dict()
-        return self.inference.forward(data, current_state)
+        return self.inference.forward(data)
 
     # training
     def resume_training(self) -> None:

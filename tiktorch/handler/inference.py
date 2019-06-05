@@ -49,7 +49,7 @@ class IInference(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, data: TikTensor, current_state: dict) -> RPCFuture[TikTensor]:
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         raise NotImplementedError
 
 
@@ -145,18 +145,13 @@ class InferenceProcess(IInference):
         while not self.shutdown_worker_events[device].is_set() and not self.shutdown_event.is_set():
             data_batch, fut_batch = [], []
             while not self.forward_queue.empty() and len(data_batch) < local_data.batch_size:
-                data, current_state, fut = self.forward_queue.get()
+                data, fut = self.forward_queue.get()
                 data_batch.append(data)
                 fut_batch.append(fut)
 
             if data_batch:
                 local_data.batch_size, local_data.increase_batch_size = self._forward(
-                    TikTensorBatch(data_batch),
-                    fut_batch,
-                    device,
-                    local_data.batch_size,
-                    local_data.increase_batch_size,
-                    current_state,
+                    TikTensorBatch(data_batch), fut_batch, device, local_data.batch_size, local_data.increase_batch_size
                 )
 
     def set_devices(self, devices: Collection[torch.device]) -> RPCFuture[Set[torch.device]]:
@@ -184,9 +179,9 @@ class InferenceProcess(IInference):
         self.logger.debug("Shutdown complete")
         return Shutdown()
 
-    def forward(self, data: TikTensor, current_state: dict) -> RPCFuture[TikTensor]:
+    def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
         fut = RPCFuture()
-        self.forward_queue.put((data, current_state, fut))
+        self.forward_queue.put((data, fut))
         return fut
 
     def _forward(
@@ -196,7 +191,6 @@ class InferenceProcess(IInference):
         device: torch.device,
         batch_size: int,
         increase_batch_size: bool,
-        current_state: dict,
     ) -> Tuple[int, bool]:
         """
         :param data: input data to neural network
@@ -210,8 +204,7 @@ class InferenceProcess(IInference):
         else:
             model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
 
-        # model.load_state_dict(self.training_model.state_dict())
-        model.load_state_dict(current_state)
+        model.load_state_dict(self.training_model.state_dict())
         model.eval()
         model = model.to(device=device)
 
