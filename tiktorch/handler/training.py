@@ -482,7 +482,11 @@ class TrainingProcess(ITraining):
         )
 
     def get_model_state_dict(self) -> dict:
-        return copy.deepcopy(self.model.state_dict()).cpu()
+        state = self.model.state_dict()
+        for k in state.keys():
+            state[k] = state[k].cpu()
+
+        return state
 
 
 class SparseOneHot(Transform):
