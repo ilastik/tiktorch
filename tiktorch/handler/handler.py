@@ -152,6 +152,7 @@ class HandlerProcess(IHandler):
         self.model: torch.nn.Module = getattr(user_module, self.config[MODEL_CLASS_NAME])(
             **self.config.get(MODEL_INIT_KWARGS, {})
         )
+        self.logger.debug("here handler %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
         self.logger.debug("created user model")
 
         if model_state:
@@ -488,6 +489,7 @@ class HandlerProcess(IHandler):
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
+        self.logger.debug("here handler forward %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
         if not self.inference_devices:
             self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
 

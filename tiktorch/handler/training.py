@@ -168,6 +168,8 @@ class TrainingProcess(ITraining):
         self.idle = False
 
         self.model = model
+        self.logger.debug("here training init %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
+
         self.optimizer_state = optimizer_state
         self.training_settings_lock = threading.Lock()
         # self.devices = [torch.device("cpu")]
@@ -315,10 +317,12 @@ class TrainingProcess(ITraining):
                                     if not isinstance(param_state[p], int):
                                         param_state[p] = param_state[p].to(self.base_device)
                                 except Exception as e:
-                                    self.logger.warning(e)
+                                    self.logger.debug(e)
 
+                        self.logger.debug("here training before fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
                         self.trainer.fit()
                         self.model.tik_iteration += 1
+                        self.logger.debug("here training after fit %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
                         self.logger.info("Waiting for device")
