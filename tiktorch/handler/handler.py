@@ -166,7 +166,7 @@ class HandlerProcess(IHandler):
         try:
             self.logger.debug("start training process")
             handler2training_conn, training2handler_conn = mp.Pipe()
-            mp.Process(
+            self._training_proc = mp.Process(
                 target=run_training,
                 name="Training",
                 kwargs={
@@ -176,25 +176,28 @@ class HandlerProcess(IHandler):
                     "optimizer_state": optimizer_state,
                     "log_queue": log_queue,
                 },
-            ).start()
+            )
+            self._training_proc.start()
             self._training: ITraining = create_client(ITraining, handler2training_conn)
 
             self.logger.debug("start inference process")
             handler2inference_conn, inference2handler_conn = mp.Pipe()
-            mp.Process(
+            self._inference_proc = mp.Process(
                 target=run_inference,
                 name="Inference",
                 kwargs={"conn": inference2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
-            ).start()
+            )
+            self._inference_proc.start()
             self._inference: IInference = create_client(IInference, handler2inference_conn)
 
             self.logger.debug("start dryrun process")
             handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
-            mp.Process(
+            self._dry_run_proc = mp.Process(
                 name="DryRun",
                 target=run_dryrun,
                 kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
-            ).start()
+            )
+            self._dry_run_proc.start()
             self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
 
             # start device setter thread that will wait for dry run processes to finish
@@ -413,15 +416,18 @@ class HandlerProcess(IHandler):
         timeout = 20
         # shutdown processes
         try:
-            self.dry_run.shutdown.async_().result(timeout=timeout)
+            if self._dry_run_proc.is_alive():
+                self.dry_run.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.inference.shutdown.async_().result(timeout=timeout)
+            if self._inference_proc.is_alive():
+                self.inference.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
         try:
-            self.training.shutdown.async_().result(timeout=timeout)
+            if self._training_proc.is_alive():
+                self.training.shutdown.async_().result(timeout=timeout)
         except TimeoutError as e:
             self.logger.error(e)
 
