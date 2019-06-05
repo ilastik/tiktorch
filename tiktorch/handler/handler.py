@@ -248,11 +248,7 @@ class HandlerProcess(IHandler):
                     new_devices.append(torch_device)
 
             # remove old devices that are not in the new list of devices
-            self.idle_devices = [d for d in self.idle_devices if d in new_devices]
-
-            freed_training_devices_fut, freed_inference_devices_fut = self._collect_idle_devices(
-                new_devices=new_devices
-            )
+            self._collect_idle_devices(new_devices=new_devices)
 
             # do dry run for truly new devices
             new_devices = [d for d in new_devices if d not in self.devices]
@@ -315,14 +311,16 @@ class HandlerProcess(IHandler):
             self.idle_devices = self.training_devices + self.idle_devices
             self.training_devices = []
         elif new_devices is not None:
-            self.training_devices = [d for d in self.training_devices if d in new_devices]
+            self.training_devices = list(filter(lambda d: d in new_devices, self.training_devices))
 
         if self.inference.get_idle():
             self.idle_devices += self.inference_devices
             self.inference_devices = []
         elif new_devices is not None:
-            self.inference_devices = [d for d in self.inference_devices if d in new_devices]
+            self.inference_devices = list(filter(lambda d: d in new_devices, self.inference_devices))
 
+        if new_devices is not None:
+            self.idle_devices: List[torch.device] = list(filter(lambda d: d in new_devices, self.idle_devices))
         try:
             freed_training_devices = self.training.set_devices(self.training_devices)
         except Exception:
@@ -367,7 +365,7 @@ class HandlerProcess(IHandler):
             self.training_devices += self.idle_devices
             training_devices_changed = True
 
-        self.idle_devices = []
+        self.idle_devices: List[torch.device] = []
         if training_devices_changed:
             self.logger.debug("assign new training devices: %s", self.training_devices)
             self.training.set_devices(self.training_devices)
