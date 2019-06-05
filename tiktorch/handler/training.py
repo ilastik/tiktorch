@@ -310,13 +310,15 @@ class TrainingProcess(ITraining):
                         for k in self.trainer.optimizer.state.keys():
                             param_state = self.trainer.optimizer.state[k]
                             for p in param_state.keys():
-                                param_state[p] = param_state[p].to(self.base_device)
+                                try:
+                                    param_state[p] = param_state[p].to(self.base_device)
+                                except Exception as e:
+                                    self.logger.warning(e)
 
                         self.trainer.fit()
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
-                        self.logger.info("Waiting for device %s", self.devices)
-                        # waiting for a device
+                        self.logger.info("Waiting for device")
                         time.sleep(1)
                 else:
                     self.idle = True
