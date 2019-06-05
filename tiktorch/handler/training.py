@@ -283,6 +283,7 @@ class TrainingProcess(ITraining):
                     self.logger.info("Update trainer settings")
                     with self.training_settings_lock:
                         self.update_trainer_event.clear()
+                        self.config[TRAINING][NUM_ITERATIONS_MAX] = max(self.config[TRAINING][NUM_ITERATIONS_MAX], len(self.datasets[TRAINING]))
                         self.trainer.set_max_num_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
                         self.logger.info(
                             "trainer iterations: %d/%d", self.trainer.iteration_count, self.trainer.max_num_iterations
@@ -484,7 +485,7 @@ class TrainingProcess(ITraining):
     def get_model_state_dict(self) -> dict:
         state = self.model.state_dict()
         for k in state.keys():
-            state[k] = state[k].cpu()
+            state[k] = state[k].cpu().detach()
 
         return state
 
