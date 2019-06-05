@@ -225,19 +225,22 @@ class HandlerProcess(IHandler):
             elif isinstance(new_devices_entry, tuple):
                 new_device_names, fut = new_devices_entry
             else:  # idle changed signal
-                # no new devices in a while; reassign devices if necessary
-                for fut in self._collect_idle_devices():
-                    # todo: ret fut fut.result()  # wait for confirmation that idle devices are in fact free
-                    pass  # wait for confirmation that idle devices are in fact free
+                try:
+                    # no new devices in a while; reassign devices if necessary
+                    for fut in self._collect_idle_devices():
+                        # todo: ret fut fut.result()  # wait for confirmation that idle devices are in fact free
+                        pass  # wait for confirmation that idle devices are in fact free
 
-                if not self.idle_devices and not self.inference_devices and not self.inference.get_idle():
-                    self.logger.debug("reassigning a training device to inference")
-                    self.inference_devices = [self.training_devices[-1]]
-                    self.training_devices = self.training_devices[:-1]
-                    self.training.set_devices(self.training_devices)  # todo: change to futures
-                    self.inference.set_devices(self.inference_devices).result(timeout=20)
-                else:
-                    self._assign_idle_devices()
+                    if not self.idle_devices and not self.inference_devices and not self.inference.get_idle():
+                        self.logger.debug("reassigning a training device to inference")
+                        self.inference_devices = [self.training_devices[-1]]
+                        self.training_devices = self.training_devices[:-1]
+                        self.training.set_devices(self.training_devices)  # todo: change to futures
+                        self.inference.set_devices(self.inference_devices).result(timeout=10)
+                    else:
+                        self._assign_idle_devices()
+                except Exception as e:
+                    self.logger.exception(e)
 
                 continue
 
@@ -489,7 +492,8 @@ class HandlerProcess(IHandler):
             self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
 
         self.logger.debug("forward")
-        return self.inference.forward(data)
+        current_state = self.training.get_model_state_dict()
+        return self.inference.forward(data, current_state)
 
     # training
     def resume_training(self) -> None:

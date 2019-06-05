@@ -130,6 +130,10 @@ class ITraining(RPCInterface):
     def get_state(self) -> ModelState:
         raise NotImplementedError
 
+    @exposed
+    def get_model_state_dict(self) -> dict:
+        raise NotImplementedError
+
 
 def run(
     conn: Connection,
@@ -202,10 +206,31 @@ class TrainingProcess(ITraining):
         self._pause_event.set()
         self.update_trainer_event = threading.Event()
         self.update_trainer_event.set()
-        # TODO: remove self.trainer (currently only local trainer used in worker)
+
+        self.model.tik_iteration = 0
         self.trainer = TikTrainer.build(
-            model=self.model, break_event=self.shutdown_event, **self.create_trainer_config()
+            model=self.model,
+            break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
+            **self.create_trainer_config(),
         )
+        log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
+        if os.path.exists(log_dir):
+            log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+            os.makedirs(log_dir, exist_ok=True)
+            self.trainer.build_logger(
+                TensorboardLogger,
+                log_directory=log_dir,
+                log_scalars_every=(1, "iteration"),
+                log_images_every=(1, "epoch"),
+            )
+        self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
+        self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
+        self.trainer._iteration_count = self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0)
+
+        if self.optimizer_state:
+            optimizer = self.create_optimizer(self.optimizer_state)
+            if optimizer is not None:
+                self.trainer.build_optimizer(optimizer)
 
         self.training_thread = threading.Thread(target=add_logger(self.logger)(self._training_worker), name="Training")
         self.training_thread.start()
@@ -245,31 +270,6 @@ class TrainingProcess(ITraining):
         return trainer_config
 
     def _training_worker(self):
-        # todo: configure (create/load) inferno trainer fully
-        self.trainer = TikTrainer.build(
-            model=self.model,
-            break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
-            **self.create_trainer_config(),
-        )
-        log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
-        if os.path.exists(log_dir):
-            log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-            os.makedirs(log_dir, exist_ok=True)
-            self.trainer.build_logger(
-                TensorboardLogger,
-                log_directory=log_dir,
-                log_scalars_every=(1, "iteration"),
-                log_images_every=(1, "epoch"),
-            )
-        self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
-        self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
-        self.trainer._iteration_count = self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0)
-
-        if self.optimizer_state:
-            optimizer = self.create_optimizer(self.optimizer_state)
-            if optimizer is not None:
-                self.trainer.build_optimizer(optimizer)
-
         while True:
             if self.shutdown_event.is_set():
                 break
@@ -316,6 +316,7 @@ class TrainingProcess(ITraining):
                                     self.logger.warning(e)
 
                         self.trainer.fit()
+                        self.model.tik_iteration += 1
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
                         self.logger.info("Waiting for device")
@@ -478,6 +479,9 @@ class TrainingProcess(ITraining):
             num_iterations_done=self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0),
             num_iterations_max=self.config[TRAINING][NUM_ITERATIONS_MAX],
         )
+
+    def get_model_state_dict(self) -> dict:
+        return self.model.state_dict()
 
 
 class SparseOneHot(Transform):
