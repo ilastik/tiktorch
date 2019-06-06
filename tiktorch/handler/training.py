@@ -327,6 +327,11 @@ class TrainingProcess(ITraining):
                             self.model._modules["final_conv"]._parameters["weight"].data.mean(),
                         )
                         self.trainer.fit()
+                        self.logger.info(
+                            "Break training at %d/%d iterations",
+                            self.trainer.iteration_count,
+                            self.trainer.max_num_iterations,
+                        )
                         # update common cpu model, as the trainer's model might be a gpu copy
                         self.logger.debug(
                             "here training after fit %s",
