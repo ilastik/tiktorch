@@ -1,4 +1,6 @@
 import itertools
+
+import numpy
 import torch
 
 from collections import OrderedDict
@@ -62,7 +64,7 @@ class DynamicDataset(Dataset):
 
             if label.any():
                 # add sample-label pair to dataset
-                self.data[key] = image, label
+                self.data[key] = numpy.array(image), numpy.array(label)
                 self.recently_removed.discard(key)
                 self.weights[key] = self.weights.get(key, 0) + 1  # todo: take update counts into account properly
             elif key in self.data.keys():
