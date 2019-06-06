@@ -317,7 +317,11 @@ class TrainingProcess(ITraining):
                                 except Exception as e:
                                     self.logger.debug(e)
 
-                        self.trainer.fit()
+                        try:
+                            self.trainer.fit()
+                        except Exception as e:
+                            self.logger.debug(e, exc_info=True)
+
                         self.logger.info(
                             "Break training at %d/%d iterations",
                             self.trainer.iteration_count,
