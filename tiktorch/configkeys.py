@@ -4,6 +4,7 @@
 TRAINING = "training"
 VALIDATION = "validation"
 TESTING = "testing"
+DRY_RUN = "dry_run"
 LOGGING = "logging"
 
 # general
@@ -28,6 +29,10 @@ NUM_ITERATIONS_PER_UPDATE = "max_num_iterations_per_update"
 LOSS_CRITERION_CONFIG = "loss_criterion_config"
 OPTIMIZER_CONFIG = "optimizer_config"
 TRAINING_LOSS = "training_loss"
+
+# dryrun
+SKIP = "skip"
+SHRINKAGE = "shrinkage"
 
 # logging
 DIRECTORY = "directory"
@@ -61,5 +66,6 @@ CONFIG = {
     },
     VALIDATION: {TRANSFORMS: None},
     TESTING: {TRANSFORMS: None},
+    DRY_RUN: {SKIP: None, SHRINKAGE: None},
     LOGGING: {DIRECTORY: None},
 }

@@ -1,3 +1,5 @@
+import warnings
+
 import logging
 import logging.config
 import torch
@@ -48,6 +50,9 @@ from tiktorch.configkeys import (
     NUM_ITERATIONS_PER_UPDATE,
     LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
+    DRY_RUN,
+    SHRINKAGE,
+    SKIP,
 )
 
 
@@ -173,6 +178,28 @@ class DryRunProcess(IDryRun):
         shrinkage: Optional[Point],
         fut: Future,
     ) -> None:
+        if self.config.get(DRY_RUN, {}).get(SKIP, False):
+            training_shape_from_config = self.config[TRAINING].get(TRAINING_SHAPE, None)
+            shrinkage_from_config = self.config.get(DRY_RUN, {}).get(SHRINKAGE, None)
+            if training_shape_from_config is None:
+                warnings.warn(f"Cannot skip dry run due to missing {TRAINING_SHAPE} in config:{TRAINING}")
+            elif shrinkage_from_config is None:
+                warnings.warn(f"Cannot skip dry run due to missing {SHRINKAGE} in config:{DRY_RUN}")
+            elif len(training_shape_from_config) != len(shrinkage_from_config):
+                warnings.warn(
+                    f"Cannot skip dry run due to incompatible config values:\n"
+                    f"\tconfig:{TRAINING}:{TRAINING_SHAPE}:{training_shape_from_config}\n"
+                    f"\tconfig:{DRY_RUN}:{SHRINKAGE}:{shrinkage_from_config}"
+                )
+            else:
+                training_shape_from_config = Point(**{f"d{i}": v for i, v in enumerate(training_shape_from_config)})
+                shrinkage_from_config = Point(**{f"d{i}": v for i, v in enumerate(shrinkage_from_config)})
+                self.logger.info("skip dry run (no_dry_run: true specified in config)")
+                fut.set_result(
+                    (devices, training_shape_from_config, [training_shape_from_config], shrinkage_from_config)
+                )
+                return
+
         self.logger.info("Starting dry run for %s", devices)
         try:
             if not devices:
@@ -198,7 +225,7 @@ class DryRunProcess(IDryRun):
             self._determine_valid_shapes(devices=devices, valid_shapes=valid_shapes)
 
             fut.set_result((devices, self.training_shape, self.valid_shapes, self.shrinkage))
-            self.logger.info("dry run done")
+            self.logger.info("dry run done. shrinkage: %s", self.shrinkage)
         except Exception as e:
             self.logger.error(traceback.format_exc())
             fut.set_exception(e)
