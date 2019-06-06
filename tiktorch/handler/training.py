@@ -61,7 +61,13 @@ from tiktorch.configkeys import (
 )
 
 from tiktorch.handler.datasets import DynamicDataset
-
+try:
+    # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
+    import resource
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+except ModuleNotFoundError:
+    pass  # probably running on windows
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
