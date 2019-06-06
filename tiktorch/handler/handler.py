@@ -165,6 +165,16 @@ class HandlerProcess(IHandler):
                 self.logger.info("restored model state")
 
         try:
+            self.logger.debug("start dryrun process")
+            handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
+            self._dry_run_proc = mp.Process(
+                name="DryRun",
+                target=run_dryrun,
+                kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
+            )
+            self._dry_run_proc.start()
+            self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
+
             self.logger.debug("start training process")
             handler2training_conn, training2handler_conn = mp.Pipe()
             self._training_proc = mp.Process(
@@ -190,16 +200,6 @@ class HandlerProcess(IHandler):
             )
             self._inference_proc.start()
             self._inference: IInference = create_client(IInference, handler2inference_conn)
-
-            self.logger.debug("start dryrun process")
-            handler2dryrun_conn, dryrun2handler_conn = mp.Pipe()
-            self._dry_run_proc = mp.Process(
-                name="DryRun",
-                target=run_dryrun,
-                kwargs={"conn": dryrun2handler_conn, "config": config, "model": self.model, "log_queue": log_queue},
-            )
-            self._dry_run_proc.start()
-            self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
 
             # start device setter thread that will wait for dry run processes to finish
             self.new_device_names: queue.Queue = queue.Queue()
@@ -489,7 +489,9 @@ class HandlerProcess(IHandler):
 
     # inference
     def forward(self, data: TikTensor) -> RPCFuture[TikTensor]:
-        self.logger.debug("here handler forward %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
+        self.logger.debug(
+            "here handler forward %s", self.model._modules["final_conv"]._parameters["weight"].data.mean()
+        )
         if not self.inference_devices:
             self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
 
