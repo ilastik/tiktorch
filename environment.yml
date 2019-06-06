@@ -2,6 +2,7 @@ name: test-env
 channels:
   - pytorch
   - conda-forge
+  - ilastik-forge
   - defaults
 dependencies:
   - lapack
