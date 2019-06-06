@@ -70,9 +70,6 @@ class InferenceProcess(IInference):
         self.logger.info("started")
         self.config = config
         self.training_model = model
-        self.logger.debug(
-            "here inference init %s", self.training_model._modules["final_conv"]._parameters["weight"].data.mean()
-        )
 
         self.shutdown_event = threading.Event()
 
@@ -203,9 +200,6 @@ class InferenceProcess(IInference):
             model = self.training_model.__class__(**self.config.get("model_init_kwargs", {}))
 
         model.load_state_dict(self.training_model.state_dict())
-        self.logger.debug(
-            "here inference forward %s %s", self.training_model._modules["final_conv"]._parameters["weight"].data.mean(), model._modules["final_conv"]._parameters["weight"].data.mean()
-        )
         model.eval()
         model = model.to(device=device)
 

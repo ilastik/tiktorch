@@ -157,7 +157,7 @@ class TrainingProcess(ITraining):
     trainer_defaults = {
         LOSS_CRITERION_CONFIG: {"method": "MSELoss"},
         NUM_ITERATIONS_MAX: 0,
-        NUM_ITERATIONS_PER_UPDATE: 10,
+        NUM_ITERATIONS_PER_UPDATE: 1,
         OPTIMIZER_CONFIG: {"method": "Adam"},
     }
 
@@ -169,11 +169,6 @@ class TrainingProcess(ITraining):
 
         self.common_model = model
         self.model = copy.deepcopy(model)
-        self.logger.debug(
-            "here training init common %s", self.common_model._modules["final_conv"]._parameters["weight"].data.mean()
-        )
-        self.logger.debug("here training init %s", self.model._modules["final_conv"]._parameters["weight"].data.mean())
-
         self.optimizer_state = optimizer_state
         self.training_settings_lock = threading.Lock()
         # self.devices = [torch.device("cpu")]
@@ -322,10 +317,6 @@ class TrainingProcess(ITraining):
                                 except Exception as e:
                                     self.logger.debug(e)
 
-                        self.logger.debug(
-                            "here training before fit %s",
-                            self.model._modules["final_conv"]._parameters["weight"].data.mean(),
-                        )
                         self.trainer.fit()
                         self.logger.info(
                             "Break training at %d/%d iterations",
@@ -333,19 +324,7 @@ class TrainingProcess(ITraining):
                             self.trainer.max_num_iterations,
                         )
                         # update common cpu model, as the trainer's model might be a gpu copy
-                        self.logger.debug(
-                            "here training after fit %s",
-                            self.model._modules["final_conv"]._parameters["weight"].data.mean(),
-                        )
-                        self.logger.debug(
-                            "here training after fit common before update %s",
-                            self.common_model._modules["final_conv"]._parameters["weight"].data.mean(),
-                        )
                         self.common_model.load_state_dict(self.trainer.model.state_dict())
-                        self.logger.debug(
-                            "here training after fit common %s",
-                            self.common_model._modules["final_conv"]._parameters["weight"].data.mean(),
-                        )
                         self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
                     else:
                         self.logger.info("Waiting for device")
