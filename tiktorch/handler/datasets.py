@@ -34,8 +34,8 @@ class DynamicDataset(Dataset):
     def __getitem__(self, index, update_weight=True):
         key, fetched = next(itertools.islice(self.data.items(), index, index + 1))
         if update_weight:
-            self.weights[key] *= self.gamma
-            self.weights[key] = max(self.weights[key], self.minimum_weight)
+            self.weights[key] = self.weights.get(key, 1.0) * self.gamma
+            self.weights[key] = max(self.weights.get(key, 1.0), self.minimum_weight)
 
         if self.transform is not None:
             fetched = self.transform(*fetched)
@@ -72,7 +72,7 @@ class DynamicDataset(Dataset):
                 self.recently_removed.add(key)
 
     def get_weights(self) -> torch.DoubleTensor:
-        return torch.DoubleTensor([self.weights[key] for key in self.data.keys()])
+        return torch.DoubleTensor([self.weights.get(key, 1.0) for key in self.data.keys()])
 
     def reset_indices(self) -> None:
         """
@@ -80,5 +80,5 @@ class DynamicDataset(Dataset):
         :return: new weights
         """
         for deleted_key in self.recently_removed:
-            del self.data[deleted_key]
-            del self.weights[deleted_key]
+            self.data.pop(deleted_key, None)
+            self.weights.pop(deleted_key, None)
