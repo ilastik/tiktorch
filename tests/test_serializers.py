@@ -28,7 +28,7 @@ def test_set_devices_return_serialization_deserialization():
 
 def test_model_state_serializer():
     s = ser.ModelStateSerializer()
-    state = types.ModelState(2.3, 12, b"model_state", b"opt_state")
+    state = types.ModelState(2.3, 12, b"model_state", b"opt_state", 10)
     serialized = s.serialize(state)
     deserialized = s.deserialize(iter(serialized))
     assert state == deserialized

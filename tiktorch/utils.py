@@ -1,12 +1,13 @@
 import logging
 
+
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.types import Point, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
+from tiktorch import tobeimported
 
 from inferno.io.transform import (
     Transform,
-    Compose,
     generic as generic_transforms,
     image as image_transforms,
     volume as volume_transforms,
@@ -89,7 +90,7 @@ def add_logger(logger: logging.Logger) -> Callable:
 
 
 def get_transform(name: str, **transform_kwargs) -> Transform:
-    for module in [generic_transforms, image_transforms, volume_transforms]:
+    for module in [generic_transforms, image_transforms, volume_transforms, tobeimported]:
         ret = getattr(module, name, None)
         if ret is not None:
             try:
