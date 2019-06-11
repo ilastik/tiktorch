@@ -8,3 +8,5 @@ tiktorch/__pycache/
 /#wrapper.py#
 /.#wrapper.py#
 .py~
+*.nn
+*.hdf

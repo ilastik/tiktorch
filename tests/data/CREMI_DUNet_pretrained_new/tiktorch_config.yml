@@ -1,0 +1,15 @@
+# ilastik config
+input_axis_order: "cxy"  # input axis order without batch dimension
+output_axis_order: "cxy"
+
+# tiktorch config
+torch_version: 0.4.1.post2
+model_class_name: DUNet2D
+model_init_kwargs: {in_channels: 1, out_channels: 1}
+halo: [0, 0, 0]
+training:
+  batch_size: 10
+  training_shape: [1, 128, 128]  # in terms of input axis order
+  loss_criterion_config: {"method": "MSELoss"}
+  optimizer_config: {"method": "Adam"}
+validation: {}
