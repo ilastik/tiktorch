@@ -133,7 +133,7 @@ def summary(model, input_size, batch_size=-1, device="cuda"):
 class Mr_Robot():
 
     def __init__(self, data, labels):
-        self.data = data
+        self.ip = data
         self.labels = labels
 
     # create patches
@@ -207,30 +207,33 @@ class Mr_Robot():
         self.op = self.op.result().as_numpy()
         print("prediction run")
 
+    def add(self):
+        ip = self.ip.as_numpy()[0, :, patch_size * row:patch_size * (row + 1),
+                           patch_size * column:patch_size * (column + 1)].astype(int)
+        label = self.labels[0, :, patch_size * row:patch_size * (row + 1),
+                       patch_size * column:patch_size * (column + 1)].astype(int)
+        
+        new_server.update_training_data(
+            NDArrayBatch([NDArray(ip)]), NDArrayBatch([label]))
+
     def find(self):
-        pred_patches = self.tile_image(op[0, 0, :, :], 16)
-        actual_patches = self.tile_image(labels[0, 0, :, :], 16)
+        pred_patches = self.tile_image(self.op[0, 0, :, :], 16)
+        actual_patches = self.tile_image(self.labels[0, 0, :, :], 16)
         # print(len(pred_patches),len(actual_patches))
 
-        w, h, row, column = 32, 32, -1, -1
+        w, h, self.row, self.column = 32, 32, -1, -1
         error = 1e7
         for i in range(len(pred_patches)):
             # print(pred_patches[i].shape, actual_patches[i].shape)
 
-            curr_loss = robo.loss(pred_patches[i], actual_patches[i])
+            curr_loss = self.loss(pred_patches[i], actual_patches[i])
             print(curr_loss)
             if(error > curr_loss):
                 error = curr_loss
-                row, column = int(i / (w / patch_size)), int(i % (w / patch_size))
+                self.row, self.column = int(i / (w / patch_size)), int(i % (w / patch_size))
 
         # add to training data
-        ip = ip.as_numpy()[0, :, patch_size * row:patch_size * (row + 1),
-                           patch_size * column:patch_size * (column + 1)]
-        label = labels[0, :, patch_size * row:patch_size * (row + 1),
-                       patch_size * column:patch_size * (column + 1)].astype(int)
-        print(ip.shape, label)
-        new_server.update_training_data(
-            NDArrayBatch([NDArray(ip)]), NDArrayBatch([label]))
+        
 
 
 

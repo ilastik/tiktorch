@@ -302,9 +302,9 @@ if __name__ == "__main__":
 
     # add to training data
     ip = ip.as_numpy()[0, :, patch_size * row:patch_size * (row + 1),
-                       patch_size * column:patch_size * (column + 1)].astype(int)
+                       patch_size * column:patch_size * (column + 1)].astype(float)
     label = labels[0, :, patch_size * row:patch_size * (row + 1),
-                       patch_size * column:patch_size * (column + 1)].astype(int)
+                       patch_size * column:patch_size * (column + 1)].astype(float)
     print(ip.shape, label )
     print(ip.dtype, label.dtype)
     new_server.update_training_data(NDArrayBatch([NDArray(ip)]), NDArrayBatch([label]))
