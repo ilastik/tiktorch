@@ -2,6 +2,7 @@ name: test-env
 channels:
   - pytorch
   - conda-forge
+  - ilastik-forge
   - defaults
 dependencies:
   - lapack
@@ -9,7 +10,7 @@ dependencies:
   - mypy
   - python=3.7.*
   - paramiko=2.4.2
-  - inferno=v0.3.1
+  - inferno=v0.3.3
   - pyzmq=18.0.1
   - pyyaml=3.13
   - pytest=4.3.0

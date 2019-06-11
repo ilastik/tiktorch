@@ -91,7 +91,16 @@ class SetDeviceReturnTypeSerializer(ISerializer[SetDeviceReturnType]):
 class ModelStateSerializer(ISerializer[ModelState]):
     @classmethod
     def serialize(cls, obj: ModelState) -> Iterator[zmq.Frame]:
-        yield zmq.Frame(jsonapi.dumps({"epoch": obj.epoch, "loss": obj.loss}))
+        yield zmq.Frame(
+            jsonapi.dumps(
+                {
+                    "epoch": obj.epoch,
+                    "loss": obj.loss,
+                    "num_iterations_done": obj.num_iterations_done,
+                    "num_iterations_max": obj.num_iterations_max,
+                }
+            )
+        )
         yield zmq.Frame(obj.model_state)
         yield zmq.Frame(obj.optimizer_state)
 

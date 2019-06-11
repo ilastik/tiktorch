@@ -29,7 +29,7 @@ def test_set_devices(tiny_model_2d):
 
 def test_training(tiny_model_2d):
     config = tiny_model_2d["config"]
-    config["max_num_iterations_per_update"] = 10
+    config["num_iterations_per_update"] = 10
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     training = TrainingProcess(config=config, model=model)
@@ -58,7 +58,7 @@ def test_training(tiny_model_2d):
 
 def test_training_in_proc(tiny_model_2d, log_queue):
     config = tiny_model_2d["config"]
-    config["max_num_iterations_per_update"] = 10
+    config["num_iterations_per_update"] = 10
     in_channels = config["input_channels"]
     model = TinyConvNet2d(in_channels=in_channels)
     handler_conn, training_conn = mp.Pipe()
