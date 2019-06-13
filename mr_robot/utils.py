@@ -105,13 +105,37 @@ def make_edges3d(segmentation):
     return (gx ** 2 + gy ** 2 + gz ** 2) > 0
 
 # create patches
-def tile_image(self, image_shape, tile_size):
+def tile_image2D(image_shape, tile_size):
 
     tiles = []
     (w, h) = image_shape 
     for wsi in range(0, w - tile_size + 1, int(tile_size)):
         for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = (wsi : wsi + tile_size, hsi : hsi + tile_size)
+            img = (wsi,wsi + tile_size, hsi, hsi + tile_size)
+            tiles.append(img)
+
+    if h % tile_size != 0:
+        for wsi in range(0, w - tile_size + 1, int(tile_size)):
+            img = (wsi, wsi + tile_size, h - tile_size, h)
+            tiles.append(img)
+
+    if w % tile_size != 0:
+        for hsi in range(0, h - tile_size + 1, int(tile_size)):
+            img = (w - tile_size, w, hsi, hsi + tile_size)
+            tiles.append(img)
+
+    if w % tile_size != 0 and h % tile_size != 0:
+        img = (w - tile_size, w, h - tile_size, h)
+        tiles.append(img)
+
+    return tiles
+
+def tile_image3D(image_shape,tile_size):
+    tiles = []
+    (z, w, h) = image_shape 
+    for wsi in range(0, w - tile_size + 1, int(tile_size)):
+        for hsi in range(0, h - tile_size + 1, int(tile_size)):
+            img = (:,wsi : wsi + tile_size, hsi : hsi + tile_size)
             tiles.append(img)
 
     if h % tile_size != 0:

@@ -14,6 +14,7 @@ from tiktorch.server import TikTorchServer
 from tiktorch.rpc import Client, Server, InprocConnConf
 from tiktorch.rpc_interface import INeuralNetworkAPI
 from tiktorch.types import NDArray, NDArrayBatch
+from utils import *
 
 patch_size = 16
 
@@ -41,7 +42,7 @@ class MrRobot:
         print("data loaded")
         return (ip, labels)
 
-    def load(self):
+    def load_model(self):
         # load the model
         with open("state.nn", mode="rb") as f:
             binary_state = f.read()
@@ -63,15 +64,16 @@ class MrRobot:
         self.op = new_server.forward(self.ip)
         self.op = op.result().as_numpy()
         print("prediction run")
+        return (self.op, self.labels)
 
-    def add(self):
+    def add(self, row, column):
         self.ip = self.ip.as_numpy()[
         0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
         ].astype(float)
         self.label = self.labels[
             0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
         ].astype(float)
-        print(ip.dtype, label.dtype)
+        #print(ip.dtype, label.dtype)
         self.new_server.update_training_data(NDArrayBatch([NDArray(self.ip)]), NDArrayBatch([self.label]))
 
     # annotate worst patch
@@ -94,23 +96,22 @@ class BaseStrategy:
 
 class Strategy1(BaseStrategy):
 
-    def __init__():
-        pred_patches = robo.tile_image(op[0, 0, :, :], 16)
-        actual_patches = robo.tile_image(labels[0, 0, :, :], 16)
-        # print(len(pred_patches),len(actual_patches))
-
-        w, h, row, column = 32, 32, -1, -1
+    def __init__(self,op,labels):
+        pred_idx = tile_image(op[0, 0].shape, 16)
+        actual_idx = tile_image(labels[0, 0].shape, 16)
+        w, h, self.row, self.column = 32, 32, -1, -1
         error = 1e7
         for i in range(len(pred_patches)):
             # print(pred_patches[i].shape, actual_patches[i].shape)
-            curr_loss = robo.loss(pred_patches[i], actual_patches[i])
+            curr_loss = self.loss(op[0,0,pred_idx[i][0]: pred_idx[i][1], pred_idx[i][2]: pred_idx[i][3] ], 
+                                labels[0,0,actual_idx[i][0]: actual_idx[i][1], actual_idx[i][2]: actual_idx[i][3] ])
             print(curr_loss)
             if error > curr_loss:
                 error = curr_loss
-                row, column = int(i / (w / patch_size)), int(i % (w / patch_size))
+                self.row, self.column = int(i / (w / patch_size)), int(i % (w / patch_size))
 
-
-
+    def get_patch(self):
+        return (self.row,self.column)
 
 class Strategy2(BaseStrategy):
     def __init__():
@@ -122,31 +123,19 @@ class Strategy3(BaseStrategy):
         raise NotImplementedError
 
 
-def start_robot(model, label):
-    robot = mr_robot()
-
-    y_pred = model(ip)
-    pred_patches = robot.tile_image(y_pred, patch_size)
-    label_patch = robot.tile_image(label, patch_size)
-
-    w, h = image.shape
-    # find patch with highest loss
-    error = 1e7
-    for i in pred_patches:
-        curr_loss = robot.loss(pred_patches[i], label[i])
-        if error < curr_loss:
-            error = curr_loss
-            row, column = i / (w / patch_size), i % (w / patch_size)
-
-
 if __name__ == "__main__":
 
-    # patch output and find worst patch
-    robo = Mr_Robot()
+    robo = MrRobot()
+    robo.load_data()
+    robo.load_model()
+    robo.resume() #resume training
 
+    #run prediction
+    op, label = robo.predict()
 
-    # add to training data
-
-
+    metric = Strategy1(op,label)
+    row,column = metric.get_patch()
+    robo.add(row, column)
+    
     # shut down server
-
+    robo.terminate()
