@@ -95,6 +95,7 @@ def summary(model, input_size, batch_size=-1, device="cuda"):
     print("----------------------------------------------------------------")
 
 
+# ref: https://github.com/constantinpape/vis_tools/blob/master/vis_tools/edges.py#L5
 def make_edges3d(segmentation):
     """ Make 3d edge volume from 3d segmentation
     """
@@ -104,52 +105,36 @@ def make_edges3d(segmentation):
     gx = convolve(segmentation + 1, np.array([-1.0, 0.0, 1.0]).reshape(1, 1, 3))
     return (gx ** 2 + gy ** 2 + gz ** 2) > 0
 
+
 # create patches
-def tile_image2D(image_shape, tile_size):
+def tile_image(image_shape, tile_size):
 
     tiles = []
-    (w, h) = image_shape 
+    (w, h) = image_shape[len(image_shape) - 2], image_shape[len(image_shape) - 1]
     for wsi in range(0, w - tile_size + 1, int(tile_size)):
         for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = (wsi,wsi + tile_size, hsi, hsi + tile_size)
+            img = [wsi, wsi + tile_size, hsi, hsi + tile_size]
             tiles.append(img)
 
     if h % tile_size != 0:
         for wsi in range(0, w - tile_size + 1, int(tile_size)):
-            img = (wsi, wsi + tile_size, h - tile_size, h)
+            img = [wsi, wsi + tile_size, h - tile_size, h]
             tiles.append(img)
 
     if w % tile_size != 0:
         for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = (w - tile_size, w, hsi, hsi + tile_size)
+            img = [w - tile_size, w, hsi, hsi + tile_size]
             tiles.append(img)
 
     if w % tile_size != 0 and h % tile_size != 0:
-        img = (w - tile_size, w, h - tile_size, h)
+        img = [w - tile_size, w, h - tile_size, h]
         tiles.append(img)
 
-    return tiles
+    x = []
+    for i in range(len(image_shape) - 2):
+        x.append([0, image_shape[i]])
 
-def tile_image3D(image_shape,tile_size):
-    tiles = []
-    (z, w, h) = image_shape 
-    for wsi in range(0, w - tile_size + 1, int(tile_size)):
-        for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = (:,wsi : wsi + tile_size, hsi : hsi + tile_size)
-            tiles.append(img)
-
-    if h % tile_size != 0:
-        for wsi in range(0, w - tile_size + 1, int(tile_size)):
-            img = (wsi : wsi + tile_size, h - tile_size :)
-            tiles.append(img)
-
-    if w % tile_size != 0:
-        for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = (w - tile_size :, hsi : hsi + tile_size)
-            tiles.append(img)
-
-    if w % tile_size != 0 and h % tile_size != 0:
-        img = (w - tile_size :, h - tile_size :)
-        tiles.append(img)
+    for i in range(len(tiles)):
+        tiles[i] = x + tiles[i]
 
     return tiles

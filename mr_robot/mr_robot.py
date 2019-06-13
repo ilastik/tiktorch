@@ -20,7 +20,6 @@ patch_size = 16
 
 
 class MrRobot:
-    
     def __init__(self):
         # start the server
         self.new_server = TikTorchServer()
@@ -49,12 +48,12 @@ class MrRobot:
         with open("model.py", mode="rb") as f:
             model_file = f.read()
 
-        with open("robo_config.yml", mode = "r") as f:
+        with open("robo_config.yml", mode="r") as f:
             base_config = yaml.load(f)
 
         fut = self.new_server.load_model(base_config, model_file, binary_state, b"", ["cpu"])
         print("model loaded")
-        #print(fut.result())
+        # print(fut.result())
 
     def resume(self):
         self.new_server.resume_training()
@@ -68,12 +67,12 @@ class MrRobot:
 
     def add(self, row, column):
         self.ip = self.ip.as_numpy()[
-        0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
+            0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
         ].astype(float)
         self.label = self.labels[
             0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
         ].astype(float)
-        #print(ip.dtype, label.dtype)
+        # print(ip.dtype, label.dtype)
         self.new_server.update_training_data(NDArrayBatch([NDArray(self.ip)]), NDArrayBatch([self.label]))
 
     # annotate worst patch
@@ -83,8 +82,8 @@ class MrRobot:
     def terminate():
         new_server.shutdown()
 
-class BaseStrategy:
 
+class BaseStrategy:
     def __init__():
         raise NotImplementedError
 
@@ -95,31 +94,36 @@ class BaseStrategy:
 
 
 class Strategy1(BaseStrategy):
-
-    def __init__(self,op,labels):
-        pred_idx = tile_image(op[0, 0].shape, 16)
-        actual_idx = tile_image(labels[0, 0].shape, 16)
+    def __init__(self, op, labels):
+        super().__init__()
+        pred_idx = tile_image2D(op[0, 0].shape, 16)
+        actual_idx = tile_image2D(labels[0, 0].shape, 16)
         w, h, self.row, self.column = 32, 32, -1, -1
         error = 1e7
         for i in range(len(pred_patches)):
             # print(pred_patches[i].shape, actual_patches[i].shape)
-            curr_loss = self.loss(op[0,0,pred_idx[i][0]: pred_idx[i][1], pred_idx[i][2]: pred_idx[i][3] ], 
-                                labels[0,0,actual_idx[i][0]: actual_idx[i][1], actual_idx[i][2]: actual_idx[i][3] ])
+            curr_loss = self.loss(
+                op[0, 0, pred_idx[i][0] : pred_idx[i][1], pred_idx[i][2] : pred_idx[i][3]],
+                labels[0, 0, actual_idx[i][0] : actual_idx[i][1], actual_idx[i][2] : actual_idx[i][3]],
+            )
             print(curr_loss)
             if error > curr_loss:
                 error = curr_loss
                 self.row, self.column = int(i / (w / patch_size)), int(i % (w / patch_size))
 
     def get_patch(self):
-        return (self.row,self.column)
+        return (self.row, self.column)
+
 
 class Strategy2(BaseStrategy):
     def __init__():
+        super().__init__()
         raise NotImplementedError
 
 
 class Strategy3(BaseStrategy):
     def __init__():
+        super().__init__()
         raise NotImplementedError
 
 
@@ -128,14 +132,14 @@ if __name__ == "__main__":
     robo = MrRobot()
     robo.load_data()
     robo.load_model()
-    robo.resume() #resume training
+    robo.resume()  # resume training
 
-    #run prediction
+    # run prediction
     op, label = robo.predict()
 
-    metric = Strategy1(op,label)
-    row,column = metric.get_patch()
+    metric = Strategy1(op, label)
+    row, column = metric.get_patch()
     robo.add(row, column)
-    
+
     # shut down server
     robo.terminate()
