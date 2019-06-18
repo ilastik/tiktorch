@@ -1,4 +1,5 @@
 import logging
+import time
 
 from typing import Optional, List, Tuple, Generator, Iterable, Union
 
@@ -16,10 +17,15 @@ class DummyServerForFrontendDev(INeuralNetworkAPI, IFlightControl):
     SIZE = 2
 
     def __init__(self) -> None:
+        self._last_ping = None
         logger.info("started")
 
     def ping(self) -> bytes:
+        self._last_ping = time.time()
         return b"pong"
+
+    def last_ping(self):
+        return self._last_ping
 
     def shutdown(self) -> None:
         logger.info("stopped")

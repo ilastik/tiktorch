@@ -10,6 +10,10 @@ class IFlightControl(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def last_ping(self) -> float:
+        raise NotImplementedError
+
+    @exposed
     def shutdown(self) -> None:
         raise NotImplementedError
 

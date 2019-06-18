@@ -1,5 +1,6 @@
 import sys
 import time
+import enum
 import logging
 import subprocess
 import threading
@@ -13,12 +14,22 @@ from .rpc import Client, Timeout, TCPConnConf, Shutdown
 from .rpc_interface import IFlightControl
 
 
+HEARTBEAT_INTERVAL = 10  # seconds
+KILL_TIMEOUT = 60  # seconds
+
+
 class AlreadyRunningError(Exception):
     pass
 
 
 class IServerLauncher:
+    class State(enum.Enum):
+        Stopped = "Stopped"
+        Running = "Running"
+
     __conn_conf = None
+    _state: State = State.Stopped
+    _heartbeat_worker: Optional[threading.Thread] = None
 
     @property
     def logger(self):
@@ -38,22 +49,49 @@ class IServerLauncher:
 
         self.__conn_conf = value
 
-    def is_server_running(self):
+    def _hearbeat(self, interval: int):
+        while not self._stop.wait(timeout=interval):
+            if not self._ping():
+                self.logger.debug("Server has failed to respond to a ping")
+
+    def _start_server(self, dummy: bool, kill_timeout: int):
+        raise NotImplementedError
+
+    def _ping(self):
         try:
             c = Client(IFlightControl(), self._conn_conf)
             return c.ping() == b"pong"
         except Timeout:
             return False
 
-    def start(self):
-        raise NotImplementedError
+    def is_server_running(self):
+        return self._ping()
+
+    def start(self, ping_interval: int = HEARTBEAT_INTERVAL, kill_timeout: int = KILL_TIMEOUT, *, dummy: bool = False):
+        self._start_server(dummy, kill_timeout)
+        self._state = self.State.Running
+
+        self._stop = threading.Event()
+        self._heartbeat_worker = threading.Thread(
+            target=self._hearbeat, args=(ping_interval,), name=f"{type(self).__name__}.HeartbeatWorker"
+        )
+        self._heartbeat_worker.daemon = True
+        self._heartbeat_worker.start()
 
     def stop(self):
+        if self._state == self.State.Stopped:
+            raise Exception("Server has already been stopped")
+
+        self._stop.set()
+
         c = Client(IFlightControl(), self._conn_conf)
         try:
             c.shutdown()
         except Shutdown:
             pass
+
+        self._state = self.State.Stopped
+        self._heartbeat_worker.join()
 
 
 def wait(done, interval=0.1, max_wait=10):
@@ -72,12 +110,11 @@ def wait(done, interval=0.1, max_wait=10):
 
 
 class LocalServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, dummy: bool = False):
+    def __init__(self, conn_conf: TCPConnConf):
         self._conn_conf = conn_conf
         self._process = None
-        self.dummy = dummy
 
-    def start(self):
+    def _start_server(self, dummy: bool, kill_timeout: int):
         addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
 
         if addr != "127.0.0.1":
@@ -98,8 +135,10 @@ class LocalServerLauncher(IServerLauncher):
             str(notify_port),
             "--addr",
             addr,
+            "--kill-timeout",
+            str(kill_timeout),
         ]
-        if self.dummy:
+        if dummy:
             cmd.append("--dummy")
 
         self._process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
@@ -121,13 +160,12 @@ class SSHCred:
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22, dummy: bool = False) -> None:
+    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22) -> None:
 
         self._ssh_port = ssh_port
         self._channel = None
         self._conn_conf = conn_conf
         self._cred = cred
-        self.dummy = dummy
 
         self._setup_ssh_client()
 
@@ -136,7 +174,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._ssh_client.set_missing_host_key_policy(AutoAddPolicy())
         self._ssh_client.load_system_host_keys()
 
-    def start(self):
+    def _start_server(self, dummy: bool, kill_timeout: int):
         if self._channel:
             raise RuntimeError("SSH server is already running")
 
@@ -189,8 +227,8 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            cmd = f"tiktorch --addr {addr} --port {port} --notify-port {notify_port}"
-            if self.dummy:
+            cmd = f"tiktorch --addr {addr} --port {port} --notify-port {notify_port} --kill-timeout {kill_timeout}"
+            if dummy:
                 cmd += " --dummy"
 
             channel.exec_command(cmd)

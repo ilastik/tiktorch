@@ -1,9 +1,11 @@
 import argparse
 
 import logging
+import threading
 import logging.handlers
 import numpy
 import torch
+import time
 import os
 
 from datetime import datetime
@@ -12,7 +14,7 @@ from typing import Optional, List, Tuple, Generator, Iterable, Union
 
 from inferno.io.transform import Compose
 
-from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.rpc import Client, Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
 from tiktorch.types import (
     NDArray,
@@ -33,6 +35,33 @@ from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
 mp.set_start_method("spawn", force=True)
 
 logging.basicConfig(level=logging.INFO)
+
+KILL_TIMEOUT = 60  # seconds
+
+
+class Watchdog:
+    def __init__(self, client, kill_timeout: int = KILL_TIMEOUT):
+        self._client = client
+        self._kill_timeout = kill_timeout
+        self._stop_evt = threading.Event()
+
+    def start(self):
+        self._thread = threading.Thread(target=self.run, name="TikTorchServer.Watchdog")
+        self._thread.daemon = True
+        self._thread.start()
+
+    def run(self):
+        while not self._stop_evt.wait(timeout=self._kill_timeout):
+            ts = self._client.last_ping()
+            if ts and time.time() - ts > self._kill_timeout:
+                try:
+                    self._client.shutdown()
+                finally:
+                    break
+
+    def stop(self):
+        self._stop_evt.set()
+        self._thread.join()
 
 
 class TikTorchServer(INeuralNetworkAPI, IFlightControl):
@@ -213,7 +242,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.handler.update_config(partial_config)
 
     def ping(self) -> bytes:
+        self._last_ping = time.time()
         return b"pong"
+
+    def last_ping(self) -> Optional[float]:
+        return self._last_ping
 
     def get_model_state(self) -> ModelState:
         return self.handler.get_state()
@@ -232,16 +265,22 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
 
 
 class ServerProcess:
-    def __init__(self, address: str, port: str, notify_port: str):
+    def __init__(self, address: str, port: str, notify_port: str, kill_timeout: int):
         self._addr = address
         self._port = port
         self._notify_port = notify_port
+        self._kill_timeout = kill_timeout
 
-    def listen(self, api_provider: Optional[INeuralNetworkAPI] = None):
-        if api_provider is None:
-            api_provider = TikTorchServer()
+    def listen(self, provider_cls: INeuralNetworkAPI = TikTorchServer):
+        api_provider = provider_cls()
 
-        srv = Server(api_provider, TCPConnConf(self._addr, self._port, self._notify_port))
+        conf = TCPConnConf(self._addr, self._port, self._notify_port)
+        srv = Server(api_provider, conf)
+        client = Client(IFlightControl(), conf)
+
+        watchdog = Watchdog(client, self._kill_timeout)
+        watchdog.start()
+
         srv.listen()
 
 
@@ -257,14 +296,16 @@ if __name__ == "__main__":
     parsey.add_argument("--notify-port", type=str, default="29501")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
+    parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
 
     args = parsey.parse_args()
     logger.info("Starting server on %s:%s", args.addr, args.port)
 
-    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
-    if args.dummy:
-        from tiktorch.dev import DummyServerForFrontendDev
+    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout)
 
-        srv.listen(api_provider=DummyServerForFrontendDev())
+    if args.dummy:
+        from tiktorch.dev.dummy_server import DummyServerForFrontendDev
+
+        srv.listen(provider_cls=DummyServerForFrontendDev)
     else:
         srv.listen()
