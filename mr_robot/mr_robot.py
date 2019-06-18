@@ -33,6 +33,8 @@ class MrRobot:
         with open(path_to_config_file, mode="r") as f:
             self.base_config = yaml.load(f)
 
+        self.max_robo_iterations = self.base_config['max_robo_iterations']
+        self.counter = 0
         self.logger = logging.getLogger(__name__)
 
     def load_data(self):
@@ -72,22 +74,28 @@ class MrRobot:
         self.op = self.new_server.forward(self.ip)
         self.op = self.op.result().as_numpy()
         #self.logger.info("prediction run")
+    
+    def stop(self):
+        if(self.counter > self.max_robo_iterations):
+            return False
+        else:
+            self.counter+=1
+            return True
 
     def run(self):
         self.strategy.patch('MSE', self.op)
         while(self.stop()):
-            row,column = self.strategy.get_next_patch(self.op)
-            self.add(row,column)
+            idx = self.strategy.get_next_patch(self.op)
+            self.add(idx)
 
-    def add(self, row, column):
-        self.ip = self.ip.as_numpy()[
-            0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
-        ].astype(float)
-        self.label = self.labels[
-            0, :, patch_size * row : patch_size * (row + 1), patch_size * column : patch_size * (column + 1)
-        ].astype(float)
+    def add(self, idx):
+        file = z5py.File(self.base_config["cremi_data"])
+        labels = file["cremi_path_to_labelled"][0:1, 0:img_dim, 0:img_dim]
+
+        new_ip = self.ip.as_numpy()[idx[0]:idx[1], idx[2]:idx[3], idx[4]:idx[5]].astype(float)
+        new_label = labels[ idx[0]:idx[1], idx[2]:idx[3], idx[4]:idx[5] ].astype(float)
         # print(ip.dtype, label.dtype)
-        self.new_server.update_training_data(NDArrayBatch([NDArray(self.ip)]), NDArrayBatch([self.label]))
+        self.new_server.update_training_data(NDArrayBatch([NDArray(new_ip)]), NDArrayBatch([new_label]))
 
     # annotate worst patch
     def dense_annotate(self, x, y, label, image):
@@ -107,7 +115,7 @@ class BaseStrategy(ABC):
    
     def loss(self,tile,label, loss_fn):
         label = label[0]
-        tile = tile[0][0]
+        tile = tile[0]
         result = mean_squared_error(label, tile)  # CHECK THIS
         return result
 
@@ -119,17 +127,14 @@ class BaseStrategy(ABC):
         self.patch_data = []
         for i in range(len(idx)):
             curr_loss = self.loss(
-                op[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
-                labels[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
+                op[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5]],
+                labels[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5]],
                 loss_fn
             )
 
-            self.logger.info("loss for patch %d: %d" % (i,curr_loss) )
             self.patch_data.append((curr_loss,idx[i]))
+            self.logger.info("loss for patch %d: %d" % (i,curr_loss) )
 
-            if error > curr_loss:
-                error = curr_loss
-                self.row, self.column = int(i / (w / patch_size)), int(i % (w / patch_size))
 
     @abstractmethod
     def get_next_patch(self):
@@ -148,7 +153,7 @@ class Strategy1(BaseStrategy):
 
     def get_next_patch(self):
         self.counter+=1
-        return self.patch_data[self.counter]
+        return self.patch_data[self.counter][1]
 
 
 class Strategy2(BaseStrategy):
