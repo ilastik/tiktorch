@@ -1,78 +1,83 @@
-# import sys
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
 from sklearn.metrics import mean_squared_error
-#from model import DUNet2D
+import zipfile
 import h5py
 import z5py
-from z5py.converter import convert_from_h5 
+from z5py.converter import convert_from_h5
 from scipy.ndimage import convolve
 from torch.autograd import Variable
 from collections import OrderedDict
 import yaml
+import logging
+from abc import ABC, abstractmethod
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc import Client, Server, InprocConnConf
 from tiktorch.rpc_interface import INeuralNetworkAPI
 from tiktorch.types import NDArray, NDArrayBatch
-from utils import *
+from tests.conftest import nn_sample
+from mr_robot.utils import *
 
 patch_size = 16
 img_dim = 32
 
+
 class MrRobot:
-    def __init__(self):
+    def __init__(self, path_to_config_file, strategy):
         # start the server
         self.new_server = TikTorchServer()
+        self.strategy =strategy
 
+        with open(path_to_config_file, mode="r") as f:
+            self.base_config = yaml.load(f)
+
+        self.logger = logging.getLogger(__name__)
 
     def load_data(self):
-        self.f = z5py.File('train.n5')
-        return self.f
-        """
-        #with h5py.File("train.hdf", "r") as f:
-        #    x = np.array(f.get("volumes/labels/neuron_ids"))
-        #    y = np.array(f.get("volumes/raw"))
+        self.f = z5py.File(self.base_config["cremi_data_dir"])
+        self.logger('data file loaded')
 
-        self.labels = []
-        self.ip = []
-
-        for i in range(0, 1):
-            self.labels.append(make_edges3d(np.expand_dims(x[i], axis=0)))
-            self.ip.append(make_edges3d(np.expand_dims(y[i], axis=0)))
-
-        self.labels = np.asarray(self.labels)[:, :, 0:patch_size, 0:patch_size]
-        self.ip = NDArray(np.asarray(self.ip)[:, :, 0:patch_size, 0:patch_size])
-        print("data loaded")
-        return (ip, labels)
-        """
 
     def load_model(self):
         # load the model
-        with open("state.nn", mode="rb") as f:
-            binary_state = f.read()
-        with open("model.py", mode="rb") as f:
-            model_file = f.read()
 
-        with open("robo_config.yml", mode="r") as f:
-            base_config = yaml.load(f)
+        
+        #with open(base_config['cremi_data_dir'], mode="rb") as f:
+        #    binary_state = f.read()
 
-        fut = self.new_server.load_model(base_config, model_file, binary_state, b"", ["cpu"])
-        print("model loaded")
-        # print(fut.result())
+        archive = zipfile.ZipFile(self.base_config['cremi_dir']['path_to_zip'], 'r')
+        model = archive.read(self.base_config['cremi_dir']['path_in_zip_to_model'])
+        binary_state = archive.read(self.base_config['cremi_dir']['path_in_zip_to_state'])
+
+        #cleaning dictionary before passing to tiktorch
+        self.base_config.pop('cremi_dir')
+        self.base_config.pop('cremi_data')
+        self.base_config.pop('cremi_path_to_labelled')
+
+        #with open("model.py", mode="rb") as f:
+        #    model_file = f.read()
+        
+        fut = self.new_server.load_model(base_config, model, binary_state, b"", ["cpu"])
+        self.logger.info("model loaded")
 
     def resume(self):
         self.new_server.resume_training()
-        print("training resumed")
+        self.logger.info("training resumed")
 
     def predict(self):
-        self.ip = np.expand_dims(self.f['volume'][0,0:img_dim, 0:img_dim], axis = 0)
-        #self.label = np.expand_dims(self.f['volumes/labels/neuron_ids'][0,0:img_dim,0:img_dim], axis=0)
+        self.ip = self.f["volume"][0:1, 0:img_dim, 0:img_dim]
+        # self.label = np.expand_dims(self.f['volumes/labels/neuron_ids'][0,0:img_dim,0:img_dim], axis=0)
         self.op = self.new_server.forward(self.ip)
-        self.op = op.result().as_numpy()
-        print("prediction run")
-        return self.op
+        self.op = self.op.result().as_numpy()
+        #self.logger.info("prediction run")
+
+    def run(self):
+        self.strategy.patch('MSE', self.op)
+        while(self.stop()):
+            row,column = self.strategy.get_next_patch(self.op)
+            self.add(row,column)
 
     def add(self, row, column):
         self.ip = self.ip.as_numpy()[
@@ -92,71 +97,67 @@ class MrRobot:
         self.new_server.shutdown()
 
 
-class BaseStrategy:
-    def __init__(self, file, op):
-        self.f = file
-        self.op = op
+class BaseStrategy(ABC):
 
-    # compute loss for a given patch
-    def base_loss(self, patch, label):
-        label = label[0][0]
-        patch = patch[0][0]
-        result = mean_squared_error(label, patch)  # CHECK THIS
+    def __init__(self, path_to_config_file):
+        with open(path_to_config_file, mode="r") as f:
+            self.base_config = yaml.load(f)
+        #self.op = op
+        self.logger = logging.getLogger(__name__)
+   
+    def loss(self,tile,label, loss_fn):
+        label = label[0]
+        tile = tile[0][0]
+        result = mean_squared_error(label, tile)  # CHECK THIS
         return result
 
+    def base_patch(self, loss_fn, op):
+        idx = tile_image(op.shape, patch_size)
+        file = z5py.File(self.base_config["cremi_data"])
+        labels = file["cremi_path_to_labelled"][0:1, 0:img_dim, 0:img_dim]
 
-class Strategy1(BaseStrategy):
-    def __init__(self, file, op):
-        super().__init__(file,op)
-
-    def run(self):
-        idx = tile_image(self.op.shape, patch_size)
-        label = np.expand_dims(self.f['volumes/labels/neuron_ids'][0,0:img_dim,0:img_dim], axis=0)
-        #idx = tile_image(label.shape, patch_size)
-        w, h, self.row, self.column = img_dim, img_dim, -1, -1
-        error = 1e7
+        self.patch_data = []
         for i in range(len(idx)):
-            # print(pred_patches[i].shape, actual_patches[i].shape)
-            curr_loss = super().base_loss(
-                self.op[idx[i][0]: idx[i][1], idx[i][2]:idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
-                labels[idx[i][0]: idx[i][1], idx[i][2]:idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
+            curr_loss = self.loss(
+                op[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
+                labels[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5], idx[i][6] : idx[i][7]],
+                loss_fn
             )
-            print(curr_loss)
+
+            self.logger.info("loss for patch %d: %d" % (i,curr_loss) )
+            self.patch_data.append((curr_loss,idx[i]))
+
             if error > curr_loss:
                 error = curr_loss
                 self.row, self.column = int(i / (w / patch_size)), int(i % (w / patch_size))
 
-    def get_patch(self):
-        return (self.row, self.column)
+    @abstractmethod
+    def get_next_patch(self):
+        pass
+
+
+class Strategy1(BaseStrategy):
+
+    def __init__(self, path_to_config_file):
+        super().__init__(path_to_config_file)
+        self.counter=-1
+
+    def patch(self, loss_fn, op):
+        super().base_patch(loss_fn,op)
+        self.patch_data.sort(reverse = True)
+
+    def get_next_patch(self):
+        self.counter+=1
+        return self.patch_data[self.counter]
 
 
 class Strategy2(BaseStrategy):
     def __init__():
         super().__init__()
-        raise NotImplementedError
 
 
 class Strategy3(BaseStrategy):
     def __init__():
         super().__init__()
-        raise NotImplementedError
 
 
-if __name__ == "__main__":
-    
-    robo = MrRobot()
-    file = robo.load_data()
-    robo.load_model()
-    robo.resume()  # resume training
-
-    # run prediction
-    op = robo.predict()
-
-    metric = Strategy1(file, op)
-    metric.run()
-    row, column = metric.get_patch()
-    robo.add(row, column)
-
-    # shut down server
-    robo.terminate()
-    
