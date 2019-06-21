@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
@@ -13,6 +14,7 @@ from collections import OrderedDict
 import yaml
 import logging
 from abc import ABC, abstractmethod
+from tensorboardX import SummaryWriter
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc import Client, Server, InprocConnConf
 from tiktorch.rpc_interface import INeuralNetworkAPI
@@ -46,9 +48,16 @@ class MrRobot:
             self.base_config = yaml.load(f)
 
         self.data_file = z5py.File(self.base_config.pop("raw_data_path"))
+
+        self.indices = tile_image(self.base_config["training"]["training_shape"], patch_size)
+        input_shape = list((self.base_config["training"]["training_shape"]))
+        self.slicer = [slice(0, i) for i in input_shape]
+
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
+        self.tensorboard_writer = SummaryWriter()
         self.logger = logging.getLogger(__name__)
+        plt.ion()
 
     # def load_data(self):
     #    self.f = z5py.File(self.base_config["cremi_data_dir"])
@@ -73,23 +82,21 @@ class MrRobot:
         self.logger.info("training resumed")
 
     def _predict(self):
-        """ run prediction on the whole set of patches and store
-        the output as a numpy array
+        """ run prediction on the whole set of patches 
         """
+        self.strategy.patched_data.clear()
+        self.patch_id = dict()
+        x = 0
 
-        self.ip = self.data_file["volume"][0:1, 0:img_dim, 0:img_dim]
-        self.labels = self.data_file["labelled_data_path"][0:1, 0:img_dim, 0:img_dim]
-        indices = tile_image(self.ip.shape, patch_size)
-        slice_index = list(self.ip.shape)
-        slicer = [slice(0, i) for i in slice_index]
-
-        for i in indices:
-            slicer[-1] = slice(i[1], i[1] + patch_size)
-            slicer[-2] = slice(i[0], i[0] + patch_size)
-            slicer = tuple(slicer)
-            op = self.new_server.forward(self.ip[slicer])
+        for i in self.indices:
+            self.slicer[-1] = slice(i[1], i[1] + patch_size)
+            self.slicer[-2] = slice(i[0], i[0] + patch_size)
+            self.slicer = tuple(self.slicer)
+            self.patch_id[self.slicer] = x  # map each slicer with its corresponding index
+            x += 1
+            op = self.new_server.forward(self.data_file["volume"][slicer])
             op = op.result().as_numpy()
-            self.strategy._loss(op, self.labels[slicer], loss_fn)
+            self.strategy._loss(op, self.data_file["labelled_data_path"][self.slicer], loss_fn, self.slicer)
 
         self.logger.info("prediction run")
 
@@ -108,13 +115,18 @@ class MrRobot:
     def _run(self):
         """ Feed patches to tiktorch (add to the training data)
 
-        The function fetches the patches in order decided by the strategy and 
-        feeds it to tiktorch 
+        The function fetches the patches in order decided by the strategy, 
+        removes it from the list of patches and feeds it to tiktorch 
         """
-
-        self.strategy.shuffle()
         while self.stop():
+            self._predict()
+            total_loss = sum([pair[0] for pair in self.strategy.patched_data])
+            avg = total_loss / float(len(self.strategy.patched_data))
+            self.tensorboard_writer.add_scalar("avg_loss", avg, self.iterations_done)
+
+            self.strategy.rearrange()
             slicer = self.strategy.get_next_patch(self.op)
+            self.indices.pop(self.patch_id[slicer])
             self._add(slicer)
             self._resume()
 
@@ -130,6 +142,7 @@ class MrRobot:
         raise NotImplementedError
 
     def terminate(self):
+        self.tensorboard_writer.close()
         self.new_server.shutdown()
 
 
@@ -162,6 +175,10 @@ class BaseStrategy(ABC):
     def get_next_patch(self):
         pass
 
+    @abstractmethod
+    def rearrange(self):
+        pass
+
 
 class Strategy1(BaseStrategy):
     """ This strategy sorts the patches in descending order of their loss
@@ -174,7 +191,7 @@ class Strategy1(BaseStrategy):
         super().__init__(path_to_config_file)
         self.patch_counter = -1
 
-    def shuffle(self):
+    def rearrange(self):
         """ rearranges the patches in descending order of their loss
         """
         self.patched_data.sort(reverse=True)
