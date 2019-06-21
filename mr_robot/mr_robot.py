@@ -22,79 +22,107 @@ from mr_robot.utils import *
 
 patch_size = 16
 img_dim = 32
+loss_fn = "MSELoss"
 
 
 class MrRobot:
+    """ The robot class runs predictins on the model, and feeds the 
+    worst performing patch back for training. The order in which patches 
+    are feed back is determined by the 'strategy'. The robot can change 
+    strategies as training progresses. 
+
+    Args:
+    path_to_config_file (string): path to the robot configuration file to
+                                  load necessary variables
+    strategy (Strategy object): strategy to follow (atleast intially)  
+    """
+
     def __init__(self, path_to_config_file, strategy):
         # start the server
         self.new_server = TikTorchServer()
-        self.strategy =strategy
+        self.strategy = strategy
 
         with open(path_to_config_file, mode="r") as f:
             self.base_config = yaml.load(f)
 
-        self.max_robo_iterations = self.base_config['max_robo_iterations']
-        self.counter = 0
+        self.data_file = z5py.File(self.base_config.pop("raw_data_path"))
+        self.iterations_max = self.base_config.pop("max_robo_iterations")
+        self.iterations_done = 0
         self.logger = logging.getLogger(__name__)
 
-    def load_data(self):
-        self.f = z5py.File(self.base_config["cremi_data_dir"])
-        self.logger('data file loaded')
+    # def load_data(self):
+    #    self.f = z5py.File(self.base_config["cremi_data_dir"])
+    #    self.logger("data file loaded")
 
+    def _load_model(self):
 
-    def load_model(self):
-        # load the model
+        archive = zipfile.ZipFile(self.base_config["data_dir"]["path_to_zip"], "r")
+        model = archive.read(self.base_config["data_dir"]["path_in_zip_to_model"])
+        self.binary_state = archive.read(self.base_config["data_dir"]["path_in_zip_to_state"])
 
-        
-        #with open(base_config['cremi_data_dir'], mode="rb") as f:
-        #    binary_state = f.read()
+        # cleaning dictionary before passing to tiktorch
+        self.base_config.pop("data_dir")
 
-        archive = zipfile.ZipFile(self.base_config['cremi_dir']['path_to_zip'], 'r')
-        model = archive.read(self.base_config['cremi_dir']['path_in_zip_to_model'])
-        binary_state = archive.read(self.base_config['cremi_dir']['path_in_zip_to_state'])
-
-        #cleaning dictionary before passing to tiktorch
-        self.base_config.pop('cremi_dir')
-        self.base_config.pop('cremi_data')
-        self.base_config.pop('cremi_path_to_labelled')
-
-        #with open("model.py", mode="rb") as f:
-        #    model_file = f.read()
-        
-        fut = self.new_server.load_model(base_config, model, binary_state, b"", ["cpu"])
+        self.new_server.load_model(base_config, model, binary_state, b"", ["cpu"])
         self.logger.info("model loaded")
 
-    def resume(self):
+    def _resume(self):
+
         self.new_server.resume_training()
+        self.binary_state = self.new_server.get_model_state()
         self.logger.info("training resumed")
 
-    def predict(self):
-        self.ip = self.f["volume"][0:1, 0:img_dim, 0:img_dim]
-        # self.label = np.expand_dims(self.f['volumes/labels/neuron_ids'][0,0:img_dim,0:img_dim], axis=0)
-        self.op = self.new_server.forward(self.ip)
-        self.op = self.op.result().as_numpy()
-        #self.logger.info("prediction run")
-    
+    def _predict(self):
+        """ run prediction on the whole set of patches and store
+        the output as a numpy array
+        """
+
+        self.ip = self.data_file["volume"][0:1, 0:img_dim, 0:img_dim]
+        self.labels = self.data_file["labelled_data_path"][0:1, 0:img_dim, 0:img_dim]
+        indices = tile_image(self.ip.shape, patch_size)
+        slice_index = list(self.ip.shape)
+        slicer = [slice(0, i) for i in slice_index]
+
+        for i in indices:
+            slicer[-1] = slice(i[1], i[1] + patch_size)
+            slicer[-2] = slice(i[0], i[0] + patch_size)
+            slicer = tuple(slicer)
+            op = self.new_server.forward(self.ip[slicer])
+            op = op.result().as_numpy()
+            self.strategy._loss(op, self.labels[slicer], loss_fn)
+
+        self.logger.info("prediction run")
+
     def stop(self):
-        if(self.counter > self.max_robo_iterations):
+        """ function which determines when the robot should stop
+
+        currently, it stops after robot has completed 'iterations_max' number of iterations
+        """
+
+        if self.iterations_done > self.iterations_max:
             return False
         else:
-            self.counter+=1
+            self.iterations_done += 1
             return True
 
-    def run(self):
-        self.strategy.patch('MSE', self.op)
-        while(self.stop()):
-            idx = self.strategy.get_next_patch(self.op)
-            self.add(idx)
+    def _run(self):
+        """ Feed patches to tiktorch (add to the training data)
 
-    def add(self, idx):
-        file = z5py.File(self.base_config["cremi_data"])
-        labels = file["cremi_path_to_labelled"][0:1, 0:img_dim, 0:img_dim]
+        The function fetches the patches in order decided by the strategy and 
+        feeds it to tiktorch 
+        """
 
-        new_ip = self.ip.as_numpy()[idx[0]:idx[1], idx[2]:idx[3], idx[4]:idx[5]].astype(float)
-        new_label = labels[ idx[0]:idx[1], idx[2]:idx[3], idx[4]:idx[5] ].astype(float)
-        # print(ip.dtype, label.dtype)
+        self.strategy.shuffle()
+        while self.stop():
+            slicer = self.strategy.get_next_patch(self.op)
+            self._add(slicer)
+            self._resume()
+
+        self.terminate()
+
+    def _add(self, slicer):
+        new_ip = self.ip.as_numpy()[slicer].astype(float)
+        new_label = self.labels[slicer].astype(float)
         self.new_server.update_training_data(NDArrayBatch([NDArray(new_ip)]), NDArrayBatch([new_label]))
 
     # annotate worst patch
@@ -106,35 +134,29 @@ class MrRobot:
 
 
 class BaseStrategy(ABC):
-
     def __init__(self, path_to_config_file):
         with open(path_to_config_file, mode="r") as f:
             self.base_config = yaml.load(f)
-        #self.op = op
+
+        self.patched_data = []
         self.logger = logging.getLogger(__name__)
-   
-    def loss(self,tile,label, loss_fn):
-        label = label[0]
-        tile = tile[0]
-        result = mean_squared_error(label, tile)  # CHECK THIS
-        return result
 
-    def base_patch(self, loss_fn, op):
-        idx = tile_image(op.shape, patch_size)
-        file = z5py.File(self.base_config["cremi_data"])
-        labels = file["cremi_path_to_labelled"][0:1, 0:img_dim, 0:img_dim]
+    def _loss(self, op, target, loss_fn, slicer):
+        """  computes loss corresponding to the output and target according to 
+        the given loss function
 
-        self.patch_data = []
-        for i in range(len(idx)):
-            curr_loss = self.loss(
-                op[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5]],
-                labels[idx[i][0] : idx[i][1], idx[i][2] : idx[i][3], idx[i][4] : idx[i][5]],
-                loss_fn
-            )
+        Args:
+        op(np.ndarray) : predicted output
+        target(np.ndarray): ground truth
+        loss_fn(string): loss metric
+        slicer(tuple): tuple of slice objects, one per dimension
+        """
 
-            self.patch_data.append((curr_loss,idx[i]))
-            self.logger.info("loss for patch %d: %d" % (i,curr_loss) )
+        criterion_class = getattr(nn, loss_fn, None)
+        assert criterion_class is not None, "Criterion {} not found.".format(method)
 
+        curr_loss = criterion_class(torch.from_numpy(tile), torch.from_numpy(target))
+        self.patched_data.append((curr_loss, slicer))
 
     @abstractmethod
     def get_next_patch(self):
@@ -142,18 +164,27 @@ class BaseStrategy(ABC):
 
 
 class Strategy1(BaseStrategy):
+    """ This strategy sorts the patches in descending order of their loss
+
+    Args:
+    path_to_config_file (string): path to the configuration file for the robot
+    """
 
     def __init__(self, path_to_config_file):
         super().__init__(path_to_config_file)
-        self.counter=-1
+        self.patch_counter = -1
 
-    def patch(self, loss_fn, op):
-        super().base_patch(loss_fn,op)
-        self.patch_data.sort(reverse = True)
+    def shuffle(self):
+        """ rearranges the patches in descending order of their loss
+        """
+        self.patched_data.sort(reverse=True)
 
     def get_next_patch(self):
-        self.counter+=1
-        return self.patch_data[self.counter][1]
+        """ Feeds patches to the robot in descending order of their loss
+        """
+
+        self.patch_counter += 1
+        return self.patched_data[self.patch_counter][1]
 
 
 class Strategy2(BaseStrategy):
@@ -164,5 +195,3 @@ class Strategy2(BaseStrategy):
 class Strategy3(BaseStrategy):
     def __init__():
         super().__init__()
-
-

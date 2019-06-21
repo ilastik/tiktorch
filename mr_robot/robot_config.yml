@@ -15,11 +15,11 @@ dry_run: {
             "shrinkage": [0, 0, 0]
         }
 
-cremi_dir: {
+data_dir: {
                     path_to_zip: D:/Machine Learning/tiktorch/tests/data/CREMI_DUNet_pretrained_new.zip,
                     path_in_zip_to_model: CREMI_DUNet_pretrained_new/model.py,
                     path_in_zip_to_state: CREMI_DUNet_pretrained_new/state.nn
                 }
 
-cremi_data: D:/Machine Learning/tiktorch/mr_robot/train.n5
-cremi_path_to_labelled: volumes/labels/neuron_ids
+raw_data_path: D:/Machine Learning/tiktorch/mr_robot/train.n5
+labelled_data_path: volumes/labels/neuron_ids

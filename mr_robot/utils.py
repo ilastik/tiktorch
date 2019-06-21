@@ -110,31 +110,31 @@ def make_edges3d(segmentation):
 def tile_image(image_shape, tile_size):
 
     tiles = []
-    (w, h) = image_shape[len(image_shape) - 2], image_shape[len(image_shape) - 1]
+    (w, h) = image_shape[-2], image_shape[-1]
     for wsi in range(0, w - tile_size + 1, int(tile_size)):
         for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = [wsi, wsi + tile_size, hsi, hsi + tile_size]
+            img = [wsi, hsi]
             tiles.append(img)
 
     if h % tile_size != 0:
         for wsi in range(0, w - tile_size + 1, int(tile_size)):
-            img = [wsi, wsi + tile_size, h - tile_size, h]
+            img = [wsi, h - tile_size]
             tiles.append(img)
 
     if w % tile_size != 0:
         for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = [w - tile_size, w, hsi, hsi + tile_size]
+            img = [w - tile_size, hsi]
             tiles.append(img)
 
     if w % tile_size != 0 and h % tile_size != 0:
-        img = [w - tile_size, w, h - tile_size, h]
+        img = [w - tile_size, h - tile_size]
         tiles.append(img)
-
+    """
     x = []
     for i in range(len(image_shape) - 2):
         x.append([0, image_shape[i]])
 
     for i in range(len(tiles)):
         tiles[i] = x + tiles[i]
-
+    """
     return tiles
