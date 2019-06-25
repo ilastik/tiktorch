@@ -55,7 +55,7 @@ class DynamicDataset(Dataset):
         # self.data.update(zip(keys, values))
         # update update counts
         for image, label in zip(images, labels):
-            assert image.id == label.id
+            assert image.id == label.id, (image.id, label.id)
             assert image.id is not None
             key = image.id
             self.update_counts[key] = self.update_counts.get(key, 0) + 1
