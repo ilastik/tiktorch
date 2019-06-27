@@ -12,11 +12,15 @@ training: {
 validation: {}
 dry_run: {"skip": True, "shrinkage": [0, 0, 0]}
 
-data_dir: {
-    path_to_zip: "D:/Machine Learning/tiktorch/tests/data/CREMI_DUNet_pretrained_new.zip",
-    path_in_zip_to_model: "CREMI_DUNet_pretrained_new/model.py",
-    path_in_zip_to_state: "CREMI_DUNet_pretrained_new/state.nn",
+model_dir: {
+    path_to_folder: "D:/Machine Learning/tiktorch/tests/data/CREMI_DUNet_pretrained_new.zip",
+    path_in_folder_to_model: "CREMI_DUNet_pretrained_new/model.py",
+    path_in_folder_to_state: "CREMI_DUNet_pretrained_new/state.nn",
 }
 
-raw_data_path: "D:/Machine Learning/tiktorch/mr_robot/train.n5"
-labelled_data_path: "volumes/labels/neuron_ids"
+data_dir: {
+    base_folder: "D:/Machine Learning/tiktorch/mr_robot/train.n5",
+    path_to_raw_data: "volume",
+    path_to_labelled: "volumes/labels/neuron_ids",
+}
+

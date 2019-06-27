@@ -1,72 +1,78 @@
+import logging
+import os
+import zipfile
+
+import h5py
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
-from sklearn.metrics import mean_squared_error
-import zipfile
-import h5py
-import z5py
-from z5py.converter import convert_from_h5
-from torch.autograd import Variable
-from collections import OrderedDict
 import yaml
-import logging
+import z5py
+
 from tensorboardX import SummaryWriter
+
 from tiktorch.server import TikTorchServer
-from tiktorch.rpc import Client, Server, InprocConnConf
-from tiktorch.rpc_interface import INeuralNetworkAPI
 from tiktorch.types import NDArray, NDArrayBatch
 from mr_robot.utils import tile_image
 
-patch_size = 16
 img_dim = 32
+batch_size = 1
 
 
 class MrRobot:
-    """ The robot class runs predictins on the model, and feeds the 
-    worst performing patch back for training. The order in which patches 
-    are feed back is determined by the 'strategy'. The robot can change 
-    strategies as training progresses. 
+    """ The robot class runs predictins on the model, and feeds the
+    worst performing patch back for training. The order in which patches
+    are feed back is determined by the 'strategy'. The robot can change
+    strategies as training progresses.
 
     Args:
     path_to_config_file (string): path to the robot configuration file to
                                   load necessary variables
-    strategy (Strategy object): strategy to follow (atleast intially)  
+    strategy (Strategy object): strategy to follow (atleast intially)
     """
 
     def __init__(self, path_to_config_file, strategy):
         # start the server
         self.new_server = TikTorchServer()
-        self.strategy = strategy
 
         with open(path_to_config_file, mode="r") as f:
             self.base_config = yaml.load(f)
 
-        self.data_file = z5py.File(self.base_config.pop("raw_data_path"))
+        strategy_class = strategies[strategy]
+        self.strategy = strategy_class(self.base_config["training"]["loss_criterion_config"]["method"])
+        self.data_file = z5py.File(self.base_config["data_dir"]["base_folder"])
 
-        self.tile_indices = tile_image(self.base_config["training"]["training_shape"], patch_size)
-        self.input_shape = list((self.base_config["training"]["training_shape"]))
-        self.slicer = [slice(0, i) for i in self.input_shape]
+        image_shape = self.data_file[self.base_config["data_dir"]["path_to_raw_data"]].shape
+        self.block_list = tile_image(image_shape, self.base_config["training"]["training_shape"])
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
         self.tensorboard_writer = SummaryWriter()
         self.logger = logging.getLogger(__name__)
-        plt.ion()
-
-    # def load_data(self):
-    #    self.f = z5py.File(self.base_config["cremi_data_dir"])
-    #    self.logger("data file loaded")
 
     def _load_model(self):
 
-        archive = zipfile.ZipFile(self.base_config["data_dir"]["path_to_zip"], "r")
-        model = archive.read(self.base_config["data_dir"]["path_in_zip_to_model"])
-        binary_state = archive.read(self.base_config["data_dir"]["path_in_zip_to_state"])
+        if self.base_config["model_dir"]["path_to_folder"].endswith(".zip"):
+            archive = zipfile.ZipFile(self.base_config["model_dir"]["path_to_folder"], "r")
+            model = archive.read(self.base_config["model_dir"]["path_in_folder_to_model"])
+            binary_state = archive.read(self.base_config["model_dir"]["path_in_folder_to_state"])
+
+        else:
+            model = open(
+                os.path.join(
+                    self.base_config["model_dir"]["path_to_folder"],
+                    self.base_config["model_dir"]["path_in_folder_to_model"],
+                )
+            )
+            binary_state = open(
+                os.path.join(
+                    self.base_config["model_dir"]["path_to_folder"],
+                    self.base_config["model_dir"]["path_in_folder_to_state"],
+                )
+            )
 
         # cleaning dictionary before passing to tiktorch
-        self.base_config.pop("data_dir")
+        self.base_config.pop("model_dir")
 
         self.new_server.load_model(self.base_config, model, binary_state, b"", ["cpu"])
         self.logger.info("model loaded")
@@ -78,25 +84,26 @@ class MrRobot:
         self.logger.info("training resumed")
 
     def _predict(self):
-        """ run prediction on the whole set of patches 
+        """ run prediction on the whole set of patches
         """
-        self.strategy.patched_data.clear()
+        # self.strategy.patched_data.clear()
         self.patch_id = dict()
         x = 0
 
-        for i in self.tile_indices:
-            self.slicer[-1] = slice(i[0][1], i[1][1])
-            self.slicer[-2] = slice(i[0][0], i[1][0])
-            new_slicer = tuple(self.slicer)
-            self.patch_id[i[0]] = x  # map each slicer with its corresponding index
+        for block in self.block_list:
+            # map each slicer with its corresponding index
+            self.patch_id[block[0].start] = x
             x += 1
-            pred_output = self.new_server.forward(NDArray(self.data_file["volume"][new_slicer]))
-            pred_output = pred_output.result()
-            self.strategy._loss(
-                pred_output, self.data_file[self.base_config["labelled_data_path"]][new_slicer], new_slicer
-            )
 
-        self.logger.info("prediction run")
+            path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
+            path_to_label = self.base_config["data_dir"]["path_to_labelled"]
+
+            pred_output = self.new_server.forward(NDArray(self.data_file[path_to_input][block]))
+            pred_output = pred_output.result()
+
+            self.strategy._loss(pred_output, self.data_file[path_to_label][block], block)
+
+        self.logger.info("prediction run for iteration {}", self.iterations_done)
 
     def stop(self):
         """ function which determines when the robot should stop
@@ -105,39 +112,36 @@ class MrRobot:
         """
 
         if self.iterations_done > self.iterations_max:
-            return False
+            return True
         else:
             self.iterations_done += 1
-            return True
+            return False
 
     def _run(self):
         """ Feed patches to tiktorch (add to the training data)
 
-        The function fetches the patches in order decided by the strategy, 
-        removes it from the list of indices and feeds it to tiktorch 
+        The function fetches the patches in order decided by the strategy,
+        removes it from the list of indices and feeds it to tiktorch
         """
-        while self.stop():
+        while not self.stop():
             self._predict()
 
             # log average loss for all patches per iteration to tensorboard
-            total_loss = sum([pair[0] for pair in self.strategy.patched_data])
-            avg = total_loss / float(len(self.strategy.patched_data))
+            avg = np.mean([loss for loss, slice_ in self.strategy.patched_data])
             self.tensorboard_writer.add_scalar("avg_loss", avg, self.iterations_done)
 
-            self.strategy.rearrange()
-            slicer = self.strategy.get_next_patch()
-            self.tile_indices.pop(self.patch_id[(slicer[-2].start, slicer[-1].start)])
-            self._add(slicer)
+            block_batch = self.strategy.get_next_batch(batch_size)
+            for block in block_batch:
+                self.block_list.pop(self.patch_id[block[0].start])
+                self._add(block)
+
             self._resume()
 
         self.terminate()
 
-    def _add(self, slicer):
-        new_input = NDArray(self.data_file["volume"][slicer].astype(float), (slicer[-2].start, slicer[-1].start))
-        new_label = NDArray(
-            self.data_file[self.base_config["labelled_data_path"]][slicer].astype(float),
-            (slicer[-2].start, slicer[-1].start),
-        )
+    def _add(self, block):
+        new_input = NDArray(self.data_file["path_to_raw_data"][block].astype(float), (block[0].start))
+        new_label = NDArray(self.data_file[self.base_config["path_to_labelled"]][block].astype(float), (block[0].start))
         self.new_server.update_training_data(NDArrayBatch([new_input]), NDArrayBatch([new_label]))
 
     # annotate worst patch
@@ -150,23 +154,23 @@ class MrRobot:
 
 
 class BaseStrategy:
-    def __init__(self, path_to_config_file):
-        with open(path_to_config_file, mode="r") as f:
-            self.base_config = yaml.load(f)
+    def __init__(self, loss_fn):
+        # with open(path_to_config_file, mode="r") as f:
+        #    self.base_config=yaml.load(f)
 
         self.patched_data = []
-        self.loss_fn = self.base_config["training"]["loss_criterion_config"]["method"]
+        self.loss_fn = loss_fn
         self.logger = logging.getLogger(__name__)
 
-    def _loss(self, pred_output, target, slicer):
-        """  computes loss corresponding to the output and target according to 
+    def _loss(self, pred_output, target, block):
+        """  computes loss corresponding to the output and target according to
         the given loss function
 
         Args:
         predicted_output(np.ndarray) : output predicted by the model
         target(np.ndarray): ground truth
         loss_fn(string): loss metric
-        slicer(tuple): tuple of slice objects, one per dimension
+        block(tuple): tuple of slice objects, one per dimension, specifying the corresponding block
         """
 
         criterion_class = getattr(nn, self.loss_fn, None)
@@ -175,13 +179,13 @@ class BaseStrategy:
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.as_numpy().astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
-        self.patched_data.append((curr_loss, slicer))
+        self.patched_data.append((curr_loss, block))
 
-    def get_next_patch(self):
+    def get_next_batch(self):
         raise NotImplementedError()
 
     def rearrange(self):
-        raise NotADirectoryError()
+        raise NotImplementedError()
 
 
 class Strategy1(BaseStrategy):
@@ -191,8 +195,8 @@ class Strategy1(BaseStrategy):
     path_to_config_file (string): path to the configuration file for the robot
     """
 
-    def __init__(self, path_to_config_file):
-        super().__init__(path_to_config_file)
+    def __init__(self, loss_fn):
+        super().__init__(loss_fn)
         # self.patch_counter = -1
 
     def rearrange(self):
@@ -200,12 +204,19 @@ class Strategy1(BaseStrategy):
         """
         self.patched_data.sort(reverse=True)
 
-    def get_next_patch(self):
-        """ Feeds patches to the robot in descending order of their loss
-        """
+    def get_next_batch(self, batch_size=1):
+        """ Feeds a batch of patches at a time to the robot in descending order of their loss
 
+        Args:
+        batch_size (int): number of patches to be returned, defaults to 1
+        """
         # self.patch_counter += 1
-        return self.patched_data[0][1]
+        assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
+
+        self.rearrange()
+        return_patch_set = [blocks for loss, blocks in self.patched_data[:batch_size]]
+        self.patched_data.clear()
+        return return_patch_set
 
 
 class Strategy2(BaseStrategy):
@@ -216,3 +227,6 @@ class Strategy2(BaseStrategy):
 class Strategy3(BaseStrategy):
     def __init__():
         super().__init__()
+
+
+strategies = {"strategy1": Strategy1, "strategy2": Strategy2, "strategy3": Strategy3}
