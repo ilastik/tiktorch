@@ -2,8 +2,8 @@ version: 2
 jobs:
   build:
     environment:
-      TEST_ENV_NAME: test-env
-      TEST_ENV_PREFIX: /opt/conda/envs/test-env
+      TEST_ENV_NAME: tiktorch-server-env
+      TEST_ENV_PREFIX: /opt/conda/envs/tiktorch-server-env
     docker:
       - image: continuumio/miniconda3
 
