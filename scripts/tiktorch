@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+_term() { 
+  echo "Caught SIGTERM signal!" 
+  kill -TERM "$child" 2>/dev/null
+}
+
+trap _term SIGTERM SIGHUP
+
+<ENV_PATH>/idev/bin/python -m tiktorch.server "$@" &
+
+child=$! 
+wait "$child"
