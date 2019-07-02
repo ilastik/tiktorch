@@ -28,7 +28,7 @@ class MrRobot:
     Args:
     path_to_config_file (string): path to the robot configuration file to
                                   load necessary variables
-    strategy (Strategy object): strategy to follow (atleast intially)
+    strategy (string): strategy to follow (atleast intially)
     """
 
     def __init__(self, path_to_config_file, strategy):
@@ -92,16 +92,17 @@ class MrRobot:
 
         for block in self.block_list:
             # map each slicer with its corresponding index
-            self.patch_id[block[0].start] = x
+            self.assign_id(block, x)
+            # self.patch_id[block[0].start] = x
             x += 1
 
             path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
             path_to_label = self.base_config["data_dir"]["path_to_labelled"]
 
             pred_output = self.new_server.forward(NDArray(self.data_file[path_to_input][block]))
-            pred_output = pred_output.result()
+            self.pred_output = pred_output.result()
 
-            self.strategy._loss(pred_output, self.data_file[path_to_label][block], block)
+            self.strategy.update_state(pred_output, self.data_file[path_to_label][block], block)
 
         self.logger.info("prediction run for iteration {}", self.iterations_done)
 
@@ -123,26 +124,67 @@ class MrRobot:
         The function fetches the patches in order decided by the strategy,
         removes it from the list of indices and feeds it to tiktorch
         """
+
         while not self.stop():
             self._predict()
 
             # log average loss for all patches per iteration to tensorboard
-            avg = np.mean([loss for loss, slice_ in self.strategy.patched_data])
+            avg = self.strategy.get_mean()
             self.tensorboard_writer.add_scalar("avg_loss", avg, self.iterations_done)
+            # self.tensorboard_writer.add_image("confusion_matrix", getConfusionMatrixFromlables(self.pred_output))
 
             block_batch = self.strategy.get_next_batch(batch_size)
+            self._add(block_batch)
+            self.remove_key(block_batch)
             for block in block_batch:
                 self.block_list.pop(self.patch_id[block[0].start])
-                self._add(block)
 
             self._resume()
 
         self.terminate()
 
-    def _add(self, block):
-        new_input = NDArray(self.data_file["path_to_raw_data"][block].astype(float), (block[0].start))
-        new_label = NDArray(self.data_file[self.base_config["path_to_labelled"]][block].astype(float), (block[0].start))
-        self.new_server.update_training_data(NDArrayBatch([new_input]), NDArrayBatch([new_label]))
+    def _add(self, new_block_batch):
+        """ add a new batch of images to training data
+
+        Args:
+        new_block_batch (list): list of tuples, where each tuple is 
+        a slicer corresponding to a block
+        """
+
+        new_label_batch = []
+        for i in range(len(new_block_batch)):
+
+            new_block = self.data_file[self.base_config["data_dir"]["path_to_raw_data"]][new_block_batch[i]]
+            new_label = self.data_file[self.base_config["data_dir"]["path_to_labelled"]][new_block_batch[i]]
+
+            new_block_batch[i] = NDArray(new_block.astype(float), (new_block_batch[i][0].start))
+            new_label_batch.append(NDArray(new_label.astype(float), (new_block_batch[i][0].start)))
+
+        # new_input = NDArray(self.data_file["path_to_raw_data"][block].astype(float), (block[0].start))
+        # new_label = NDArray(self.data_file[self.base_config["path_to_labelled"]][block].astype(float), (block[0].start))
+        self.new_server.update_training_data(NDArrayBatch(new_block_batch), NDArrayBatch(new_label_batch))
+
+    def get_coordinate(self, block):
+        """ return the starting co-ordinate of a block
+
+        Args:
+        block(tuple): tuple of slice objects, one per dimension
+        """
+
+        coordinate = []
+        for slice_ in block:
+            coordinate.append(slice_.start)
+
+        return tuple(coordinate)
+
+    def assign_id(self, block, index):
+        coordinate = self.get_coordinate(block)
+        self.patch_id[coordinate] = index
+
+    def remove_key(self, block_batch):
+        for block in block_batch:
+            coordinate = self.get_coordinate(block)
+            self.patch_id.pop(coordinate)
 
     # annotate worst patch
     def dense_annotate(self, x, y, label, image):
@@ -162,9 +204,9 @@ class BaseStrategy:
         self.loss_fn = loss_fn
         self.logger = logging.getLogger(__name__)
 
-    def _loss(self, pred_output, target, block):
+    def update_state(self, pred_output, target, block):
         """  computes loss corresponding to the output and target according to
-        the given loss function
+        the given loss function and update patch data
 
         Args:
         predicted_output(np.ndarray) : output predicted by the model
@@ -177,7 +219,8 @@ class BaseStrategy:
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class()
         curr_loss = criterion_class_obj(
-            torch.from_numpy(pred_output.as_numpy().astype(np.float32)), torch.from_numpy(target.astype(np.float32))
+            torch.from_numpy(pred_output.result().as_numpy().astype(np.float32)),
+            torch.from_numpy(target.astype(np.float32)),
         )
         self.patched_data.append((curr_loss, block))
 
@@ -218,10 +261,28 @@ class Strategy1(BaseStrategy):
         self.patched_data.clear()
         return return_patch_set
 
+    def get_mean(self):
+        return np.mean([loss for loss, slice_ in self.patched_data])
 
-class Strategy2(BaseStrategy):
-    def __init__():
-        super().__init__()
+
+class StrategyRandom(BaseStrategy):
+    """ randomly selected a patch, or batch of patches
+    and returns them to the robot
+
+    Args:
+    loss_fn (string): loss metric
+    """
+
+    def __init__(self, loss_fn):
+        super().__init__(loss_fn)
+
+    def rearrange(self):
+        pass
+
+    def get_next_batch(self, batch_size=1):
+        assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
+
+        # rand_indices = np.random.randint(len(self.patched_data), size = )
 
 
 class Strategy3(BaseStrategy):
@@ -229,4 +290,4 @@ class Strategy3(BaseStrategy):
         super().__init__()
 
 
-strategies = {"strategy1": Strategy1, "strategy2": Strategy2, "strategy3": Strategy3}
+strategies = {"strategy1": Strategy1, "strategyrandom": StrategyRandom, "strategy3": Strategy3}

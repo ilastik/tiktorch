@@ -5,15 +5,50 @@ from tiktorch.server import TikTorchServer
 
 
 def test_tile_image():
-    # when image dim are not multiple of patch size
-    tiled_indices = tile_image((1, 48, 48), (1, 32, 32))
-    assert len(tiled_indices) == 4
-    tiled_indices = tile_image((3, 71, 71), (1, 23, 23))
-    assert len(tiled_indices) == 48
+    # when image dim are multiple of patch size
+    tiled_indices = tile_image((2, 2, 2), (2, 2, 1))
+    assert tiled_indices == [
+        (slice(0, 2, None), slice(0, 2, None), slice(0, 1, None)),
+        (slice(0, 2, None), slice(0, 2, None), slice(1, 2, None)),
+    ]
+
+    tiled_indices = tile_image((2, 2, 2), (1, 1, 1))
+    assert tiled_indices == [
+        (slice(0, 1, None), slice(0, 1, None), slice(0, 1, None)),
+        (slice(0, 1, None), slice(0, 1, None), slice(1, 2, None)),
+        (slice(0, 1, None), slice(1, 2, None), slice(0, 1, None)),
+        (slice(0, 1, None), slice(1, 2, None), slice(1, 2, None)),
+        (slice(1, 2, None), slice(0, 1, None), slice(0, 1, None)),
+        (slice(1, 2, None), slice(0, 1, None), slice(1, 2, None)),
+        (slice(1, 2, None), slice(1, 2, None), slice(0, 1, None)),
+        (slice(1, 2, None), slice(1, 2, None), slice(1, 2, None)),
+    ]
+
+    # when image dimension are not multiple of patch size
+    tiled_indices = tile_image((5, 5), (3, 3))
+    assert tiled_indices == [
+        (slice(0, 3, None), slice(0, 3, None)),
+        (slice(0, 3, None), slice(2, 5, None)),
+        (slice(2, 5, None), slice(0, 3, None)),
+        (slice(2, 5, None), slice(2, 5, None)),
+    ]
+
+    tiled_indices = tile_image((10, 2, 2, 2), (5, 2, 1, 1))
+    assert tiled_indices == [
+        (slice(0, 5, None), slice(0, 2, None), slice(0, 1, None), slice(0, 1, None)),
+        (slice(0, 5, None), slice(0, 2, None), slice(0, 1, None), slice(1, 2, None)),
+        (slice(0, 5, None), slice(0, 2, None), slice(1, 2, None), slice(0, 1, None)),
+        (slice(0, 5, None), slice(0, 2, None), slice(1, 2, None), slice(1, 2, None)),
+        (slice(5, 10, None), slice(0, 2, None), slice(0, 1, None), slice(0, 1, None)),
+        (slice(5, 10, None), slice(0, 2, None), slice(0, 1, None), slice(1, 2, None)),
+        (slice(5, 10, None), slice(0, 2, None), slice(1, 2, None), slice(0, 1, None)),
+        (slice(5, 10, None), slice(0, 2, None), slice(1, 2, None), slice(1, 2, None)),
+    ]
 
     # when image too small for the patch
     with pytest.raises(AssertionError):
         tiled_indices = tile_image((1, 48, 48), (1, 64, 32))
+        tiled_indices = tile_image((64, 64), (2, 1, 1))
 
 
 def test_MrRobot():

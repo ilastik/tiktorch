@@ -1,6 +1,9 @@
 # utility functions for the robot
 import numpy as np
 from scipy.ndimage import convolve
+import seaborn as sn
+import pandas as pd
+from sklearn.metrics import confusion_matrix
 
 
 # ref: https://github.com/constantinpape/vis_tools/blob/master/vis_tools/edges.py#L5
@@ -15,46 +18,9 @@ def make_edges3d(segmentation):
 
 
 """
-# create patches
-def tile_image(image_shape, tile_shape):
-     cuts the input image into pieces of size 'tile_size'
-    and returns a list of indices conatining the starting index (x,y)
-    for each patch
-
-    Args:
-    image_shape (tuple): shape of input n-dimensional image
-    tile_size (int): cutting parameter
-    
-
-    assert image_shape[-1] >= tile_size and image_shape[-2] >= tile_size, "image too small for this tile size"
-
-    tiles = []
-    (w, h) = image_shape[-2], image_shape[-1]
-    for wsi in range(0, w - tile_size + 1, int(tile_size)):
-        for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = ((wsi, hsi), (wsi + tile_size, hsi + tile_size))
-            tiles.append(img)
-
-    if h % tile_size != 0:
-        for wsi in range(0, w - tile_size + 1, int(tile_size)):
-            img = ((wsi, h - tile_size), (wsi + tile_size, h))
-            tiles.append(img)
-
-    if w % tile_size != 0:
-        for hsi in range(0, h - tile_size + 1, int(tile_size)):
-            img = ((w - tile_size, hsi), (w, hsi + tile_size))
-            tiles.append(img)
-
-    if w % tile_size != 0 and h % tile_size != 0:
-        img = ((w - tile_size, h - tile_size), (w, h))
-        tiles.append(img)
-
-    return tiles
-"""
-
 
 def tile_image(arr_shape, block_shape):
-    """ chops of blocks of given size from an array 
+     chops of blocks of given size from an array 
 
     Args:
     arr_shape(tuple): size of input array (ndarray)
@@ -62,7 +28,7 @@ def tile_image(arr_shape, block_shape):
 
     Return type: list(tuple(slice()))- a list of tuples, one per block where each tuple has
     n slice objects, one per dimension (n: number of dimensions)
-    """
+    
 
     assert len(arr_shape) == len(block_shape), "block shape not compatible with array shape"
     for i in range(len(arr_shape)):
@@ -97,3 +63,82 @@ def tile_image(arr_shape, block_shape):
         block_list[i] = tuple(block_list[i])
 
     return block_list
+"""
+
+n = 0
+block_list, idx_list, visited = [], [], {}
+
+
+def recursive_chop(dim_number, arr_shape, block_shape):
+    global block_list, idx_list, visited
+
+    if dim_number >= n:
+        return
+
+    for i in range(0, arr_shape[dim_number], block_shape[dim_number]):
+        idx_list[dim_number] = i
+        recursive_chop(dim_number + 1, arr_shape, block_shape)
+        slice_list, visited_key = [], []
+
+        for j in range(n):
+            visited_key.append(idx_list[j])
+            if idx_list[j] + block_shape[j] > arr_shape[j]:
+                slice_list.append(slice(arr_shape[j] - block_shape[j], arr_shape[j]))
+            else:
+                slice_list.append(slice(idx_list[j], idx_list[j] + block_shape[j]))
+
+        visited_key = tuple(visited_key)
+        if visited.get(visited_key) == None:
+            visited[visited_key] = 1
+            block_list.append(tuple(slice_list))
+            
+    idx_list[dim_number] = 0
+
+
+def tile_image(arr_shape, block_shape):
+    """
+    chops of blocks of given size from an array 
+
+    Args:
+    arr_shape(tuple): size of input array (ndarray)
+    block_shape (tuple): size of block to cut into (ndarray)
+
+    Return type: list(tuple(slice()))- a list of tuples, one per block where each tuple has
+    n slice objects, one per dimension (n: number of dimensions)
+    """
+
+    assert len(arr_shape) == len(block_shape), "block shape not compatible with array shape"
+    for i in range(len(arr_shape)):
+        assert arr_shape[i] >= block_shape[i], "block shape not compatible with array shape"
+
+    global n, idx_list, visited
+    n = len(arr_shape)
+    block_list.clear(), visited.clear()
+    idx_list = [0 for i in range(n)]
+
+    recursive_chop(0, arr_shape, block_shape)
+    return block_list
+
+
+def getConfusionMatrixFromlables(pred_labels, act_labels, cls_dict):
+
+    figure_size = (len(cls_dict) * 2, len(cls_dict) * 2)
+
+    act_labels_f = [str(i) for i in np.matrix.flatten(act_labels).tolist()]
+    pred_labels_f = [str(i) for i in np.matrix.flatten(pred_labels).tolist()]
+
+    c_mat_arr = confusion_matrix(act_labels_f, pred_labels_f, labels=[str(i) for i in cls_dict.keys()])
+    c_mat_p = c_mat_arr / len(act_labels_f)
+    c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
+
+    # pd_cm = pd.DataFrame(c_mat_p, index=[str(i) for i in cls_dict.values()], columns = [str(i) for i in cls_dict.values()])
+    # plt.figure(figsize=figure_size)
+    # sn_plot = sn.heatmap(pd_cm, annot=True)
+    # sn_plot.figure.savefig(conf_mat_filename)
+    #
+    pd_cm_n = pd.DataFrame(
+        c_mat_n, index=[str(i) for i in cls_dict.values()], columns=[str(i) for i in cls_dict.values()]
+    )
+    plt.figure(figsize=figure_size)
+    sn_plot_n = sn.heatmap(pd_cm_n, annot=True)
+    return sn_plot_n.figure
