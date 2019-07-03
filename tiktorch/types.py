@@ -243,6 +243,7 @@ class ModelState:
     num_iterations_max: int
 
 
+@dataclass
 class Model:
     code: bytes
     config: dict
@@ -255,4 +256,4 @@ class Model:
         return bool(self.code)
 
 
-Model.Empty = Model(b"", {})
+Model.Empty = Model(code=b"", config={})
