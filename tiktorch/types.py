@@ -249,6 +249,12 @@ class Model:
     config: dict
 
     def __init__(self, *, code: bytes, config: dict) -> None:
+        if not isinstance(code, bytes):
+            raise ValueError("code attribute should contain bytes")
+
+        if not isinstance(config, dict):
+            raise ValueError("config attribute should be a dictionary")
+
         self.code = code
         self.config = config
 
