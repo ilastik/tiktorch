@@ -242,6 +242,9 @@ class ModelState:
     num_iterations_done: int = 0
     num_iterations_max: int = 0
 
+    def __bool__(self):
+        return bool(self.model_state)
+
 
 @dataclass
 class Model:

@@ -42,15 +42,25 @@ def read_bytes(filename):
 
 
 @pytest.fixture
-def nn_sample(tmpdir, datadir):
+def nn_zip(datadir):
+    model_zip_fn = path.join(datadir, f"{TEST_NET}.zip")
+    return model_zip_fn
+
+
+@pytest.fixture
+def nn_dir(tmpdir, nn_zip):
     tmp_model_dir = tmpdir / "models"
     tmp_model_dir.mkdir()
 
-    model_zip_fn = path.join(datadir, f"{TEST_NET}.zip")
-    with zipfile.ZipFile(model_zip_fn, "r") as model_zip:
+    with zipfile.ZipFile(nn_zip, "r") as model_zip:
         model_zip.extractall(tmp_model_dir)
         nn_dir = path.join(tmp_model_dir, TEST_NET)
 
+    return nn_dir
+
+
+@pytest.fixture
+def nn_sample(nn_dir):
     with open(path.join(nn_dir, "tiktorch_config.yml")) as file:
         conf = yaml.load(file)
         _tuple_to_list(conf)
