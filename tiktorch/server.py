@@ -14,7 +14,15 @@ from inferno.io.transform import Compose
 
 from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
 from tiktorch.rpc.mp import MPClient, create_client
-from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType, ModelState
+from tiktorch.types import (
+    NDArray,
+    LabeledNDArray,
+    NDArrayBatch,
+    LabeledNDArrayBatch,
+    SetDeviceReturnType,
+    ModelState,
+    Model,
+)
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.handler import IHandler, run as run_handler
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
@@ -122,21 +130,19 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         available.append(("cpu", "CPU"))
         return available
 
-    def load_model(
-        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> RPCFuture[SetDeviceReturnType]:
-        log_dir = config.get(LOGGING, {}).get(DIRECTORY, "")
+    def load_model(self, model: Model, state: ModelState, devices: list) -> RPCFuture[SetDeviceReturnType]:
+        log_dir = model.config.get(LOGGING, {}).get(DIRECTORY, "")
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
             self.logger.info("log dir: %s", os.path.abspath(log_dir))
 
         self._start_logging_handler()
-        incomplete_msg = get_error_msg_for_incomplete_config(config)
+        incomplete_msg = get_error_msg_for_incomplete_config(model.config)
         if incomplete_msg:
             raise ValueError(incomplete_msg)
 
         # todo: move test_transforms elsewhere
-        self.test_transforms = config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
+        self.test_transforms = model.config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
 
         if not devices:
             devices = ["cpu"]
@@ -152,10 +158,10 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             name="Handler",
             kwargs={
                 "conn": handler_conn,
-                "config": config,
-                "model_file": model_file,
-                "model_state": model_state,
-                "optimizer_state": optimizer_state,
+                "config": model.config,
+                "model_file": model.code,
+                "model_state": state.model_state,
+                "optimizer_state": state.optimizer_state,
                 "log_queue": self.log_queue,
             },
         )
