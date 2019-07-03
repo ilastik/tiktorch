@@ -241,3 +241,18 @@ class ModelState:
     optimizer_state: bytes
     num_iterations_done: int
     num_iterations_max: int
+
+
+class Model:
+    code: bytes
+    config: dict
+
+    def __init__(self, *, code: bytes, config: dict) -> None:
+        self.code = code
+        self.config = config
+
+    def __bool__(self) -> bool:
+        return bool(self.code)
+
+
+Model.Empty = Model(b"", {})
