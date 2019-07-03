@@ -235,12 +235,12 @@ class SetDeviceReturnType(NamedTuple):
 
 @dataclass
 class ModelState:
-    loss: float
-    epoch: int
     model_state: bytes
-    optimizer_state: bytes
-    num_iterations_done: int
-    num_iterations_max: int
+    optimizer_state: bytes = b""
+    loss: float = 0.0
+    epoch: int = 0
+    num_iterations_done: int = 0
+    num_iterations_max: int = 0
 
 
 @dataclass

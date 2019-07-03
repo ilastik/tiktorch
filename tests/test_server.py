@@ -1,8 +1,11 @@
+import os
+import numpy as np
+
 import pytest
 
 from tiktorch.server import TikTorchServer
 from tiktorch.rpc import Shutdown
-from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.types import NDArray, NDArrayBatch, Model, ModelState
 
 
 @pytest.fixture
@@ -23,19 +26,16 @@ def test_tiktorch_server_ping(srv):
 
 
 def test_load_model(srv, nn_sample):
-    srv.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    srv.load_model(nn_sample.model, nn_sample.state, [])
     assert "Handler" in srv.active_children()
 
 
 def test_forward(datadir, srv, nn_sample):
-    import os
-    import numpy as np
-
     input_arr = np.load(os.path.join(datadir, "fwd_input.npy"))
     out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
     out_arr.shape = (1, 320, 320)
 
-    srv.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    srv.load_model(nn_sample.model, nn_sample.state, [])
 
     res = srv.forward(NDArray(input_arr)).result(timeout=30)
     res_numpy = res.as_numpy()
