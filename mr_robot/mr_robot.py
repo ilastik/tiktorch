@@ -11,13 +11,13 @@ import yaml
 import z5py
 
 from tensorboardX import SummaryWriter
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 from io import BytesIO
 
 from tiktorch.server import TikTorchServer
 from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.models.dunet import DUNet
-from mr_robot.utils import tile_image, get_confusion_matrix
+from mr_robot.utils import tile_image, get_confusion_matrix, plot_confusion_matrix
 
 img_dim = 32
 batch_size = 1
@@ -45,9 +45,6 @@ class MrRobot:
         with open(path_to_config_file, mode="r") as f:
             self.base_config = yaml.load(f)
 
-        strategy_class = strategies[strategy]
-        self.strategy = strategy_class(self.base_config["training"]["loss_criterion_config"]["method"])
-
         if self.base_config["data_dir"]["raw_data_base_folder"].endswith(".h5"):
             self.raw_data_file = h5py.File(self.base_config["data_dir"]["raw_data_base_folder"])
             self.labelled_data_file = h5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
@@ -60,6 +57,9 @@ class MrRobot:
         self.block_list = tile_image(image_shape, self.base_config["training"]["training_shape"])
         print("number of patches: %s" % len(self.block_list))
         print()
+
+        strategy_class = strategies[strategy]
+        self.strategy = strategy_class(self.base_config["training"]["loss_criterion_config"]["method"], len(self.block_list), self.base_config["class_dict"])
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
@@ -110,6 +110,7 @@ class MrRobot:
         path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
         path_to_label = self.base_config["data_dir"]["path_to_labelled"]
 
+        batcher....
         for block in self.block_list:
             # map each slicer with its corresponding index
             self.assign_id(block, x)
@@ -197,10 +198,13 @@ class MrRobot:
         self.new_server.update_training_data(NDArrayBatch(new_inputs), NDArrayBatch(new_labels))
 
     def write_to_tensorboard(self):
-        avg_loss, avg_accuracy = self.strategy.get_mean()
-        print("average loss: %s   average accuracy: %s" % (avg_loss, avg_accuracy*100) )
-        self.tensorboard_writer.add_scalar("avg_loss", avg_loss, self.iterations_done)
-        self.tensorboard_writer.add_scalar("avg_accuracy", avg_accuracy*100, self.iterations_done)
+        metric_data = self.strategy.get_metrics()
+        print("average loss: %s   average accuracy: %s" % (metric_data["avg_loss"], metric_data["avg_accuracy"]*100) )
+        print()
+        self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
+        self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"]*100, self.iterations_done)
+        self.tensorboard_writer.add_scalar("F1 score", metric_data["avg_f1_score"], self.iterations_done)
+        self.tensorboard_writer.add_figure("confusion matrix", metric_data["confusion_matrix"], global_step = self.iterations_done)
 
     def get_coordinate(self, block):
         """ return the starting co-ordinate of a block
@@ -234,12 +238,15 @@ class MrRobot:
 
 
 class BaseStrategy:
-    def __init__(self, loss_fn):
+    def __init__(self, loss_fn, sample_size, class_dict):
         # with open(path_to_config_file, mode="r") as f:
         #    self.base_config=yaml.load(f)
 
         self.patched_data = []
         self.loss_fn = loss_fn
+        self.sample_size = sample_size
+        self.strategy_metric = {"avg_loss":0, "avg_accuracy":0, "avg_f1_score":0, "confusion_matrix": None}
+        self.class_dict = class_dict
         self.logger = logging.getLogger(__name__)
 
     def update_state(self, pred_output, target, block):
@@ -268,7 +275,16 @@ class BaseStrategy:
             else:
                 pred_output[i] = 0
 
-        curr_accuracy = accuracy_score(pred_output, target)
+        ## calculate metrics for current patch ##
+        self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target) / self.sample_size
+        self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average = "weighted") / self.sample_size
+        self.strategy_metric["avg_loss"] += curr_loss/ self.sample_size
+       
+        if self.strategy_metric["confusion_matrix"] is None:
+            self.strategy_metric["confusion_matrix"] = get_confusion_matrix(pred_output, target, self.class_dict) / self.sample_size
+        else:
+            self.strategy_metric["confusion_matrix"] += get_confusion_matrix(pred_output, target, self.class_dict) / self.sample_size
+        
         self.patched_data.append((curr_loss, curr_accuracy, block))
 
     def get_next_batch(self):
@@ -285,8 +301,8 @@ class Strategy1(BaseStrategy):
     path_to_config_file (string): path to the configuration file for the robot
     """
 
-    def __init__(self, loss_fn):
-        super().__init__(loss_fn)
+    def __init__(self, loss_fn, sample_size, class_dict):
+        super().__init__(loss_fn, sample_size, class_dict)
         # self.patch_counter = -1
 
     def rearrange(self):
@@ -308,11 +324,9 @@ class Strategy1(BaseStrategy):
         self.patched_data.clear()
         return return_patch_set
 
-    def get_mean(self):
-        return (np.mean(
-            [loss for loss, accuracy, block in self.patched_data]),
-            np.mean([accuracy for loss, accuracy, block in self.patched_data]),
-        )
+    def get_metrics(self):
+        self.strategy_metric["confusion_matrix"] = plot_confusion_matrix(self.strategy_metric["confusion_matrix"])
+        return self.strategy_metric
 
 
 class StrategyRandom(BaseStrategy):

@@ -3,7 +3,10 @@ import numpy as np
 from scipy.ndimage import convolve
 import seaborn as sn
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from sklearn.metrics import confusion_matrix
+
 
 
 # ref: https://github.com/constantinpape/vis_tools/blob/master/vis_tools/edges.py#L5
@@ -131,6 +134,9 @@ def get_confusion_matrix(pred_labels, act_labels, cls_dict):
     c_mat_p = c_mat_arr / len(act_labels_f)
     c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
 
+    return c_mat_n
+
+def plot_confusion_matrix(c_mat_n):
     # pd_cm = pd.DataFrame(c_mat_p, index=[str(i) for i in cls_dict.values()], columns = [str(i) for i in cls_dict.values()])
     # plt.figure(figsize=figure_size)
     # sn_plot = sn.heatmap(pd_cm, annot=True)
@@ -139,6 +145,6 @@ def get_confusion_matrix(pred_labels, act_labels, cls_dict):
     pd_cm_n = pd.DataFrame(
         c_mat_n, index=[str(i) for i in cls_dict.values()], columns=[str(i) for i in cls_dict.values()]
     )
-    plt.figure(figsize=figure_size)
+    #plt.figure(figsize=figure_size)
     sn_plot_n = sn.heatmap(pd_cm_n, annot=True)
     return sn_plot_n.figure
