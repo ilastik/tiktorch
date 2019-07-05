@@ -1,4 +1,4 @@
-name: test-env
+name: tiktorch-server-env
 channels:
   - pytorch
   - conda-forge
