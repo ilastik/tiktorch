@@ -1,8 +1,9 @@
+import os
 import pytest
 from mr_robot.mr_robot import MrRobot
 from mr_robot.utils import tile_image
 from tiktorch.server import TikTorchServer
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 def test_tile_image():
     # when image dim are multiple of patch size
@@ -52,8 +53,9 @@ def test_tile_image():
 
 
 def test_MrRobot():
-
-    robo = MrRobot("D:/Machine Learning/tiktorch/mr_robot/robot_config.yml", "strategy1")
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+    print(os.environ["CUDA_VISIBLE_DEVICES"])
+    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategy1")
     assert isinstance(robo, MrRobot)
     assert isinstance(robo.new_server, TikTorchServer)
 

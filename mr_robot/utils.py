@@ -120,7 +120,7 @@ def tile_image(arr_shape, block_shape):
     return block_list
 
 
-def getConfusionMatrixFromlables(pred_labels, act_labels, cls_dict):
+def get_confusion_matrix(pred_labels, act_labels, cls_dict):
 
     figure_size = (len(cls_dict) * 2, len(cls_dict) * 2)
 

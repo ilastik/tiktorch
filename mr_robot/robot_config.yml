@@ -1,26 +1,32 @@
 # base config for robot
-max_robo_iterations: 5
+max_robo_iterations: 20
 model_class_name: DUNet2D
 model_init_kwargs: {in_channels: 1, out_channels: 1}
 training: {
-    training_shape: [1, 32, 32],
+    training_shape: [1, 512, 512],
     batch_size: 1,
     loss_criterion_config: {"method": "MSELoss"},
     optimizer_config: {"method": "Adam"},
     num_iterations_done: 1,
 }
 validation: {}
-dry_run: {"skip": True, "shrinkage": [0, 0, 0]}
+dry_run: {"skip": False, "shrinkage": [0, 0, 0]}
 
 model_dir: {
-    path_to_folder: "D:/Machine Learning/tiktorch/tests/data/CREMI_DUNet_pretrained_new.zip",
+    path_to_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/CREMI_DUNet_pretrained_new.zip",
     path_in_folder_to_model: "CREMI_DUNet_pretrained_new/model.py",
     path_in_folder_to_state: "CREMI_DUNet_pretrained_new/state.nn",
 }
 
 data_dir: {
-    base_folder: "D:/Machine Learning/tiktorch/mr_robot/train.n5",
-    path_to_raw_data: "volume",
-    path_to_labelled: "volumes/labels/neuron_ids",
+    raw_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/N_294_ds3x.h5",
+    path_to_raw_data: "raw",
+    labelled_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/N_294_ds3x_labels_zero_one.h5", 
+    path_to_labelled: "labels",
+}
+
+class_dict: {
+    0: "background",
+    1: "cell"
 }
 

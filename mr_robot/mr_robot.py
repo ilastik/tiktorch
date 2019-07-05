@@ -1,6 +1,7 @@
 import logging
 import os
 import zipfile
+import concurrent.futures as cf
 
 import h5py
 import numpy as np
@@ -10,13 +11,17 @@ import yaml
 import z5py
 
 from tensorboardX import SummaryWriter
+from sklearn.metrics import accuracy_score
+from io import BytesIO
 
 from tiktorch.server import TikTorchServer
 from tiktorch.types import NDArray, NDArrayBatch
-from mr_robot.utils import tile_image
+from tiktorch.models.dunet import DUNet
+from mr_robot.utils import tile_image, get_confusion_matrix
 
 img_dim = 32
 batch_size = 1
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 
 class MrRobot:
@@ -32,6 +37,8 @@ class MrRobot:
     """
 
     def __init__(self, path_to_config_file, strategy):
+
+        assert torch.cuda.device_count() == 1, f"Device count is {torch.cuda.device_count()}"
         # start the server
         self.new_server = TikTorchServer()
 
@@ -40,14 +47,23 @@ class MrRobot:
 
         strategy_class = strategies[strategy]
         self.strategy = strategy_class(self.base_config["training"]["loss_criterion_config"]["method"])
-        self.data_file = z5py.File(self.base_config["data_dir"]["base_folder"])
 
-        image_shape = self.data_file[self.base_config["data_dir"]["path_to_raw_data"]].shape
+        if self.base_config["data_dir"]["raw_data_base_folder"].endswith(".h5"):
+            self.raw_data_file = h5py.File(self.base_config["data_dir"]["raw_data_base_folder"])
+            self.labelled_data_file = h5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
+        else:
+            self.raw_data_file = z5py.File(self.base_config["data_dir"]["raw_data_base_folder"])
+            self.labelled_data_file = h5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
+
+        image_shape = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]].shape
+        print(image_shape)
         self.block_list = tile_image(image_shape, self.base_config["training"]["training_shape"])
+        print("number of patches: %s" % len(self.block_list))
+        print()
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
-        self.tensorboard_writer = SummaryWriter()
+        self.tensorboard_writer = SummaryWriter(logdir="/home/psharma/psharma/repos/tiktorch/tests/robot/robo_logs")
         self.logger = logging.getLogger(__name__)
 
     def _load_model(self):
@@ -74,7 +90,8 @@ class MrRobot:
         # cleaning dictionary before passing to tiktorch
         self.base_config.pop("model_dir")
 
-        self.new_server.load_model(self.base_config, model, binary_state, b"", ["cpu"])
+        self.new_server.load_model(self.base_config, model, binary_state, b"", ["gpu:4"])
+        #self.tensorboard_writer.add_graph(DUNet(1,1),torch.from_numpy(self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][0]) )
         self.logger.info("model loaded")
 
     def _resume(self):
@@ -89,22 +106,32 @@ class MrRobot:
         # self.strategy.patched_data.clear()
         self.patch_id = dict()
         x = 0
+        prediction_list = []
+        path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
+        path_to_label = self.base_config["data_dir"]["path_to_labelled"]
 
         for block in self.block_list:
             # map each slicer with its corresponding index
             self.assign_id(block, x)
             # self.patch_id[block[0].start] = x
             x += 1
+            #pred_output = self.new_server.forward(NDArray(self.raw_data_file[path_to_input][block]))
+            prediction_list.append(self.new_server.forward(NDArray(self.raw_data_file[path_to_input][block])))
+            #self.pred_output = pred_output.result().as_numpy()
+            print("hello")
+            #self.strategy.update_state(self.pred_output, self.labelled_data_file[path_to_label][block], block)
 
-            path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
-            path_to_label = self.base_config["data_dir"]["path_to_labelled"]
-
-            pred_output = self.new_server.forward(NDArray(self.data_file[path_to_input][block]))
-            self.pred_output = pred_output.result()
-
-            self.strategy.update_state(pred_output, self.data_file[path_to_label][block], block)
-
-        self.logger.info("prediction run for iteration {}", self.iterations_done)
+        #print("prediction run for robo iteration %s" % self.iterations_done)
+        #print()
+        
+        i=0
+        for prediction in cf.as_completed(prediction_list):
+            print(i,type(prediction))
+            block = self.block_list[i]
+            i+=1
+            self.strategy.update_state(prediction.result().as_numpy(), self.labelled_data_file[path_to_label][block], block)            
+        
+        #self.logger.info("prediction run for iteration {}", self.iterations_done)
 
     def stop(self):
         """ function which determines when the robot should stop
@@ -126,18 +153,23 @@ class MrRobot:
         """
 
         while not self.stop():
+            print("robot running for iteration: %s" % self.iterations_done)
+
             self._predict()
 
-            # log average loss for all patches per iteration to tensorboard
-            avg = self.strategy.get_mean()
-            self.tensorboard_writer.add_scalar("avg_loss", avg, self.iterations_done)
-            # self.tensorboard_writer.add_image("confusion_matrix", getConfusionMatrixFromlables(self.pred_output))
+            # log average loss and accuracy for all patches per iteration to tensorboard
+            self.write_to_tensorboard()
+
+            #model = torch.load(BytesIO(self.new_server.get_model_state()))
+            #self.tensorboard_writer.add_graph(model)
+            #file_writer = self.tensorboard_writer._get_file_writer()
+            #file_writer.flush()
+            #self.tensorboard_writer.add_image("confusion_matrix", get_confusion_matrix(self.pred_output))
 
             block_batch = self.strategy.get_next_batch(batch_size)
+            self.tensorboard_writer.add_image("added image", self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][block_batch[0]])
             self._add(block_batch)
             self.remove_key(block_batch)
-            for block in block_batch:
-                self.block_list.pop(self.patch_id[block[0].start])
 
             self._resume()
 
@@ -151,18 +183,24 @@ class MrRobot:
         a slicer corresponding to a block
         """
 
-        new_label_batch = []
+        new_inputs,new_labels = [],[]
         for i in range(len(new_block_batch)):
 
-            new_block = self.data_file[self.base_config["data_dir"]["path_to_raw_data"]][new_block_batch[i]]
-            new_label = self.data_file[self.base_config["data_dir"]["path_to_labelled"]][new_block_batch[i]]
+            new_block = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][new_block_batch[i]]
+            new_label = self.labelled_data_file[self.base_config["data_dir"]["path_to_labelled"]][new_block_batch[i]]
 
-            new_block_batch[i] = NDArray(new_block.astype(float), (new_block_batch[i][0].start))
-            new_label_batch.append(NDArray(new_label.astype(float), (new_block_batch[i][0].start)))
+            new_inputs.append(NDArray(new_block.astype(float), self.get_coordinate(new_block_batch[i])))
+            new_labels.append(NDArray(new_label.astype(float), self.get_coordinate(new_block_batch[i])))
 
         # new_input = NDArray(self.data_file["path_to_raw_data"][block].astype(float), (block[0].start))
         # new_label = NDArray(self.data_file[self.base_config["path_to_labelled"]][block].astype(float), (block[0].start))
-        self.new_server.update_training_data(NDArrayBatch(new_block_batch), NDArrayBatch(new_label_batch))
+        self.new_server.update_training_data(NDArrayBatch(new_inputs), NDArrayBatch(new_labels))
+
+    def write_to_tensorboard(self):
+        avg_loss, avg_accuracy = self.strategy.get_mean()
+        print("average loss: %s   average accuracy: %s" % (avg_loss, avg_accuracy*100) )
+        self.tensorboard_writer.add_scalar("avg_loss", avg_loss, self.iterations_done)
+        self.tensorboard_writer.add_scalar("avg_accuracy", avg_accuracy*100, self.iterations_done)
 
     def get_coordinate(self, block):
         """ return the starting co-ordinate of a block
@@ -205,7 +243,7 @@ class BaseStrategy:
         self.logger = logging.getLogger(__name__)
 
     def update_state(self, pred_output, target, block):
-        """  computes loss corresponding to the output and target according to
+        """  computes loss and accuracy corresponding to the output and target according to
         the given loss function and update patch data
 
         Args:
@@ -219,10 +257,19 @@ class BaseStrategy:
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class()
         curr_loss = criterion_class_obj(
-            torch.from_numpy(pred_output.result().as_numpy().astype(np.float32)),
-            torch.from_numpy(target.astype(np.float32)),
+            torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
-        self.patched_data.append((curr_loss, block))
+        pred_output = pred_output.flatten()
+        target = target.flatten()
+
+        for i in range(len(pred_output)):
+            if pred_output[i] >= 0.5:
+                pred_output[i] = 1
+            else:
+                pred_output[i] = 0
+
+        curr_accuracy = accuracy_score(pred_output, target)
+        self.patched_data.append((curr_loss, curr_accuracy, block))
 
     def get_next_batch(self):
         raise NotImplementedError()
@@ -257,12 +304,15 @@ class Strategy1(BaseStrategy):
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
         self.rearrange()
-        return_patch_set = [blocks for loss, blocks in self.patched_data[:batch_size]]
+        return_patch_set = [blocks for loss, accuracy, blocks in self.patched_data[:batch_size]]
         self.patched_data.clear()
         return return_patch_set
 
     def get_mean(self):
-        return np.mean([loss for loss, slice_ in self.patched_data])
+        return (np.mean(
+            [loss for loss, accuracy, block in self.patched_data]),
+            np.mean([accuracy for loss, accuracy, block in self.patched_data]),
+        )
 
 
 class StrategyRandom(BaseStrategy):
