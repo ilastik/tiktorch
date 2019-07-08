@@ -53,7 +53,6 @@ def test_tile_image():
 
 
 def test_MrRobot():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
     print(os.environ["CUDA_VISIBLE_DEVICES"])
     robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategy1")
     assert isinstance(robo, MrRobot)

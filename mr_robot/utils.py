@@ -125,26 +125,21 @@ def tile_image(arr_shape, block_shape):
 
 def get_confusion_matrix(pred_labels, act_labels, cls_dict):
 
-    figure_size = (len(cls_dict) * 2, len(cls_dict) * 2)
-
-    act_labels_f = [str(i) for i in np.matrix.flatten(act_labels).tolist()]
-    pred_labels_f = [str(i) for i in np.matrix.flatten(pred_labels).tolist()]
+    act_labels_f = [str(i) for i in act_labels.tolist()]
+    pred_labels_f = [str(i) for i in pred_labels.tolist()]
 
     c_mat_arr = confusion_matrix(act_labels_f, pred_labels_f, labels=[str(i) for i in cls_dict.keys()])
-    c_mat_p = c_mat_arr / len(act_labels_f)
-    c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
-
+    c_mat_n = c_mat_arr / c_mat_arr.astype(np.float).sum(axis=1, keepdims=True)
+    #c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
+    
     return c_mat_n
 
-def plot_confusion_matrix(c_mat_n):
-    # pd_cm = pd.DataFrame(c_mat_p, index=[str(i) for i in cls_dict.values()], columns = [str(i) for i in cls_dict.values()])
-    # plt.figure(figsize=figure_size)
-    # sn_plot = sn.heatmap(pd_cm, annot=True)
-    # sn_plot.figure.savefig(conf_mat_filename)
-    #
+def plot_confusion_matrix(c_mat_n, cls_dict):
+
     pd_cm_n = pd.DataFrame(
         c_mat_n, index=[str(i) for i in cls_dict.values()], columns=[str(i) for i in cls_dict.values()]
     )
+    #print(pd_cm_n)
     #plt.figure(figsize=figure_size)
     sn_plot_n = sn.heatmap(pd_cm_n, annot=True)
     return sn_plot_n.figure
