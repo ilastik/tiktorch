@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 
-
 # ref: https://github.com/constantinpape/vis_tools/blob/master/vis_tools/edges.py#L5
 def make_edges3d(segmentation):
     """ Make 3d edge volume from 3d segmentation
@@ -94,7 +93,7 @@ def recursive_chop(dim_number, arr_shape, block_shape):
         if visited.get(visited_key) == None:
             visited[visited_key] = 1
             block_list.append(tuple(slice_list))
-            
+
     idx_list[dim_number] = 0
 
 
@@ -130,16 +129,26 @@ def get_confusion_matrix(pred_labels, act_labels, cls_dict):
 
     c_mat_arr = confusion_matrix(act_labels_f, pred_labels_f, labels=[str(i) for i in cls_dict.keys()])
     c_mat_n = c_mat_arr / c_mat_arr.astype(np.float).sum(axis=1, keepdims=True)
-    #c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
-    
+    # c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
+
     return c_mat_n
+
 
 def plot_confusion_matrix(c_mat_n, cls_dict):
 
     pd_cm_n = pd.DataFrame(
         c_mat_n, index=[str(i) for i in cls_dict.values()], columns=[str(i) for i in cls_dict.values()]
     )
-    #print(pd_cm_n)
-    #plt.figure(figsize=figure_size)
+
     sn_plot_n = sn.heatmap(pd_cm_n, annot=True)
     return sn_plot_n.figure
+
+
+def integer_to_onehot(integer_maps):
+    return np.stack(
+        [integer_maps == integer for integer in range(integer_maps.min(), integer_maps.max() + 1)], axis=0
+    ).astype(np.uint8)
+
+
+def onehot_preds_to_integer(one_hot_preds):
+    return np.argmax(one_hot_preds, axis=0)

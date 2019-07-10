@@ -17,7 +17,7 @@ from tiktorch.server import TikTorchServer
 from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.models.dunet import DUNet
 from tiktorch.rpc.utils import BatchedExecutor
-from mr_robot.utils import tile_image, get_confusion_matrix, plot_confusion_matrix
+from mr_robot.utils import tile_image, get_confusion_matrix, plot_confusion_matrix, integer_to_onehot
 
 img_dim = 32
 batch_size = 1
@@ -59,9 +59,7 @@ class MrRobot:
 
         strategy_class = strategies[strategy]
         self.strategy = strategy_class(
-            self.base_config["training"]["loss_criterion_config"]["method"],
-            len(self.block_list),
-            self.base_config["class_dict"],
+            self.base_config["training"]["loss_criterion_config"]["method"], self.base_config["class_dict"]
         )
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
@@ -172,7 +170,6 @@ class MrRobot:
             # self.tensorboard_writer.add_graph(model)
             # file_writer = self.tensorboard_writer._get_file_writer()
             # file_writer.flush()
-            # self.tensorboard_writer.add_image("confusion_matrix", get_confusion_matrix(self.pred_output))
 
             block_batch = self.strategy.get_next_batch(batch_size)
             # self.tensorboard_writer.add_image("added image", self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][block_batch[0]])
@@ -210,9 +207,9 @@ class MrRobot:
         print()
         self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
         self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"] * 100, self.iterations_done)
-        self.tensorboard_writer.add_scalar("F1 score", metric_data["avg_f1_score"], self.iterations_done)
+        self.tensorboard_writer.add_scalar("F1_score", metric_data["avg_f1_score"], self.iterations_done)
         self.tensorboard_writer.add_figure(
-            "confusion matrix", metric_data["confusion_matrix"], global_step=self.iterations_done
+            "confusion_matrix", metric_data["confusion_matrix"], global_step=self.iterations_done
         )
 
     def get_coordinate(self, block):
@@ -247,13 +244,12 @@ class MrRobot:
 
 
 class BaseStrategy:
-    def __init__(self, loss_fn, sample_size, class_dict):
+    def __init__(self, loss_fn, class_dict):
         # with open(path_to_config_file, mode="r") as f:
         #    self.base_config=yaml.load(f)
 
         self.patched_data = []
         self.loss_fn = loss_fn
-        self.sample_size = sample_size
         self.strategy_metric = {"avg_loss": 0, "avg_accuracy": 0, "avg_f1_score": 0, "confusion_matrix": 0}
         self.class_dict = class_dict
         self.logger = logging.getLogger(__name__)
@@ -271,46 +267,39 @@ class BaseStrategy:
 
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
-        criterion_class_obj = criterion_class()
+        criterion_class_obj = criterion_class(reduction="sum")
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
-        # print(pred_output,target)
+        self.patched_data.append((curr_loss, block))
 
         pred_output = pred_output.flatten().round().astype(np.int32)
         target = target.flatten().round().astype(np.int32)
 
-        """
-        #print(self.strategy_metric["confusion_matrix"])
-        for i in range(len(pred_output)):
-            if pred_output[i] >= 0.5:
-                pred_output[i] = 1
-            else:
-                pred_output[i] = 0
+        self.write_metric(pred_output, target, curr_loss)
 
-        pred_output = pred_output.astype(np.int32)
-        """
-        if self.strategy_metric["confusion_matrix"] is None:
-            self.strategy_metric["confusion_matrix"] = (
-                get_confusion_matrix(pred_output, target, self.class_dict) / self.sample_size
-            )
-        else:
-            self.strategy_metric["confusion_matrix"] += (
-                get_confusion_matrix(pred_output, target, self.class_dict) / self.sample_size
-            )
-
-        ## calculate metrics for current patch ##
-        self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target) / self.sample_size
-        self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted") / self.sample_size
-        self.strategy_metric["avg_loss"] += curr_loss / self.sample_size
-
-        self.patched_data.append((curr_loss, block))
+    def write_metric(self, pred_output, target, curr_loss):
+        self.strategy_metric["confusion_matrix"] += get_confusion_matrix(pred_output, target, self.class_dict)
+        self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target)
+        self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted")
+        self.strategy_metric["avg_loss"] += curr_loss
 
     def get_next_batch(self):
         raise NotImplementedError()
 
     def rearrange(self):
         raise NotImplementedError()
+
+    def get_metrics(self):
+        for key, value in self.strategy_metric.iteritems():
+            self.strategy_metric[key] /= len(self.patched_data)
+
+        strategy_metric = self.strategy_metric
+        strategy_metric["confusion_matrix"] = plot_confusion_matrix(
+            strategy_metric["confusion_matrix"], self.class_dict
+        )
+        self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
+        return strategy_metric
 
 
 class Strategy1(BaseStrategy):
@@ -320,8 +309,8 @@ class Strategy1(BaseStrategy):
     path_to_config_file (string): path to the configuration file for the robot
     """
 
-    def __init__(self, loss_fn, sample_size, class_dict):
-        super().__init__(loss_fn, sample_size, class_dict)
+    def __init__(self, loss_fn, class_dict):
+        super().__init__(loss_fn, class_dict)
         # self.patch_counter = -1
 
     def rearrange(self):
@@ -343,14 +332,6 @@ class Strategy1(BaseStrategy):
         self.patched_data.clear()
         return return_patch_set
 
-    def get_metrics(self):
-        strategy_metric = self.strategy_metric
-        strategy_metric["confusion_matrix"] = plot_confusion_matrix(
-            strategy_metric["confusion_matrix"], self.class_dict
-        )
-        self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
-        return strategy_metric
-
 
 class StrategyRandom(BaseStrategy):
     """ randomly selected a patch, or batch of patches
@@ -360,21 +341,150 @@ class StrategyRandom(BaseStrategy):
     loss_fn (string): loss metric
     """
 
-    def __init__(self, loss_fn):
-        super().__init__(loss_fn)
+    def __init__(self, loss_fn, class_dict):
+        super().__init__(loss_fn, class_dict)
 
     def rearrange(self):
         pass
 
     def get_next_batch(self, batch_size=1):
+        """ returns a random set of patches
+
+        Args:
+        batch_size (int): number of patches to return
+        """
+
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
-        # rand_indices = np.random.randint(len(self.patched_data), size = )
+        rand_indices = np.random.randint(len(self.patched_data), size=batch_size)
+        return_patch_set = [block for loss, block in self.patched_data[rand_indices]]
+        self.patched_data.clear()
+        return return_patch_set
 
 
 class Strategy3(BaseStrategy):
-    def __init__():
-        super().__init__()
+    def __init__(self, loss_fn, class_dict):
+        super().__init__(loss_fn, class_dict)
 
 
-strategies = {"strategy1": Strategy1, "strategyrandom": StrategyRandom, "strategy3": Strategy3}
+class ClassWiseLoss(BaseStrategy):
+    """ sorts patches according to classes with highest loss, patches with maximum 
+    instances of this class are fed first
+
+    Args:
+    loss_fn (string): loss function to use
+    class_dict (dictionary): dictionary indicating the mapping between classes and their labels
+    """
+
+    def __init__(self, loss_fn, class_dict):
+        super().__init__(loss_fn, class_dict)
+        self.num_classes = len(self.class_dict)
+        self.class_loss = [0] * self.num_classes
+        self.image_class_count = np.zeros((1, self.num_classes + 1)).astype(np.int32)
+        self.image_counter = 1
+        self.image_id = dict()
+
+    def update_state(self, pred_output, target, block):
+        """ 
+        1. calculate loss for given prediction and label
+        2. map each image with a corresponding ID
+
+        Args:
+        pred_output (numpy.ndarray): prediction
+        target (numpy.ndarray): actual label
+        block (tuple[slice]): tuple of slice objects, one per dimension, specifying the patch in the actual image
+        """
+
+        criterion_class = getattr(nn, self.loss_fn, None)
+        assert criterion_class is not None, "Criterion {} not found.".format(method)
+        criterion_class_obj = criterion_class(reduction=None)
+
+        # pred_output = pred_output.flatten().round().astype(np.int32)
+        # target = target.flatten().round().astype(np.int32)
+        if len(self.class_dict) > 2:
+            one_hot_target = np.expand_dims(integer_to_onehot(target), axis=0)
+        else:
+            one_hot_target = np.expand_dims(target, axis=0)
+
+        pred_output = np.expand_dims(pred_output, axis=0)
+
+        np.vstack([self.image_class_count, np.zeros((1, self.num_classes + 1))])
+        self.image_class_count[-1][0] = self.image_counter
+        self.image_id[self.image_counter] = block
+        self.image_counter += 1
+        indices = [0] * (len(self.pred_output.shape))
+        self.record_classes(0, target)
+        self.loss_matrix = criterion_class_obj(torch.from_numpy(one_hot_target), torch.from_numpy(pred_output))
+        record_class_loss(2, indices, len(self.loss_matrix.shape))
+        curr_total_loss = torch.sum(self.loss_matrix)
+        super().write_metric(
+            pred_output.flatten().round().astype(np.int32), target.flatten().round().astype(np.int32), curr_total_loss
+        )
+
+    def record_classes(self, curr_dim, label, indices):
+        """ record the number of occurences of each class in a patch
+
+        Args:
+        curr_dim (int): current dimension to index
+        label (numpy.ndarray): target label
+        indices (list): list of variables each representing the current state of index for the n dimension
+        """
+
+        if curr_dim + 1 == len(label.shape):
+            for i in range(label.shape[curr_dim]):
+                indices[curr_dim] = i
+                self.image_class_count[-1][label[tuple(indices)]] += 1
+            return
+
+        for i in range(label.shape[curr_dim]):
+            indices[curr_dim] = i
+            record_classes(curr_dim + 1, label, indices)
+
+    def record_class_loss(self, curr_dim, indices, n):
+        """ record the loss class wise for the given image
+
+        Args:
+        curr_dim (int): current dimension to index
+        indices (list): list of variables each representing the current state of index for the n dimension
+        n (int): number of dimensions in the loss matrix
+        """
+
+        if curr_dim + 1 == n:
+            for i in range(self.pred_output.shape[curr_dim]):
+                indices[curr_dim] = i
+                index = indices
+                index[1] = slice(self.image_class_count)
+                index = tuple(index)
+                curr_losses = self.loss_matrix[index]
+                for i in len(curr_losses):
+                    self.class_loss[i] += curr_losses[i]
+
+            return
+
+        for i in range(self.pred_output.shape[curr_dim]):
+            indices[curr_dim] = i
+            record_class_loss(curr_dim + 1, indices, n)
+
+    def rearrange(self):
+        """ rearrange the rows of the image_class_count matrix wrt to the class (column) with the highest loss
+        """
+        self.image_class_count[self.image_class_count[:, np.argmax(self.class_loss)].argsort()[::-1]]
+
+    def get_next_batch(self, batch_size=1):
+        return_block_set = [
+            self.image_id[image_number]
+            for image_number in [image_number for image_number in self.image_class_count[:batch_size, 0]]
+        ]
+        self.class_loss = [0] * self.num_classes
+        self.image_class_count = np.zeros((1, self.num_classes + 1)).astype(np.int32)
+        self.image_counter = 1
+        self.image_id.clear()
+        return return_block_set
+
+
+strategies = {
+    "strategy1": Strategy1,
+    "strategyrandom": StrategyRandom,
+    "strategy3": Strategy3,
+    "classwiseloss": ClassWiseLoss,
+}
