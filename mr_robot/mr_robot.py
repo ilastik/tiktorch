@@ -23,6 +23,20 @@ img_dim = 32
 batch_size = 1
 
 
+def get_coordinate(block):
+    """ return the starting co-ordinate of a block
+
+    Args:
+    block(tuple): tuple of slice objects, one per dimension
+    """
+
+    coordinate = []
+    for slice_ in block:
+        coordinate.append(slice_.start)
+
+    return tuple(coordinate)
+
+
 class MrRobot:
     """ The robot class runs predictins on the model, and feeds the
     worst performing patch back for training. The order in which patches
@@ -49,7 +63,7 @@ class MrRobot:
             self.labelled_data_file = h5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
         else:
             self.raw_data_file = z5py.File(self.base_config["data_dir"]["raw_data_base_folder"])
-            self.labelled_data_file = h5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
+            self.labelled_data_file = z5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
 
         image_shape = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]].shape
         print(image_shape)
@@ -172,33 +186,45 @@ class MrRobot:
             # file_writer.flush()
 
             block_batch = self.strategy.get_next_batch(batch_size)
-            # self.tensorboard_writer.add_image("added image", self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][block_batch[0]])
-            self._add(block_batch)
-            self.remove_key(block_batch)
+
+            if len(block_batch[0]) == 3:
+                self._add(None, block_batch)
+                self.remove_key(None, block_batch)
+
+            else:
+                self._add(block_batch)
+                self.remove_key(block_batch)
 
             self._resume()
 
         self.terminate()
 
-    def _add(self, new_block_batch):
+    def _add(self, new_block_batch=None, new_data_batch=None):
         """ add a new batch of images to training data
 
         Args:
         new_block_batch (list): list of tuples, where each tuple is 
         a slicer corresponding to a block
         """
+        assert new_block_batch is not None or new_data_batch is not None, "No data provided!"
 
         new_inputs, new_labels = [], []
-        for i in range(len(new_block_batch)):
+        if new_data_batch is not None:
+            for image, label, block_id in new_data_batch:
+                new_inputs.append(NDArray(image.astype(np.float), block_id))
+                new_labels.append(NDArray(label.astype(np.float), block_id))
 
-            new_block = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][new_block_batch[i]]
-            new_label = self.labelled_data_file[self.base_config["data_dir"]["path_to_labelled"]][new_block_batch[i]]
+        else:
+            for i in range(len(new_block_batch)):
 
-            new_inputs.append(NDArray(new_block.astype(float), self.get_coordinate(new_block_batch[i])))
-            new_labels.append(NDArray(new_label.astype(float), self.get_coordinate(new_block_batch[i])))
+                new_block = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][new_block_batch[i]]
+                new_label = self.labelled_data_file[self.base_config["data_dir"]["path_to_labelled"]][
+                    new_block_batch[i]
+                ]
 
-        # new_input = NDArray(self.data_file["path_to_raw_data"][block].astype(float), (block[0].start))
-        # new_label = NDArray(self.data_file[self.base_config["path_to_labelled"]][block].astype(float), (block[0].start))
+                new_inputs.append(NDArray(new_block.astype(float), get_coordinate(new_block_batch[i])))
+                new_labels.append(NDArray(new_label.astype(float), get_coordinate(new_block_batch[i])))
+
         self.new_server.update_training_data(NDArrayBatch(new_inputs), NDArrayBatch(new_labels))
 
     def write_to_tensorboard(self):
@@ -212,27 +238,19 @@ class MrRobot:
             "confusion_matrix", metric_data["confusion_matrix"], global_step=self.iterations_done
         )
 
-    def get_coordinate(self, block):
-        """ return the starting co-ordinate of a block
-
-        Args:
-        block(tuple): tuple of slice objects, one per dimension
-        """
-
-        coordinate = []
-        for slice_ in block:
-            coordinate.append(slice_.start)
-
-        return tuple(coordinate)
-
     def assign_id(self, block, index):
-        coordinate = self.get_coordinate(block)
+        coordinate = get_coordinate(block)
         self.patch_id[coordinate] = index
 
-    def remove_key(self, block_batch):
-        for block in block_batch:
-            coordinate = self.get_coordinate(block)
-            self.patch_id.pop(coordinate)
+    def remove_key(self, block_batch=None, data_batch=None):
+
+        if data_batch is not None:
+            for image, label, block_id in data_batch:
+                self.patch_id.pop(block_id)
+        else:
+            for block in block_batch:
+                coordinate = get_coordinate(block)
+                self.patch_id.pop(coordinate)
 
     # annotate worst patch
     def dense_annotate(self, x, y, label, image):
@@ -306,7 +324,8 @@ class Strategy1(BaseStrategy):
     """ This strategy sorts the patches in descending order of their loss
 
     Args:
-    path_to_config_file (string): path to the configuration file for the robot
+    loss_fn (string): loss metric to be used
+    class_dict (dictionary): dictionary indicating the mapping between classes and their labels
     """
 
     def __init__(self, loss_fn, class_dict):
@@ -339,6 +358,7 @@ class StrategyRandom(BaseStrategy):
 
     Args:
     loss_fn (string): loss metric
+    class_dict (dictionary): dictionary indicating the mapping between classes and their labels
     """
 
     def __init__(self, loss_fn, class_dict):
@@ -362,14 +382,105 @@ class StrategyRandom(BaseStrategy):
         return return_patch_set
 
 
-class Strategy3(BaseStrategy):
-    def __init__(self, loss_fn, class_dict):
+class RandomSparseAnnotate(Strategy1):
+    """ randomly annotate pixels in the labels.
+    This emulates a user who randomly annotates pixels evenly spread across the entire image
+
+    Args:
+    loss_fn (string): loss metric
+    class_dict (dictionanry): dictionary indicating the mapping between classes and their labels
+    raw_data_file (h5py/z5py.File): pointer to base folder containing raw images
+    labelled_data_file (h5py/z5py.File): pointer to base folder containing labelled images
+    paths (dictionary): path inside base folders to raw images and their labels
+    """
+
+    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths):
         super().__init__(loss_fn, class_dict)
+        self.raw_data_file = raw_data_file
+        self.labelled_data_file = labelled_data_file
+        self.paths = paths
+
+    def update_state(self, pred_output, target, block):
+        super().update_state(pred_output, target, block)
+        self.block_shape = target.shape
+
+    def get_random_index(self):
+        random_index = []
+        for i in range(len(self.block_shape)):
+            random_index.append(np.random.randint(0, self.block_shape[i]))
+
+        return tuple(random_index)
+
+    def get_next_batch(self, batch_size=1):
+        assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
+
+        return_block_set = [block for loss, block in self.patched_data[:batch_size]]
+        return_data_set = []
+        for block in return_block_set:
+            image, label = (
+                self.raw_data_file[self.paths["path_to_raw_data"]][block],
+                self.labelled_data_file[self.paths["path_to_labelled"]][block],
+            )
+            x = np.random.randint(0, np.product(self.block_shape))
+            for i in range(x):
+                label[self.get_random_index()] = -1
+            return_data_set.append((image, label, get_coordinate(block)))
+
+        return return_data_set
+
+
+class DenseSparseAnnotate(RandomSparseAnnotate):
+    """ sparsely annotate dense patches of labels.
+    This emulates a user who randomly annotates small patches sparsely spread across the entire image
+
+    Args:
+    loss_fn (string): loss metric
+    class_dict (dictionanry): dictionary indicating the mapping between classes and their labels
+    raw_data_file (file pointer): pointer to base folder containing raw images
+    labelled_data_file (): pointer to base folder containing labelled images
+    paths (dictionary): path inside base folders to raw images and their labels
+    """
+
+    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths):
+        super().__init__(loss_fn, class_dict, raw_data_file, labelled_data_file, paths)
+
+    def get_random_patch(self):
+        rand_index = super().get_random_index()
+        patch_dimension = []
+        for i in range(len(self.block_shape)):
+            patch_dimension.append(np.random.randint(0, self.block_shape[i] - rand_index[i]))
+
+        block = []
+        for i in range(len(patch_dimension)):
+            block.append(slice(rand_index[i], rand_index[i] + patch_dimension[i]))
+        return tuple(block)
+
+    def get_next_batch(self, batch_size=1):
+        assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
+
+        return_block_set = [block for loss, block in self.patched_data[:batch_size]]
+        return_data_set = []
+        for block in return_block_set:
+            image, label = (
+                self.raw_data_file[self.paths["path_to_raw_data"]][block],
+                self.labelled_data_file[self.paths["path_to_labelled"]][block],
+            )
+            x, sparse_label = np.random.randint(0, np.product(self.block_shape)), np.full(label.shape, -1)
+            for i in range(x):
+                block = get_random_patch()
+                sparse_label[block] = label[block]
+
+            return_data_set.append((image, sparse_label, get_coordinate(block)))
+
+        return return_data_set
 
 
 class ClassWiseLoss(BaseStrategy):
     """ sorts patches according to classes with highest loss, patches with maximum 
     instances of this class are fed first
+    Assumptions:
+    1. model output for multiclass claissfication will always be one hot encoded
+    2. class labels are annotated using 1 based indexing
 
     Args:
     loss_fn (string): loss function to use
