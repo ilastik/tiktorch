@@ -10,7 +10,7 @@ package:
    {{tagged_version}}
 
 source:
-  path: ..
+  path: ../
 
 build:
   number: 1
@@ -27,10 +27,7 @@ requirements:
     - numpy {{ numpy }}*
     - pyyaml
     - paramiko
-    - scipy
-    - tensorboardX
-    - tifffile {{ tifffile }}*
-    - tqdm
+    - pyzmq
     - zeromq
 
     {% if not "client" in package_name %}

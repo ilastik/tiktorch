@@ -2,12 +2,10 @@ numpy:
   - 1.12
 python:
   - 3.6
-tifffile:
-  - 0.4.post2
 package_name:
   - tiktorch
   - tiktorch-client
 pytorch_version:
   - 1.0
 inferno_version:
-  - 0.3
+  - 0.3.3

@@ -25,8 +25,8 @@ setup(
         "Programming Language :: Python :: 3.7",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
-    install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "pyzmq", "h5py", "torch"],
-    extras_require={"test": ["pytest"]},
+    install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "pyzmq", "torch"],
+    # extras_require={"test": ["pytest"]},
     project_urls={  # Optional
         "Bug Reports": "https://github.com/ilastik/tiktorch/issues",
         "Source": "https://github.com/ilastik/tiktorch/",
