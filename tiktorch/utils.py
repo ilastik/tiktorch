@@ -4,7 +4,6 @@ import logging
 from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
 from tiktorch.types import Point, SetDeviceReturnType
 from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
-from tiktorch import tobeimported
 
 from typing import Callable, Union, Tuple, List
 

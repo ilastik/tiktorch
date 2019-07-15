@@ -5,6 +5,8 @@ from inferno.io.transform import (
     volume as volume_transforms,
 )
 
+from . import tobeimported
+
 
 def get_transform(name: str, **transform_kwargs) -> Transform:
     for module in [generic_transforms, image_transforms, volume_transforms, tobeimported]:
