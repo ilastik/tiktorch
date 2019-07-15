@@ -1,5 +1,6 @@
 import unittest
-from tiktorch.build_spec import TikTorchSpec, BuildSpec
+
+from tiktorch.build_spec import BuildSpec, TikTorchSpec
 
 
 class BuildSpecTest(unittest.TestCase):

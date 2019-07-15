@@ -1,9 +1,7 @@
-from inferno.io.transform import (
-    Transform,
-    generic as generic_transforms,
-    image as image_transforms,
-    volume as volume_transforms,
-)
+from inferno.io.transform import Transform
+from inferno.io.transform import generic as generic_transforms
+from inferno.io.transform import image as image_transforms
+from inferno.io.transform import volume as volume_transforms
 
 from . import tobeimported
 

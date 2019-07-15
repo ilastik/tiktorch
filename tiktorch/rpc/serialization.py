@@ -1,10 +1,9 @@
-import zmq
-
 from collections import namedtuple
 from logging import getLogger
-from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
-from zmq.utils import jsonapi
+from typing import Any, Callable, Dict, Generic, Iterator, List, Mapping, Type, TypeVar
 
+import zmq
+from zmq.utils import jsonapi
 
 T = TypeVar("T")
 logger = getLogger(__name__)

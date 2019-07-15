@@ -1,11 +1,12 @@
 """Script to train on CREMI"""
 
-from neurofire.datasets.cremi.loaders import get_cremi_loaders
-from inferno.trainers.basic import Trainer
-from inferno.trainers.callbacks.logging.tensorboard import TensorboardLogger
-from tiktorch.models.dunet import DUNet
 from os.path import join
 
+from inferno.trainers.basic import Trainer
+from inferno.trainers.callbacks.logging.tensorboard import TensorboardLogger
+
+from neurofire.datasets.cremi.loaders import get_cremi_loaders
+from tiktorch.models.dunet import DUNet
 
 # Parameters
 PROJECT_DIRECTORY = "/export/home/nrahaman/Python/Repositories/tiktorch/projects/DUNET-0"

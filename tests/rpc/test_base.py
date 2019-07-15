@@ -1,24 +1,27 @@
-from time import sleep
-from threading import Thread, enumerate as tenum
-from functools import wraps
+import logging
+import logging.config
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
+from threading import Thread
+from threading import enumerate as tenum
+from time import sleep
 
 import pytest
 import zmq
 
 from tiktorch.rpc.base import (
-    serialize_args,
-    deserialize_args,
-    deserialize_return,
-    serialize_return,
-    Server,
     Client,
     RPCFuture,
+    Server,
+    deserialize_args,
+    deserialize_return,
     isfutureret,
+    serialize_args,
+    serialize_return,
 )
 from tiktorch.rpc.connections import InprocConnConf
-from tiktorch.rpc.interface import exposed, RPCInterface, get_exposed_methods
-from tiktorch.rpc.exceptions import Shutdown, Timeout, Canceled, CallException
+from tiktorch.rpc.exceptions import CallException, Canceled, Shutdown, Timeout
+from tiktorch.rpc.interface import RPCInterface, exposed, get_exposed_methods
 
 
 class Iface(RPCInterface):
@@ -51,9 +54,6 @@ class Foo:
     def func_dec(self, data: dict, a: bytes) -> bytes:
         raise NotImplementedError
 
-
-import logging
-import logging.config
 
 logger = logging.getLogger(__name__)
 

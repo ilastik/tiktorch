@@ -1,18 +1,16 @@
-import sys
-import time
 import enum
 import logging
 import subprocess
+import sys
 import threading
-
+import time
 from socket import timeout
 from typing import Optional
 
-from paramiko import SSHClient, AutoAddPolicy
+from paramiko import AutoAddPolicy, SSHClient
 
-from .rpc import Client, Timeout, TCPConnConf, Shutdown
+from .rpc import Client, Shutdown, TCPConnConf, Timeout
 from .rpc_interface import IFlightControl
-
 
 HEARTBEAT_INTERVAL = 10  # seconds
 KILL_TIMEOUT = 60  # seconds

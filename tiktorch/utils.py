@@ -1,11 +1,8 @@
 import logging
+from typing import Callable, List, Tuple, Union
 
-
-from tiktorch.configkeys import CONFIG, MINIMAL_CONFIG
+from tiktorch.configkeys import CONFIG, LOSS_CRITERION_CONFIG, MINIMAL_CONFIG, TRAINING
 from tiktorch.types import Point, SetDeviceReturnType
-from tiktorch.configkeys import TRAINING, LOSS_CRITERION_CONFIG
-
-from typing import Callable, Union, Tuple, List
 
 logger = logging.getLogger()
 

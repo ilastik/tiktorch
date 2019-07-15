@@ -1,16 +1,15 @@
 import os
 import time
-
 from unittest import mock
 
-import pytest
 import numpy as np
+import pytest
 
 from tiktorch.launcher import LocalServerLauncher
-from tiktorch.rpc import Shutdown, TCPConnConf, Shutdown, Client
+from tiktorch.rpc import Client, Shutdown, TCPConnConf
 from tiktorch.rpc_interface import IFlightControl
 from tiktorch.server.base import TikTorchServer, Watchdog
-from tiktorch.types import NDArray, NDArrayBatch, Model, ModelState
+from tiktorch.types import Model, ModelState, NDArray, NDArrayBatch
 
 
 @pytest.fixture

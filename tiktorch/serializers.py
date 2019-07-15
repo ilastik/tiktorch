@@ -1,12 +1,11 @@
 from typing import Iterator, Tuple
 
-import zmq
 import numpy as np
-
+import zmq
 from zmq.utils import jsonapi
 
-from .types import NDArrayBatch, NDArray, SetDeviceReturnType, ModelState, Model
-from .rpc.serialization import ISerializer, FusedFrameIterator, serializer_for
+from .rpc.serialization import FusedFrameIterator, ISerializer, serializer_for
+from .types import Model, ModelState, NDArray, NDArrayBatch, SetDeviceReturnType
 
 
 def _make_ndarray(dtype: str, shape: Tuple[int, ...], id_: Tuple[int, ...], frame: zmq.Frame) -> NDArray:

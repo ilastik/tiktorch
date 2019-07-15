@@ -1,11 +1,11 @@
+from threading import Thread
+
 import pytest
 import zmq
 
-from threading import Thread
-
+from tiktorch.rpc import Client, InprocConnConf, RPCInterface, Server, Shutdown
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
 from tiktorch.server import TikTorchServer
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
 
 

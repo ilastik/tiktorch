@@ -1,7 +1,7 @@
 from typing import List, Tuple, Union
 
-from tiktorch.rpc import RPCInterface, exposed, RPCFuture
-from tiktorch.types import NDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType, ModelState, Model
+from tiktorch.rpc import RPCFuture, RPCInterface, exposed
+from tiktorch.types import LabeledNDArrayBatch, Model, ModelState, NDArray, NDArrayBatch, SetDeviceReturnType
 
 
 class IFlightControl(RPCInterface):

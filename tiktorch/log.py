@@ -1,5 +1,5 @@
-import multiprocessing as mp
 import logging.config
+import multiprocessing as mp
 
 CONFIG = {
     "version": 1,

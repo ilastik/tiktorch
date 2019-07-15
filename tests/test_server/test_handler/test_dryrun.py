@@ -1,11 +1,10 @@
-import torch
 import logging.config
 
-from tiktorch.server.handler.dryrun import DryRunProcess
-
-from tiktorch.configkeys import TRAINING, TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND, TRAINING_SHAPE_LOWER_BOUND
+import torch
 
 from tests.data.tiny_models import TinyConvNet2d
+from tiktorch.configkeys import TRAINING, TRAINING_SHAPE, TRAINING_SHAPE_LOWER_BOUND, TRAINING_SHAPE_UPPER_BOUND
+from tiktorch.server.handler.dryrun import DryRunProcess
 
 
 def test_initialization(tiny_model_2d):

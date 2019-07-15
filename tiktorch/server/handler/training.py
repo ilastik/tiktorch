@@ -1,67 +1,65 @@
 import copy
 import io
-from datetime import datetime
-
-import os
-
 import logging
-import torch.nn, torch.optim
 import multiprocessing as mp
-import time
+import os
 import threading
-
+import time
+from datetime import datetime
 from multiprocessing.connection import Connection
-from torch.utils.data import DataLoader, WeightedRandomSampler
 from typing import (
     Any,
-    List,
-    Generic,
-    Iterator,
-    Iterable,
-    Sequence,
-    TypeVar,
-    Mapping,
     Callable,
     Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
     Optional,
+    Sequence,
     Tuple,
     Type,
+    TypeVar,
 )
 
+import torch.nn
+import torch.optim
+from inferno.extensions import criteria as inferno_criteria
+from inferno.io.transform import Compose, Transform
 from inferno.trainers import Trainer as InfernoTrainer
 from inferno.trainers.callbacks.logging import TensorboardLogger
-from inferno.io.transform import Compose, Transform
 from inferno.utils.exceptions import NotSetError
-from inferno.extensions import criteria as inferno_criteria
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
-from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
-from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
-from tiktorch.rpc.mp import MPServer
-from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch, TikTensorBatch
-from tiktorch.types import ModelState
 from tiktorch import log
 from tiktorch.configkeys import (
-    NAME,
-    TORCH_VERSION,
-    TRAINING,
-    VALIDATION,
     BATCH_SIZE,
-    TRANSFORMS,
-    TRAINING_SHAPE,
-    TRAINING_SHAPE_LOWER_BOUND,
-    TRAINING_SHAPE_UPPER_BOUND,
+    DIRECTORY,
+    LOGGING,
+    LOSS_CRITERION_CONFIG,
+    NAME,
     NUM_ITERATIONS_DONE,
     NUM_ITERATIONS_MAX,
     NUM_ITERATIONS_PER_UPDATE,
-    LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
+    TORCH_VERSION,
+    TRAINING,
     TRAINING_LOSS,
-    LOGGING,
-    DIRECTORY,
+    TRAINING_SHAPE,
+    TRAINING_SHAPE_LOWER_BOUND,
+    TRAINING_SHAPE_UPPER_BOUND,
+    TRANSFORMS,
+    VALIDATION,
 )
+from tiktorch.rpc import RPCFuture, RPCInterface, Shutdown, exposed
+from tiktorch.rpc.mp import MPServer
+from tiktorch.server.utils import get_transform
+from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
+from tiktorch.types import ModelState
+from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 
 from .datasets import DynamicDataset
-from tiktorch.server.utils import get_transform
 
 try:
     # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667

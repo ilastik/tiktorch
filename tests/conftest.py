@@ -1,14 +1,13 @@
-import zipfile
-import pickle
 import faulthandler
-import sys
-import signal
-import threading
-import multiprocessing as mp
 import logging.handlers
-
+import multiprocessing as mp
+import pickle
+import signal
+import sys
+import threading
+import zipfile
 from collections import namedtuple
-from os import path, getenv
+from os import getenv, path
 from random import randint
 
 import pytest

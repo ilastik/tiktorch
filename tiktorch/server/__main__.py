@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 
-from .base import ServerProcess, KILL_TIMEOUT
+from .base import KILL_TIMEOUT, ServerProcess
 
 logger = logging.getLogger(__name__)
 

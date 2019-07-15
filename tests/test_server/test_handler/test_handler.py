@@ -1,14 +1,13 @@
 import numpy
 import pytest
 import torch
-
 from torch import multiprocessing as mp
 
-from tiktorch.rpc.mp import create_client, Shutdown
-
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch.server.handler.handler import HandlerProcess, IHandler, run as run_handler
 from tiktorch.configkeys import TRAINING, TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND
+from tiktorch.rpc.mp import Shutdown, create_client
+from tiktorch.server.handler.handler import HandlerProcess, IHandler
+from tiktorch.server.handler.handler import run as run_handler
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
 @pytest.fixture

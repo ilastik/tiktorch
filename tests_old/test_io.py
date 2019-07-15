@@ -1,11 +1,12 @@
-from tiktorch.wrapper import TikTorch
-from tiktorch.utils import WannabeConvNet3D, TinyConvNet3D
-import torch
 import contextlib
-import tempfile
 import shutil
-
+import tempfile
 from unittest import TestCase
+
+import torch
+
+from tiktorch.utils import TinyConvNet3D, WannabeConvNet3D
+from tiktorch.wrapper import TikTorch
 
 
 @contextlib.contextmanager

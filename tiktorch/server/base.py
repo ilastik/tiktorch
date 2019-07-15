@@ -1,36 +1,35 @@
 import argparse
-
 import logging
-import threading
 import logging.handlers
+import os
+import threading
+import time
+from datetime import datetime
+from typing import Generator, Iterable, List, Optional, Tuple, Union
+
 import numpy
 import torch
-import time
-import os
-
-from datetime import datetime
-from torch import multiprocessing as mp
-from typing import Optional, List, Tuple, Generator, Iterable, Union
-
 from inferno.io.transform import Compose
+from torch import multiprocessing as mp
 
-from tiktorch.rpc import Client, Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.configkeys import DIRECTORY, LOGGING, TESTING, TRANSFORMS
+from tiktorch.rpc import Client, RPCFuture, Server, Shutdown, TCPConnConf
 from tiktorch.rpc.mp import MPClient, create_client
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
+from tiktorch.tiktypes import LabeledTikTensor, LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import (
-    NDArray,
     LabeledNDArray,
-    NDArrayBatch,
     LabeledNDArrayBatch,
-    SetDeviceReturnType,
-    ModelState,
     Model,
+    ModelState,
+    NDArray,
+    NDArrayBatch,
+    SetDeviceReturnType,
 )
-from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config
 
-from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
-from .handler import IHandler, run as run_handler
+from .handler import IHandler
+from .handler import run as run_handler
 from .utils import get_transform
 
 mp.set_start_method("spawn", force=True)
