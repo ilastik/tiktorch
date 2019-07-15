@@ -61,7 +61,7 @@ from tiktorch.configkeys import (
 )
 
 from .datasets import DynamicDataset
-from .utils import get_transform
+from tiktorch.server.utils import get_transform
 
 try:
     # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
