@@ -27,10 +27,11 @@ from tiktorch.types import (
 )
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config, get_transform
+from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config
 
 from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
 from .handler import IHandler, run as run_handler
+from .utils import get_transform
 
 mp.set_start_method("spawn", force=True)
 

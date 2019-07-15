@@ -34,7 +34,7 @@ from inferno.io.transform import Compose, Transform
 from inferno.utils.exceptions import NotSetError
 from inferno.extensions import criteria as inferno_criteria
 
-from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_transform
+from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, LabeledTikTensorBatch, TikTensorBatch
@@ -61,6 +61,7 @@ from tiktorch.configkeys import (
 )
 
 from .datasets import DynamicDataset
+from .utils import get_transform
 
 try:
     # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
