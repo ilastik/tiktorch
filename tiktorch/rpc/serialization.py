@@ -244,3 +244,15 @@ class BoolSerializer(ISerializer[bool]):
     def deserialize(cls, frames: FusedFrameIterator) -> bool:
         frame = next(frames)
         return bool(frame.bytes)
+
+
+@serializer_for(float, tag=b"float")
+class BoolSerializer(ISerializer[bool]):
+    @classmethod
+    def serialize(cls, obj: float) -> Iterator[zmq.Frame]:
+        yield jsonapi.dumps(obj)
+
+    @classmethod
+    def deserialize(cls, frames: FusedFrameIterator) -> bool:
+        frame = next(frames)
+        return jsonapi.loads(frame.bytes)

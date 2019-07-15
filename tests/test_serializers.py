@@ -28,7 +28,14 @@ def test_set_devices_return_serialization_deserialization():
 
 def test_model_state_serializer():
     s = ser.ModelStateSerializer()
-    state = types.ModelState(2.3, 12, b"model_state", b"opt_state", 10, 12)
+    state = types.ModelState(
+        loss=2.3,
+        epoch=12,
+        model_state=b"model_state",
+        optimizer_state=b"opt_state",
+        num_iterations_done=10,
+        num_iterations_max=12,
+    )
     serialized = s.serialize(state)
     deserialized = s.deserialize(iter(serialized))
     assert state == deserialized
