@@ -9,7 +9,7 @@ import numpy as np
 from tiktorch.launcher import LocalServerLauncher
 from tiktorch.rpc import Shutdown, TCPConnConf, Shutdown, Client
 from tiktorch.rpc_interface import IFlightControl
-from tiktorch.server import TikTorchServer, Watchdog
+from tiktorch.server.base import TikTorchServer, Watchdog
 from tiktorch.types import NDArray, NDArrayBatch, Model, ModelState
 
 

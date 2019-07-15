@@ -21,11 +21,12 @@ from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
 from tiktorch.types import Point, ModelState
 from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
 from tiktorch.configkeys import TRAINING, VALIDATION, MODEL_CLASS_NAME, MODEL_INIT_KWARGS
-from tiktorch.handler.training import run as run_training, ITraining
-from tiktorch.handler.inference import run as run_inference, IInference
-from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 from tiktorch import log
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_error_msg_for_incomplete_config
+
+from .training import run as run_training, ITraining
+from .inference import run as run_inference, IInference
+from .dryrun import run as run_dryrun, IDryRun
 
 from tiktorch.configkeys import (
     NAME,

@@ -2,7 +2,7 @@ import torch
 
 from torch import multiprocessing as mp
 
-from tiktorch.handler.inference import IInference, InferenceProcess, run
+from tiktorch.server.handler.inference import IInference, InferenceProcess, run
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.rpc.mp import create_client, MPClient, Shutdown
 

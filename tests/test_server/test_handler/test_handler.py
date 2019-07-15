@@ -7,7 +7,7 @@ from torch import multiprocessing as mp
 from tiktorch.rpc.mp import create_client, Shutdown
 
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch.handler.handler import HandlerProcess, IHandler, run as run_handler
+from tiktorch.server.handler.handler import HandlerProcess, IHandler, run as run_handler
 from tiktorch.configkeys import TRAINING, TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND
 
 

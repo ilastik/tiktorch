@@ -23,7 +23,7 @@ CONFIG = {
         "concurrent.futures": {"handlers": ["default"], "level": "ERROR", "propagate": False},
         "tiktorch": {"handlers": ["default"], "level": "DEBUG", "propagate": False},
         "tiktorch.rpc": {"handlers": ["default"], "level": "WARNING", "propagate": False},
-        "tiktorch.handler": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "tiktorch.server.handler": {"handlers": ["default"], "level": "INFO", "propagate": False},
     },
 }
 logging.config.dictConfig(CONFIG)

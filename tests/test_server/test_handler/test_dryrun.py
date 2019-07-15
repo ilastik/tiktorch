@@ -1,7 +1,7 @@
 import torch
 import logging.config
 
-from tiktorch.handler.dryrun import DryRunProcess
+from tiktorch.server.handler.dryrun import DryRunProcess
 
 from tiktorch.configkeys import TRAINING, TRAINING_SHAPE, TRAINING_SHAPE_UPPER_BOUND, TRAINING_SHAPE_LOWER_BOUND
 

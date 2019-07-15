@@ -1,7 +1,7 @@
 import torch
 from torch import multiprocessing as mp
 
-from tiktorch.handler.training import ITraining, TrainingProcess, run
+from tiktorch.server.handler.training import ITraining, TrainingProcess, run
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch.rpc.mp import MPClient, create_client, Shutdown
 

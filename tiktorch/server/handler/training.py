@@ -60,7 +60,7 @@ from tiktorch.configkeys import (
     DIRECTORY,
 )
 
-from tiktorch.handler.datasets import DynamicDataset
+from .datasets import DynamicDataset
 
 try:
     # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
