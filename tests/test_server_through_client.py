@@ -59,7 +59,7 @@ def test_tiktorch_server_ping(srv, client_control):
 
 
 def test_load_model(srv, client, nn_sample):
-    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    client.load_model(nn_sample.model, nn_sample.state, [])
     assert "Handler" in client.active_children()
 
 
@@ -71,7 +71,7 @@ def test_forward_pass(datadir, srv, client, nn_sample):
     out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
     out_arr.shape = (1, 320, 320)
 
-    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    client.load_model(nn_sample.model, nn_sample.state, [])
 
     fut = client.forward(NDArray(input_arr))
     res = fut.result(timeout=40)

@@ -32,3 +32,11 @@ def test_model_state_serializer():
     serialized = s.serialize(state)
     deserialized = s.deserialize(iter(serialized))
     assert state == deserialized
+
+
+def test_model_serializer():
+    s = ser.ModelSerializer()
+    model = types.Model(code=b"import os", config={"val1": 10})
+    serialized = s.serialize(model)
+    deserialized = s.deserialize(iter(serialized))
+    assert model == deserialized
