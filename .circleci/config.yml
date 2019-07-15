@@ -43,6 +43,13 @@ jobs:
             black --check ./
 
       - run:
+          name: run isort
+          command: |
+            . /opt/conda/etc/profile.d/conda.sh
+            conda activate "${TEST_ENV_NAME}"
+            isort --check --conda-env /opt/conda/envs/tiktorch-server-env ./
+
+      - run:
           name: run tests
           command: |
             . /opt/conda/etc/profile.d/conda.sh
