@@ -1,11 +1,11 @@
 numpy:
-  - 1.12
+  - 1.14
 python:
-  - 3.6
+  - 3.7
 package_name:
   - tiktorch
   - tiktorch-client
 pytorch_version:
   - 1.0
 inferno_version:
-  - 0.3.3
+  - v0.4

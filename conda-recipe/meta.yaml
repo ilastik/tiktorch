@@ -24,6 +24,7 @@ requirements:
     - python {{ python }}
   run:
     - h5py
+    - python {{ python }}*
     - numpy {{ numpy }}*
     - pyyaml
     - paramiko
@@ -31,8 +32,8 @@ requirements:
     - zeromq
 
     {% if not "client" in package_name %}
-    - inferno {{ inferno_version }}*
     - pytorch {{ pytorch_version }}*
+    - inferno {{ inferno_version }}*
     {% endif %}
 
 
