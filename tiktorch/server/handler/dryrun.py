@@ -1,59 +1,54 @@
-import warnings
-
+import bisect
 import logging
 import logging.config
-import torch
-import traceback
-import numpy
-import bisect
 import queue
 import threading
 import traceback
-
-from concurrent.futures import ThreadPoolExecutor, Future
+import warnings
+from concurrent.futures import Future, ThreadPoolExecutor
 from multiprocessing.connection import Connection
-from torch import multiprocessing as mp
-
-from torch.multiprocessing import Process, Pipe, Queue
-from tiktorch import log
-from inferno.extensions import criteria
-
 from typing import (
     Any,
-    List,
-    Generic,
-    Iterator,
-    Iterable,
-    Sequence,
-    TypeVar,
-    Mapping,
     Callable,
     Dict,
-    Optional,
-    Tuple,
-    Union,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
     NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
 )
 
-from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
-from tiktorch.rpc.mp import MPServer
-from tiktorch.utils import add_logger
-from tiktorch.types import Point
+import numpy
+import torch
+from inferno.extensions import criteria
+from torch import multiprocessing as mp
+from torch.multiprocessing import Pipe, Process, Queue
 
+from tiktorch import log
 from tiktorch.configkeys import (
-    TRAINING,
     BATCH_SIZE,
+    DRY_RUN,
+    LOSS_CRITERION_CONFIG,
+    NUM_ITERATIONS_DONE,
+    NUM_ITERATIONS_PER_UPDATE,
+    OPTIMIZER_CONFIG,
+    SHRINKAGE,
+    SKIP,
+    TRAINING,
     TRAINING_SHAPE,
     TRAINING_SHAPE_LOWER_BOUND,
     TRAINING_SHAPE_UPPER_BOUND,
-    NUM_ITERATIONS_DONE,
-    NUM_ITERATIONS_PER_UPDATE,
-    LOSS_CRITERION_CONFIG,
-    OPTIMIZER_CONFIG,
-    DRY_RUN,
-    SHRINKAGE,
-    SKIP,
 )
+from tiktorch.rpc import RPCFuture, RPCInterface, Shutdown, exposed
+from tiktorch.rpc.mp import MPServer
+from tiktorch.types import Point
+from tiktorch.utils import add_logger
 
 
 def ret_through_conn(*args, fn: Callable, send_conn: Connection, **kwargs) -> None:

@@ -1,22 +1,20 @@
+import enum
 import inspect
 import logging
 import queue
 import threading
-import enum
-
-from functools import partial
 from concurrent.futures import Future
+from functools import partial
+from typing import Any, Callable, Dict, Generic, Iterator, List, Mapping, Optional, Set, Tuple, TypeVar
 from uuid import uuid4
-from typing import Any, List, Generic, Iterator, TypeVar, Mapping, Callable, Dict, Optional, Tuple, Set
 
 import zmq
 
-from .interface import RPCInterface, get_exposed_methods
-from .serialization import serialize, deserialize
 from .connections import IConnConf
-from .exceptions import Timeout, Shutdown, Canceled, CallException
+from .exceptions import CallException, Canceled, Shutdown, Timeout
+from .interface import RPCInterface, get_exposed_methods
+from .serialization import deserialize, serialize
 from .types import RPCFuture, isfutureret
-
 
 logger = logging.getLogger(__name__)
 

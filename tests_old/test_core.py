@@ -1,9 +1,10 @@
+from unittest import TestCase
+
 import numpy as np
 import torch
-from tiktorch.wrapper import TikTorch
-from tiktorch.utils import TinyConvNet3D
 
-from unittest import TestCase
+from tiktorch.utils import TinyConvNet3D
+from tiktorch.wrapper import TikTorch
 
 
 class CoreTest(TestCase):

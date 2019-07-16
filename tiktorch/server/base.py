@@ -1,36 +1,36 @@
 import argparse
-
 import logging
-import threading
 import logging.handlers
+import os
+import threading
+import time
+from datetime import datetime
+from typing import Generator, Iterable, List, Optional, Tuple, Union
+
 import numpy
 import torch
-import time
-import os
-
-from datetime import datetime
-from torch import multiprocessing as mp
-from typing import Optional, List, Tuple, Generator, Iterable, Union
-
 from inferno.io.transform import Compose
+from torch import multiprocessing as mp
 
-from tiktorch.rpc import Client, Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.configkeys import DIRECTORY, LOGGING, TESTING, TRANSFORMS
+from tiktorch.rpc import Client, RPCFuture, Server, Shutdown, TCPConnConf
 from tiktorch.rpc.mp import MPClient, create_client
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
+from tiktorch.tiktypes import LabeledTikTensor, LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import (
-    NDArray,
     LabeledNDArray,
-    NDArrayBatch,
     LabeledNDArrayBatch,
-    SetDeviceReturnType,
-    ModelState,
     Model,
+    ModelState,
+    NDArray,
+    NDArrayBatch,
+    SetDeviceReturnType,
 )
-from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
-from tiktorch.handler import IHandler, run as run_handler
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config, get_transform
+from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config
 
-from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
+from .handler import IHandler
+from .handler import run as run_handler
+from .utils import get_transform
 
 mp.set_start_method("spawn", force=True)
 
@@ -281,31 +281,4 @@ class ServerProcess:
         watchdog = Watchdog(client, self._kill_timeout)
         watchdog.start()
 
-        srv.listen()
-
-
-if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
-
-    # Output pid for process tracking
-    print(os.getpid(), flush=True)
-
-    parsey = argparse.ArgumentParser()
-    parsey.add_argument("--addr", type=str, default="127.0.0.1")
-    parsey.add_argument("--port", type=str, default="29500")
-    parsey.add_argument("--notify-port", type=str, default="29501")
-    parsey.add_argument("--debug", action="store_true")
-    parsey.add_argument("--dummy", action="store_true")
-    parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
-
-    args = parsey.parse_args()
-    logger.info("Starting server on %s:%s", args.addr, args.port)
-
-    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout)
-
-    if args.dummy:
-        from tiktorch.dev.dummy_server import DummyServerForFrontendDev
-
-        srv.listen(provider_cls=DummyServerForFrontendDev)
-    else:
         srv.listen()

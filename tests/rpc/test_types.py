@@ -1,5 +1,5 @@
+from concurrent.futures import CancelledError, Future
 from typing import Any
-from concurrent.futures import Future, CancelledError
 
 import pytest
 

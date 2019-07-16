@@ -1,10 +1,10 @@
+import logging
 import os
 import shutil
-import logging
 from importlib import util as imputils
 
-import yaml
 import torch
+import yaml
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("BuildSpec")

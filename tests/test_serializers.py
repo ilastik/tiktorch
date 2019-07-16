@@ -1,10 +1,9 @@
 import numpy as np
 import zmq
 
-
 from tiktorch import serializers as ser
-from tiktorch.rpc import serialize, deserialize
 from tiktorch import types
+from tiktorch.rpc import deserialize, serialize
 
 
 def test_ndarray_serializer():

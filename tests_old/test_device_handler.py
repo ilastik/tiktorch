@@ -1,13 +1,14 @@
+import logging
 import os
 import unittest
-import h5py
-import logging
 from importlib import util as imputils
+
+import h5py
 import torch
 import torch.nn as nn
-from tiktorch.device_handler import ModelHandler
+
 from tiktorch.blockinator import Blockinator
-import os
+from tiktorch.device_handler import ModelHandler
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 

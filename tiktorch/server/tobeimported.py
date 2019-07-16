@@ -1,10 +1,7 @@
 import numpy
 import torch
-
-from scipy.ndimage import convolve
-
-
 from inferno.io.transform import Transform
+from scipy.ndimage import convolve
 
 
 # from neurofire:

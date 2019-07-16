@@ -1,12 +1,12 @@
 """
 Types defining interop between client and server
 """
+from dataclasses import dataclass
+from typing import List, NamedTuple, Optional, Sequence, Tuple, Union
+
 # This file should only contain types built on primitives
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)
 import numpy as np
-from dataclasses import dataclass
-
-from typing import List, Tuple, Optional, Union, Sequence, NamedTuple
 
 
 class NDArray:
