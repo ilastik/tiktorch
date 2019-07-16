@@ -1,12 +1,11 @@
 package:
-  name: tiktorch
+  name: tiktorch-client
   {% set tagged_version = GIT_DESCRIBE_TAG|replace("v","")|replace("-", ".") %}
   {% if GIT_DESCRIBE_NUMBER|int != 0 %}
     {% set tagged_version = tagged_version %}
   {% endif %}
 
-  version:
-   {{tagged_version}}
+  version: {{tagged_version}}
 
 source:
   git_url: ../
@@ -22,16 +21,12 @@ requirements:
     - pip
     - python {{ python }}
   run:
-    - h5py
     - python {{ python }}*
     - numpy {{ numpy }}*
     - pyyaml
     - paramiko
     - pyzmq
     - zeromq
-    - pytorch {{ pytorch_version }}*
-    - inferno {{ inferno_version }}*
-
 
 test:
   imports:
