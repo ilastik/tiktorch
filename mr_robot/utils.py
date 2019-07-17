@@ -19,54 +19,6 @@ def make_edges3d(segmentation):
     return (gx ** 2 + gy ** 2 + gz ** 2) > 0
 
 
-"""
-
-def tile_image(arr_shape, block_shape):
-     chops of blocks of given size from an array 
-
-    Args:
-    arr_shape(tuple): size of input array (ndarray)
-    block_shape (tuple): size of block to cut into (ndarray)
-
-    Return type: list(tuple(slice()))- a list of tuples, one per block where each tuple has
-    n slice objects, one per dimension (n: number of dimensions)
-    
-
-    assert len(arr_shape) == len(block_shape), "block shape not compatible with array shape"
-    for i in range(len(arr_shape)):
-        assert arr_shape[i] >= block_shape[i], "block shape not compatible with array shape"
-
-    no_of_blocks = 1
-    for i in range(len(block_shape)):
-        x = int(arr_shape[i] / block_shape[i])
-        if arr_shape[i] % block_shape[i]:
-            x += 1
-        no_of_blocks *= x
-
-    block_list = []
-    for i in range(no_of_blocks):
-        block_list.append([])
-
-    for n in range(len(block_shape)):
-        j = 0
-        for i in range(no_of_blocks):
-
-            if j + block_shape[n] > arr_shape[n]:
-                block_list[i].append((arr_shape[n] - block_shape[n], arr_shape[n]))
-                break
-
-            block_list[i].append((j, j + block_shape[n]))
-            j += block_shape[n]
-
-    for i in range(no_of_blocks):
-        for j in range(len(block_list[i])):
-            block_list[i][j] = slice(block_list[i][j][0], block_list[i][j][1])
-
-        block_list[i] = tuple(block_list[i])
-
-    return block_list
-"""
-
 n = 0
 block_list, idx_list, visited = [], [], {}
 
@@ -112,6 +64,7 @@ def tile_image(arr_shape, block_shape):
     assert len(arr_shape) == len(block_shape), "block shape not compatible with array shape"
     for i in range(len(arr_shape)):
         assert arr_shape[i] >= block_shape[i], "block shape not compatible with array shape"
+        
 
     global n, idx_list, visited
     n = len(arr_shape)

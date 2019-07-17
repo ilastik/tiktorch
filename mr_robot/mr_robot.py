@@ -1,26 +1,96 @@
 import logging
 import zipfile
-import concurrent.futures as cf
 
+import concurrent.futures as cf
 import h5py
 import numpy as np
 import torch
 import torch.nn as nn
 import yaml
 import z5py
+import random
 
-from tensorboardX import SummaryWriter
-from sklearn.metrics import accuracy_score, f1_score
+from scipy import sparse
 from io import BytesIO
+from mr_robot.utils import get_confusion_matrix, integer_to_onehot, plot_confusion_matrix, tile_image
+from sklearn.metrics import accuracy_score, f1_score
+from tensorboardX import SummaryWriter
 
-from tiktorch.server import TikTorchServer
-from tiktorch.types import NDArray, NDArrayBatch
 from tiktorch.models.dunet import DUNet
 from tiktorch.rpc.utils import BatchedExecutor
-from mr_robot.utils import tile_image, get_confusion_matrix, plot_confusion_matrix, integer_to_onehot
+from tiktorch.server import TikTorchServer
+from tiktorch.types import NDArray, NDArrayBatch
 
 img_dim = 32
 batch_size = 1
+
+
+def randomize(label, num_of_classes):
+    """ perform a random action on the label
+    Action:
+    -1: erase label
+    0: retain current state (ignore)
+    x: update label to x, where x is class number
+
+    Args:
+    label (np.ndarray): actual ground truth
+    num_of_classes (int): number of classes in the dataset
+    """
+
+    actions = [-1, 0] + [i for i in range(1, num_of_classes + 1)]
+    volume = np.product(label.shape)
+    x = np.random.randint(0, volume)
+    while x:
+        index = get_random_index(label.shape)
+        label[index] = random.choice(actions)
+        x -= 1
+
+    return label
+
+
+def user_simulator(raw_data_file, label_data_file, internal_paths, canvas_shape, num_of_classes):
+    """ mimic user annotation process by randomly taking a patch from the dataset and labelling it
+    labels can be added, updated or deleted
+
+    Args:
+    raw_data_file(file pointer): pointer to folder containing raw data
+    lab_data_file(file pointer): pointer to folder containing labelled data
+    internal_paths (dictionary): paths inside base folders to raw and labelled data file
+    canvas_shape (tuple): shape of canvas
+    num_of_classes (int): number of classes in the dataset
+    """
+
+    timesteps = np.random.randint(0, 100)
+    video = []
+    for i in range(timestep):
+        random_patch = get_random_patch(canvas_shape)
+        image, label = (
+            raw_data_file[internal_paths["path_to_raw_data"]][random_patch],
+            label_data_file[internal_paths["path_to_labelled"]][random_patch],
+        )
+        label = randomize(label, num_of_classes)
+        video.append((image, label, random_patch))
+    return video
+
+
+def get_random_index(canvas_shape):
+    random_index = []
+    for i in range(len(canvas_shape)):
+        random_index.append(np.random.randint(0, canvas_shape[i]))
+
+    return tuple(random_index)
+
+
+def get_random_patch(canvas_shape):
+    rand_index = get_random_index(canvas_shape)
+    patch_dimension = []
+    for i in range(len(canvas_shape)):
+        patch_dimension.append(np.random.randint(0, canvas_shape[i] - rand_index[i]))
+
+    block = []
+    for i in range(len(patch_dimension)):
+        block.append(slice(rand_index[i], rand_index[i] + patch_dimension[i]))
+    return tuple(block)
 
 
 def get_coordinate(block):
@@ -38,10 +108,9 @@ def get_coordinate(block):
 
 
 class MrRobot:
-    """ The robot class runs predictins on the model, and feeds the
-    worst performing patch back for training. The order in which patches
-    are feed back is determined by the 'strategy'. The robot can change
-    strategies as training progresses.
+    """ The robot class runs predictins on the model, and feeds the worst performing patch back for training. 
+    The order in which patches are feed back is determined by the 'strategy'. The robot applies a given strategy, 
+    adds new patches to the training data and logs the metrics to tensorboard
 
     Args:
     path_to_config_file (string): path to the robot configuration file to
@@ -78,7 +147,8 @@ class MrRobot:
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
-        self.tensorboard_writer = SummaryWriter(logdir="/home/psharma/psharma/repos/tiktorch/tests/robot/robo_logs")
+        mr_robot_folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.tensorboard_writer = SummaryWriter(logdir=os.path.join(mr_robot_folder, "tests", "robot", "robo_logs"))
         self.logger = logging.getLogger(__name__)
 
     def _load_model(self):
@@ -105,7 +175,7 @@ class MrRobot:
         # cleaning dictionary before passing to tiktorch
         self.base_config.pop("model_dir")
 
-        self.new_server.load_model(self.base_config, model, binary_state, b"", ["gpu:4"])
+        self.new_server.load_model(self.base_config, model, binary_state, b"", [os.environ["CUDA_VISIBLE_DEVICES"]])
         # self.tensorboard_writer.add_graph(DUNet(1,1),torch.from_numpy(self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][0]) )
         self.logger.info("model loaded")
 
@@ -263,8 +333,6 @@ class MrRobot:
 
 class BaseStrategy:
     def __init__(self, loss_fn, class_dict):
-        # with open(path_to_config_file, mode="r") as f:
-        #    self.base_config=yaml.load(f)
 
         self.patched_data = []
         self.loss_fn = loss_fn
@@ -279,8 +347,8 @@ class BaseStrategy:
         Args:
         predicted_output(np.ndarray) : output predicted by the model
         target(np.ndarray): ground truth
-        loss_fn(string): loss metric
         block(tuple): tuple of slice objects, one per dimension, specifying the corresponding block
+        in the actual image
         """
 
         criterion_class = getattr(nn, self.loss_fn, None)
@@ -320,7 +388,7 @@ class BaseStrategy:
         return strategy_metric
 
 
-class Strategy1(BaseStrategy):
+class HighestLoss(BaseStrategy):
     """ This strategy sorts the patches in descending order of their loss
 
     Args:
@@ -593,9 +661,100 @@ class ClassWiseLoss(BaseStrategy):
         return return_block_set
 
 
+class VideoLabelling(BaseStrategy):
+    """emulates user who randomly annotates/de-annotates/updates various patches at different timestamps
+    The strategy expects a series of operations, which are then performed and added to the canvas (sparse matrix)
+    The canvas state at each time step is added to the training data 
+    """
+
+    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, training_shape):
+        super().__init__(loss_fn, class_dict)
+        self.raw_data_file = raw_data_file
+        self.labelled_data_file = labelled_data_file
+        self.paths = paths
+        self.canvas_shape = self.raw_data_file[self.paths["path_to_raw_data"]].shape
+        self.video = []
+        self.training_shape = training_shape
+
+    def rearrange(self):
+        pass
+
+    def get_next_batch(self):
+        if not self.video:
+            raise ValueError("no more annotations in the video available!")
+        return self.video.pop(0)
+
+    def update_canvas(self, label, block, curr_dim, index_list):
+        """ update the canvas from the received labels
+
+        UPDATE RULE:
+        if label is:
+        -1: erase current label from canvas
+        0: retain previous label on canvas
+        x: update label on canvas, where x is new class label
+
+        Args:
+        label (np.ndarray): label received from user
+        block (tuple): tuple specifying the block in the canvas
+        curr_dim (int): current dimension in the recursion step
+        index_list (list): list of indices specifying the current index of each dimension
+        """
+
+        if curr_dim + 1 == len(label.shape):
+            for i in range(len(label.shape[curr_dim])):
+                index_list[curr_dim] = i
+                index = tuple(index_list)
+                if label[index] == -1:
+                    self.canvas[block][index] = 0
+                elif label[index] != 0:
+                    self.canvas[block][index] = label[index]
+
+            return
+
+        for i in range(len(label.shape[curr_dim])):
+            index_list[curr_dim] = i
+            self.update_canvas(label, block, curr_dim + 1, index_list)
+
+    def paint(self, label, block):
+        """ paints the newly received label onto the canvas
+        """
+
+        index_list = [0] * len(label.shape)
+        self.update_canvas(label, block, curr_dim, index_list)
+
+    def process_video(self):
+        """ take the series of annotations performed by the user and resize them to trainable shape
+        """
+
+        self.canvas = np.zeros((self.canvas_shape))
+        user_annotations = user_simulator(self.labelled_data_file, self.paths, self.canvas_shape)
+
+        for image, label, block in user_annotations:
+            self.paint(label, block)
+            base_coordinate = get_coordinate(block)
+
+            # resize image and label by zero padding if image size is less than training shape
+            image_shape = tuple([max(image.shape[i], self.training_shape[i]) for i in range(len(image.shape))])
+            image.resize(image_shape)
+            label.resize(image_shape)
+            canvas_tiles = tile_image(image.shape, self.training_shape)
+
+            # iterate over the tiled image and add the data to the list 'video'.
+            # Each timestep is added as a list
+            curr_timestep = []
+            for tile in canvas_tiles:
+                local_id = get_coordinate(tile)
+                global_id = tuple([base_coordinate[i] + local_id[i] for i in range(len(base_coordinate))])
+                curr_timestep.append((image[tile], label[tile], global_id))
+
+            self.video.append(curr_timestep)
+
+
 strategies = {
-    "strategy1": Strategy1,
+    "highestloss": HighestLoss,
     "strategyrandom": StrategyRandom,
-    "strategy3": Strategy3,
+    "randomsparseannotate": RandomSparseAnnotate,
+    "densesparseannotate": DenseSparseAnnotate,
     "classwiseloss": ClassWiseLoss,
+    "videolabelling": VideoLabelling,
 }
