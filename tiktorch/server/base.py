@@ -10,8 +10,6 @@ from typing import Generator, Iterable, List, Optional, Tuple, Union
 import numpy
 import torch
 from inferno.io.transform import Compose
-from torch import multiprocessing as mp
-
 from tiktorch.configkeys import DIRECTORY, LOGGING, TESTING, TRANSFORMS
 from tiktorch.rpc import Client, RPCFuture, Server, Shutdown, TCPConnConf
 from tiktorch.rpc.mp import MPClient, create_client
@@ -27,6 +25,7 @@ from tiktorch.types import (
     SetDeviceReturnType,
 )
 from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config
+from torch import multiprocessing as mp
 
 from .handler import IHandler
 from .handler import run as run_handler
@@ -35,6 +34,7 @@ from .utils import get_transform
 mp.set_start_method("spawn", force=True)
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 KILL_TIMEOUT = 60  # seconds
 
@@ -282,4 +282,30 @@ class ServerProcess:
         watchdog = Watchdog(client, self._kill_timeout)
         watchdog.start()
 
+        srv.listen()
+
+
+def main():
+    # Output pid for process tracking
+    print(os.getpid(), flush=True)
+
+    parsey = argparse.ArgumentParser()
+    parsey.add_argument("--addr", type=str, default="127.0.0.1")
+    parsey.add_argument("--port", type=str, default="29500")
+    parsey.add_argument("--notify-port", type=str, default="29501")
+    parsey.add_argument("--debug", action="store_true")
+    parsey.add_argument("--dummy", action="store_true")
+    parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
+
+    args = parsey.parse_args()
+    print(f"Starting server on {args.addr}:{args.port}")
+
+    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout)
+
+    if args.dummy:
+        from tiktorch.dev.dummy_server import DummyServerForFrontendDev
+
+        srv.listen(provider_cls=DummyServerForFrontendDev)
+
+    else:
         srv.listen()

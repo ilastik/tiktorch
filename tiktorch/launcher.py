@@ -124,9 +124,7 @@ class LocalServerLauncher(IServerLauncher):
         self.logger.info("Starting local TikTorchServer on %s:%s", addr, port)
 
         cmd = [
-            sys.executable,
-            "-m",
-            "tiktorch.server",
+            "tiktorch",
             "--port",
             str(port),
             "--notify-port",

@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="19.7.0-alpha.2.0",
+    version="19.7.0-alpha.2",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -26,6 +26,7 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "pyzmq", "torch"],
+    entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional
         "Bug Reports": "https://github.com/ilastik/tiktorch/issues",
