@@ -72,6 +72,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger = logging.getLogger("tiktorch.server")
         self._log_listener: Optional[logging.handlers.QueueListener] = None
         self._handler: Optional[IHandler] = None
+        self._last_ping = 0
 
     @property
     def handler(self):
