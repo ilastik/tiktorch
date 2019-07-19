@@ -1,5 +1,6 @@
 import os
 import socket
+import sys
 
 import pytest
 

@@ -108,9 +108,10 @@ def wait(done, interval=0.1, max_wait=10):
 
 
 class LocalServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf):
+    def __init__(self, conn_conf: TCPConnConf, path=None):
         self._conn_conf = conn_conf
         self._process = None
+        self._path = path
 
     def _start_server(self, dummy: bool, kill_timeout: int):
         addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
@@ -123,8 +124,13 @@ class LocalServerLauncher(IServerLauncher):
 
         self.logger.info("Starting local TikTorchServer on %s:%s", addr, port)
 
+        if self._path:
+            script = [self._path]
+        else:
+            script = [sys.executable, "-m", "tiktorch.server"]
+
         cmd = [
-            "tiktorch",
+            *script,
             "--port",
             str(port),
             "--notify-port",
@@ -156,8 +162,8 @@ class SSHCred:
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22) -> None:
-
+    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22, path="tiktorch") -> None:
+        self._path = path
         self._ssh_port = ssh_port
         self._channel = None
         self._conn_conf = conn_conf
@@ -223,7 +229,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            cmd = f"tiktorch --addr {addr} --port {port} --notify-port {notify_port} --kill-timeout {kill_timeout}"
+            cmd = f"{self._path} --addr {addr} --port {port} --notify-port {notify_port} --kill-timeout {kill_timeout}"
             if dummy:
                 cmd += " --dummy"
 
