@@ -332,12 +332,20 @@ class MrRobot:
 
 
 class BaseStrategy:
-    def __init__(self, loss_fn, class_dict):
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
 
         self.patched_data = []
         self.loss_fn = loss_fn
         self.strategy_metric = {"avg_loss": 0, "avg_accuracy": 0, "avg_f1_score": 0, "confusion_matrix": 0}
         self.class_dict = class_dict
+        self.raw_data_file = raw_data_file
+        self.labelled_data_file = labelled_data_file
+        self.paths = paths
+        self.annotater = Annotater(annotation_percent)
+        self.labelling_strategy = labelling_strategy
+        # self.tikserver = tikserver
         self.logger = logging.getLogger(__name__)
 
     def update_state(self, pred_output, target, block):
@@ -370,11 +378,19 @@ class BaseStrategy:
         self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted")
         self.strategy_metric["avg_loss"] += curr_loss
 
-    def get_next_batch(self):
-        raise NotImplementedError()
+    def get_annotated_data(self,return_block_set)
+        return_data_set = []
+        for block in return_block_set:
+            image, label = (
+                self.raw_data_file[self.paths["path_to_raw_data"]][block],
+                self.labelled_data_file[self.paths["path_to_labelled"]][block],
+            )
+            return_data_set.append(
+                image, getattr(self.annotater, self.labelling_strategy)(label), get_coordinate(block)
+            )
 
-    def rearrange(self):
-        raise NotImplementedError()
+        self.patched_data.clear()
+        return return_data_set
 
     def get_metrics(self):
         for key, value in self.strategy_metric.iteritems():
@@ -387,6 +403,12 @@ class BaseStrategy:
         self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
         return strategy_metric
 
+    def get_next_batch(self):
+        raise NotImplementedError()
+
+    def rearrange(self):
+        raise NotImplementedError()
+
 
 class HighestLoss(BaseStrategy):
     """ This strategy sorts the patches in descending order of their loss
@@ -396,8 +418,12 @@ class HighestLoss(BaseStrategy):
     class_dict (dictionary): dictionary indicating the mapping between classes and their labels
     """
 
-    def __init__(self, loss_fn, class_dict):
-        super().__init__(loss_fn, class_dict)
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
         # self.patch_counter = -1
 
     def rearrange(self):
@@ -415,9 +441,8 @@ class HighestLoss(BaseStrategy):
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
         self.rearrange()
-        return_patch_set = [blocks for loss, blocks in self.patched_data[:batch_size]]
-        self.patched_data.clear()
-        return return_patch_set
+        return_block_set = [block for loss, block in self.patched_data[:batch_size]]
+        return super().get_annotated_data(return_block_set)
 
 
 class StrategyRandom(BaseStrategy):
@@ -429,8 +454,12 @@ class StrategyRandom(BaseStrategy):
     class_dict (dictionary): dictionary indicating the mapping between classes and their labels
     """
 
-    def __init__(self, loss_fn, class_dict):
-        super().__init__(loss_fn, class_dict)
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
 
     def rearrange(self):
         pass
@@ -445,9 +474,9 @@ class StrategyRandom(BaseStrategy):
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
         rand_indices = np.random.randint(len(self.patched_data), size=batch_size)
-        return_patch_set = [block for loss, block in self.patched_data[rand_indices]]
-        self.patched_data.clear()
-        return return_patch_set
+        return_block_set = [block for loss, block in self.patched_data[rand_indices]]
+
+        return super().get_annotated_data(return_block_set)
 
 
 class RandomSparseAnnotate(Strategy1):
@@ -462,11 +491,12 @@ class RandomSparseAnnotate(Strategy1):
     paths (dictionary): path inside base folders to raw images and their labels
     """
 
-    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths):
-        super().__init__(loss_fn, class_dict)
-        self.raw_data_file = raw_data_file
-        self.labelled_data_file = labelled_data_file
-        self.paths = paths
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
 
     def update_state(self, pred_output, target, block):
         super().update_state(pred_output, target, block)
@@ -483,6 +513,7 @@ class RandomSparseAnnotate(Strategy1):
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
         return_block_set = [block for loss, block in self.patched_data[:batch_size]]
+        return super().get_annotated_data(return_block_set)
         return_data_set = []
         for block in return_block_set:
             image, label = (
@@ -509,8 +540,12 @@ class DenseSparseAnnotate(RandomSparseAnnotate):
     paths (dictionary): path inside base folders to raw images and their labels
     """
 
-    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths):
-        super().__init__(loss_fn, class_dict, raw_data_file, labelled_data_file, paths)
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
 
     def get_random_patch(self):
         rand_index = super().get_random_index()
@@ -555,8 +590,12 @@ class ClassWiseLoss(BaseStrategy):
     class_dict (dictionary): dictionary indicating the mapping between classes and their labels
     """
 
-    def __init__(self, loss_fn, class_dict):
-        super().__init__(loss_fn, class_dict)
+    def __init__(
+        self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
         self.num_classes = len(self.class_dict)
         self.class_loss = [0] * self.num_classes
         self.image_class_count = np.zeros((1, self.num_classes + 1)).astype(np.int32)
@@ -658,7 +697,7 @@ class ClassWiseLoss(BaseStrategy):
         self.image_class_count = np.zeros((1, self.num_classes + 1)).astype(np.int32)
         self.image_counter = 1
         self.image_id.clear()
-        return return_block_set
+        return super().get_annotated_data(return_block_set)
 
 
 class VideoLabelling(BaseStrategy):
@@ -667,11 +706,20 @@ class VideoLabelling(BaseStrategy):
     The canvas state at each time step is added to the training data 
     """
 
-    def __init__(self, loss_fn, class_dict, raw_data_file, labelled_data_file, paths, training_shape):
-        super().__init__(loss_fn, class_dict)
-        self.raw_data_file = raw_data_file
-        self.labelled_data_file = labelled_data_file
-        self.paths = paths
+    def __init__(
+        self,
+        loss_fn,
+        class_dict,
+        raw_data_file,
+        labelled_data_file,
+        paths,
+        labelling_strategy,
+        annotation_percent,
+        training_shape,
+    ):
+        super().__init__(
+            loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
+        )
         self.canvas_shape = self.raw_data_file[self.paths["path_to_raw_data"]].shape
         self.video = []
         self.training_shape = training_shape
@@ -750,6 +798,88 @@ class VideoLabelling(BaseStrategy):
             self.video.append(curr_timestep)
 
 
+class StrategyAbstract:
+    """ abstract strategy which is a combination of one or more basic strategies
+
+    Args:
+    *args [(Any, iterations)]: list of strategy objects to applied in given order, for {iterations} number of times
+    """
+
+    def __init__(self, tikserver, *args):
+        self.strategies = *args
+        self.num_iterations = 0
+        self.index = -1
+        self.tikserver = tikserver
+        self.tiktorch_config = {"training": {"num_iterations_done": 0}}
+
+    def get_current_strategy(self):
+        # if (self.num_iterations > self.strategies[self.index][1]):
+        #    self.num_iterations = 0
+        #    self.index+=1
+        self.num_iterations += 1
+        self.tiktorch_config["training"]["num_iterations_done"] = self.strategies[self.index][1]
+        self.tikserver.update_config(self.tiktorch_config)
+        return self.strategies[self.index][0]
+
+    def update_state(self, pred_output, target, loss):
+        self.get_current_strategy().update_state(pred_output, target, loss)
+
+    def rearrange(self):
+        self.get_current_strategy().rearrange()
+
+    def get_next_batch(self, batch_size=1):
+        return self.get_current_strategy().get_next_batch(batch_size)
+
+
+class Annotater:
+    """ The annotater class prvides methods for different labelling strategies, emulating a user
+    in some way
+
+    Args:
+    annotation_percent (int): percentage of pixels in the patch to annotate
+    """
+
+    def __init__(self, annotation_percent):
+        self.annotation_percent = annotation_percent
+        # self.block_shape = block_shape
+
+    def get_random_index(self, block_shape):
+        random_index = []
+        for i in range(len(block_shape)):
+            random_index.append(np.random.randint(0, block_shape[i]))
+
+        return tuple(random_index)
+
+    def get_random_patch(self, block_shape):
+        rand_index = self.get_random_index(block_shape)
+        patch_dimension = []
+        for i in range(len(block_shape)):
+            patch_dimension.append(np.random.randint(0, block_shape[i] - rand_index[i]))
+
+        block = []
+        for i in range(len(patch_dimension)):
+            block.append(slice(rand_index[i], rand_index[i] + patch_dimension[i]))
+        return tuple(block)
+
+    def dense(self, label):
+        return label
+
+    def random_sparse(self, label):
+        ret_label = np.zeros(label.shape)
+        for i in range(self.annotation_percent * np.product(label.shape)):
+            index = self.get_random_index(label.shape)
+            ret_label[index] = label[index]
+        return ret_label
+
+    def random_blob(self, label):
+        ret_label = np.zeros(label.shape)
+        for i in range(self.annotation_percent * np.product(label.shape)):
+            random_block = self.get_random_patch(label.shape)
+            ret_label[random_block] = label[random_block]
+            i += np.product(label[random_block].shape)
+        return ret_label
+
+
 strategies = {
     "highestloss": HighestLoss,
     "strategyrandom": StrategyRandom,
@@ -757,4 +887,5 @@ strategies = {
     "densesparseannotate": DenseSparseAnnotate,
     "classwiseloss": ClassWiseLoss,
     "videolabelling": VideoLabelling,
+    "strategyabstrat": StrategyAbstract,
 }

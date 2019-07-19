@@ -7,7 +7,7 @@ training: {
     batch_size: 1,
     loss_criterion_config: {"method": "MSELoss"},
     optimizer_config: {"method": "Adam"},
-    num_iterations_done: 1,
+    num_iterations_done: 5,
 }
 validation: {}
 dry_run: {"skip": False, "shrinkage": [0, 0, 0]}
