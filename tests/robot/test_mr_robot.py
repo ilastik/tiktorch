@@ -1,8 +1,11 @@
 import os
 import pytest
+
 from mr_robot.mr_robot import MrRobot
+from mr_robot.strategies.strategy import HighestLoss, ClassWiseLoss, StrategyRandom, StrategyAbstract
 from mr_robot.utils import tile_image
 from tiktorch.server import TikTorchServer
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 def test_tile_image():
@@ -54,11 +57,13 @@ def test_tile_image():
 
 def test_MrRobot():
     print(os.environ["CUDA_VISIBLE_DEVICES"])
-    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategy1")
+    #paths = {path_to_raw_data: "raw", path_to_labelled: "labels"}
+
+    #strat = StrategyAbstract()
+    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategyabstract")
     assert isinstance(robo, MrRobot)
     assert isinstance(robo.new_server, TikTorchServer)
 
-    # assert isinstance(robo.slicer, list)
     robo._load_model()
     # robo._resume()
     # robo._predict()

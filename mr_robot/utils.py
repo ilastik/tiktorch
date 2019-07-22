@@ -105,3 +105,34 @@ def integer_to_onehot(integer_maps):
 
 def onehot_preds_to_integer(one_hot_preds):
     return np.argmax(one_hot_preds, axis=0)
+
+def get_coordinate(block):
+    """ return the starting co-ordinate of a block
+
+    Args:
+    block(tuple): tuple of slice objects, one per dimension
+    """
+
+    coordinate = []
+    for slice_ in block:
+        coordinate.append(slice_.start)
+
+    return tuple(coordinate)
+
+def get_random_index(canvas_shape):
+    random_index = []
+    for i in range(len(canvas_shape)):
+        random_index.append(np.random.randint(0, canvas_shape[i]))
+
+    return tuple(random_index)
+
+def get_random_patch(canvas_shape):
+    rand_index = get_random_index(canvas_shape)
+    patch_dimension = []
+    for i in range(len(canvas_shape)):
+        patch_dimension.append(np.random.randint(1, canvas_shape[i] - rand_index[i]+1))
+
+    block = []
+    for i in range(len(patch_dimension)):
+        block.append(slice(rand_index[i], rand_index[i] + patch_dimension[i]))
+    return tuple(block)
