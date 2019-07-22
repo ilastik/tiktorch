@@ -73,7 +73,8 @@ def test_forward_pass(datadir, srv, client, nn_sample):
 
     client.load_model(nn_sample.model, nn_sample.state, [])
 
-    fut = client.forward(NDArray(input_arr))
+    fut = client.forward(NDArray(input_arr, id_=(10, 42)))
     res = fut.result(timeout=40)
+    assert (10, 42) == res.id
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
