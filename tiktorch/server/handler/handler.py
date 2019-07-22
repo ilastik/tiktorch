@@ -3,45 +3,47 @@ import io
 import logging
 import logging.config
 import os.path
-
+import queue
 import shutil
 import sys
 import tempfile
 import threading
-import torch
-import queue
-
 from multiprocessing.connection import Connection, wait
+from typing import Any, Callable, Dict, Generic, Iterable, Iterator, List, Optional, Sequence, Set, Tuple, Union
+
+import torch
 from torch import multiprocessing as mp
 
-from typing import Any, List, Generic, Iterator, Iterable, Sequence, Callable, Dict, Optional, Tuple, Set, Union
-
-from tiktorch.rpc import RPCInterface, exposed, RPCFuture, Timeout
-from tiktorch.rpc.mp import MPServer, MPClient, create_client, Shutdown
-from tiktorch.types import Point, ModelState
-from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
-from tiktorch.configkeys import TRAINING, VALIDATION, MODEL_CLASS_NAME, MODEL_INIT_KWARGS
-from tiktorch.handler.training import run as run_training, ITraining
-from tiktorch.handler.inference import run as run_inference, IInference
-from tiktorch.handler.dryrun import run as run_dryrun, IDryRun
 from tiktorch import log
-from tiktorch.utils import add_logger, get_error_msg_for_invalid_config, get_error_msg_for_incomplete_config
-
 from tiktorch.configkeys import (
-    NAME,
-    TORCH_VERSION,
-    TRAINING,
-    VALIDATION,
     BATCH_SIZE,
-    TRAINING_SHAPE,
-    TRAINING_SHAPE_LOWER_BOUND,
-    TRAINING_SHAPE_UPPER_BOUND,
+    LOSS_CRITERION_CONFIG,
+    MODEL_CLASS_NAME,
+    MODEL_INIT_KWARGS,
+    NAME,
     NUM_ITERATIONS_DONE,
     NUM_ITERATIONS_MAX,
     NUM_ITERATIONS_PER_UPDATE,
-    LOSS_CRITERION_CONFIG,
     OPTIMIZER_CONFIG,
+    TORCH_VERSION,
+    TRAINING,
+    TRAINING_SHAPE,
+    TRAINING_SHAPE_LOWER_BOUND,
+    TRAINING_SHAPE_UPPER_BOUND,
+    VALIDATION,
 )
+from tiktorch.rpc import RPCFuture, RPCInterface, Timeout, exposed
+from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
+from tiktorch.tiktypes import LabeledTikTensor, LabeledTikTensorBatch, TikTensor, TikTensorBatch
+from tiktorch.types import ModelState, Point
+from tiktorch.utils import add_logger, get_error_msg_for_incomplete_config, get_error_msg_for_invalid_config
+
+from .dryrun import IDryRun
+from .dryrun import run as run_dryrun
+from .inference import IInference
+from .inference import run as run_inference
+from .training import ITraining
+from .training import run as run_training
 
 
 class IHandler(RPCInterface):

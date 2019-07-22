@@ -1,14 +1,16 @@
+import logging
 import os
 import unittest
-import logging
 from importlib import util as imputils
+
 import h5py
 import torch
+from inferno.io.transform import Compose
+from inferno.io.transform.generic import AsTorchBatch, Cast, Normalize
+from torch.autograd import Variable
+
 from tiktorch.device_handler import ModelHandler
 from tiktorch.models.dunet import DUNet
-from torch.autograd import Variable
-from inferno.io.transform import Compose
-from inferno.io.transform.generic import Normalize, Cast, AsTorchBatch
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 logging.basicConfig(level=logging.DEBUG)

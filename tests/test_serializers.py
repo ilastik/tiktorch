@@ -1,10 +1,9 @@
 import numpy as np
 import zmq
 
-
 from tiktorch import serializers as ser
-from tiktorch.rpc import serialize, deserialize
 from tiktorch import types
+from tiktorch.rpc import deserialize, serialize
 
 
 def test_ndarray_serializer():
@@ -28,7 +27,22 @@ def test_set_devices_return_serialization_deserialization():
 
 def test_model_state_serializer():
     s = ser.ModelStateSerializer()
-    state = types.ModelState(2.3, 12, b"model_state", b"opt_state", 10)
+    state = types.ModelState(
+        loss=2.3,
+        epoch=12,
+        model_state=b"model_state",
+        optimizer_state=b"opt_state",
+        num_iterations_done=10,
+        num_iterations_max=12,
+    )
     serialized = s.serialize(state)
     deserialized = s.deserialize(iter(serialized))
     assert state == deserialized
+
+
+def test_model_serializer():
+    s = ser.ModelSerializer()
+    model = types.Model(code=b"import os", config={"val1": 10})
+    serialized = s.serialize(model)
+    deserialized = s.deserialize(iter(serialized))
+    assert model == deserialized

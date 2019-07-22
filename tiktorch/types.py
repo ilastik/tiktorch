@@ -1,12 +1,12 @@
 """
 Types defining interop between client and server
 """
+from dataclasses import dataclass
+from typing import List, NamedTuple, Optional, Sequence, Tuple, Union
+
 # This file should only contain types built on primitives
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)
 import numpy as np
-from dataclasses import dataclass
-
-from typing import List, Tuple, Optional, Union, Sequence, NamedTuple
 
 
 class NDArray:
@@ -235,9 +235,34 @@ class SetDeviceReturnType(NamedTuple):
 
 @dataclass
 class ModelState:
-    loss: float
-    epoch: int
     model_state: bytes
-    optimizer_state: bytes
-    num_iterations_done: int
-    num_iterations_max: int
+    optimizer_state: bytes = b""
+    loss: float = 0.0
+    epoch: int = 0
+    num_iterations_done: int = 0
+    num_iterations_max: int = 0
+
+    def __bool__(self):
+        return bool(self.model_state)
+
+
+@dataclass
+class Model:
+    code: bytes
+    config: dict
+
+    def __init__(self, *, code: bytes, config: dict) -> None:
+        if not isinstance(code, bytes):
+            raise ValueError("code attribute should contain bytes")
+
+        if not isinstance(config, dict):
+            raise ValueError("config attribute should be a dictionary")
+
+        self.code = code
+        self.config = config
+
+    def __bool__(self) -> bool:
+        return bool(self.code)
+
+
+Model.Empty = Model(code=b"", config={})

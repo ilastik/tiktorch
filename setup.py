@@ -1,6 +1,7 @@
-from setuptools import setup, find_packages
-from os import path
 from io import open
+from os import path
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -10,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="0.1a",
+    version="19.7.0-alpha.4",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -24,8 +25,9 @@ setup(
         "Programming Language :: Python :: 3.7",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
-    install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "pyzmq", "h5py", "torch"],
-    extras_require={"test": ["pytest"]},
+    install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "pyzmq", "torch"],
+    entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
+    # extras_require={"test": ["pytest"]},
     project_urls={  # Optional
         "Bug Reports": "https://github.com/ilastik/tiktorch/issues",
         "Source": "https://github.com/ilastik/tiktorch/",

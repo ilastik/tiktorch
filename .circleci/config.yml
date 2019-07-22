@@ -1,54 +1,149 @@
 version: 2
 jobs:
-  build:
+  checkout_code:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - save_cache:
+          key: v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - ~/repo
+
+  install_conda_env:
     environment:
       TEST_ENV_NAME: tiktorch-server-env
       TEST_ENV_PREFIX: /opt/conda/envs/tiktorch-server-env
     docker:
       - image: continuumio/miniconda3
-
     working_directory: ~/repo
-
     steps:
-      - checkout
-
-      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
             - v4-dependencies-{{ checksum "environment.yml" }}
-            # fallback to using the latest cache if no exact match is found
-            - v4-dependencies-
 
-      - run:
-          name: install dependencies
-          command: |
-            if [ ! -d ${TEST_ENV_PREFIX} ]; then
-                echo "Creating new environment ${TEST_ENV_NAME}"
-                conda env create -n ${TEST_ENV_NAME} -f environment.yml
-            else
-                echo "Updating environment ${TEST_ENV_NAME}"
-                conda env update -n ${TEST_ENV_NAME} -f environment.yml
-            fi
+      - run: |
+          if [ ! -d ${TEST_ENV_PREFIX} ]; then
+              echo "Creating new environment ${TEST_ENV_NAME}"
+              conda env create -n ${TEST_ENV_NAME} -f environment.yml
+          fi
 
       - save_cache:
           paths:
             - /opt/conda/envs
           key: v4-dependencies-{{ checksum "environment.yml" }}
 
+  black_check:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v4-dependencies-{{ checksum "environment.yml" }}
+
       - run:
           name: run black
           command: |
             . /opt/conda/etc/profile.d/conda.sh
-            conda activate "${TEST_ENV_NAME}"
+            conda activate tiktorch-server-env
             black --check ./
+
+  tests:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v4-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run tests
           command: |
             . /opt/conda/etc/profile.d/conda.sh
-            conda activate "${TEST_ENV_NAME}"
+            conda activate tiktorch-server-env
             python -m pytest
 
-      - store_artifacts:
-          path: test-reports
-          destination: test-reports
+  isort:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v4-dependencies-{{ checksum "environment.yml" }}
+
+      - run:
+          name: run isort
+          command: |
+            . /opt/conda/etc/profile.d/conda.sh
+            conda activate tiktorch-server-env
+            isort --check --conda-env /opt/conda/envs/tiktorch-server-env ./
+
+  build_conda_packages:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v4-dependencies-{{ checksum "environment.yml" }}
+
+      - run:
+          name: build packages
+          command: |
+            . /opt/conda/etc/profile.d/conda.sh
+            conda activate tiktorch-server-env
+            ./scripts/conda_build.sh conda-recipe
+            ./scripts/conda_build.sh conda-recipe-client
+
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - checkout_code:
+          filters:
+            tags:
+              only: /^v.*/
+      - install_conda_env:
+          filters:
+            tags:
+              only: /^v.*/
+          requires:
+            - checkout_code
+      - tests:
+          requires:
+            - install_conda_env
+      - isort:
+          requires:
+            - install_conda_env
+      - black_check:
+          requires:
+            - install_conda_env
+      - build_conda_packages:
+          requires:
+            - install_conda_env
+          context: conda-upload
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/

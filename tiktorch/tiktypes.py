@@ -1,12 +1,12 @@
 """
 Types defining interop between processes on the server
 """
+from typing import List, Optional, Sequence, Tuple, Union
+
 import torch
-
 from numpy import ndarray
-from typing import List, Tuple, Optional, Union, Sequence
 
-from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch
+from tiktorch.types import LabeledNDArray, LabeledNDArrayBatch, NDArray, NDArrayBatch
 
 
 class TikTensor:

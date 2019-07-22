@@ -1,14 +1,14 @@
 import logging
+from typing import Tuple, Union
+
 import torch
-
 from torch.multiprocessing import Pipe
-from typing import Union, Tuple
 
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.handler import HandlerProcess
 from tiktorch.handler.constants import SHUTDOWN, SHUTDOWN_ANSWER
-from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch.types import NDArray, NDArrayBatch
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,11 @@
 import itertools
+from collections import OrderedDict
 
 import numpy
 import torch
-
-from collections import OrderedDict
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensorBatch, TikTensor
+from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
 
 
 class DynamicDataset(Dataset):

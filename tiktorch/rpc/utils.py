@@ -1,8 +1,7 @@
-from threading import Lock
 from concurrent.futures import Future
+from threading import Lock
 
 from tiktorch.rpc.types import RPCFuture
-
 
 _undef = object()
 

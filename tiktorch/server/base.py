@@ -1,30 +1,67 @@
 import argparse
-
 import logging
 import logging.handlers
+import os
+import threading
+import time
+from datetime import datetime
+from typing import Generator, Iterable, List, Optional, Tuple, Union
+
 import numpy
 import torch
-import os
-
-from datetime import datetime
-from torch import multiprocessing as mp
-from typing import Optional, List, Tuple, Generator, Iterable, Union
-
 from inferno.io.transform import Compose
-
-from tiktorch.rpc import Server, Shutdown, TCPConnConf, RPCFuture
+from tiktorch.configkeys import DIRECTORY, LOGGING, TESTING, TRANSFORMS
+from tiktorch.rpc import Client, RPCFuture, Server, Shutdown, TCPConnConf
 from tiktorch.rpc.mp import MPClient, create_client
-from tiktorch.types import NDArray, LabeledNDArray, NDArrayBatch, LabeledNDArrayBatch, SetDeviceReturnType, ModelState
-from tiktorch.tiktypes import TikTensor, LabeledTikTensor, TikTensorBatch, LabeledTikTensorBatch
-from tiktorch.handler import IHandler, run as run_handler
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config, get_transform
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
+from tiktorch.tiktypes import LabeledTikTensor, LabeledTikTensorBatch, TikTensor, TikTensorBatch
+from tiktorch.types import (
+    LabeledNDArray,
+    LabeledNDArrayBatch,
+    Model,
+    ModelState,
+    NDArray,
+    NDArrayBatch,
+    SetDeviceReturnType,
+)
+from tiktorch.utils import convert_to_SetDeviceReturnType, get_error_msg_for_incomplete_config
+from torch import multiprocessing as mp
 
-from tiktorch.configkeys import TESTING, TRANSFORMS, LOGGING, DIRECTORY
+from .handler import IHandler
+from .handler import run as run_handler
+from .utils import get_transform
 
 mp.set_start_method("spawn", force=True)
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+KILL_TIMEOUT = 60  # seconds
+
+
+class Watchdog:
+    def __init__(self, client, kill_timeout: int = KILL_TIMEOUT):
+        self._client = client
+        self._kill_timeout = kill_timeout
+        self._stop_evt = threading.Event()
+
+    def start(self):
+        self._thread = threading.Thread(target=self.run, name="TikTorchServer.Watchdog")
+        self._thread.daemon = True
+        self._thread.start()
+
+    def run(self):
+        while not self._stop_evt.wait(timeout=self._kill_timeout):
+            ts = self._client.last_ping()
+            if ts and time.time() - ts > self._kill_timeout:
+                try:
+                    self._client.shutdown()
+                finally:
+                    break
+
+    def stop(self):
+        self._stop_evt.set()
+        self._thread.join()
 
 
 class TikTorchServer(INeuralNetworkAPI, IFlightControl):
@@ -35,6 +72,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.logger = logging.getLogger("tiktorch.server")
         self._log_listener: Optional[logging.handlers.QueueListener] = None
         self._handler: Optional[IHandler] = None
+        self._last_ping = 0
 
     @property
     def handler(self):
@@ -122,21 +160,19 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         available.append(("cpu", "CPU"))
         return available
 
-    def load_model(
-        self, config: dict, model_file: bytes, model_state: bytes, optimizer_state: bytes, devices: list
-    ) -> RPCFuture[SetDeviceReturnType]:
-        log_dir = config.get(LOGGING, {}).get(DIRECTORY, "")
+    def load_model(self, model: Model, state: ModelState, devices: list) -> RPCFuture[SetDeviceReturnType]:
+        log_dir = model.config.get(LOGGING, {}).get(DIRECTORY, "")
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
             self.logger.info("log dir: %s", os.path.abspath(log_dir))
 
         self._start_logging_handler()
-        incomplete_msg = get_error_msg_for_incomplete_config(config)
+        incomplete_msg = get_error_msg_for_incomplete_config(model.config)
         if incomplete_msg:
             raise ValueError(incomplete_msg)
 
         # todo: move test_transforms elsewhere
-        self.test_transforms = config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
+        self.test_transforms = model.config.get(TESTING, {}).get(TRANSFORMS, {"Normalize": {}})
 
         if not devices:
             devices = ["cpu"]
@@ -152,10 +188,10 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
             name="Handler",
             kwargs={
                 "conn": handler_conn,
-                "config": config,
-                "model_file": model_file,
-                "model_state": model_state,
-                "optimizer_state": optimizer_state,
+                "config": model.config,
+                "model_file": model.code,
+                "model_state": state.model_state,
+                "optimizer_state": state.optimizer_state,
                 "log_queue": self.log_queue,
             },
         )
@@ -189,7 +225,7 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         transform = Compose(*[get_transform(name, **kwargs) for name, kwargs in self.test_transforms.items()])
         return self.handler.forward(
             data=TikTensor(transform(image.as_numpy()).astype(numpy.float32), id_=image.id)
-        ).map(lambda val: NDArray(val.as_numpy()))
+        ).map(lambda val: NDArray(val.as_numpy(), id_=val.id))
 
     def update_training_data(self, data: NDArrayBatch, labels: NDArrayBatch) -> None:
         self.handler.update_training_data(TikTensorBatch(data), TikTensorBatch(labels))
@@ -207,7 +243,11 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
         self.handler.update_config(partial_config)
 
     def ping(self) -> bytes:
+        self._last_ping = time.time()
         return b"pong"
+
+    def last_ping(self) -> Optional[float]:
+        return self._last_ping
 
     def get_model_state(self) -> ModelState:
         return self.handler.get_state()
@@ -226,22 +266,26 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
 
 
 class ServerProcess:
-    def __init__(self, address: str, port: str, notify_port: str):
+    def __init__(self, address: str, port: str, notify_port: str, kill_timeout: int):
         self._addr = address
         self._port = port
         self._notify_port = notify_port
+        self._kill_timeout = kill_timeout
 
-    def listen(self, api_provider: Optional[INeuralNetworkAPI] = None):
-        if api_provider is None:
-            api_provider = TikTorchServer()
+    def listen(self, provider_cls: INeuralNetworkAPI = TikTorchServer):
+        api_provider = provider_cls()
 
-        srv = Server(api_provider, TCPConnConf(self._addr, self._port, self._notify_port))
+        conf = TCPConnConf(self._addr, self._port, self._notify_port)
+        srv = Server(api_provider, conf)
+        client = Client(IFlightControl(), conf)
+
+        watchdog = Watchdog(client, self._kill_timeout)
+        watchdog.start()
+
         srv.listen()
 
 
-if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
-
+def main():
     # Output pid for process tracking
     print(os.getpid(), flush=True)
 
@@ -251,14 +295,17 @@ if __name__ == "__main__":
     parsey.add_argument("--notify-port", type=str, default="29501")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
+    parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
 
     args = parsey.parse_args()
-    logger.info("Starting server on %s:%s", args.addr, args.port)
+    print(f"Starting server on {args.addr}:{args.port}")
 
-    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port)
+    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout)
+
     if args.dummy:
-        from tiktorch.dev import DummyServerForFrontendDev
+        from tiktorch.dev.dummy_server import DummyServerForFrontendDev
 
-        srv.listen(api_provider=DummyServerForFrontendDev())
+        srv.listen(provider_cls=DummyServerForFrontendDev)
+
     else:
         srv.listen()

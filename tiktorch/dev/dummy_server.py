@@ -1,12 +1,11 @@
 import logging
+import time
+from typing import Generator, Iterable, List, Optional, Tuple, Union
 
-from typing import Optional, List, Tuple, Generator, Iterable, Union
-
-from tiktorch.rpc import RPCFuture, TCPConnConf, Timeout
-from tiktorch.types import NDArray, LabeledNDArrayBatch, SetDeviceReturnType
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
 from tiktorch.configkeys import MINIMAL_CONFIG
-
+from tiktorch.rpc import RPCFuture, TCPConnConf, Timeout
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
+from tiktorch.types import LabeledNDArrayBatch, NDArray, SetDeviceReturnType
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +15,15 @@ class DummyServerForFrontendDev(INeuralNetworkAPI, IFlightControl):
     SIZE = 2
 
     def __init__(self) -> None:
+        self._last_ping = None
         logger.info("started")
 
     def ping(self) -> bytes:
+        self._last_ping = time.time()
         return b"pong"
+
+    def last_ping(self):
+        return self._last_ping
 
     def shutdown(self) -> None:
         logger.info("stopped")

@@ -1,10 +1,9 @@
-import zmq
-
 from collections import namedtuple
 from logging import getLogger
-from typing import Any, List, Generic, Iterator, TypeVar, Type, Mapping, Callable, Dict
-from zmq.utils import jsonapi
+from typing import Any, Callable, Dict, Generic, Iterator, List, Mapping, Type, TypeVar
 
+import zmq
+from zmq.utils import jsonapi
 
 T = TypeVar("T")
 logger = getLogger(__name__)
@@ -244,3 +243,15 @@ class BoolSerializer(ISerializer[bool]):
     def deserialize(cls, frames: FusedFrameIterator) -> bool:
         frame = next(frames)
         return bool(frame.bytes)
+
+
+@serializer_for(float, tag=b"float")
+class BoolSerializer(ISerializer[bool]):
+    @classmethod
+    def serialize(cls, obj: float) -> Iterator[zmq.Frame]:
+        yield jsonapi.dumps(obj)
+
+    @classmethod
+    def deserialize(cls, frames: FusedFrameIterator) -> bool:
+        frame = next(frames)
+        return jsonapi.loads(frame.bytes)

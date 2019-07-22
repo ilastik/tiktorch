@@ -1,13 +1,11 @@
-import pytest
-
 import json
-
 from itertools import chain
 from typing import Iterator
 
+import pytest
 import zmq
 
-from tiktorch.rpc.serialization import ISerializer, DeserializationError, SerializerRegistry, serialize, deserialize
+from tiktorch.rpc.serialization import DeserializationError, ISerializer, SerializerRegistry, deserialize, serialize
 
 
 class Foo:

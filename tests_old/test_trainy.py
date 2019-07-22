@@ -1,10 +1,11 @@
-import numpy as np
 import logging
+import time
 import unittest
 
-from tiktorch.wrapper import TikTorch
+import numpy as np
 import torch.nn as nn
-import time
+
+from tiktorch.wrapper import TikTorch
 
 logging.basicConfig(level=logging.INFO)
 
