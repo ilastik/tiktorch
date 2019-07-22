@@ -60,50 +60,13 @@ class MrRobot:
         print("number of patches: %s" % len(self.block_list))
         print()
 
-        strategy_class = strategies[strategy]
-        # self.strategy = strategy_class(
-        #    self.base_config["training"]["loss_criterion_config"]["method"], self.base_config["class_dict"]
-        # )
-        # TO BE REMOVED ##
-        paths = {"path_to_raw_data": "raw", "path_to_labelled": "labels"}
-        strat0 = StrategyRandom(
-            "MSELoss",
-            {0: "background", 1: "cell"},
-            self.raw_data_file,
-            self.labelled_data_file,
-            paths,
-            "random_blob",
-            0.6,
-        )
-        strat1 = HighestLoss(
-            "MSELoss",
-            {0: "background", 1: "cell"},
-            self.raw_data_file,
-            self.labelled_data_file,
-            paths,
-            "random_blob",
-            0.6,
-        )
-        strat2 = ClassWiseLoss(
-            "MSELoss",
-            {0: "background", 1: "cell"},
-            self.raw_data_file,
-            self.labelled_data_file,
-            paths,
-            "random_blob",
-            0.6,
-        )
-        strat3 = VideoLabelling(
-            "MSELoss",
-            {0: "background", 1: "cell"},
-            self.raw_data_file,
-            self.labelled_data_file,
-            paths,
-            "random_blob",
-            0.6,
-            (1, 512, 512),
-        )
-        self.strategy = StrategyAbstract(self.new_server, (strat3, 2))
+        #strategy_class = strategies[strategy]
+        #self.strategy = strategy_class(
+        #    self.base_config["training"]["loss_criterion_config"]["method"], self.base_config["class_dict"], self.raw_data_file, self.labelled_data_file, self.base_config["data_dir"], annotation_strat,
+        #)
+        strat0 = StrategyRandom( "MSELoss", self.base_config["class_dict"], self.raw_data_file, self.labelled_data_file, self.base_config["data_dir"], "random_blob",0.6)
+        strat1 = ClassWiseLoss("MSELoss", self.base_config["class_dict"], self.raw_data_file, self.labelled_data_file, self.base_config["data_dir"], "random_blob",0.6)
+        self.strategy = StrategyAbstract(self.new_server,(strat0,10), (strat1,10))
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
@@ -135,7 +98,7 @@ class MrRobot:
         # cleaning dictionary before passing to tiktorch
         # self.base_config.pop("model_dir")
 
-        self.new_server.load_model(self.base_config, model, binary_state, b"", ["gpu:4"])
+        self.new_server.load_model(self.base_config, model, b"", b"", ["gpu:4"])
         # self.tensorboard_writer.add_graph(DUNet(1,1),torch.from_numpy(self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][0]) )
         self.logger.info("model loaded")
 
@@ -156,23 +119,23 @@ class MrRobot:
         path_to_label = self.base_config["data_dir"]["path_to_labelled"]
 
         batch_maker = BatchedExecutor(batch_size=5)
-        for block in self.block_list[:10]:
+        for block in self.block_list[:5]:
             # map each slicer with its corresponding index
             self.assign_id(block, x)
             # self.patch_id[block[0].start] = x
             x += 1
             # pred_output = self.new_server.forward(NDArray(self.raw_data_file[path_to_input][block]))
             prediction_list.append(
-                batch_maker.submit(self.new_server.forward, NDArray(self.raw_data_file[path_to_input][block]))
+                batch_maker.submit(self.new_server.forward, NDArray(self.raw_data_file[path_to_input][block],x))
             )
             # self.pred_output = pred_output.result().as_numpy()
             # print("hello")
             # self.strategy.update_state(self.pred_output, self.labelled_data_file[path_to_label][block], block)
 
-        i = 0
         for prediction in cf.as_completed(prediction_list):
-            block = self.block_list[i]
-            i += 1
+            print(type(prediction.result()))
+            block = self.block_list[prediction.id]
+            print(prediction.result().as_numpy().shape)
             self.strategy.update_state(
                 prediction.result().as_numpy(), self.labelled_data_file[path_to_label][block], block
             )
@@ -253,10 +216,6 @@ class MrRobot:
         for id in ids:
             self.patch_id.pop(id, None)
 
-    # annotate worst patch
-    def dense_annotate(self, x, y, label, image):
-        raise NotImplementedError()
-
     def terminate(self):
         self.tensorboard_writer.close()
         self.new_server.shutdown()
@@ -271,3 +230,4 @@ strategies = {
     "videolabelling": VideoLabelling,
     "strategyabstract": StrategyAbstract,
 }
+

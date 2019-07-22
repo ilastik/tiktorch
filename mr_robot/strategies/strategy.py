@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, f1_score
 from tensorboardX import SummaryWriter
 
 from tiktorch.server import TikTorchServer
-from mr_robot.annotater.annotate import *
+from mr_robot.annotator.annotate import *
 from mr_robot.utils import (
     get_confusion_matrix,
     integer_to_onehot,
@@ -106,6 +106,9 @@ class BaseStrategy:
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="sum")
+        if(pred_output.shape != target.shape):
+            target = integer_to_onehot(target)
+
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )

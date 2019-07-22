@@ -56,10 +56,7 @@ def test_tile_image():
 
 
 def test_MrRobot():
-    print(os.environ["CUDA_VISIBLE_DEVICES"])
-    #paths = {path_to_raw_data: "raw", path_to_labelled: "labels"}
 
-    #strat = StrategyAbstract()
     robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategyabstract")
     assert isinstance(robo, MrRobot)
     assert isinstance(robo.new_server, TikTorchServer)

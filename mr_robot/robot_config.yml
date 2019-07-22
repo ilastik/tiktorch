@@ -19,14 +19,23 @@ model_dir: {
 }
 
 data_dir: {
-    raw_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/N_294_ds3x.h5",
+    raw_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Hela_raw.h5",
     path_to_raw_data: "raw",
-    labelled_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/N_294_ds3x_labels_zero_one.h5", 
-    path_to_labelled: "labels",
+    labelled_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Hela_label.h5", 
+    path_to_labelled: "labelled",
 }
 
 class_dict: {
     0: "background",
-    1: "cell"
+    1: "class1",
+    2: "class2",
+    3: "class3",
+    4: "class4",
+    5: "class5",
+    6: "class6",
+    7: "class7",
+    8: "class8",
+    9: "class9",
+    10: "class10"
 }
 
