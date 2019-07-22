@@ -64,7 +64,6 @@ def tile_image(arr_shape, block_shape):
     assert len(arr_shape) == len(block_shape), "block shape not compatible with array shape"
     for i in range(len(arr_shape)):
         assert arr_shape[i] >= block_shape[i], "block shape not compatible with array shape"
-        
 
     global n, idx_list, visited
     n = len(arr_shape)
@@ -106,6 +105,7 @@ def integer_to_onehot(integer_maps):
 def onehot_preds_to_integer(one_hot_preds):
     return np.argmax(one_hot_preds, axis=0)
 
+
 def get_coordinate(block):
     """ return the starting co-ordinate of a block
 
@@ -119,6 +119,7 @@ def get_coordinate(block):
 
     return tuple(coordinate)
 
+
 def get_random_index(canvas_shape):
     random_index = []
     for i in range(len(canvas_shape)):
@@ -126,11 +127,12 @@ def get_random_index(canvas_shape):
 
     return tuple(random_index)
 
+
 def get_random_patch(canvas_shape):
     rand_index = get_random_index(canvas_shape)
     patch_dimension = []
     for i in range(len(canvas_shape)):
-        patch_dimension.append(np.random.randint(1, canvas_shape[i] - rand_index[i]+1))
+        patch_dimension.append(np.random.randint(1, canvas_shape[i] - rand_index[i] + 1))
 
     block = []
     for i in range(len(patch_dimension)):

@@ -14,9 +14,17 @@ from tensorboardX import SummaryWriter
 
 from tiktorch.server import TikTorchServer
 from mr_robot.annotater.annotate import *
-from mr_robot.utils import get_confusion_matrix, integer_to_onehot, plot_confusion_matrix, tile_image, get_random_patch, get_random_index
+from mr_robot.utils import (
+    get_confusion_matrix,
+    integer_to_onehot,
+    plot_confusion_matrix,
+    tile_image,
+    get_random_patch,
+    get_random_index,
+)
 
 batch_size = 1
+
 
 def randomize(label, num_of_classes):
     """ perform a random action on the label
@@ -41,6 +49,7 @@ def randomize(label, num_of_classes):
 
     return label
 
+
 def user_simulator(raw_data_file, label_data_file, internal_paths, canvas_shape, num_of_classes):
     """ mimic user annotation process by randomly taking a patch from the dataset and labelling it
     labels can be added, updated or deleted
@@ -64,6 +73,7 @@ def user_simulator(raw_data_file, label_data_file, internal_paths, canvas_shape,
         label = randomize(label, num_of_classes)
         video.append((image, label, random_patch))
     return video
+
 
 class BaseStrategy:
     def __init__(
@@ -100,7 +110,7 @@ class BaseStrategy:
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
         self.patched_data.append((curr_loss, block))
-        #print("data added", len(self.patched_data))
+        # print("data added", len(self.patched_data))
         pred_output = pred_output.flatten().round().astype(np.int32)
         target = target.flatten().round().astype(np.int32)
 
@@ -111,9 +121,9 @@ class BaseStrategy:
         self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target)
         self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted")
         self.strategy_metric["avg_loss"] += curr_loss
-        #print(self.strategy_metric)
+        # print(self.strategy_metric)
 
-    def get_annotated_data(self,return_block_set):
+    def get_annotated_data(self, return_block_set):
         return_data_set = []
         for block in return_block_set:
             print(self.raw_data_file[self.paths["path_to_raw_data"]])
@@ -121,7 +131,9 @@ class BaseStrategy:
                 self.raw_data_file[self.paths["path_to_raw_data"]][block],
                 self.labelled_data_file[self.paths["path_to_labelled"]][block],
             )
-            return_data_set.append( (image, getattr(self.annotater, self.labelling_strategy)(label), get_coordinate(block)) )
+            return_data_set.append(
+                (image, getattr(self.annotater, self.labelling_strategy)(label), get_coordinate(block))
+            )
 
         self.patched_data.clear()
         return return_data_set
@@ -129,7 +141,7 @@ class BaseStrategy:
     def get_metrics(self):
         for key, value in self.strategy_metric.items():
             self.strategy_metric[key] /= len(self.patched_data)
-        #print(type(self.strategy_metric), self.strategy_metric)
+        # print(type(self.strategy_metric), self.strategy_metric)
         strategy_metric = self.strategy_metric
         strategy_metric["confusion_matrix"] = plot_confusion_matrix(
             strategy_metric["confusion_matrix"], self.class_dict
@@ -208,8 +220,8 @@ class StrategyRandom(BaseStrategy):
         print("dataset size:", len(self.patched_data))
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
-        rand_indices = np.random.randint(0,len(self.patched_data), size=batch_size)
-        #print(rand_indices, self.patched_data[rand_indices])
+        rand_indices = np.random.randint(0, len(self.patched_data), size=batch_size)
+        # print(rand_indices, self.patched_data[rand_indices])
         return_block_set = [block for loss, block in np.array(self.patched_data)[rand_indices]]
 
         return super().get_annotated_data(return_block_set)
@@ -368,8 +380,10 @@ class ClassWiseLoss(BaseStrategy):
         self.image_counter += 1
         indices = [0] * (len(one_hot_target.shape))
         self.record_classes(0, one_hot_target, indices)
-        #print("array shapes:", one_hot_target.shape,pred_output.shape)
-        self.loss_matrix = criterion_class_obj(torch.from_numpy(one_hot_target.astype(np.float32)), torch.from_numpy(pred_output.astype(np.float32)))
+        # print("array shapes:", one_hot_target.shape,pred_output.shape)
+        self.loss_matrix = criterion_class_obj(
+            torch.from_numpy(one_hot_target.astype(np.float32)), torch.from_numpy(pred_output.astype(np.float32))
+        )
         self.record_class_loss(2, indices, self.loss_matrix.shape)
         curr_total_loss = torch.sum(self.loss_matrix)
         super().write_metric(
@@ -388,7 +402,7 @@ class ClassWiseLoss(BaseStrategy):
         if curr_dim + 1 == len(label.shape):
             for i in range(label.shape[curr_dim]):
                 indices[curr_dim] = i
-                self.image_class_count[-1][label[tuple(indices)]+1] += 1
+                self.image_class_count[-1][label[tuple(indices)] + 1] += 1
             return
 
         for i in range(label.shape[curr_dim]):
@@ -408,11 +422,11 @@ class ClassWiseLoss(BaseStrategy):
             for i in range(output_shape[curr_dim]):
                 indices[curr_dim] = i
                 index = indices
-                index[1] = slice(0,output_shape[1])
+                index[1] = slice(0, output_shape[1])
                 index = tuple(index)
-                #print("record_class_loss", index)
+                # print("record_class_loss", index)
                 curr_losses = self.loss_matrix[index].numpy().tolist()
-                #print(curr_losses)
+                # print(curr_losses)
                 for j in range(len(curr_losses)):
                     self.class_loss[j] += curr_losses[j]
 
@@ -425,7 +439,7 @@ class ClassWiseLoss(BaseStrategy):
     def rearrange(self):
         """ rearrange the rows of the image_class_count matrix wrt to the class (column) with the highest loss
         """
-        self.image_class_count[self.image_class_count[:, np.argmax(self.class_loss)+1].argsort()[::-1]]
+        self.image_class_count[self.image_class_count[:, np.argmax(self.class_loss) + 1].argsort()[::-1]]
 
     def get_next_batch(self, batch_size=1):
         self.rearrange()
@@ -467,11 +481,10 @@ class VideoLabelling(BaseStrategy):
         self.training_shape = training_shape
         self.process_video()
 
-
     def rearrange(self):
         pass
 
-    def get_next_batch(self,batch_size = None):
+    def get_next_batch(self, batch_size=None):
         if not self.video:
             raise ValueError("no more annotations in the video available!")
         return self.video.pop(0)
@@ -519,7 +532,9 @@ class VideoLabelling(BaseStrategy):
         """
 
         self.canvas = np.zeros((self.canvas_shape))
-        user_annotations = user_simulator(self.raw_data_file,self.labelled_data_file, self.paths, self.canvas_shape, len(self.class_dict))
+        user_annotations = user_simulator(
+            self.raw_data_file, self.labelled_data_file, self.paths, self.canvas_shape, len(self.class_dict)
+        )
 
         for image, label, block in user_annotations:
             self.paint(label, block)
@@ -527,8 +542,8 @@ class VideoLabelling(BaseStrategy):
 
             # resize image and label by zero padding if image size is less than training shape
             image_shape = tuple([max(image.shape[i], self.training_shape[i]) for i in range(len(image.shape))])
-            image.resize(image_shape, refcheck = False)
-            label.resize(image_shape, refcheck = False)
+            image.resize(image_shape, refcheck=False)
+            label.resize(image_shape, refcheck=False)
             canvas_tiles = tile_image(image.shape, self.training_shape)
 
             # iterate over the tiled image and add the data to the list 'video'.
@@ -540,6 +555,7 @@ class VideoLabelling(BaseStrategy):
                 curr_timestep.append((image[tile], label[tile], global_id))
 
             self.video.append(curr_timestep)
+
 
 class StrategyAbstract:
     """ abstract strategy which is a combination of one or more basic strategies
@@ -556,9 +572,9 @@ class StrategyAbstract:
         self.tiktorch_config = {"training": {"num_iterations_done": 0}}
 
     def update_strategy(self):
-        if(len(self.strategies)> self.index+1 ):
-            self.index+=1
-        #self.num_iterations += 1
+        if len(self.strategies) > self.index + 1:
+            self.index += 1
+        # self.num_iterations += 1
         self.tiktorch_config["training"]["num_iterations_done"] = self.strategies[self.index][1]
         self.tikserver.update_config(self.tiktorch_config)
         print("curr strategy:", str(self.strategies[self.index][0]))
@@ -576,4 +592,3 @@ class StrategyAbstract:
 
     def get_metrics(self):
         return self.strategies[self.index][0].get_metrics()
-        

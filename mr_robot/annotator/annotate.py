@@ -1,7 +1,8 @@
 import numpy as np
 import random
 
-from mr_robot.utils  import get_coordinate
+from mr_robot.utils import get_coordinate
+
 
 class Annotater:
     """ The annotater class prvides methods for different labelling strategies, emulating a user

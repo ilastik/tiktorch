@@ -65,9 +65,5 @@ def test_MrRobot():
     assert isinstance(robo.new_server, TikTorchServer)
 
     robo._load_model()
-    # robo._resume()
-    # robo._predict()
-    # assert len(strategy.patched_data) == 4
     robo._run()
-    # robo.terminate()
-    # print(robo.)
+

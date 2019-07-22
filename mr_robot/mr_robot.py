@@ -13,7 +13,7 @@ import random
 
 from scipy import sparse
 from io import BytesIO
-from mr_robot.utils import get_confusion_matrix, integer_to_onehot, plot_confusion_matrix, tile_image, get_coordinate   
+from mr_robot.utils import get_confusion_matrix, integer_to_onehot, plot_confusion_matrix, tile_image, get_coordinate
 from sklearn.metrics import accuracy_score, f1_score
 from tensorboardX import SummaryWriter
 
@@ -61,16 +61,49 @@ class MrRobot:
         print()
 
         strategy_class = strategies[strategy]
-        #self.strategy = strategy_class(
+        # self.strategy = strategy_class(
         #    self.base_config["training"]["loss_criterion_config"]["method"], self.base_config["class_dict"]
-        #)
+        # )
         # TO BE REMOVED ##
         paths = {"path_to_raw_data": "raw", "path_to_labelled": "labels"}
-        strat0 = StrategyRandom("MSELoss", {0:"background", 1: "cell"}, self.raw_data_file  , self.labelled_data_file, paths, "random_blob", 0.6)
-        strat1 = HighestLoss("MSELoss", {0:"background", 1: "cell"}, self.raw_data_file, self.labelled_data_file, paths, "random_blob", 0.6)
-        strat2 = ClassWiseLoss("MSELoss", {0:"background", 1: "cell"}, self.raw_data_file, self.labelled_data_file, paths, "random_blob", 0.6)
-        strat3 = VideoLabelling("MSELoss", {0:"background", 1: "cell"}, self.raw_data_file, self.labelled_data_file, paths, "random_blob", 0.6, (1,512,512))
-        self.strategy = StrategyAbstract(self.new_server,(strat3,2))
+        strat0 = StrategyRandom(
+            "MSELoss",
+            {0: "background", 1: "cell"},
+            self.raw_data_file,
+            self.labelled_data_file,
+            paths,
+            "random_blob",
+            0.6,
+        )
+        strat1 = HighestLoss(
+            "MSELoss",
+            {0: "background", 1: "cell"},
+            self.raw_data_file,
+            self.labelled_data_file,
+            paths,
+            "random_blob",
+            0.6,
+        )
+        strat2 = ClassWiseLoss(
+            "MSELoss",
+            {0: "background", 1: "cell"},
+            self.raw_data_file,
+            self.labelled_data_file,
+            paths,
+            "random_blob",
+            0.6,
+        )
+        strat3 = VideoLabelling(
+            "MSELoss",
+            {0: "background", 1: "cell"},
+            self.raw_data_file,
+            self.labelled_data_file,
+            paths,
+            "random_blob",
+            0.6,
+            (1, 512, 512),
+        )
+        self.strategy = StrategyAbstract(self.new_server, (strat3, 2))
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
@@ -100,7 +133,7 @@ class MrRobot:
             )
 
         # cleaning dictionary before passing to tiktorch
-        #self.base_config.pop("model_dir")
+        # self.base_config.pop("model_dir")
 
         self.new_server.load_model(self.base_config, model, binary_state, b"", ["gpu:4"])
         # self.tensorboard_writer.add_graph(DUNet(1,1),torch.from_numpy(self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][0]) )
@@ -133,7 +166,7 @@ class MrRobot:
                 batch_maker.submit(self.new_server.forward, NDArray(self.raw_data_file[path_to_input][block]))
             )
             # self.pred_output = pred_output.result().as_numpy()
-            #print("hello")
+            # print("hello")
             # self.strategy.update_state(self.pred_output, self.labelled_data_file[path_to_label][block], block)
 
         i = 0
@@ -204,8 +237,8 @@ class MrRobot:
 
     def write_to_tensorboard(self):
         metric_data = self.strategy.get_metrics()
-        #print("average loss: %s   average accuracy: %s" % (metric_data["avg_loss"], metric_data["avg_accuracy"] * 100))
-        #print()
+        # print("average loss: %s   average accuracy: %s" % (metric_data["avg_loss"], metric_data["avg_accuracy"] * 100))
+        # print()
         self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
         self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"] * 100, self.iterations_done)
         self.tensorboard_writer.add_scalar("F1_score", metric_data["avg_f1_score"], self.iterations_done)
