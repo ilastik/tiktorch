@@ -1,9 +1,10 @@
 import os
+import socket
+import sys
 
 import pytest
-import socket
 
-from tiktorch.launcher import LocalServerLauncher, SSHCred, RemoteSSHServerLauncher, wait
+from tiktorch.launcher import LocalServerLauncher, RemoteSSHServerLauncher, SSHCred, wait
 from tiktorch.rpc import Client, TCPConnConf
 from tiktorch.rpc_interface import IFlightControl
 

@@ -1,12 +1,10 @@
 import torch
-
 from torch import multiprocessing as mp
 
-from tiktorch.handler.inference import IInference, InferenceProcess, run
-from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch.rpc.mp import create_client, MPClient, Shutdown
-
 from tests.data.tiny_models import TinyConvNet2d, TinyConvNet3d
+from tiktorch.rpc.mp import MPClient, Shutdown, create_client
+from tiktorch.server.handler.inference import IInference, InferenceProcess, run
+from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
 def test_initialization(tiny_model_2d):

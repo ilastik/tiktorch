@@ -1,22 +1,19 @@
 import logging
 import multiprocessing as mp
-import threading
 import queue
-import weakref
+import threading
 import types
-
-from uuid import uuid4
-from threading import Thread
+import weakref
 from concurrent.futures import Future
-from multiprocessing.connection import Connection
-from threading import Event
-from typing import Any, Type, TypeVar, Optional
 from functools import wraps
+from multiprocessing.connection import Connection
+from threading import Event, Thread
+from typing import Any, Optional, Type, TypeVar
+from uuid import uuid4
 
 from .exceptions import Shutdown
 from .interface import RPCInterface, get_exposed_methods
 from .types import RPCFuture, isfutureret
-
 
 logger = logging.getLogger(__name__)
 

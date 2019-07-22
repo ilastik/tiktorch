@@ -1,11 +1,11 @@
+from threading import Thread
+
 import pytest
 import zmq
 
-from threading import Thread
-
+from tiktorch.rpc import Client, InprocConnConf, RPCInterface, Server, Shutdown
+from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
 from tiktorch.server import TikTorchServer
-from tiktorch.rpc_interface import INeuralNetworkAPI, IFlightControl
-from tiktorch.rpc import Client, Server, RPCInterface, InprocConnConf, Shutdown
 from tiktorch.types import NDArray, NDArrayBatch
 
 
@@ -59,7 +59,7 @@ def test_tiktorch_server_ping(srv, client_control):
 
 
 def test_load_model(srv, client, nn_sample):
-    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    client.load_model(nn_sample.model, nn_sample.state, [])
     assert "Handler" in client.active_children()
 
 
@@ -71,9 +71,10 @@ def test_forward_pass(datadir, srv, client, nn_sample):
     out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
     out_arr.shape = (1, 320, 320)
 
-    client.load_model(nn_sample.config, nn_sample.model, nn_sample.state, b"", [])
+    client.load_model(nn_sample.model, nn_sample.state, [])
 
-    fut = client.forward(NDArray(input_arr))
+    fut = client.forward(NDArray(input_arr, id_=(10, 42)))
     res = fut.result(timeout=40)
+    assert (10, 42) == res.id
     res_numpy = res.as_numpy()
     np.testing.assert_array_almost_equal(res_numpy[0], out_arr)

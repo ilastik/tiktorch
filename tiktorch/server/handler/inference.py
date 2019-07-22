@@ -1,38 +1,36 @@
 import logging
+import multiprocessing as mp
 import os
 import queue
-import torch.nn
 import threading
 import traceback
-import multiprocessing as mp
-
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from multiprocessing.connection import Connection
 from typing import (
     Any,
-    List,
-    Generic,
-    Iterator,
-    Iterable,
-    Sequence,
-    TypeVar,
-    Mapping,
     Callable,
-    Dict,
-    Optional,
-    Tuple,
-    Set,
     Collection,
+    Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
 )
 
+import torch.nn
 
-from tiktorch.rpc import RPCInterface, exposed, Shutdown, RPCFuture
+from tiktorch import log
+from tiktorch.configkeys import INFERENCE_BATCH_SIZE
+from tiktorch.rpc import RPCFuture, RPCInterface, Shutdown, exposed
 from tiktorch.rpc.mp import MPServer
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
-from tiktorch import log
 from tiktorch.utils import add_logger
-
-from tiktorch.configkeys import INFERENCE_BATCH_SIZE
 
 
 class IInference(RPCInterface):
