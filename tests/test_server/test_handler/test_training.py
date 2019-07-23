@@ -84,4 +84,30 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         client.shutdown()
 
 
+def test_train_for(tiny_model_2d):
+    config = tiny_model_2d["config"]
+    config["num_iterations_per_update"] = 10
+    in_channels = config["input_channels"]
+    model = TinyConvNet2d(in_channels=in_channels)
+    training = TrainingProcess(config=config, model=model)
+    try:
+        data = TikTensorBatch(
+            [
+                TikTensor(torch.zeros(in_channels, 15, 15), ((1,), (1,))),
+                TikTensor(torch.ones(in_channels, 9, 9), ((2,), (2,))),
+            ]
+        )
+        labels = TikTensorBatch(
+            [
+                TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8), ((1,), (1,))),
+                TikTensor(torch.full((in_channels, 9, 9), 2, dtype=torch.uint8), ((2,), (2,))),
+            ]
+        )
+        training.set_devices([torch.device("cpu")])
+        training.update_dataset("training", data, labels)
+        res = training.train_for(10).result()
+    finally:
+        training.shutdown()
+
+
 # def test_validation(tiny_model_2d):
