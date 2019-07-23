@@ -12,6 +12,7 @@ source:
   git_url: ../
 
 build:
+  noarch: python
   number: {{ GIT_DESCRIBE_NUMBER }}
   script: python -m pip install --no-deps --ignore-installed .
   string: np{{CONDA_NPY}}py{{CONDA_PY}}_{{PKG_BUILDNUM}}_h{{PKG_HASH}}_g{{GIT_FULL_HASH[:7]}}
@@ -20,11 +21,11 @@ build:
 requirements:
   build:
     - pip
-    - python {{ python }}
+    - python >=3.7
   run:
     - h5py
-    - python {{ python }}*
-    - numpy {{ numpy }}*
+    - python >=3.7
+    - numpy >=1.14
     - pyyaml
     - paramiko
     - pyzmq
