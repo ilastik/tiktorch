@@ -197,7 +197,7 @@ class MrRobot:
             self._add(data_batch)
             self.remove_key([id for image, label, id in data_batch])
 
-            self._resume()
+            self.new_server.train_for(10).result()
 
         self.terminate()
 
