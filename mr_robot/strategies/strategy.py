@@ -106,8 +106,9 @@ class BaseStrategy:
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="sum")
-        if(pred_output.shape != target.shape):
+        if pred_output.shape != target.shape:
             target = integer_to_onehot(target)
+            pred_output = np.expand_dims(pred_output, axis=0)
 
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
@@ -120,7 +121,9 @@ class BaseStrategy:
         self.write_metric(pred_output, target, curr_loss)
 
     def write_metric(self, pred_output, target, curr_loss):
-        self.strategy_metric["confusion_matrix"] += get_confusion_matrix(pred_output, target, self.class_dict)
+        self.strategy_metric["confusion_matrix"] += get_confusion_matrix(
+            pred_output, target, list(self.class_dict.keys())
+        )
         self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target)
         self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted")
         self.strategy_metric["avg_loss"] += curr_loss
@@ -145,7 +148,11 @@ class BaseStrategy:
         for key, value in self.strategy_metric.items():
             self.strategy_metric[key] /= len(self.patched_data)
         # print(type(self.strategy_metric), self.strategy_metric)
-        strategy_metric = self.strategy_metric
+        import copy
+
+        strategy_metric = copy.deepcopy(self.strategy_metric)
+
+        # FIXME confision_matrix -> plotted_confusion_matrix
         strategy_metric["confusion_matrix"] = plot_confusion_matrix(
             strategy_metric["confusion_matrix"], self.class_dict
         )
@@ -330,7 +337,7 @@ class DenseSparseAnnotate(RandomSparseAnnotate):
 
 
 class ClassWiseLoss(BaseStrategy):
-    """ sorts patches according to classes with highest loss, patches with maximum 
+    """ sorts patches according to classes with highest loss, patches with maximum
     instances of this class are fed first
     Assumptions:
     1. model output for multiclass claissfication will always be one hot encoded
@@ -354,7 +361,7 @@ class ClassWiseLoss(BaseStrategy):
         self.image_id = dict()
 
     def update_state(self, pred_output, target, block):
-        """ 
+        """
         1. calculate loss for given prediction and label
         2. map each image with a corresponding ID
 
@@ -368,10 +375,8 @@ class ClassWiseLoss(BaseStrategy):
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="none")
 
-        # pred_output = pred_output.flatten().round().astype(np.int32)
-        # target = target.flatten().round().astype(np.int32)
         if len(self.class_dict) > 2:
-            one_hot_target = np.expand_dims(integer_to_onehot(target), axis=0)
+            one_hot_target = integer_to_onehot(target)
         else:
             one_hot_target = np.expand_dims(target, axis=0)
 
@@ -381,14 +386,21 @@ class ClassWiseLoss(BaseStrategy):
         self.image_class_count[-1][0] = self.image_counter
         self.image_id[self.image_counter] = block
         self.image_counter += 1
-        indices = [0] * (len(one_hot_target.shape))
-        self.record_classes(0, one_hot_target, indices)
-        # print("array shapes:", one_hot_target.shape,pred_output.shape)
+
+        indices = [0] * (len(target.shape))
+        self.record_classes(0, target, indices)
+
         self.loss_matrix = criterion_class_obj(
             torch.from_numpy(one_hot_target.astype(np.float32)), torch.from_numpy(pred_output.astype(np.float32))
         )
+
+        indices = [0] * (len(self.loss_matrix.shape))
         self.record_class_loss(2, indices, self.loss_matrix.shape)
+
         curr_total_loss = torch.sum(self.loss_matrix)
+
+        if len(self.class_dict) > 2:
+            target = one_hot_target
         super().write_metric(
             pred_output.flatten().round().astype(np.int32), target.flatten().round().astype(np.int32), curr_total_loss
         )
@@ -460,7 +472,7 @@ class ClassWiseLoss(BaseStrategy):
 class VideoLabelling(BaseStrategy):
     """emulates user who randomly annotates/de-annotates/updates various patches at different timestamps
     The strategy expects a series of operations, which are then performed and added to the canvas (sparse matrix)
-    The canvas state at each time step is added to the training data 
+    The canvas state at each time step is added to the training data
     """
 
     def __init__(
