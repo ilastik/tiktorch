@@ -8,11 +8,14 @@ parser.add_argument("-c", "--config", help="Path to config file", type=str, requ
 parser.add_argument(
     "-s", "--strategy", help="Annotation strategy to use", type=str, choices=strategies.keys(), required=True
 )
+parser.add_argument("-d", "--device", help="Which device to use", type=str, required=True, default="cpu")
 
 
 def main():
     args = parser.parse_args()
-    MrRobot(args.config, args.strategy)
+    robo = MrRobot(args.config, args.strategy, args.device)
+    robo._load_model()
+    robo._run()
     return 0
 
 
