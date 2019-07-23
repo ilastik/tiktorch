@@ -1,12 +1,14 @@
 import os
 import pytest
+import numpy as np
 
 from mr_robot.mr_robot import MrRobot
 from mr_robot.strategies.strategy import HighestLoss, ClassWiseLoss, StrategyRandom, StrategyAbstract
-from mr_robot.utils import tile_image
+from mr_robot.utils import tile_image, get_confusion_matrix
 from tiktorch.server import TikTorchServer
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+
 
 def test_tile_image():
     # when image dim are multiple of patch size
@@ -64,3 +66,13 @@ def test_MrRobot():
     robo._load_model()
     robo._run()
 
+
+def test_get_confusion_matrix():
+    predicted = np.array([1, 2, 3])
+    actual = np.array([2, 1, 3])
+    classes = [0, 1, 2, 3]
+
+    expected = [[0, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]
+
+    res = get_confusion_matrix(predicted, actual, classes)
+    assert expected == res.tolist()

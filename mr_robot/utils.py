@@ -8,6 +8,13 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 
+def read_config(path: str) -> dict:
+    with open(path, mode="r") as f:
+        conf = yaml.load(f)
+
+    return conf
+
+
 # ref: https://github.com/constantinpape/vis_tools/blob/master/vis_tools/edges.py#L5
 def make_edges3d(segmentation):
     """ Make 3d edge volume from 3d segmentation
@@ -51,7 +58,7 @@ def recursive_chop(dim_number, arr_shape, block_shape):
 
 def tile_image(arr_shape, block_shape):
     """
-    chops of blocks of given size from an array 
+    chops of blocks of given size from an array
 
     Args:
     arr_shape(tuple): size of input array (ndarray)
@@ -74,20 +81,16 @@ def tile_image(arr_shape, block_shape):
     return block_list
 
 
-def get_confusion_matrix(pred_labels, act_labels, cls_dict):
-
-    act_labels_f = [str(i) for i in act_labels.tolist()]
-    pred_labels_f = [str(i) for i in pred_labels.tolist()]
-
-    c_mat_arr = confusion_matrix(act_labels_f, pred_labels_f, labels=[str(i) for i in cls_dict.keys()])
+def get_confusion_matrix(predictions, actual_labels, classes):
+    if predictions.shape != actual_labels.shape:
+        print("SHAPE MISMATCH", predictions.shape, actual_labels.shape)
+        return np.zeros(shape=(len(classes), len(classes)))
+    c_mat_arr = confusion_matrix(actual_labels, predictions, labels=classes)
     c_mat_n = c_mat_arr / c_mat_arr.astype(np.float).sum(axis=1, keepdims=True)
-    # c_mat_n = c_mat_arr / np.expand_dims(np.sum(c_mat_arr, axis=1), axis=1)
-
-    return c_mat_n
+    return np.nan_to_num(c_mat_n)
 
 
 def plot_confusion_matrix(c_mat_n, cls_dict):
-
     pd_cm_n = pd.DataFrame(
         c_mat_n, index=[str(i) for i in cls_dict.values()], columns=[str(i) for i in cls_dict.values()]
     )
@@ -97,12 +100,10 @@ def plot_confusion_matrix(c_mat_n, cls_dict):
 
 
 def integer_to_onehot(integer_maps):
-    #return np.stack(
+    # return np.stack(
     #    [integer_maps == integer for integer in range(integer_maps.min(), integer_maps.max() + 1)], axis=1
-    #).astype(np.uint8)
-    return np.stack(
-        [integer_maps == integer for integer in range(0,14)], axis=1
-    ).astype(np.uint8)
+    # ).astype(np.uint8)
+    return np.stack([integer_maps == integer for integer in range(0, 14)], axis=1).astype(np.uint8)
 
 
 def onehot_preds_to_integer(one_hot_preds):
