@@ -240,7 +240,7 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 self.trainer.build_optimizer(optimizer)
 
-        self.training_thread = threading.Thread(target=add_logger(self.logger)(self._training_worker), name="Training")
+        self.training_thread = threading.Thread(target=self._training_worker, name="Training")
         self.training_thread.start()
 
     # def end_of_training_iteration(self, iteration_num, trigger):
@@ -327,7 +327,8 @@ class TrainingProcess(ITraining):
                         try:
                             self.trainer.fit()
                         except Exception as e:
-                            self.logger.debug(e, exc_info=True)
+                            self.trainer.next_iteration()  # XXX(m-novikov)
+                            self.logger.debug("Exception during trainer fit", exc_info=True)
 
                         self.logger.info(
                             "Break training at %d/%d iterations",
