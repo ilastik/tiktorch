@@ -97,8 +97,11 @@ def plot_confusion_matrix(c_mat_n, cls_dict):
 
 
 def integer_to_onehot(integer_maps):
+    #return np.stack(
+    #    [integer_maps == integer for integer in range(integer_maps.min(), integer_maps.max() + 1)], axis=1
+    #).astype(np.uint8)
     return np.stack(
-        [integer_maps == integer for integer in range(integer_maps.min(), integer_maps.max() + 1)], axis=0
+        [integer_maps == integer for integer in range(0,14)], axis=1
     ).astype(np.uint8)
 
 

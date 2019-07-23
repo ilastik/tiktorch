@@ -19,12 +19,12 @@ from tensorboardX import SummaryWriter
 
 from tiktorch.models.dunet import DUNet
 from tiktorch.rpc.utils import BatchedExecutor
-from tiktorch.server import TikTorchServer
-from tiktorch.types import NDArray, NDArrayBatch
+from tiktorch.server.base import TikTorchServer
+from tiktorch.types import NDArray, NDArrayBatch, Model, ModelState
 from mr_robot.strategies.strategy import *
 
 img_dim = 32
-batch_size = 1
+batch_size = 8
 
 
 class MrRobot:
@@ -66,7 +66,7 @@ class MrRobot:
         #)
         strat0 = StrategyRandom( "MSELoss", self.base_config["class_dict"], self.raw_data_file, self.labelled_data_file, self.base_config["data_dir"], "random_blob",0.6)
         strat1 = ClassWiseLoss("MSELoss", self.base_config["class_dict"], self.raw_data_file, self.labelled_data_file, self.base_config["data_dir"], "random_blob",0.6)
-        self.strategy = StrategyAbstract(self.new_server,(strat0,10), (strat1,10))
+        self.strategy = StrategyAbstract(self.new_server,(strat0,20), (strat1,40))
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
@@ -78,11 +78,11 @@ class MrRobot:
 
         if self.base_config["model_dir"]["path_to_folder"].endswith(".zip"):
             archive = zipfile.ZipFile(self.base_config["model_dir"]["path_to_folder"], "r")
-            model = archive.read(self.base_config["model_dir"]["path_in_folder_to_model"])
+            model_file = archive.read(self.base_config["model_dir"]["path_in_folder_to_model"])
             binary_state = archive.read(self.base_config["model_dir"]["path_in_folder_to_state"])
 
         else:
-            model = open(
+            model_file = open(
                 os.path.join(
                     self.base_config["model_dir"]["path_to_folder"],
                     self.base_config["model_dir"]["path_in_folder_to_model"],
@@ -95,10 +95,11 @@ class MrRobot:
                 )
             )
 
-        # cleaning dictionary before passing to tiktorch
-        # self.base_config.pop("model_dir")
+        model = Model(code=model_file,config=self.base_config)
+        binary_state = ModelState(b"")
+        #binary_state.model_state = b""
 
-        self.new_server.load_model(self.base_config, model, b"", b"", ["gpu:4"])
+        self.new_server.load_model(model, binary_state, ["gpu:4"])
         # self.tensorboard_writer.add_graph(DUNet(1,1),torch.from_numpy(self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]][0]) )
         self.logger.info("model loaded")
 
@@ -118,23 +119,23 @@ class MrRobot:
         path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
         path_to_label = self.base_config["data_dir"]["path_to_labelled"]
 
-        batch_maker = BatchedExecutor(batch_size=5)
-        for block in self.block_list[:5]:
+        batch_maker = BatchedExecutor(batch_size=8)
+        for block in self.block_list[:9*64]:
             # map each slicer with its corresponding index
             self.assign_id(block, x)
             # self.patch_id[block[0].start] = x
-            x += 1
             # pred_output = self.new_server.forward(NDArray(self.raw_data_file[path_to_input][block]))
             prediction_list.append(
                 batch_maker.submit(self.new_server.forward, NDArray(self.raw_data_file[path_to_input][block],x))
             )
+            x += 1
             # self.pred_output = pred_output.result().as_numpy()
             # print("hello")
             # self.strategy.update_state(self.pred_output, self.labelled_data_file[path_to_label][block], block)
 
         for prediction in cf.as_completed(prediction_list):
-            print(type(prediction.result()))
-            block = self.block_list[prediction.id]
+            print(prediction.result().id)
+            block = self.block_list[prediction.result().id]
             print(prediction.result().as_numpy().shape)
             self.strategy.update_state(
                 prediction.result().as_numpy(), self.labelled_data_file[path_to_label][block], block
