@@ -79,14 +79,25 @@ def test_get_confusion_matrix():
     res = get_confusion_matrix(predicted, actual, classes)
     assert expected == res.tolist()
 
+
 def test_make_plot():
-    stats = {"training_loss": [], "robo_predict_accuracy": [], "robo_predict_f1_score": [],"robo_predict_loss":[], "confusion_matrix": [], "validation_loss" : [], "validation_accuracy" :[], "training_iterations": [], "number_of_patches": []}
+    stats = {
+        "training_loss": [],
+        "robo_predict_accuracy": [],
+        "robo_predict_f1_score": [],
+        "robo_predict_loss": [],
+        "confusion_matrix": [],
+        "validation_loss": [],
+        "validation_accuracy": [],
+        "training_iterations": [],
+        "number_of_patches": [],
+    }
 
     for key in stats.keys():
-        stats[key] = random.sample(range(0,100),10)
-    stats["training_iterations"] = [i for i in range(0,100,10)]
-    stats["number_of_patches"] = [i for i in range(0,80,8)]
-    
+        stats[key] = random.sample(range(0, 100), 10)
+    stats["training_iterations"] = [i for i in range(0, 100, 10)]
+    stats["number_of_patches"] = [i for i in range(0, 80, 8)]
+
     make_plot(stats)
-    #plt.savefig()
-    #plt.show()
+    # plt.savefig()
+    # plt.show()

@@ -13,7 +13,14 @@ import random
 
 from scipy import sparse
 from io import BytesIO
-from mr_robot.utils import get_confusion_matrix, integer_to_onehot, plot_confusion_matrix, tile_image, get_coordinate, make_plot
+from mr_robot.utils import (
+    get_confusion_matrix,
+    integer_to_onehot,
+    plot_confusion_matrix,
+    tile_image,
+    get_coordinate,
+    make_plot,
+)
 from sklearn.metrics import accuracy_score, f1_score
 from tensorboardX import SummaryWriter
 
@@ -57,7 +64,7 @@ class MrRobot:
             self.raw_data_file = z5py.File(self.base_config["data_dir"]["raw_data_base_folder"])
             self.labelled_data_file = z5py.File(self.base_config["data_dir"]["labelled_data_base_folder"])
             self.validation_raw_file = h5py.File(self.base_config["data_dir"]["validation_raw_base"])
-            self.validation_label_file = h5py.File(self.base_config["data_dir"]["validation_label_base"])   
+            self.validation_label_file = h5py.File(self.base_config["data_dir"]["validation_label_base"])
 
         image_shape = self.raw_data_file[self.base_config["data_dir"]["path_to_raw_data"]].shape
         validation_data_shape = self.validation_raw_file[self.base_config["data_dir"]["validation_raw"]].shape
@@ -81,7 +88,7 @@ class MrRobot:
             0.6,
         )
 
-        #strat1 = ClassWiseLoss(
+        # strat1 = ClassWiseLoss(
         #    "MSELoss",
         #    self.base_config["class_dict"],
         #    self.raw_data_file,
@@ -89,12 +96,22 @@ class MrRobot:
         #    self.base_config["data_dir"],
         #    "random_blob",
         #    0.6,
-        #)
-        self.strategy = StrategyAbstract(self.new_server, (strat0, batch_size*5), (strat0, batch_size*10))
+        # )
+        self.strategy = StrategyAbstract(self.new_server, (strat0, batch_size * 5), (strat0, batch_size * 10))
 
         self.iterations_max = self.base_config.pop("max_robo_iterations")
         self.iterations_done = 0
-        self.stats = {"training_loss": [], "robo_predict_accuracy": [], "f1_score": [],"robo_predict_loss":[], "confusion_matrix": [], "validation_loss" : [], "validation_accuracy" :[], "training_iterations": [], "number_of_patches": []}
+        self.stats = {
+            "training_loss": [],
+            "robo_predict_accuracy": [],
+            "f1_score": [],
+            "robo_predict_loss": [],
+            "confusion_matrix": [],
+            "validation_loss": [],
+            "validation_accuracy": [],
+            "training_iterations": [],
+            "number_of_patches": [],
+        }
         mr_robot_folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.tensorboard_writer = SummaryWriter(logdir=os.path.join(mr_robot_folder, "tests", "robot", "robo_logs"))
         self.logger = logging.getLogger(__name__)
@@ -168,16 +185,16 @@ class MrRobot:
 
     def validate(self):
         validation_list = []
-        x=0 # CHECK: same id as prediction, does that work??
+        x = 0  # CHECK: same id as prediction, does that work??
         path_to_input = self.base_config["data_dir"]["validation_raw"]
         path_to_label = self.base_config["data_dir"]["validation_label"]
 
-        batch_maker = BatchedExecutor(batch_size=8)     
+        batch_maker = BatchedExecutor(batch_size=8)
         for block in self.validation_block_list:
             validation_list.append(
                 batch_maker.submit(self.new_server.forward, NDArray(self.validation_raw_file[path_to_input][block], x))
             )
-            x+=1
+            x += 1
         for prediction in cf.as_completed(validation_list):
             block = self.validation_block_list[prediction.result().id]
             self.strategy.update_state(
@@ -210,7 +227,7 @@ class MrRobot:
             self.validate()
             curr_model_state = self.new_server.get_model_state()
             self.stats["training_iterations"].append(curr_model_state.num_iterations_done)
-            self.stats["number_of_patches"].append(self.iterations_done*batch_size)
+            self.stats["number_of_patches"].append(self.iterations_done * batch_size)
             # log average loss and accuracy for all patches per iteration to tensorboard
             self.write_to_tensorboard()
 
@@ -245,17 +262,17 @@ class MrRobot:
 
     def write_to_tensorboard(self):
         metric_data = self.strategy.get_metrics()
-        
-        for key,value in metric_data.items():
-            if (key != "confusion_matrix"):
+
+        for key, value in metric_data.items():
+            if key != "confusion_matrix":
                 self.stats[key].append(value)
 
         loss_plot, accuracy_plot = make_plot(self.stats)
         self.tensorboard_writer.add_figure("loss_plot", loss_plot)
         self.tensorboard_writer.add_figure("accuray_plot", accuracy_plot)
-        #self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
-        #self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"] * 100, self.iterations_done)
-        #self.tensorboard_writer.add_scalar("F1_score", metric_data["avg_f1_score"], self.iterations_done)
+        # self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
+        # self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"] * 100, self.iterations_done)
+        # self.tensorboard_writer.add_scalar("F1_score", metric_data["avg_f1_score"], self.iterations_done)
         self.tensorboard_writer.add_figure(
             "confusion_matrix", metric_data["confusion_matrix"], global_step=self.iterations_done
         )

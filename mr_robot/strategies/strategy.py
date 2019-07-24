@@ -40,7 +40,7 @@ def randomize(label, num_of_classes):
 
     actions = [-1, 0] + [i for i in range(1, num_of_classes + 1)]
     volume = np.product(label.shape)
-    #print(volume, label.shape)
+    # print(volume, label.shape)
     x = np.random.randint(0, volume)
     while x:
         index = get_random_index(label.shape)
@@ -82,7 +82,16 @@ class BaseStrategy:
 
         self.patched_data = []
         self.loss_fn = loss_fn
-        self.strategy_metric = {"training_loss": 0, "robo_predict_accuracy": 0, "f1_score": 0,"robo_predict_loss":0, "confusion_matrix": 0, "validation_loss" : 0, "validation_accuracy" :0, "confusion_matrix" : 0}
+        self.strategy_metric = {
+            "training_loss": 0,
+            "robo_predict_accuracy": 0,
+            "f1_score": 0,
+            "robo_predict_loss": 0,
+            "confusion_matrix": 0,
+            "validation_loss": 0,
+            "validation_accuracy": 0,
+            "confusion_matrix": 0,
+        }
         self.class_dict = class_dict
         self.raw_data_file = raw_data_file
         self.labelled_data_file = labelled_data_file
@@ -102,7 +111,7 @@ class BaseStrategy:
         block(tuple): tuple of slice objects, one per dimension, specifying the corresponding block
         in the actual image
         """
-        #print("shape before one hot:", target.shape)
+        # print("shape before one hot:", target.shape)
         pred_output[pred_output >= 0.5] = 2
         pred_output[pred_output < 0.5] = 1
         criterion_class = getattr(nn, self.loss_fn, None)
@@ -113,21 +122,21 @@ class BaseStrategy:
             target = integer_to_onehot(target)
             pred_output = np.expand_dims(pred_output, axis=0)
 
-        #print("output_shape:", target.shape, "predicion shape:", pred_output.shape)
+        # print("output_shape:", target.shape, "predicion shape:", pred_output.shape)
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
 
-        if( validation_flag is False):
+        if validation_flag is False:
             self.patched_data.append((curr_loss, block))
-        #print("output_shape:", target.shape)
+        # print("output_shape:", target.shape)
         pred_output = pred_output.flatten().round().astype(np.int32)
         target = target.flatten().round().astype(np.int32)
 
         self.write_metric(pred_output, target, curr_loss, validation_flag)
 
     def write_metric(self, pred_output, target, curr_loss, validation_flag):
-        if( validation_flag is True):
+        if validation_flag is True:
             self.strategy_metric["validation_accuracy"] += accuracy_score(pred_output, target)
             self.strategy_metric["validation_loss"] += curr_loss
             self.strategy_metric["f1_score"] += f1_score(target, pred_output, average="weighted")
@@ -393,7 +402,6 @@ class ClassWiseLoss(BaseStrategy):
 
         pred_output = np.expand_dims(pred_output, axis=0)
 
-        
         np.vstack([self.image_class_count, np.zeros((1, self.num_classes + 1))])
         self.image_class_count[-1][0] = self.image_counter
         self.image_id[self.image_counter] = block
@@ -414,7 +422,10 @@ class ClassWiseLoss(BaseStrategy):
         if len(self.class_dict) > 2:
             target = one_hot_target
         super().write_metric(
-            pred_output.flatten().round().astype(np.int32), target.flatten().round().astype(np.int32), curr_total_loss, validation_flag
+            pred_output.flatten().round().astype(np.int32),
+            target.flatten().round().astype(np.int32),
+            curr_total_loss,
+            validation_flag,
         )
 
     def record_classes(self, curr_dim, label, indices):
@@ -595,22 +606,22 @@ class StrategyAbstract:
         self.strategies = args
         self.index = 0
         self.tikserver = tikserver
-        #self.tiktorch_config = {"training": {"num_iterations_done": 0}}
+        # self.tiktorch_config = {"training": {"num_iterations_done": 0}}
         self.patches_added = 0
         self.patches_max = self.strategies[0][1]
 
     def update_strategy(self, batch_size=1):
-        if  self.index >= len(self.strategies) -1:
+        if self.index >= len(self.strategies) - 1:
             return
-        
-        elif (self.patches_added >= self.patches_max):
-            self.index+=1
+
+        elif self.patches_added >= self.patches_max:
+            self.index += 1
             self.patches_added = 0
             self.patches_max = self.strategies[self.index][1]
             print("curr strategy:", str(self.strategies[self.index][0]))
 
         else:
-            self.patches_added+=batch_size
+            self.patches_added += batch_size
 
     def update_state(self, pred_output, target, block, validation_flag):
         self.strategies[self.index][0].update_state(pred_output, target, block, validation_flag)
