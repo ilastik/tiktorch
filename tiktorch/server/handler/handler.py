@@ -89,6 +89,10 @@ class IHandler(RPCInterface):
     def get_state(self) -> ModelState:
         raise NotImplementedError
 
+    @exposed
+    def remove_data(self, dataset_name: str, ids: List[str]) -> None:
+        raise NotImplementedError
+
 
 def run(
     conn: Connection,
@@ -515,6 +519,9 @@ class HandlerProcess(IHandler):
 
     def get_state(self) -> ModelState:
         return self.training.get_state()
+
+    def remove_data(self, dataset_name: str, ids: List[str]) -> None:
+        return self.training.remove_data(dataset_name, ids)
 
     # def request_state(self) -> None:
     #     model_state = pickle.dumps(self.model.state_dict())

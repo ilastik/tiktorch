@@ -252,6 +252,9 @@ class TikTorchServer(INeuralNetworkAPI, IFlightControl):
     def get_model_state(self) -> ModelState:
         return self.handler.get_state()
 
+    def remove_data(self, dataset_name: str, ids: List[str]) -> None:
+        return self.handler.remove_data(dataset_name, ids)
+
     def shutdown(self):
         self.logger.info("Shutting down...")
         if self.handler:

@@ -70,3 +70,7 @@ class INeuralNetworkAPI(RPCInterface):
     @exposed
     def get_model_state(self) -> ModelState:
         raise NotImplementedError
+
+    @exposed
+    def remove_data(self, dataset_name: str, ids: List[str]) -> None:
+        raise NotImplementedError

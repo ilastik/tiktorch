@@ -142,6 +142,10 @@ class ITraining(RPCInterface):
     def get_model_state_dict(self) -> dict:
         raise NotImplementedError
 
+    @exposed
+    def remove_data(self, name: str, ids: List[str]) -> None:
+        raise NotImplementedError
+
 
 def run(
     conn: Connection,
@@ -418,8 +422,10 @@ class TrainingProcess(ITraining):
     def pause_training(self) -> None:
         self._pause_event.set()
 
-    def remove_data(self, name, id_):
-        raise NotImplementedError()
+    def remove_data(self, name: str, ids: List[str]) -> None:
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+        for id_ in ids:
+            self.datasets[name].remove(id_)
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
