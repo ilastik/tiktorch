@@ -45,7 +45,7 @@ class Annotater:
         return ret_label
 
     def random_blob(self, label):
-        ret_label = np.zeros(label.shape)
+        ret_label = np.ones(label.shape)
         for i in range(int(self.annotation_percent) * np.product(label.shape)):
             random_block = self.get_random_patch(label.shape)
             ret_label[random_block] = label[random_block]

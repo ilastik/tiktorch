@@ -40,7 +40,7 @@ def randomize(label, num_of_classes):
 
     actions = [-1, 0] + [i for i in range(1, num_of_classes + 1)]
     volume = np.product(label.shape)
-    print(volume, label.shape)
+    #print(volume, label.shape)
     x = np.random.randint(0, volume)
     while x:
         index = get_random_index(label.shape)
@@ -82,7 +82,7 @@ class BaseStrategy:
 
         self.patched_data = []
         self.loss_fn = loss_fn
-        self.strategy_metric = {"avg_loss": 0, "avg_accuracy": 0, "avg_f1_score": 0, "confusion_matrix": 0}
+        self.strategy_metric = {"training_loss": 0, "robo_predict_accuracy": 0, "f1_score": 0,"robo_predict_loss":0, "confusion_matrix": 0, "validation_loss" : 0, "validation_accuracy" :0, "confusion_matrix" : 0}
         self.class_dict = class_dict
         self.raw_data_file = raw_data_file
         self.labelled_data_file = labelled_data_file
@@ -92,7 +92,7 @@ class BaseStrategy:
         # self.tikserver = tikserver
         self.logger = logging.getLogger(__name__)
 
-    def update_state(self, pred_output, target, block):
+    def update_state(self, pred_output, target, block, validation_flag):
         """  computes loss and accuracy corresponding to the output and target according to
         the given loss function and update patch data
 
@@ -102,37 +102,46 @@ class BaseStrategy:
         block(tuple): tuple of slice objects, one per dimension, specifying the corresponding block
         in the actual image
         """
-
+        #print("shape before one hot:", target.shape)
+        pred_output[pred_output >= 0.5] = 2
+        pred_output[pred_output < 0.5] = 1
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="sum")
+
         if pred_output.shape != target.shape:
             target = integer_to_onehot(target)
             pred_output = np.expand_dims(pred_output, axis=0)
 
+        #print("output_shape:", target.shape, "predicion shape:", pred_output.shape)
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
         )
-        self.patched_data.append((curr_loss, block))
-        # print("data added", len(self.patched_data))
+
+        if( validation_flag is False):
+            self.patched_data.append((curr_loss, block))
+        #print("output_shape:", target.shape)
         pred_output = pred_output.flatten().round().astype(np.int32)
         target = target.flatten().round().astype(np.int32)
 
-        self.write_metric(pred_output, target, curr_loss)
+        self.write_metric(pred_output, target, curr_loss, validation_flag)
 
-    def write_metric(self, pred_output, target, curr_loss):
+    def write_metric(self, pred_output, target, curr_loss, validation_flag):
+        if( validation_flag is True):
+            self.strategy_metric["validation_accuracy"] += accuracy_score(pred_output, target)
+            self.strategy_metric["validation_loss"] += curr_loss
+            self.strategy_metric["f1_score"] += f1_score(target, pred_output, average="weighted")
+
         self.strategy_metric["confusion_matrix"] += get_confusion_matrix(
             pred_output, target, list(self.class_dict.keys())
         )
-        self.strategy_metric["avg_accuracy"] += accuracy_score(pred_output, target)
-        self.strategy_metric["avg_f1_score"] += f1_score(target, pred_output, average="weighted")
-        self.strategy_metric["avg_loss"] += curr_loss
+        self.strategy_metric["robo_predict_accuracy"] += accuracy_score(pred_output, target)
+        self.strategy_metric["robo_predict_loss"] += curr_loss
         # print(self.strategy_metric)
 
     def get_annotated_data(self, return_block_set):
         return_data_set = []
         for block in return_block_set:
-            print(self.raw_data_file[self.paths["path_to_raw_data"]])
             image, label = (
                 self.raw_data_file[self.paths["path_to_raw_data"]][block],
                 self.labelled_data_file[self.paths["path_to_labelled"]][block],
@@ -157,6 +166,7 @@ class BaseStrategy:
             strategy_metric["confusion_matrix"], self.class_dict
         )
         self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
+        print("reset done:", self.strategy_metric, strategy_metric)
         return strategy_metric
 
     def get_next_batch(self):
@@ -226,8 +236,7 @@ class StrategyRandom(BaseStrategy):
         Args:
         batch_size (int): number of patches to return
         """
-        print("get next batch called!!")
-        print("dataset size:", len(self.patched_data))
+        print("leftover dataset size:", len(self.patched_data))
         assert len(self.patched_data) >= batch_size, "batch_size too big for current dataset"
 
         rand_indices = np.random.randint(0, len(self.patched_data), size=batch_size)
@@ -256,8 +265,8 @@ class RandomSparseAnnotate(HighestLoss):
             loss_fn, class_dict, raw_data_file, labelled_data_file, paths, labelling_strategy, annotation_percent
         )
 
-    def update_state(self, pred_output, target, block):
-        super().update_state(pred_output, target, block)
+    def update_state(self, pred_output, target, block, training_iterations):
+        super().update_state(pred_output, target, block, training_iterations)
         self.block_shape = target.shape
 
     def get_random_index(self):
@@ -360,7 +369,7 @@ class ClassWiseLoss(BaseStrategy):
         self.image_counter = 1
         self.image_id = dict()
 
-    def update_state(self, pred_output, target, block):
+    def update_state(self, pred_output, target, block, training_iterations, validation_flag):
         """
         1. calculate loss for given prediction and label
         2. map each image with a corresponding ID
@@ -371,6 +380,8 @@ class ClassWiseLoss(BaseStrategy):
         block (tuple[slice]): tuple of slice objects, one per dimension, specifying the patch in the actual image
         """
 
+        pred_output[pred_output >= 0.5] = 2
+        pred_output[pred_output < 0.5] = 1
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="none")
@@ -382,6 +393,7 @@ class ClassWiseLoss(BaseStrategy):
 
         pred_output = np.expand_dims(pred_output, axis=0)
 
+        
         np.vstack([self.image_class_count, np.zeros((1, self.num_classes + 1))])
         self.image_class_count[-1][0] = self.image_counter
         self.image_id[self.image_counter] = block
@@ -402,7 +414,7 @@ class ClassWiseLoss(BaseStrategy):
         if len(self.class_dict) > 2:
             target = one_hot_target
         super().write_metric(
-            pred_output.flatten().round().astype(np.int32), target.flatten().round().astype(np.int32), curr_total_loss
+            pred_output.flatten().round().astype(np.int32), target.flatten().round().astype(np.int32), curr_total_loss, validation_flag
         )
 
     def record_classes(self, curr_dim, label, indices):
@@ -581,28 +593,34 @@ class StrategyAbstract:
 
     def __init__(self, tikserver, *args):
         self.strategies = args
-        self.num_iterations = 0
         self.index = 0
         self.tikserver = tikserver
-        self.tiktorch_config = {"training": {"num_iterations_done": 0}}
+        #self.tiktorch_config = {"training": {"num_iterations_done": 0}}
+        self.patches_added = 0
+        self.patches_max = self.strategies[0][1]
 
-    def update_strategy(self):
-        if len(self.strategies) > self.index + 1:
-            self.index += 1
-        # self.num_iterations += 1
-        self.tiktorch_config["training"]["num_iterations_done"] = self.strategies[self.index][1]
-        self.tikserver.update_config(self.tiktorch_config)
-        print("curr strategy:", str(self.strategies[self.index][0]))
+    def update_strategy(self, batch_size=1):
+        if  self.index >= len(self.strategies) -1:
+            return
+        
+        elif (self.patches_added >= self.patches_max):
+            self.index+=1
+            self.patches_added = 0
+            self.patches_max = self.strategies[self.index][1]
+            print("curr strategy:", str(self.strategies[self.index][0]))
 
-    def update_state(self, pred_output, target, loss):
-        self.strategies[self.index][0].update_state(pred_output, target, loss)
+        else:
+            self.patches_added+=batch_size
+
+    def update_state(self, pred_output, target, block, validation_flag):
+        self.strategies[self.index][0].update_state(pred_output, target, block, validation_flag)
 
     def rearrange(self):
         self.strategies[self.index][0].rearrange()
 
     def get_next_batch(self, batch_size=1):
         new_batch = self.strategies[self.index][0].get_next_batch(batch_size)
-        self.update_strategy()
+        self.update_strategy(batch_size)
         return new_batch
 
     def get_metrics(self):

@@ -1,10 +1,12 @@
 import os
 import pytest
 import numpy as np
+import random
+import matplotlib.pyplot as plt
 
 from mr_robot.mr_robot import MrRobot
 from mr_robot.strategies.strategy import HighestLoss, ClassWiseLoss, StrategyRandom, StrategyAbstract
-from mr_robot.utils import tile_image, get_confusion_matrix
+from mr_robot.utils import tile_image, get_confusion_matrix, make_plot
 from tiktorch.server import TikTorchServer
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
@@ -59,7 +61,7 @@ def test_tile_image():
 
 def test_MrRobot():
 
-    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategyabstract")
+    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategyabstract", "gpu:4")
     assert isinstance(robo, MrRobot)
     assert isinstance(robo.new_server, TikTorchServer)
 
@@ -76,3 +78,15 @@ def test_get_confusion_matrix():
 
     res = get_confusion_matrix(predicted, actual, classes)
     assert expected == res.tolist()
+
+def test_make_plot():
+    stats = {"training_loss": [], "robo_predict_accuracy": [], "robo_predict_f1_score": [],"robo_predict_loss":[], "confusion_matrix": [], "validation_loss" : [], "validation_accuracy" :[], "training_iterations": [], "number_of_patches": []}
+
+    for key in stats.keys():
+        stats[key] = random.sample(range(0,100),10)
+    stats["training_iterations"] = [i for i in range(0,100,10)]
+    stats["number_of_patches"] = [i for i in range(0,80,8)]
+    
+    make_plot(stats)
+    #plt.savefig()
+    #plt.show()

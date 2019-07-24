@@ -1,9 +1,9 @@
 # base config for robot
 max_robo_iterations: 50
 model_class_name: DUNet2D
-model_init_kwargs: {in_channels: 1, out_channels: 14}
+model_init_kwargs: {in_channels: 1, out_channels: 1}
 training: {
-    training_shape: [1, 64, 64],
+    training_shape: [1, 256, 256],
     batch_size: 8,
     loss_criterion_config: {"method": "MSELoss"},
     optimizer_config: {"method": "Adam"},
@@ -19,26 +19,18 @@ model_dir: {
 }
 
 data_dir: {
-    raw_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Hela_raw.h5",
+    raw_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Fluo_N2DH_train_raw.h5",
     path_to_raw_data: "raw",
-    labelled_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Hela_label.h5", 
+    labelled_data_base_folder: "/home/psharma/psharma/repos/tiktorch/tests/data/Fluo_N2DH_train_label.h5", 
     path_to_labelled: "labelled",
+    validation_raw_base: "/home/psharma/psharma/repos/tiktorch/tests/data/Fluo_N2DH_validation_raw.h5",
+    validation_raw: "raw",
+    validation_label_base: "/home/psharma/psharma/repos/tiktorch/tests/data/Fluo_N2DH_validation_label.h5",
+    validation_label: "labelled"
 }
 
 class_dict: {
-    0: "background",
-    1: "class1",
-    2: "class2",
-    3: "class3",
-    4: "class4",
-    5: "class5",
-    6: "class6",
-    7: "class7",
-    8: "class8",
-    9: "class9",
-    10: "class10",
-    11: "class11",
-    12: "class12",
-    13: "class13",
+    1: "background",
+    2: "cell"
 }
 
