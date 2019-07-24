@@ -16,7 +16,7 @@ class EntryRemoved(Exception):
     pass
 
 
-class EmtpyDataset(Exception):
+class EmptyDataset(Exception):
     pass
 
 
@@ -139,6 +139,9 @@ class DynamicWeightedRandomSampler(Sampler):
 
     def __iter__(self):
         while True:
+            if not len(self._dataset):
+                raise EmptyDataset()
+
             weights = self._dataset.get_weights()
             val = torch.multinomial(weights, num_samples=1)
             yield int(val)

@@ -116,6 +116,9 @@ class TestDynamicWeightedRandomSampler:
         def get_weights(self):
             return self.weights
 
+        def __len__(self):
+            return len(self.weights)
+
     def test_should_return(self):
         ds = self.DatasetStub(torch.Tensor([0.0, 0.0, 1.0]))
 
