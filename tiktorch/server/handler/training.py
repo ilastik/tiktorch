@@ -221,12 +221,8 @@ class TrainingWorker:
     def has_work(self):
         return self._trainer.max_num_iterations > self._trainer.iteration_count
 
-    def remove_device(self, device) -> None:
-        self._devices.remove(device)
-        self._update_state()
-
-    def add_device(self, device) -> None:
-        self._devices.append(device)
+    def set_devices(self, devices) -> None:
+        self._devices = devices
         self._update_state()
 
     def transition_to(self, new_state: State) -> None:
@@ -268,12 +264,12 @@ class TrainingWorker:
         while not self._command_queue.empty():
             try:
                 cmd = self._command_queue.get_nowait()
-                logger.info("Executing command %s", cmd)
+                logger.debug("Executing %s", cmd)
 
                 try:
                     cmd.execute()
                 except Exception:
-                    logger.exception("Failed to execute command %s", cmd)
+                    logger.exception("Failed to execute %s", cmd)
                 finally:
                     self._command_queue.task_done()
 
@@ -284,7 +280,11 @@ class TrainingWorker:
         logger.info(
             "Start training for %d iterations", self._trainer.max_num_iterations - self._trainer.iteration_count
         )
-        self._trainer.fit()
+        try:
+            # sefl._trainer.ensure_devices(self._devices)
+            self._trainer.fit()
+        except Exception as e:
+            self.logger.error("Exception training fit", exc_info=True)
 
     def _update_state(self):
         if self._state == State.Running:
@@ -300,30 +300,6 @@ class TrainingWorker:
     def _set_state(self, new_state: State) -> None:
         self._state = new_state
         logger.debug("Set new state %s", self._state)
-
-        # if self.base_device == "cpu":
-        #     self.trainer.cpu()
-        # elif self.base_device == "cuda":
-        #     self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
-        # else:
-        #     raise ValueError(self.base_device)
-
-        #     # make sure optimizer states are on correct device
-        #     for k in self.trainer.optimizer.state.keys():
-        #         param_state = self.trainer.optimizer.state[k]
-        #         for p in param_state.keys():
-        #             try:
-        #                 if not isinstance(param_state[p], int):
-        #                     param_state[p] = param_state[p].to(self.base_device)
-        #             except Exception as e:
-        #                 self.logger.debug(e)
-
-        #     try:
-        #         self.trainer.fit()
-        #     except Exception as e:
-        #         self.logger.error("Exception during trainer fit", exc_info=True)
-        # else:
-        #     self.logger.info("Waiting for device")
 
 
 class WorkerCmd(ICommand):
@@ -346,22 +322,13 @@ class StopCmd(WorkerCmd):
         self._worker.transition_to(State.Stopped)
 
 
-class AddDeviceCmd(ICommand):
-    def __init__(self, worker, device):
+class SetDevicesCmd(ICommand):
+    def __init__(self, worker, devices):
         self._worker = worker
-        self._device = device
+        self._devices = devices
 
     def execute(self):
-        self._worker.add_device(self._device)
-
-
-class RemoveDeviceCmd(WorkerCmd):
-    def __init__(self, worker, device):
-        self._worker = worker
-        self._device = device
-
-    def execute(self):
-        self._worker.remove_device(self._device)
+        self._worker.set_devices(self._devices)
 
 
 class UpdateDatasetCmd(ICommand):

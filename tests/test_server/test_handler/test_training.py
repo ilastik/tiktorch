@@ -161,14 +161,14 @@ class TestTrainingWorker:
 
         assert training.State.Idle == worker.state
 
-        add_device = training.AddDeviceCmd(worker, "cpu").awaitable
+        add_device = training.SetDevicesCmd(worker, ["cpu"]).awaitable
         worker.send_command(add_device)
 
         add_device.wait()
 
         assert training.State.Running == worker.state
 
-        remove_device = training.RemoveDeviceCmd(worker, "cpu").awaitable
+        remove_device = training.SetDevicesCmd(worker, []).awaitable
         worker.send_command(remove_device)
         remove_device.wait()
 
