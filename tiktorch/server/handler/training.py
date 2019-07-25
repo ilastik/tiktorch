@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import threading
 import time
+import queue
 from datetime import datetime
 from multiprocessing.connection import Connection
 from typing import (
@@ -160,6 +161,216 @@ def run(
     srv.listen()
 
 
+class ICommand:
+    @property
+    def awaitable(self):
+        return AwaitableCommand(self)
+
+    def execute(self) -> None:
+        raise NotImplementedError()
+
+
+class AwaitableCommand(ICommand):
+    def __init__(self, cmd: ICommand):
+        self._cmd = cmd
+        self._done_evt = threading.Event()
+
+    def wait(self):
+        self._done_evt.wait()
+
+    def execute(self):
+        try:
+            self._cmd.execute()
+        finally:
+            self._done_evt.set()
+
+    def __repr__(self):
+        return f"Awaitable {self._cmd!r}"
+
+
+class State:
+    Idle = "idle"
+    WaitingDevice = "waiting_for_device"
+    Running = "running"
+    Stopped = "stopped"
+
+
+class TrainingWorker:
+    def __init__(self, trainer: TikTrainer) -> None:
+        self._state = State.Stopped
+
+        self._command_queue = queue.Queue()
+        self._trainer = trainer
+        self._devices = []
+
+    def send_command(self, cmd: ICommand) -> None:
+        if not isinstance(cmd, ICommand):
+            raise ValueError(f"Expected instance of ICommand got {cmd}")
+
+        logger.debug("Sending command %s", cmd)
+        self._command_queue.put(cmd)
+
+    @property
+    def state(self):
+        return self._state
+
+    def remove_device(self, device) -> None:
+        self._devices.remove(device)
+        if self._state == State.Running:
+            self.set_state(State.WaitingDevice)
+
+    def add_device(self, device) -> None:
+        self._devices.append(device)
+        if self._state == State.WaitingDevice:
+            self.set_state(State.Running)
+
+    def set_state(self, new_state: State) -> None:
+        if new_state == State.Running and not self._devices:
+            new_state = State.WaitingDevice
+
+        logger.debug("New state is %s", new_state)
+        self._state = new_state
+
+    def _run(self):
+        self.set_state(State.Idle)
+
+        while True:
+            self._process_commands()
+
+            if self.state == State.Stopped:
+                break
+
+            elif self._state == State.Idle or self._state == State.WaitingDevice:
+                with self._command_queue.not_empty:
+                    self._command_queue.not_empty.wait()
+
+            elif self._state == State.Running:
+                self._train()
+
+    def run(self):
+        logger.info("Starting training worker")
+        try:
+            self._run()
+        except Exception:
+            logger.exception("Uncaught exception in training worker")
+        finally:
+            logger.info("Stopped training worker")
+
+    def _process_commands(self):
+        while not self._command_queue.empty():
+            try:
+                cmd = self._command_queue.get_nowait()
+                logger.debug("Executing command %s", cmd)
+
+                try:
+                    cmd.execute()
+                except Exception:
+                    logger.exception("Failed to execute command %s", cmd)
+                finally:
+                    self._command_queue.task_done()
+
+            except queue.Empty:
+                pass
+
+    def _train(self):
+        pass
+        """
+        if self._trainer.max_num_iterations > self._trainer.iteration_count:
+            if self._devices:
+                self.logger.info(
+                    "Start training for %d iterations",
+                    self.trainer.max_num_iterations - self.trainer.iteration_count,
+                )
+
+                if self.base_device == "cpu":
+                    self.trainer.cpu()
+                elif self.base_device == "cuda":
+                    self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
+                else:
+                    raise ValueError(self.base_device)
+
+                # make sure optimizer states are on correct device
+                for k in self.trainer.optimizer.state.keys():
+                    param_state = self.trainer.optimizer.state[k]
+                    for p in param_state.keys():
+                        try:
+                            if not isinstance(param_state[p], int):
+                                param_state[p] = param_state[p].to(self.base_device)
+                        except Exception as e:
+                            self.logger.debug(e)
+
+                try:
+                    self.trainer.fit()
+                except Exception as e:
+                    self.logger.error("Exception during trainer fit", exc_info=True)
+            else:
+                self.logger.info("Waiting for device")
+        """
+
+    def join(self):
+        self._command_queue.join()
+
+
+class WorkerCmd(ICommand):
+    def __init__(self, worker: TrainingWorker):
+        self._worker = worker
+
+
+class PauseCmd(WorkerCmd):
+    def execute(self):
+        self._worker.set_state(State.Idle)
+
+
+class ResumeCmd(WorkerCmd):
+    def execute(self):
+        self._worker.set_state(State.Running)
+
+
+class StopCmd(WorkerCmd):
+    def execute(self):
+        self._worker.set_state(State.Stopped)
+
+
+class AddDeviceCmd(ICommand):
+    def __init__(self, worker, device):
+        self._worker = worker
+        self._device = device
+
+    def execute(self):
+        self._worker.add_device(self._device)
+
+
+class RemoveDeviceCmd(WorkerCmd):
+    def __init__(self, worker, device):
+        self._worker = worker
+        self._device = device
+
+    def execute(self):
+        self._worker.remove_device(self._device)
+
+
+class UpdateDatasetCmd(ICommand):
+    def __init__(self, dataset, *, raw_data, labels):
+        self._dataset = dataset
+        self._raw_data = raw_data
+        self._labels = labels
+
+    def execute(self):
+        self._dataset.update(self._raw_data, self._labels)
+
+
+class SetMaxNumberOfIterations(ICommand):
+    def __init__(self, trainer: TikTrainer, num_iterations: int) -> None:
+        self._trainer = trainer
+        self._num_iterations = num_iterations
+
+    def execute(self) -> None:
+        self._trainer.set_max_num_iterations(self._num_iterations)
+
+
+logger = logging.getLogger(__name__)
+
+
 class TrainingProcess(ITraining):
     """
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
@@ -177,6 +388,7 @@ class TrainingProcess(ITraining):
         self.logger.info("started")
         self.shutdown_event = threading.Event()
         self.idle = False
+        self._command_queue = queue.Queue()
 
         self.common_model = model
         self.model = copy.deepcopy(model)
@@ -354,6 +566,7 @@ class TrainingProcess(ITraining):
         set devices to train on. This request blocks until previous devices are free.
         :param devices: devices to use for training
         """
+
         self.logger.debug("set devices %s", devices)
         if self.devices == devices:
             return []

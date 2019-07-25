@@ -1,9 +1,13 @@
 import torch
+import pytest
+import queue
+import threading
 from torch import multiprocessing as mp
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
 from tiktorch.server.handler.training import ITraining, TrainingProcess, run
+from tiktorch.server.handler import training
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
@@ -85,3 +89,55 @@ def test_training_in_proc(tiny_model_2d, log_queue):
 
 
 # def test_validation(tiny_model_2d):
+
+
+class TestTrainingWorker:
+    class DummyCmd(training.ICommand):
+        def execute(self):
+            pass
+
+    @pytest.fixture
+    def worker(self):
+        return training.TrainingWorker(None)
+
+    @pytest.fixture
+    def worker_thread(self, worker):
+        t = threading.Thread(target=worker.run)
+        t.start()
+        yield t
+        worker.send_command(training.StopCmd(worker))
+        t.join()
+
+    def test_not_running_worker_has_stopped_status(self, worker):
+        assert training.State.Stopped == worker.status
+
+    def test_started_worker_has_idle_status(self, worker, worker_thread):
+        cmd = self.DummyCmd().awaitable
+        worker.send_command(cmd)
+        cmd.wait()
+
+        assert training.State.Idle == worker.state
+
+    def test_resuming_transitions_to_waiting_device_with_no_devices(self, worker, worker_thread):
+        cmd = training.ResumeCmd(worker).awaitable
+        worker.send_command(cmd)
+        cmd.wait()
+
+        assert training.State.WaitingDevice == worker.state
+
+    def test_adding_removing_devices_on_running_worker_transitions(self, worker, worker_thread):
+        cmd = training.ResumeCmd(worker)
+        worker.send_command(cmd)
+
+        add_device = training.AddDeviceCmd(worker, "cpu").awaitable
+        worker.send_command(add_device)
+
+        add_device.wait()
+
+        assert training.State.Running == worker.state
+
+        remove_device = training.RemoveDeviceCmd(worker, "cpu").awaitable
+        worker.send_command(remove_device)
+        remove_device.wait()
+
+        assert training.State.WaitingDevice == worker.state
