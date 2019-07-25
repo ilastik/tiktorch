@@ -190,7 +190,7 @@ class AwaitableCommand(ICommand):
 
 class State:
     Idle = "idle"
-    WaitingDevice = "waiting_for_device"
+    Paused = "paused"
     Running = "running"
     Stopped = "stopped"
 
@@ -201,6 +201,7 @@ class TrainingWorker:
 
         self._command_queue = queue.Queue()
         self._trainer = trainer
+        self._trainer.set_break_callback(self.has_commands)
         self._devices = []
 
     def send_command(self, cmd: ICommand) -> None:
@@ -214,38 +215,28 @@ class TrainingWorker:
     def state(self):
         return self._state
 
+    def has_commands(self):
+        return not self._command_queue.empty()
+
+    def has_work(self):
+        return self._trainer.max_num_iterations > self._trainer.iteration_count
+
     def remove_device(self, device) -> None:
         self._devices.remove(device)
-        if self._state == State.Running:
-            self.set_state(State.WaitingDevice)
+        self._update_state()
 
     def add_device(self, device) -> None:
         self._devices.append(device)
-        if self._state == State.WaitingDevice:
-            self.set_state(State.Running)
+        self._update_state()
 
-    def set_state(self, new_state: State) -> None:
-        if new_state == State.Running and not self._devices:
-            new_state = State.WaitingDevice
-
-        logger.debug("New state is %s", new_state)
+    def transition_to(self, new_state: State) -> None:
+        logger.debug("Attempting transition to state %s", new_state)
         self._state = new_state
+        self._update_state()
 
-    def _run(self):
-        self.set_state(State.Idle)
-
-        while True:
-            self._process_commands()
-
-            if self.state == State.Stopped:
-                break
-
-            elif self._state == State.Idle or self._state == State.WaitingDevice:
-                with self._command_queue.not_empty:
-                    self._command_queue.not_empty.wait()
-
-            elif self._state == State.Running:
-                self._train()
+    def set_max_num_iterations(self, num: int):
+        self._trainer.set_max_num_iterations(num)
+        self._update_state()
 
     def run(self):
         logger.info("Starting training worker")
@@ -256,11 +247,28 @@ class TrainingWorker:
         finally:
             logger.info("Stopped training worker")
 
+    def _run(self):
+        self._set_state(State.Paused)
+
+        while True:
+            self._process_commands()
+
+            if self.state == State.Stopped:
+                break
+
+            elif self._state == State.Idle or self._state == State.Paused:
+                with self._command_queue.not_empty:
+                    self._command_queue.not_empty.wait()
+
+            elif self._state == State.Running:
+                self._train()
+                self._update_state()
+
     def _process_commands(self):
         while not self._command_queue.empty():
             try:
                 cmd = self._command_queue.get_nowait()
-                logger.debug("Executing command %s", cmd)
+                logger.info("Executing command %s", cmd)
 
                 try:
                     cmd.execute()
@@ -273,42 +281,49 @@ class TrainingWorker:
                 pass
 
     def _train(self):
-        pass
-        """
-        if self._trainer.max_num_iterations > self._trainer.iteration_count:
-            if self._devices:
-                self.logger.info(
-                    "Start training for %d iterations",
-                    self.trainer.max_num_iterations - self.trainer.iteration_count,
-                )
+        logger.info(
+            "Start training for %d iterations", self._trainer.max_num_iterations - self._trainer.iteration_count
+        )
+        self._trainer.fit()
 
-                if self.base_device == "cpu":
-                    self.trainer.cpu()
-                elif self.base_device == "cuda":
-                    self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
-                else:
-                    raise ValueError(self.base_device)
+    def _update_state(self):
+        if self._state == State.Running:
+            should_idle = not (self._devices and self.has_work())
+            if should_idle:
+                self._set_state(State.Idle)
 
-                # make sure optimizer states are on correct device
-                for k in self.trainer.optimizer.state.keys():
-                    param_state = self.trainer.optimizer.state[k]
-                    for p in param_state.keys():
-                        try:
-                            if not isinstance(param_state[p], int):
-                                param_state[p] = param_state[p].to(self.base_device)
-                        except Exception as e:
-                            self.logger.debug(e)
+        elif self._state == State.Idle:
+            should_run = self._devices and self.has_work()
+            if should_run:
+                self._set_state(State.Running)
 
-                try:
-                    self.trainer.fit()
-                except Exception as e:
-                    self.logger.error("Exception during trainer fit", exc_info=True)
-            else:
-                self.logger.info("Waiting for device")
-        """
+    def _set_state(self, new_state: State) -> None:
+        self._state = new_state
+        logger.debug("Set new state %s", self._state)
 
-    def join(self):
-        self._command_queue.join()
+        # if self.base_device == "cpu":
+        #     self.trainer.cpu()
+        # elif self.base_device == "cuda":
+        #     self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
+        # else:
+        #     raise ValueError(self.base_device)
+
+        #     # make sure optimizer states are on correct device
+        #     for k in self.trainer.optimizer.state.keys():
+        #         param_state = self.trainer.optimizer.state[k]
+        #         for p in param_state.keys():
+        #             try:
+        #                 if not isinstance(param_state[p], int):
+        #                     param_state[p] = param_state[p].to(self.base_device)
+        #             except Exception as e:
+        #                 self.logger.debug(e)
+
+        #     try:
+        #         self.trainer.fit()
+        #     except Exception as e:
+        #         self.logger.error("Exception during trainer fit", exc_info=True)
+        # else:
+        #     self.logger.info("Waiting for device")
 
 
 class WorkerCmd(ICommand):
@@ -318,17 +333,17 @@ class WorkerCmd(ICommand):
 
 class PauseCmd(WorkerCmd):
     def execute(self):
-        self._worker.set_state(State.Idle)
+        self._worker.transition_to(State.Idle)
 
 
 class ResumeCmd(WorkerCmd):
     def execute(self):
-        self._worker.set_state(State.Running)
+        self._worker.transition_to(State.Running)
 
 
 class StopCmd(WorkerCmd):
     def execute(self):
-        self._worker.set_state(State.Stopped)
+        self._worker.transition_to(State.Stopped)
 
 
 class AddDeviceCmd(ICommand):

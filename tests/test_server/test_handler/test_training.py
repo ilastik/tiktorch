@@ -1,5 +1,6 @@
 import torch
 import pytest
+import time
 import queue
 import threading
 from torch import multiprocessing as mp
@@ -96,9 +97,34 @@ class TestTrainingWorker:
         def execute(self):
             pass
 
+    class DummyTrainer:
+        def __init__(self):
+            self.iteration_count = 0
+            self.max_num_iterations = 0
+            self._break_cb = None
+
+        def set_break_callback(self, cb):
+            self._break_cb = cb
+
+        def set_max_num_iterations(self, val):
+            self.max_num_iterations = val
+
+        def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
+            print("Stop", self._break_cb and self._break_cb())
+            return self._break_cb and self._break_cb() or self.iteration_count >= self.max_num_iterations
+
+        def fit(self):
+            while not self.stop_fitting():
+                self.iteration_count += 1
+                time.sleep(0.01)
+
     @pytest.fixture
-    def worker(self):
-        return training.TrainingWorker(None)
+    def trainer(self):
+        return self.DummyTrainer()
+
+    @pytest.fixture
+    def worker(self, trainer):
+        return training.TrainingWorker(trainer)
 
     @pytest.fixture
     def worker_thread(self, worker):
@@ -109,25 +135,31 @@ class TestTrainingWorker:
         t.join()
 
     def test_not_running_worker_has_stopped_status(self, worker):
-        assert training.State.Stopped == worker.status
+        assert training.State.Stopped == worker.state
 
     def test_started_worker_has_idle_status(self, worker, worker_thread):
         cmd = self.DummyCmd().awaitable
         worker.send_command(cmd)
         cmd.wait()
 
-        assert training.State.Idle == worker.state
+        assert training.State.Paused == worker.state
 
-    def test_resuming_transitions_to_waiting_device_with_no_devices(self, worker, worker_thread):
+    def test_resuming_transitions_to_idle_with_no_devices(self, worker, worker_thread):
         cmd = training.ResumeCmd(worker).awaitable
         worker.send_command(cmd)
         cmd.wait()
 
-        assert training.State.WaitingDevice == worker.state
+        assert training.State.Idle == worker.state
 
-    def test_adding_removing_devices_on_running_worker_transitions(self, worker, worker_thread):
+    def test_transition_to_running(self, worker, worker_thread):
         cmd = training.ResumeCmd(worker)
         worker.send_command(cmd)
+
+        add_work = training.SetMaxNumberOfIterations(worker, 1000).awaitable
+        worker.send_command(add_work)
+        add_work.wait()
+
+        assert training.State.Idle == worker.state
 
         add_device = training.AddDeviceCmd(worker, "cpu").awaitable
         worker.send_command(add_device)
@@ -140,4 +172,4 @@ class TestTrainingWorker:
         worker.send_command(remove_device)
         remove_device.wait()
 
-        assert training.State.WaitingDevice == worker.state
+        assert training.State.Idle == worker.state
