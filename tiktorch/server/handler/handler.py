@@ -78,6 +78,10 @@ class IHandler(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def train_for(self, num_iterations: int) -> RPCFuture:
+        raise NotImplementedError
+
+    @exposed
     def update_training_data(self, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         raise NotImplementedError
 
@@ -502,6 +506,9 @@ class HandlerProcess(IHandler):
         self.training.resume_training()
         if not self.training_devices:
             self.new_device_names.put("whatever_just_update_idle_because_this_is_not_a_tuple_nor_None")
+
+    def train_for(self, num_iterations: int) -> RPCFuture:
+        return self.training.train_for(num_iterations)
 
     def pause_training(self) -> None:
         self.training.pause_training()

@@ -127,6 +127,10 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def train_for(self, num_iterations: int) -> RPCFuture:
+        raise NotImplementedError
+
+    @exposed
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch):
         raise NotImplementedError
 
@@ -173,6 +177,7 @@ class TrainingProcess(ITraining):
         self.logger.info("started")
         self.shutdown_event = threading.Event()
         self.idle = False
+        self._train_for = {}  # Iteration number -> Future
 
         self.common_model = model
         self.model = copy.deepcopy(model)
@@ -231,7 +236,9 @@ class TrainingProcess(ITraining):
                 log_scalars_every=(1, "iteration"),
                 log_images_every=(1, "epoch"),
             )
-        self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
+        self.trainer.register_callback(
+            self.begin_of_training_iteration, trigger=self.trainer.callbacks.BEGIN_OF_TRAINING_ITERATION
+        )  # FIXME: End of training iteration not called by inferno trainer
         self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
         self.trainer._iteration_count = self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0)
 
@@ -250,8 +257,11 @@ class TrainingProcess(ITraining):
     def end_of_validation_iteration(self, trigger):
         pass  # todo: return validation
 
-    def end_of_training_iteration(self, iteration_num, trigger):
-        pass
+    def begin_of_training_iteration(self, iteration_num, trigger):
+        end_iteration = self.trainer.iteration_count + 1
+        res = self._train_for.pop(end_iteration, None)
+        if res:
+            res.set_result(None)
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
@@ -327,7 +337,8 @@ class TrainingProcess(ITraining):
                         try:
                             self.trainer.fit()
                         except Exception as e:
-                            self.logger.debug(e, exc_info=True)
+                            self.trainer.next_iteration()  # XXX(m-novikov)
+                            self.logger.debug("Exception during trainer fit", exc_info=True)
 
                         self.logger.info(
                             "Break training at %d/%d iterations",
@@ -409,6 +420,14 @@ class TrainingProcess(ITraining):
 
         self.logger.debug("Shutdown complete")
         return Shutdown()
+
+    def train_for(self, num_iterations: int) -> RPCFuture:
+        res = RPCFuture()
+        self.config[TRAINING][NUM_ITERATIONS_MAX] += num_iterations
+        self._train_for[self.config[TRAINING][NUM_ITERATIONS_MAX]] = res
+        self.update_trainer_event.set()
+        self._pause_event.clear()
+        return res
 
     def resume_training(self) -> None:
         self.logger.warning("RESUME")

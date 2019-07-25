@@ -70,3 +70,7 @@ class INeuralNetworkAPI(RPCInterface):
     @exposed
     def get_model_state(self) -> ModelState:
         raise NotImplementedError
+
+    @exposed
+    def train_for(self, num_iterations: int) -> RPCFuture:
+        raise NotImplementedError

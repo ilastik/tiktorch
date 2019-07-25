@@ -13,6 +13,9 @@ dependencies:
   - inferno=v0.4.*
   - pyzmq=18.0.1
   - pyyaml=3.13
+  - seaborn
+  - z5py
+  - scikit-learn
   - pytest=4.3.0
   - black
   - isort
