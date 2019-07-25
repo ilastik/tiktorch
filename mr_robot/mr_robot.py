@@ -84,7 +84,7 @@ class MrRobot:
             self.raw_data_file,
             self.labelled_data_file,
             self.base_config["data_dir"],
-            "random_blob",
+            "dense",
             0.6,
         )
 
@@ -106,7 +106,6 @@ class MrRobot:
             "robo_predict_accuracy": [],
             "f1_score": [],
             "robo_predict_loss": [],
-            "confusion_matrix": [],
             "validation_loss": [],
             "validation_accuracy": [],
             "training_iterations": [],
@@ -114,6 +113,7 @@ class MrRobot:
         }
         mr_robot_folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.tensorboard_writer = SummaryWriter(logdir=os.path.join(mr_robot_folder, "tests", "robot", "robo_logs"))
+        self.patch_id = dict()
         self.logger = logging.getLogger(__name__)
 
     def _load_model(self):
@@ -155,7 +155,7 @@ class MrRobot:
         """ run prediction on the whole set of patches
         """
         # self.strategy.patched_data.clear()
-        self.patch_id = dict()
+        
         x = 0
         prediction_list = []
         path_to_input = self.base_config["data_dir"]["path_to_raw_data"]
@@ -164,7 +164,10 @@ class MrRobot:
         batch_maker = BatchedExecutor(batch_size=8)
         for block in self.block_list:
             # map each slicer with its corresponding index
-            self.assign_id(block, x)
+            signal = self.assign_id(block, x)
+            print("signal", signal)
+            if( signal == -1):
+                continue
             # self.patch_id[block[0].start] = x
             # pred_output = self.new_server.forward(NDArray(self.raw_data_file[path_to_input][block]))
             prediction_list.append(
@@ -227,7 +230,10 @@ class MrRobot:
             self.validate()
             curr_model_state = self.new_server.get_model_state()
             self.stats["training_iterations"].append(curr_model_state.num_iterations_done)
-            self.stats["number_of_patches"].append(self.iterations_done * batch_size)
+            print("before: ", self.stats["training_loss"], self.stats["number_of_patches"])
+            self.stats["training_loss"].append(curr_model_state.loss)
+            self.stats["number_of_patches"].append( (self.iterations_done-1) * batch_size)
+            print("after: ", self.stats["training_loss"], self.stats["number_of_patches"])
             # log average loss and accuracy for all patches per iteration to tensorboard
             self.write_to_tensorboard()
 
@@ -252,11 +258,12 @@ class MrRobot:
         new_data_batch (list): list of tuples, where each tuple contains an image, its label and their block id
         """
         assert new_data_batch is not None, "No data provided!"
+        print("adding new data batch:", len(new_data_batch))
 
         new_inputs, new_labels = [], []
         for image, label, block_id in new_data_batch:
-            new_inputs.append(NDArray(image.astype(np.float), block_id))
-            new_labels.append(NDArray(label.astype(np.float), block_id))
+            new_inputs.append(NDArray(image.astype(np.int32), block_id))
+            new_labels.append(NDArray(label.astype(np.int32), block_id))
             print("label", block_id, label.any())
         self.new_server.update_training_data(NDArrayBatch(new_inputs), NDArrayBatch(new_labels))
 
@@ -269,7 +276,7 @@ class MrRobot:
 
         loss_plot, accuracy_plot = make_plot(self.stats)
         self.tensorboard_writer.add_figure("loss_plot", loss_plot)
-        self.tensorboard_writer.add_figure("accuray_plot", accuracy_plot)
+        self.tensorboard_writer.add_figure("accuracy_plot", accuracy_plot)
         # self.tensorboard_writer.add_scalar("avg_loss", metric_data["avg_loss"], self.iterations_done)
         # self.tensorboard_writer.add_scalar("avg_accuracy", metric_data["avg_accuracy"] * 100, self.iterations_done)
         # self.tensorboard_writer.add_scalar("F1_score", metric_data["avg_f1_score"], self.iterations_done)
@@ -278,11 +285,16 @@ class MrRobot:
         )
 
     def assign_id(self, block, index):
-        self.patch_id[get_coordinate(block)] = index
+        id = get_coordinate(block)
+        if ( id in self.patch_id and self.patch_id[id] == -1):
+            return -1
+        
+        self.patch_id[id] = index
+        return 0
 
     def remove_key(self, ids):
         for id in ids:
-            self.patch_id.pop(id, None)
+            self.patch_id[id] = -1
 
     def terminate(self):
         self.tensorboard_writer.close()

@@ -50,4 +50,5 @@ class Annotater:
             random_block = self.get_random_patch(label.shape)
             ret_label[random_block] = label[random_block]
             i += np.product(label[random_block].shape)
+        print("random blob annotated label:", np.unique(ret_label), "labels of actual return patch:", np.unique(label))
         return ret_label

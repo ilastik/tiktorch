@@ -23,7 +23,7 @@ from mr_robot.utils import (
     get_random_index,
 )
 
-batch_size = 1
+
 
 
 def randomize(label, num_of_classes):
@@ -83,7 +83,6 @@ class BaseStrategy:
         self.patched_data = []
         self.loss_fn = loss_fn
         self.strategy_metric = {
-            "training_loss": 0,
             "robo_predict_accuracy": 0,
             "f1_score": 0,
             "robo_predict_loss": 0,
@@ -98,7 +97,7 @@ class BaseStrategy:
         self.paths = paths
         self.annotater = Annotater(annotation_percent)
         self.labelling_strategy = labelling_strategy
-        # self.tikserver = tikserver
+        self.validation_data_size = 0
         self.logger = logging.getLogger(__name__)
 
     def update_state(self, pred_output, target, block, validation_flag):
@@ -112,13 +111,23 @@ class BaseStrategy:
         in the actual image
         """
         # print("shape before one hot:", target.shape)
+        print(pred_output.shape, target.shape)
+        if (validation_flag == False):
+            print("actual prediction:", pred_output, "label:", target)
+        else:
+            self.validation_data_size+=1
+
         pred_output[pred_output >= 0.5] = 2
         pred_output[pred_output < 0.5] = 1
+
+        if (validation_flag == False):
+            print("after updating prediction:", pred_output)
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="sum")
 
         if pred_output.shape != target.shape:
+            print("shape mismatch!!")
             target = integer_to_onehot(target)
             pred_output = np.expand_dims(pred_output, axis=0)
 
@@ -137,15 +146,16 @@ class BaseStrategy:
 
     def write_metric(self, pred_output, target, curr_loss, validation_flag):
         if validation_flag is True:
-            self.strategy_metric["validation_accuracy"] += accuracy_score(pred_output, target)
+            self.strategy_metric["validation_accuracy"] += accuracy_score(target, pred_output)
             self.strategy_metric["validation_loss"] += curr_loss
             self.strategy_metric["f1_score"] += f1_score(target, pred_output, average="weighted")
 
-        self.strategy_metric["confusion_matrix"] += get_confusion_matrix(
-            pred_output, target, list(self.class_dict.keys())
-        )
-        self.strategy_metric["robo_predict_accuracy"] += accuracy_score(pred_output, target)
-        self.strategy_metric["robo_predict_loss"] += curr_loss
+        else:
+            self.strategy_metric["confusion_matrix"] += get_confusion_matrix(
+                pred_output, target, list(self.class_dict.keys())
+            )
+            self.strategy_metric["robo_predict_accuracy"] += accuracy_score(target, pred_output)
+            self.strategy_metric["robo_predict_loss"] += curr_loss
         # print(self.strategy_metric)
 
     def get_annotated_data(self, return_block_set):
@@ -163,9 +173,13 @@ class BaseStrategy:
         return return_data_set
 
     def get_metrics(self):
-        for key, value in self.strategy_metric.items():
-            self.strategy_metric[key] /= len(self.patched_data)
-        # print(type(self.strategy_metric), self.strategy_metric)
+        print("metric before averaging", self.strategy_metric)
+        for key in self.strategy_metric.keys():
+            if( "validation" in key or "f1" in key):
+                self.strategy_metric[key] /= self.validation_data_size  
+            else:    
+                self.strategy_metric[key] /= len(self.patched_data)
+        print("metric after averaging", self.strategy_metric)
         import copy
 
         strategy_metric = copy.deepcopy(self.strategy_metric)
@@ -175,7 +189,7 @@ class BaseStrategy:
             strategy_metric["confusion_matrix"], self.class_dict
         )
         self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
-        print("reset done:", self.strategy_metric, strategy_metric)
+        print("reset done:")
         return strategy_metric
 
     def get_next_batch(self):
@@ -251,7 +265,6 @@ class StrategyRandom(BaseStrategy):
         rand_indices = np.random.randint(0, len(self.patched_data), size=batch_size)
         # print(rand_indices, self.patched_data[rand_indices])
         return_block_set = [block for loss, block in np.array(self.patched_data)[rand_indices]]
-
         return super().get_annotated_data(return_block_set)
 
 
@@ -629,10 +642,13 @@ class StrategyAbstract:
     def rearrange(self):
         self.strategies[self.index][0].rearrange()
 
+    def get_metrics(self):
+        return self.strategies[self.index][0].get_metrics()
+
     def get_next_batch(self, batch_size=1):
         new_batch = self.strategies[self.index][0].get_next_batch(batch_size)
+        assert len(new_batch) == batch_size
         self.update_strategy(batch_size)
         return new_batch
 
-    def get_metrics(self):
-        return self.strategies[self.index][0].get_metrics()
+
