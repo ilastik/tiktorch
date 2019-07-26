@@ -29,7 +29,6 @@ import torch.nn
 import torch.optim
 from inferno.extensions import criteria as inferno_criteria
 from inferno.io.transform import Compose, Transform
-from inferno.trainers import Trainer as InfernoTrainer
 from inferno.trainers.callbacks.logging import TensorboardLogger
 from inferno.utils.exceptions import NotSetError
 from torch.utils.data import DataLoader, WeightedRandomSampler
@@ -61,16 +60,11 @@ from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import ModelState
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 
-from .datasets import DynamicDataLoaderWrapper, DynamicDataset, DynamicWeightedRandomSampler
+from tiktorch.server.datasets import DynamicDataLoaderWrapper, DynamicDataset, DynamicWeightedRandomSampler
+from .interface import ITraining
+from .trainer import TikTrainer
+from . import worker
 
-try:
-    # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
-    import resource
-
-    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
-except ModuleNotFoundError:
-    pass  # probably running on windows
 
 # inferno names
 INFERNO_LOGGER_CONFIG = "logger_config"
@@ -85,114 +79,6 @@ INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch c
 }
 
 
-class Devices:
-    def __init__(self):
-        self.devices = []
-        self.base_device = "cpu"
-
-    def update(self, devices: List[torch.device]) -> List[torch.device]:
-        free_devices = [d for d in self.devices if d not in devices]
-
-        if not devices:
-            self.base_device = "cpu"
-            self.devices = []
-
-        else:
-            self.base_device = devices[0].type
-            if not all(d.type == self.base_device for d in devices):
-                raise ValueError("Can't train on cpu and gpu at the same time")
-
-            self.devices = devices
-
-        return free_devices
-
-    def __len__(self):
-        return len(self.devices)
-
-
-class TikTrainer(InfernoTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._break_cb = None
-
-    def set_break_callback(self, callback):
-        self._break_cb = callback
-
-    @property
-    def max_num_iterations(self):
-        return self._max_num_iterations
-
-    def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
-        if self._break_cb and self._break_cb():
-            return True
-        else:
-            return super().stop_fitting(max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs)
-
-    @classmethod
-    def build(cls, *args, **kwargs):
-        return super().build(*args, **kwargs)
-
-    def move_to(self, devices: Devices):
-        if devices.base_device == "cpu":
-            self.cpu()
-        elif devices.base_device == "cuda":
-            self.cuda(devices=[d.index for d in devices])
-        else:
-            raise ValueError(f"Unknown device type {devices.base_device}")
-
-        # make sure optimizer states are on correct device
-        for k in self.optimizer.state.keys():
-            param_state = self.optimizer.state[k]
-            for p in param_state.keys():
-                try:
-                    if not isinstance(param_state[p], int):
-                        param_state[p] = param_state[p].to(devices.base_device)
-                except Exception as e:
-                    self.logger.exception("Failed to move optimizer to %s", devices)
-
-
-class ITraining(RPCInterface):
-    @exposed
-    def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
-        raise NotImplementedError
-
-    @exposed
-    def shutdown(self) -> Shutdown:
-        raise NotImplementedError
-
-    @exposed
-    def resume_training(self) -> None:
-        raise NotImplementedError
-
-    @exposed
-    def pause_training(self) -> None:
-        raise NotImplementedError
-
-    @exposed
-    def get_idle(self) -> bool:
-        raise NotImplementedError
-
-    @exposed
-    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch):
-        raise NotImplementedError
-
-    @exposed
-    def update_config(self, partial_config: dict) -> None:
-        raise NotImplementedError
-
-    @exposed
-    def get_state(self) -> ModelState:
-        raise NotImplementedError
-
-    @exposed
-    def get_model_state_dict(self) -> dict:
-        raise NotImplementedError
-
-    @exposed
-    def remove_data(self, name: str, ids: List[str]) -> None:
-        raise NotImplementedError
-
-
 def run(
     conn: Connection,
     config: dict,
@@ -200,216 +86,19 @@ def run(
     optimizer_state: bytes = b"",
     log_queue: Optional[mp.Queue] = None,
 ):
+    try:
+        # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
+        import resource
+
+        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+    except ModuleNotFoundError:
+        pass  # probably running on windows
+
     log.configure(log_queue)
     training_proc = TrainingProcess(config, model, optimizer_state)
     srv = MPServer(training_proc, conn)
     srv.listen()
-
-
-class ICommand:
-    __awaitable = None
-
-    @property
-    def awaitable(self):
-        if not self.__awaitable:
-            self.__awaitable = AwaitableCommand(self)
-
-        return self.__awaitable
-
-    def execute(self) -> None:
-        raise NotImplementedError()
-
-
-class AwaitableCommand(ICommand):
-    def __init__(self, cmd: ICommand):
-        self._cmd = cmd
-        self._done_evt = threading.Event()
-
-    def wait(self):
-        self._done_evt.wait()
-
-    def execute(self):
-        try:
-            self._cmd.execute()
-        finally:
-            self._done_evt.set()
-
-    def __repr__(self):
-        return f"Awaitable {self._cmd!r}"
-
-
-class State:
-    Idle = "idle"
-    Paused = "paused"
-    Running = "running"
-    Stopped = "stopped"
-
-
-class TrainingWorker:
-    def __init__(self, trainer: TikTrainer) -> None:
-        self._state = State.Stopped
-
-        self._command_queue = queue.Queue()
-        self._trainer = trainer
-        self._trainer.set_break_callback(self.has_commands)
-        self._devices = Devices()
-
-    def send_command(self, cmd: ICommand) -> None:
-        if not isinstance(cmd, ICommand):
-            raise ValueError(f"Expected instance of ICommand got {cmd}")
-
-        logger.debug("Sending command %s", cmd)
-        self._command_queue.put(cmd)
-
-    @property
-    def state(self):
-        return self._state
-
-    def has_commands(self):
-        return not self._command_queue.empty()
-
-    def has_work(self):
-        return self._trainer.max_num_iterations > self._trainer.iteration_count
-
-    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
-        free_devs = self._devices.update(devices)
-        self._trainer.move_to(self._devices)
-        self._update_state()
-        return free_devs
-
-    def transition_to(self, new_state: State) -> None:
-        logger.debug("Attempting transition to state %s", new_state)
-        self._state = new_state
-        self._update_state()
-
-    def set_max_num_iterations(self, num: int):
-        self._trainer.set_max_num_iterations(num)
-        self._update_state()
-
-    def run(self):
-        logger.info("Starting training worker")
-        try:
-            self._run()
-        except Exception:
-            logger.exception("Uncaught exception in training worker")
-        finally:
-            logger.info("Stopped training worker")
-
-    def _run(self):
-        self._set_state(State.Paused)
-
-        while True:
-            self._process_commands()
-
-            if self.state == State.Stopped:
-                break
-
-            elif self._state == State.Idle or self._state == State.Paused:
-                with self._command_queue.not_empty:
-                    self._command_queue.not_empty.wait()
-
-            elif self._state == State.Running:
-                self._train()
-                self._update_state()
-
-    def _process_commands(self):
-        while not self._command_queue.empty():
-            try:
-                cmd = self._command_queue.get_nowait()
-                logger.debug("Executing %s", cmd)
-
-                try:
-                    cmd.execute()
-                except Exception:
-                    logger.exception("Failed to execute %s", cmd)
-                finally:
-                    self._command_queue.task_done()
-
-            except queue.Empty:
-                pass
-
-    def _train(self):
-        logger.info(
-            "Start training for %d iterations", self._trainer.max_num_iterations - self._trainer.iteration_count
-        )
-        try:
-            self._trainer.fit()
-        except Exception as e:
-            print("**************************EXC", e)
-            logger.error("Exception training fit", exc_info=True)
-            self.send_command(PauseCmd(self))
-
-    def _update_state(self):
-        if self._state == State.Running:
-            should_idle = not (self._devices and self.has_work())
-            if should_idle:
-                self._set_state(State.Idle)
-
-        elif self._state == State.Idle:
-            should_run = self._devices and self.has_work()
-            if should_run:
-                self._set_state(State.Running)
-
-    def _set_state(self, new_state: State) -> None:
-        self._state = new_state
-        logger.debug("Set new state %s", self._state)
-
-
-class WorkerCmd(ICommand):
-    def __init__(self, worker: TrainingWorker):
-        self._worker = worker
-
-
-class PauseCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Paused)
-
-
-class ResumeCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Running)
-
-
-class StopCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Stopped)
-
-
-class SetDevicesCmd(ICommand):
-    def __init__(self, worker, devices):
-        self._worker = worker
-        self._devices = devices
-
-        self.result = None
-
-    def execute(self):
-        self.result = self._worker.set_devices(self._devices)
-
-
-class UpdateDatasetCmd(ICommand):
-    def __init__(self, trainer, dataset, loader_kwargs, *, raw_data, labels):
-        self._trainer = trainer
-        self._dataset = dataset
-        self._raw_data = raw_data
-        self._labels = labels
-        self._loader_kwargs = loader_kwargs  # FIXME
-
-    def execute(self):
-        self._dataset.update(self._raw_data, self._labels)
-        loader = DataLoader(**self._loader_kwargs)
-        self._trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
-
-
-class SetMaxNumberOfIterations(ICommand):
-    def __init__(self, worker: TrainingWorker, num_iterations: int) -> None:
-        self._worker = worker
-        self._num_iterations = num_iterations
-
-    def execute(self) -> None:
-        self._worker.set_max_num_iterations(self._num_iterations)
-
-
-logger = logging.getLogger(__name__)
 
 
 class TrainingProcess(ITraining):
@@ -428,18 +117,10 @@ class TrainingProcess(ITraining):
         self._worker = None
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info("started")
-        self.shutdown_event = threading.Event()
-        self.idle = False
-        self._command_queue = queue.Queue()
 
         self.common_model = model
         self.model = copy.deepcopy(model)
         self.optimizer_state = optimizer_state
-        self.training_settings_lock = threading.Lock()
-        # self.devices = [torch.device("cpu")]
-        self.devices = []
-        self.base_device = "cpu"
 
         training_transform = Compose(
             *[
@@ -470,16 +151,7 @@ class TrainingProcess(ITraining):
 
         self.config = config
 
-        self._pause_event = threading.Event()
-        self._pause_event.set()
-        self.update_trainer_event = threading.Event()
-        self.update_trainer_event.set()
-
-        self.trainer = TikTrainer.build(
-            model=self.model,
-            break_events=[self.shutdown_event, self._pause_event, self.update_trainer_event],
-            **self.create_trainer_config(),
-        )
+        self.trainer = TikTrainer.build(model=self.model, **self.create_trainer_config())
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
             log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -497,7 +169,7 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 self.trainer.build_optimizer(optimizer)
 
-        self._worker = TrainingWorker(self.trainer)
+        self._worker = worker.TrainingWorker(self.trainer)
         self._worker_thread = threading.Thread(target=self._worker.run, name="TrainingWorker")
         self._worker_thread.start()
 
@@ -551,7 +223,7 @@ class TrainingProcess(ITraining):
         set devices to train on. This request blocks until previous devices are free.
         :param devices: devices to use for training
         """
-        set_dev_cmd = SetDevicesCmd(self._worker, devices)
+        set_dev_cmd = worker.SetDevicesCmd(self._worker, devices)
         set_dev_cmd_awaitable = set_dev_cmd.awaitable
         self._worker.send_command(set_dev_cmd_awaitable)
         set_dev_cmd_awaitable.wait()
@@ -562,12 +234,12 @@ class TrainingProcess(ITraining):
         return set_dev_cmd.result
 
     def get_idle(self):
-        return self._worker.state in (State.Idle, State.Paused)
+        return self._worker.state == worker.State.Paused
 
     def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
 
-        stop_cmd = StopCmd(self._worker)
+        stop_cmd = worker.StopCmd(self._worker)
         self._worker.send_command(stop_cmd.awaitable)
         stop_cmd.awaitable.wait()
 
@@ -575,12 +247,12 @@ class TrainingProcess(ITraining):
         return Shutdown()
 
     def resume_training(self) -> None:
-        self.logger.warning("RESUME")
-        self._worker.send_command(ResumeCmd(self._worker))
+        resume_cmd = worker.ResumeCmd(self._worker)
+        self._worker.send_command(resume_cmd.awaitable)
+        resume_cmd.awaitable.wait()
 
     def pause_training(self) -> None:
-        self.logger.warning("PAUSE")
-        self._worker.send_command(PauseCmd(self._worker))
+        self._worker.send_command(worker.PauseCmd(self._worker))
 
     def remove_data(self, name: str, ids: List[str]) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
@@ -589,41 +261,51 @@ class TrainingProcess(ITraining):
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        update_cmd = UpdateDatasetCmd(
+        update_cmd = worker.UpdateDatasetCmd(
             self.trainer, self.datasets[name], self.loader_kwargs[name], raw_data=data, labels=labels
         )
         self._worker.send_command(update_cmd)
         self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
-        self._worker.send_command(SetMaxNumberOfIterations(self._worker, self.config[TRAINING][NUM_ITERATIONS_MAX]))
+        self._worker.send_command(
+            worker.SetMaxNumberOfIterations(self._worker, self.config[TRAINING][NUM_ITERATIONS_MAX])
+        )
 
     def update_config(self, partial_config: dict) -> None:
+        return
         assert not get_error_msg_for_invalid_config(partial_config)
 
-        with self.training_settings_lock:
-            self.update_trainer_event.set()
-            for key, value in partial_config.items():
-                if key in [TRAINING, VALIDATION]:
-                    for subkey, subvalue in partial_config[key].items():
-                        if subvalue is None:
-                            # remove key from config
-                            if subkey == TRAINING_SHAPE:
-                                if len(self.datasets[TRAINING]) or len(self.datasets[VALIDATION]):
-                                    raise NotImplementedError(
-                                        "Cannot change training_shape after adding training or validation data"
-                                    )
-                            else:
-                                raise NotImplementedError(f"How to remove {subkey} form config[{key}]?")
+        for key, value in partial_config.items():
+            if key in [TRAINING, VALIDATION]:
+                for subkey, subvalue in partial_config[key].items():
+                    if subvalue is None:
+                        # remove key from config
+                        if subkey == TRAINING_SHAPE:
+                            if len(self.datasets[TRAINING]) or len(self.datasets[VALIDATION]):
+                                raise NotImplementedError(
+                                    "Cannot change training_shape after adding training or validation data"
+                                )
+                        else:
+                            raise NotImplementedError(f"How to remove {subkey} form config[{key}]?")
 
-                            if subkey in self.config[key]:
-                                del self.config[key][subkey]
-                        elif subkey == BATCH_SIZE:
-                            self.update_loader[key] = True
-                            self.loader_kwargs[key][INFERNO_NAMES[BATCH_SIZE]] = subvalue
-                    pass
-                elif key in [NAME, TORCH_VERSION]:
-                    self.config[key] = value
-                else:
-                    raise NotImplementedError(f"How to set {key} as a hyper parameter?")
+                        if subkey in self.config[key]:
+                            del self.config[key][subkey]
+                    elif subkey == BATCH_SIZE:
+                        self.update_loader[key] = True
+                        self.loader_kwargs[key][INFERNO_NAMES[BATCH_SIZE]] = subvalue
+                pass
+            elif key in [NAME, TORCH_VERSION]:
+                self.config[key] = value
+            else:
+                raise NotImplementedError(f"How to set {key} as a hyper parameter?")
+
+    def wait_for_idle(self) -> RPCFuture:
+        f = RPCFuture()
+
+        def _call():
+            f.set_result(None)
+
+        self._worker.on_idle(_call)
+        return f
 
     def get_state(self) -> ModelState:
         training_loss = self.trainer.get_state(INFERNO_NAMES[TRAINING_LOSS], default=float("Inf"))
@@ -651,13 +333,6 @@ class TrainingProcess(ITraining):
             num_iterations_max=self.config[TRAINING][NUM_ITERATIONS_MAX],
         )
 
-    def get_model_state_dict(self) -> dict:
-        state = self.model.state_dict()
-        for k in state.keys():
-            state[k] = state[k].cpu().detach()
-
-        return state
-
 
 class SparseOneHot(Transform):
     """Mask out the zero label """
@@ -667,7 +342,6 @@ class SparseOneHot(Transform):
 
     def batch_function(self, tensors):
         prediction, target = tensors
-        print("APPLY ONE HOT", prediction.shape, target.shape)
         mask = torch.zeros_like(prediction)
         mask[target > 0] = 1
         mask.requires_grad = False
