@@ -24,6 +24,7 @@ from typing import (
     TypeVar,
 )
 
+import torch
 import torch.nn
 import torch.optim
 from inferno.extensions import criteria as inferno_criteria
@@ -84,26 +85,70 @@ INFERNO_NAMES = {  # inferno names that we have an analogue to in the tiktorch c
 }
 
 
+class Devices:
+    def __init__(self):
+        self.devices = []
+        self.base_device = "cpu"
+
+    def update(self, devices: List[torch.device]) -> List[torch.device]:
+        free_devices = [d for d in self.devices if d not in devices]
+
+        if not devices:
+            self.base_device = "cpu"
+            self.devices = []
+
+        else:
+            self.base_device = devices[0].type
+            if not all(d.type == self.base_device for d in devices):
+                raise ValueError("Can't train on cpu and gpu at the same time")
+
+            self.devices = devices
+
+        return free_devices
+
+    def __len__(self):
+        return len(self.devices)
+
+
 class TikTrainer(InfernoTrainer):
-    def __init__(self, *args, break_events: Optional[List[threading.Event]] = None, **kwargs):
-        self.break_events = break_events
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._break_cb = None
+
+    def set_break_callback(self, callback):
+        self._break_cb = callback
 
     @property
     def max_num_iterations(self):
         return self._max_num_iterations
 
     def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
-        if self.break_events and any([e.is_set() for e in self.break_events]):
+        if self._break_cb and self._break_cb():
             return True
         else:
             return super().stop_fitting(max_num_iterations=max_num_iterations, max_num_epochs=max_num_epochs)
 
     @classmethod
-    def build(cls, *args, break_events: List[threading.Event] = None, **kwargs):
-        trainer = super().build(*args, **kwargs)
-        trainer.break_events = break_events
-        return trainer
+    def build(cls, *args, **kwargs):
+        return super().build(*args, **kwargs)
+
+    def move_to(self, devices: Devices):
+        if devices.base_device == "cpu":
+            self.cpu()
+        elif devices.base_device == "cuda":
+            self.cuda(devices=[d.index for d in devices])
+        else:
+            raise ValueError(f"Unknown device type {devices.base_device}")
+
+        # make sure optimizer states are on correct device
+        for k in self.optimizer.state.keys():
+            param_state = self.optimizer.state[k]
+            for p in param_state.keys():
+                try:
+                    if not isinstance(param_state[p], int):
+                        param_state[p] = param_state[p].to(devices.base_device)
+                except Exception as e:
+                    self.logger.exception("Failed to move optimizer to %s", devices)
 
 
 class ITraining(RPCInterface):
@@ -162,9 +207,14 @@ def run(
 
 
 class ICommand:
+    __awaitable = None
+
     @property
     def awaitable(self):
-        return AwaitableCommand(self)
+        if not self.__awaitable:
+            self.__awaitable = AwaitableCommand(self)
+
+        return self.__awaitable
 
     def execute(self) -> None:
         raise NotImplementedError()
@@ -202,7 +252,7 @@ class TrainingWorker:
         self._command_queue = queue.Queue()
         self._trainer = trainer
         self._trainer.set_break_callback(self.has_commands)
-        self._devices = []
+        self._devices = Devices()
 
     def send_command(self, cmd: ICommand) -> None:
         if not isinstance(cmd, ICommand):
@@ -221,9 +271,11 @@ class TrainingWorker:
     def has_work(self):
         return self._trainer.max_num_iterations > self._trainer.iteration_count
 
-    def set_devices(self, devices) -> None:
-        self._devices = devices
+    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
+        free_devs = self._devices.update(devices)
+        self._trainer.move_to(self._devices)
         self._update_state()
+        return free_devs
 
     def transition_to(self, new_state: State) -> None:
         logger.debug("Attempting transition to state %s", new_state)
@@ -281,10 +333,11 @@ class TrainingWorker:
             "Start training for %d iterations", self._trainer.max_num_iterations - self._trainer.iteration_count
         )
         try:
-            # sefl._trainer.ensure_devices(self._devices)
             self._trainer.fit()
         except Exception as e:
-            self.logger.error("Exception training fit", exc_info=True)
+            print("**************************EXC", e)
+            logger.error("Exception training fit", exc_info=True)
+            self.send_command(PauseCmd(self))
 
     def _update_state(self):
         if self._state == State.Running:
@@ -309,7 +362,7 @@ class WorkerCmd(ICommand):
 
 class PauseCmd(WorkerCmd):
     def execute(self):
-        self._worker.transition_to(State.Idle)
+        self._worker.transition_to(State.Paused)
 
 
 class ResumeCmd(WorkerCmd):
@@ -327,27 +380,33 @@ class SetDevicesCmd(ICommand):
         self._worker = worker
         self._devices = devices
 
+        self.result = None
+
     def execute(self):
-        self._worker.set_devices(self._devices)
+        self.result = self._worker.set_devices(self._devices)
 
 
 class UpdateDatasetCmd(ICommand):
-    def __init__(self, dataset, *, raw_data, labels):
+    def __init__(self, trainer, dataset, loader_kwargs, *, raw_data, labels):
+        self._trainer = trainer
         self._dataset = dataset
         self._raw_data = raw_data
         self._labels = labels
+        self._loader_kwargs = loader_kwargs  # FIXME
 
     def execute(self):
         self._dataset.update(self._raw_data, self._labels)
+        loader = DataLoader(**self._loader_kwargs)
+        self._trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
 
 
 class SetMaxNumberOfIterations(ICommand):
-    def __init__(self, trainer: TikTrainer, num_iterations: int) -> None:
-        self._trainer = trainer
+    def __init__(self, worker: TrainingWorker, num_iterations: int) -> None:
+        self._worker = worker
         self._num_iterations = num_iterations
 
     def execute(self) -> None:
-        self._trainer.set_max_num_iterations(self._num_iterations)
+        self._worker.set_max_num_iterations(self._num_iterations)
 
 
 logger = logging.getLogger(__name__)
@@ -366,6 +425,8 @@ class TrainingProcess(ITraining):
     }
 
     def __init__(self, config: dict, model: torch.nn.Module, optimizer_state: bytes = b""):
+        self._worker = None
+
         self.logger = logging.getLogger(__name__)
         self.logger.info("started")
         self.shutdown_event = threading.Event()
@@ -429,8 +490,6 @@ class TrainingProcess(ITraining):
                 log_scalars_every=(1, "iteration"),
                 log_images_every=(1, "epoch"),
             )
-        self.trainer.register_callback(self.end_of_training_iteration, trigger="end_of_training_iteration")
-        self.trainer.register_callback(self.end_of_validation_iteration, trigger="end_of_validation_iteration")
         self.trainer._iteration_count = self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0)
 
         if self.optimizer_state:
@@ -438,18 +497,9 @@ class TrainingProcess(ITraining):
             if optimizer is not None:
                 self.trainer.build_optimizer(optimizer)
 
-        self.training_thread = threading.Thread(target=add_logger(self.logger)(self._training_worker), name="Training")
-        self.training_thread.start()
-
-    # def end_of_training_iteration(self, iteration_num, trigger):
-    #     if not self._pause_event.is_set() or self.shutdown_event.is_set():
-    #         raise StopIteration
-    #
-    def end_of_validation_iteration(self, trigger):
-        pass  # todo: return validation
-
-    def end_of_training_iteration(self, iteration_num, trigger):
-        pass
+        self._worker = TrainingWorker(self.trainer)
+        self._worker_thread = threading.Thread(target=self._worker.run, name="TrainingWorker")
+        self._worker_thread.start()
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
@@ -475,109 +525,6 @@ class TrainingProcess(ITraining):
 
         return trainer_config
 
-    def _training_worker(self):
-        while True:
-            if self.shutdown_event.is_set():
-                break
-
-            if self._pause_event.is_set():
-                self.idle = True
-                time.sleep(1)
-            else:
-                if self.update_trainer_event.is_set():
-                    self.logger.info("Update trainer settings")
-                    with self.training_settings_lock:
-                        self.update_trainer_event.clear()
-                        self.trainer.set_max_num_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
-                        self.logger.info(
-                            "trainer iterations: %d/%d", self.trainer.iteration_count, self.trainer.max_num_iterations
-                        )
-                        for name in [TRAINING, VALIDATION]:
-                            if self.update_loader[name]:
-                                self.update_loader[name] = False
-                                loader = DataLoader(**self.loader_kwargs[name])
-                                self.trainer.bind_loader(INFERNO_NAMES[name], DynamicDataLoaderWrapper(loader))
-
-                if self.trainer.max_num_iterations > self.trainer.iteration_count:
-                    self.idle = False
-                    if self.devices:
-                        self.logger.info(
-                            "Start training for %d iterations",
-                            self.trainer.max_num_iterations - self.trainer.iteration_count,
-                        )
-
-                        if self.base_device == "cpu":
-                            self.trainer.cpu()
-                        elif self.base_device == "cuda":
-                            self.trainer.cuda(devices=[int(str(d).split(":")[1]) for d in self.devices])
-                        else:
-                            raise ValueError(self.base_device)
-
-                        # make sure optimizer states are on correct device
-                        for k in self.trainer.optimizer.state.keys():
-                            param_state = self.trainer.optimizer.state[k]
-                            for p in param_state.keys():
-                                try:
-                                    if not isinstance(param_state[p], int):
-                                        param_state[p] = param_state[p].to(self.base_device)
-                                except Exception as e:
-                                    self.logger.debug(e)
-
-                        try:
-                            self.trainer.fit()
-                        except Exception as e:
-                            self.logger.error("Exception during trainer fit", exc_info=True)
-
-                        self.logger.info(
-                            "Break training at %d/%d iterations",
-                            self.trainer.iteration_count,
-                            self.trainer.max_num_iterations,
-                        )
-                        # update common cpu model, as the trainer's model might be a gpu copy
-                        self.common_model.load_state_dict(self.trainer.model.state_dict())
-                        self.config[TRAINING][NUM_ITERATIONS_DONE] = self.trainer._iteration_count
-                    else:
-                        self.logger.info("Waiting for device")
-                        time.sleep(1)
-                else:
-                    self.idle = True
-                    time.sleep(1)
-
-    def set_devices(self, devices: Sequence[torch.device]) -> List[torch.device]:
-        """
-        set devices to train on. This request blocks until previous devices are free.
-        :param devices: devices to use for training
-        """
-
-        self.logger.debug("set devices %s", devices)
-        if self.devices == devices:
-            return []
-
-        free_devices = [d for d in self.devices if d not in devices]
-
-        with self.training_settings_lock:
-            self.update_trainer_event.set()
-            device_types = [d.type for d in devices]
-            if "cpu" in device_types or len(devices) == 0:
-                assert len(devices) <= 1, "Cannot train on cpu and gpu at the same time"
-                # train on cpu
-                self.base_device = "cpu"
-                self.devices = [torch.device("cpu")]
-            else:
-                self.base_device = "cuda"
-                self.devices = devices
-
-        # wait for training worker to update training settings
-        while not self.idle and self.update_trainer_event.is_set() and not self._pause_event.is_set():
-            self.logger.debug("wait for old deviced to be free")
-            time.sleep(2)
-
-        self.logger.debug("new devices %s set", devices)
-        return free_devices
-
-    def get_idle(self):
-        return self.idle
-
     def create_optimizer(self, optimizer_state: bytes) -> Optional[torch.optim.Optimizer]:
         try:
             kwargs = dict(self.config[TRAINING][OPTIMIZER_CONFIG])
@@ -599,23 +546,41 @@ class TrainingProcess(ITraining):
         else:
             return optimizer
 
+    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
+        """
+        set devices to train on. This request blocks until previous devices are free.
+        :param devices: devices to use for training
+        """
+        set_dev_cmd = SetDevicesCmd(self._worker, devices)
+        set_dev_cmd_awaitable = set_dev_cmd.awaitable
+        self._worker.send_command(set_dev_cmd_awaitable)
+        set_dev_cmd_awaitable.wait()
+        if set_dev_cmd.result is None:
+            self.logger.error("Failed to set devices")
+            return []
+
+        return set_dev_cmd.result
+
+    def get_idle(self):
+        return self._worker.state in (State.Idle, State.Paused)
+
     def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
-        self.shutdown_event.set()
-        try:
-            self.training_thread.join(timeout=30)
-        except TimeoutError as e:
-            self.logger.error(e)
+
+        stop_cmd = StopCmd(self._worker)
+        self._worker.send_command(stop_cmd.awaitable)
+        stop_cmd.awaitable.wait()
 
         self.logger.debug("Shutdown complete")
         return Shutdown()
 
     def resume_training(self) -> None:
         self.logger.warning("RESUME")
-        self._pause_event.clear()
+        self._worker.send_command(ResumeCmd(self._worker))
 
     def pause_training(self) -> None:
-        self._pause_event.set()
+        self.logger.warning("PAUSE")
+        self._worker.send_command(PauseCmd(self._worker))
 
     def remove_data(self, name: str, ids: List[str]) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
@@ -624,27 +589,12 @@ class TrainingProcess(ITraining):
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        self.datasets[name].update(data, labels)
-        if name == TRAINING:
-            old = self.config[TRAINING][NUM_ITERATIONS_MAX]
-            with self.training_settings_lock:
-                self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(
-                    data
-                )
-                self.logger.error(
-                    "increased %s from %d to %d", NUM_ITERATIONS_MAX, old, self.config[TRAINING][NUM_ITERATIONS_MAX]
-                )
-                ds = self.datasets[TRAINING]
-                if ds:
-                    self.loader_kwargs[TRAINING]["sampler"] = DynamicWeightedRandomSampler(ds)
-                else:
-                    self.loader_kwargs[TRAINING].pop("sampler", None)
-
-            # note: This sampler leads to an epoch, which might not see some of the samples in the training dataset
-            #       (and others more than once)
-            # todo: add more samplers (e.g. WeighedRandomBachSampler without replacement per batch)
-
-        self.update_trainer_event.set()
+        update_cmd = UpdateDatasetCmd(
+            self.trainer, self.datasets[name], self.loader_kwargs[name], raw_data=data, labels=labels
+        )
+        self._worker.send_command(update_cmd)
+        self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
+        self._worker.send_command(SetMaxNumberOfIterations(self._worker, self.config[TRAINING][NUM_ITERATIONS_MAX]))
 
     def update_config(self, partial_config: dict) -> None:
         assert not get_error_msg_for_invalid_config(partial_config)
@@ -717,6 +667,7 @@ class SparseOneHot(Transform):
 
     def batch_function(self, tensors):
         prediction, target = tensors
+        print("APPLY ONE HOT", prediction.shape, target.shape)
         mask = torch.zeros_like(prediction)
         mask[target > 0] = 1
         mask.requires_grad = False

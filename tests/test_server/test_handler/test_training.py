@@ -4,6 +4,7 @@ import time
 import queue
 import threading
 from torch import multiprocessing as mp
+from unittest import mock
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
@@ -42,20 +43,22 @@ def test_training(tiny_model_2d):
         data = TikTensorBatch(
             [
                 TikTensor(torch.zeros(in_channels, 15, 15), ((1,), (1,))),
-                TikTensor(torch.ones(in_channels, 9, 9), ((2,), (2,))),
+                TikTensor(torch.ones(in_channels, 15, 15), ((2,), (2,))),
             ]
         )
         labels = TikTensorBatch(
             [
                 TikTensor(torch.ones(in_channels, 15, 15, dtype=torch.uint8), ((1,), (1,))),
-                TikTensor(torch.full((in_channels, 9, 9), 2, dtype=torch.uint8), ((2,), (2,))),
+                TikTensor(torch.full((in_channels, 15, 15), 2, dtype=torch.uint8), ((2,), (2,))),
             ]
         )
         training.update_dataset("training", data, labels)
         training.resume_training()
+        st = training.get_state()
         import time
 
         time.sleep(10)
+        st = training.get_state()
     finally:
         training.shutdown()
 
@@ -102,15 +105,18 @@ class TestTrainingWorker:
             self.iteration_count = 0
             self.max_num_iterations = 0
             self._break_cb = None
+            self._devs = []
 
         def set_break_callback(self, cb):
             self._break_cb = cb
+
+        def move_to(self, devices):
+            self._devs = devices
 
         def set_max_num_iterations(self, val):
             self.max_num_iterations = val
 
         def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
-            print("Stop", self._break_cb and self._break_cb())
             return self._break_cb and self._break_cb() or self.iteration_count >= self.max_num_iterations
 
         def fit(self):
@@ -161,15 +167,42 @@ class TestTrainingWorker:
 
         assert training.State.Idle == worker.state
 
-        add_device = training.SetDevicesCmd(worker, ["cpu"]).awaitable
+        add_device = training.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
         worker.send_command(add_device)
 
         add_device.wait()
 
         assert training.State.Running == worker.state
 
-        remove_device = training.SetDevicesCmd(worker, []).awaitable
-        worker.send_command(remove_device)
-        remove_device.wait()
+        remove_device = training.SetDevicesCmd(worker, [])
+        awaitable_remove = remove_device.awaitable
+        worker.send_command(awaitable_remove)
+        awaitable_remove.wait()
+        assert [torch.device("cpu")] == remove_device.result
 
         assert training.State.Idle == worker.state
+
+    def test_transition_to_running(self, worker, worker_thread, trainer):
+        def _exc():
+            raise Exception()
+
+        trainer.fit = _exc
+
+        cmd = training.ResumeCmd(worker)
+        worker.send_command(cmd)
+
+        add_work = training.SetMaxNumberOfIterations(worker, 1000).awaitable
+        worker.send_command(add_work)
+        add_work.wait()
+
+        assert training.State.Idle == worker.state
+
+        add_device = training.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        worker.send_command(add_device)
+
+        add_device.wait()
+
+        dummy = self.DummyCmd()
+        worker.send_command(dummy.awaitable)
+        dummy.awaitable.wait()
+        assert training.State.Paused == worker.state
