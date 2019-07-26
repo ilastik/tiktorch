@@ -8,8 +8,10 @@ from unittest import mock
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
-from tiktorch.server.handler.training import ITraining, TrainingProcess, run
-from tiktorch.server.handler import training
+from tiktorch.server.training import ITraining
+from tiktorch.server.training.base import TrainingProcess, run
+from tiktorch.server import training
+from tiktorch.server.training.worker import ICommand, TrainingWorker, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
@@ -55,9 +57,7 @@ def test_training(tiny_model_2d):
         training.update_dataset("training", data, labels)
         training.resume_training()
         st = training.get_state()
-        import time
-
-        time.sleep(10)
+        training.wait_for_idle().result()
         st = training.get_state()
     finally:
         training.shutdown()
@@ -92,11 +92,8 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         client.shutdown()
 
 
-# def test_validation(tiny_model_2d):
-
-
 class TestTrainingWorker:
-    class DummyCmd(training.ICommand):
+    class DummyCmd(ICommand):
         def execute(self):
             pass
 
@@ -130,7 +127,7 @@ class TestTrainingWorker:
 
     @pytest.fixture
     def worker(self, trainer):
-        return training.TrainingWorker(trainer)
+        return TrainingWorker(trainer)
 
     @pytest.fixture
     def worker_thread(self, worker):
@@ -182,7 +179,7 @@ class TestTrainingWorker:
 
         assert training.State.Idle == worker.state
 
-    def test_transition_to_running(self, worker, worker_thread, trainer):
+    def test_exception_during_trainign_should_transition_to_paused(self, worker, worker_thread, trainer):
         def _exc():
             raise Exception()
 
