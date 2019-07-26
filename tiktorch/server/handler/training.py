@@ -59,7 +59,7 @@ from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import ModelState
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 
-from .datasets import DynamicDataset
+from .datasets import DynamicDataLoaderWrapper, DynamicDataset, DynamicWeightedRandomSampler
 
 try:
     # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
@@ -140,6 +140,10 @@ class ITraining(RPCInterface):
 
     @exposed
     def get_model_state_dict(self) -> dict:
+        raise NotImplementedError
+
+    @exposed
+    def remove_data(self, name: str, ids: List[str]) -> None:
         raise NotImplementedError
 
 
@@ -297,7 +301,8 @@ class TrainingProcess(ITraining):
                         for name in [TRAINING, VALIDATION]:
                             if self.update_loader[name]:
                                 self.update_loader[name] = False
-                                self.trainer.bind_loader(INFERNO_NAMES[name], DataLoader(**self.loader_kwargs[name]))
+                                loader = DataLoader(**self.loader_kwargs[name])
+                                self.trainer.bind_loader(INFERNO_NAMES[name], DynamicDataLoaderWrapper(loader))
 
                 if self.trainer.max_num_iterations > self.trainer.iteration_count:
                     self.idle = False
@@ -327,7 +332,7 @@ class TrainingProcess(ITraining):
                         try:
                             self.trainer.fit()
                         except Exception as e:
-                            self.logger.debug(e, exc_info=True)
+                            self.logger.error("Exception during trainer fit", exc_info=True)
 
                         self.logger.info(
                             "Break training at %d/%d iterations",
@@ -417,24 +422,26 @@ class TrainingProcess(ITraining):
     def pause_training(self) -> None:
         self._pause_event.set()
 
+    def remove_data(self, name: str, ids: List[str]) -> None:
+        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
+        for id_ in ids:
+            self.datasets[name].remove(id_)
+
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         self.datasets[name].update(data, labels)
-        self.datasets[name].reset_indices()
         if name == TRAINING:
             old = self.config[TRAINING][NUM_ITERATIONS_MAX]
             with self.training_settings_lock:
                 self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(
                     data
                 )
-                self.logger.info(
+                self.logger.error(
                     "increased %s from %d to %d", NUM_ITERATIONS_MAX, old, self.config[TRAINING][NUM_ITERATIONS_MAX]
                 )
                 ds = self.datasets[TRAINING]
                 if ds:
-                    self.loader_kwargs[TRAINING]["sampler"] = WeightedRandomSampler(
-                        ds.get_weights(), len(ds), replacement=True
-                    )
+                    self.loader_kwargs[TRAINING]["sampler"] = DynamicWeightedRandomSampler(ds)
                 else:
                     self.loader_kwargs[TRAINING].pop("sampler", None)
 
