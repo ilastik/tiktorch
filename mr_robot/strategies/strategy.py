@@ -38,7 +38,7 @@ def randomize(label, num_of_classes):
     num_of_classes (int): number of classes in the dataset
     """
 
-    actions = [-1, 0] + [i for i in range(1, num_of_classes + 1)]
+    actions = [-1, 0] + [i for i in range(0, num_of_classes )]
     volume = np.product(label.shape)
     # print(volume, label.shape)
     x = np.random.randint(0, volume)
@@ -62,7 +62,7 @@ def user_simulator(raw_data_file, label_data_file, internal_paths, canvas_shape,
     num_of_classes (int): number of classes in the dataset
     """
     print(canvas_shape)
-    timesteps = np.random.randint(5, 10)
+    timesteps = np.random.randint(10, 20)
     video = []
     for i in range(timesteps):
         random_patch = get_random_patch(canvas_shape)
@@ -71,6 +71,7 @@ def user_simulator(raw_data_file, label_data_file, internal_paths, canvas_shape,
             label_data_file[internal_paths["path_to_labelled"]][random_patch],
         )
         label = randomize(label, num_of_classes)
+        label[label>=2] =0
         video.append((image, label, random_patch))
     return video
 
@@ -86,10 +87,10 @@ class BaseStrategy:
             "robo_predict_accuracy": 0,
             "f1_score": 0,
             "robo_predict_loss": 0,
-            "confusion_matrix": 0,
             "validation_loss": 0,
             "validation_accuracy": 0,
-            "confusion_matrix": 0,
+            "robo_confusion_matrix": 0,
+            "validation_confusion_matrix": 0,
         }
         self.class_dict = class_dict
         self.raw_data_file = raw_data_file
@@ -111,15 +112,17 @@ class BaseStrategy:
         in the actual image
         """
         # print("shape before one hot:", target.shape)
-        print(pred_output.shape, target.shape)
+        
         if (validation_flag == False):
             print("actual prediction:", pred_output, "label:", target)
         else:
             self.validation_data_size+=1
 
-        pred_output[pred_output >= 0.5] = 2
-        pred_output[pred_output < 0.5] = 1
-
+        #pred_output[pred_output >= 0.5] = 1
+        #pred_output[pred_output < 0.5] = 2
+        target[target==2] = 0
+        #target[target==1] = 1
+        print("values in prediction:", np.unique(pred_output) )
         if (validation_flag == False):
             print("after updating prediction:", pred_output)
         criterion_class = getattr(nn, self.loss_fn, None)
@@ -131,6 +134,7 @@ class BaseStrategy:
             target = integer_to_onehot(target)
             pred_output = np.expand_dims(pred_output, axis=0)
 
+        self.training_shape = target.shape
         # print("output_shape:", target.shape, "predicion shape:", pred_output.shape)
         curr_loss = criterion_class_obj(
             torch.from_numpy(pred_output.astype(np.float32)), torch.from_numpy(target.astype(np.float32))
@@ -149,9 +153,12 @@ class BaseStrategy:
             self.strategy_metric["validation_accuracy"] += accuracy_score(target, pred_output)
             self.strategy_metric["validation_loss"] += curr_loss
             self.strategy_metric["f1_score"] += f1_score(target, pred_output, average="weighted")
+            self.strategy_metric["validation_confusion_matrix"] += get_confusion_matrix(
+                pred_output, target, list(self.class_dict.keys())
+            )
 
         else:
-            self.strategy_metric["confusion_matrix"] += get_confusion_matrix(
+            self.strategy_metric["robo_confusion_matrix"] += get_confusion_matrix(
                 pred_output, target, list(self.class_dict.keys())
             )
             self.strategy_metric["robo_predict_accuracy"] += accuracy_score(target, pred_output)
@@ -165,6 +172,7 @@ class BaseStrategy:
                 self.raw_data_file[self.paths["path_to_raw_data"]][block],
                 self.labelled_data_file[self.paths["path_to_labelled"]][block],
             )
+            label[label ==2] = 0
             return_data_set.append(
                 (image, getattr(self.annotater, self.labelling_strategy)(label), get_coordinate(block))
             )
@@ -176,17 +184,25 @@ class BaseStrategy:
         print("metric before averaging", self.strategy_metric)
         for key in self.strategy_metric.keys():
             if( "validation" in key or "f1" in key):
-                self.strategy_metric[key] /= self.validation_data_size  
+                self.strategy_metric[key] /= self.validation_data_size
             else:    
                 self.strategy_metric[key] /= len(self.patched_data)
+
+            if ("loss" in key):
+                self.strategy_metric[key] /= np.product(self.training_shape)
+
+        #self.strategy_metric["validation_loss"] /= np.product(self.training_shape)
         print("metric after averaging", self.strategy_metric)
         import copy
 
         strategy_metric = copy.deepcopy(self.strategy_metric)
 
         # FIXME confision_matrix -> plotted_confusion_matrix
-        strategy_metric["confusion_matrix"] = plot_confusion_matrix(
-            strategy_metric["confusion_matrix"], self.class_dict
+        strategy_metric["robo_confusion_matrix"] = plot_confusion_matrix(
+            strategy_metric["robo_confusion_matrix"], self.class_dict
+        )
+        strategy_metric["validation_confusion_matrix"] = plot_confusion_matrix(
+            strategy_metric["validation_confusion_matrix"], self.class_dict
         )
         self.strategy_metric = self.strategy_metric.fromkeys(self.strategy_metric, 0)
         print("reset done:")
@@ -391,7 +407,7 @@ class ClassWiseLoss(BaseStrategy):
         self.image_counter = 1
         self.image_id = dict()
 
-    def update_state(self, pred_output, target, block, training_iterations, validation_flag):
+    def update_state(self, pred_output, target, block, validation_flag):
         """
         1. calculate loss for given prediction and label
         2. map each image with a corresponding ID
@@ -401,9 +417,21 @@ class ClassWiseLoss(BaseStrategy):
         target (numpy.ndarray): actual label
         block (tuple[slice]): tuple of slice objects, one per dimension, specifying the patch in the actual image
         """
+        if (validation_flag == False):
+            print("actual prediction:", pred_output, "label:", target)
+        else:
+            self.validation_data_size+=1
 
-        pred_output[pred_output >= 0.5] = 2
-        pred_output[pred_output < 0.5] = 1
+        self.training_shape = pred_output.shape
+        #pred_output[pred_output >= 0.5] = 1
+        #pred_output[pred_output < 0.5] = 2
+        target[target==2] = 0
+        #target[target==1] = 1
+        print("values in prediction:", np.unique(pred_output) )
+        if (validation_flag == False):
+            print("after updating prediction:", pred_output)
+        #pred_output[pred_output >= 0.5] = 2
+        #pred_output[pred_output < 0.5] = 1
         criterion_class = getattr(nn, self.loss_fn, None)
         assert criterion_class is not None, "Criterion {} not found.".format(method)
         criterion_class_obj = criterion_class(reduction="none")
@@ -414,21 +442,21 @@ class ClassWiseLoss(BaseStrategy):
             one_hot_target = np.expand_dims(target, axis=0)
 
         pred_output = np.expand_dims(pred_output, axis=0)
+        if(validation_flag == False):
+            np.vstack([self.image_class_count, np.zeros((1, self.num_classes + 1))])
+            self.image_class_count[-1][0] = self.image_counter
+            self.image_id[self.image_counter] = block
+            self.image_counter += 1
 
-        np.vstack([self.image_class_count, np.zeros((1, self.num_classes + 1))])
-        self.image_class_count[-1][0] = self.image_counter
-        self.image_id[self.image_counter] = block
-        self.image_counter += 1
-
-        indices = [0] * (len(target.shape))
-        self.record_classes(0, target, indices)
+            indices = [0] * (len(target.shape))
+            self.record_classes(0, target, indices)
 
         self.loss_matrix = criterion_class_obj(
             torch.from_numpy(one_hot_target.astype(np.float32)), torch.from_numpy(pred_output.astype(np.float32))
         )
-
-        indices = [0] * (len(self.loss_matrix.shape))
-        self.record_class_loss(2, indices, self.loss_matrix.shape)
+        if(validation_flag == False):
+            indices = [0] * (len(self.loss_matrix.shape))
+            self.record_class_loss(2, indices, self.loss_matrix.shape)
 
         curr_total_loss = torch.sum(self.loss_matrix)
 
@@ -647,7 +675,7 @@ class StrategyAbstract:
 
     def get_next_batch(self, batch_size=1):
         new_batch = self.strategies[self.index][0].get_next_batch(batch_size)
-        assert len(new_batch) == batch_size
+        #assert len(new_batch) == batch_size
         self.update_strategy(batch_size)
         return new_batch
 
