@@ -96,16 +96,14 @@ class SetDevicesCmd(ICommand):
 
 
 class UpdateDatasetCmd(ICommand):
-    def __init__(self, dataset, loader_kwargs, *, raw_data, labels):
-        self._dataset = dataset
+    def __init__(self, name, *, raw_data, labels):
+        self._name = name
         self._raw_data = raw_data
         self._labels = labels
-        self._loader_kwargs = loader_kwargs  # FIXME
 
     def execute(self, ctx: Context) -> None:
-        self._dataset.update(self._raw_data, self._labels)
-        loader = DataLoader(**self._loader_kwargs)
-        ctx.trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
+        dataset = ctx.trainer.get_dataset(self._name)
+        dataset.update(self._raw_data, self._labels)
 
 
 class SetMaxNumberOfIterations(ICommand):

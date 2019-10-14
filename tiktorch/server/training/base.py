@@ -31,7 +31,6 @@ from inferno.extensions import criteria as inferno_criteria
 from inferno.io.transform import Compose, Transform
 from inferno.trainers.callbacks.logging import TensorboardLogger
 from inferno.utils.exceptions import NotSetError
-from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from tiktorch import log
 from tiktorch.configkeys import (
@@ -60,7 +59,7 @@ from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import ModelState
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 
-from tiktorch.server.datasets import DynamicDataLoaderWrapper, DynamicDataset, DynamicWeightedRandomSampler
+from tiktorch.server.datasets import DynamicDataset
 from .interface import ITraining
 from .trainer import TikTrainer
 from . import commands
@@ -152,7 +151,7 @@ class TrainingProcess(ITraining):
 
         self.config = config
 
-        self.trainer = TikTrainer.build(model=self.model, **self.create_trainer_config())
+        self.trainer = TikTrainer.build(dataset_by_name=self.datasets, model=self.model, **self.create_trainer_config())
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
             log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -262,9 +261,7 @@ class TrainingProcess(ITraining):
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        update_cmd = commands.UpdateDatasetCmd(
-            self.datasets[name], self.loader_kwargs[name], raw_data=data, labels=labels
-        )
+        update_cmd = commands.UpdateDatasetCmd(name, raw_data=data, labels=labels)
         self._worker.send_command(update_cmd)
         self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
         self._worker.send_command(commands.SetMaxNumberOfIterations(self.config[TRAINING][NUM_ITERATIONS_MAX]))
