@@ -99,6 +99,71 @@ def run(
     srv.listen()
 
 
+def make_datasets(config):
+    DEFAULT_TRANSFORM = {"Normalize": {"apply_to": [0]}}
+
+    def composed_transforms(transforms):
+        transforms = transforms or DEFAULT_TRANSFORM
+        return Compose(*[get_transform(name, **kwargs) for name, kwargs in transforms.items()])
+
+    training_transform = composed_transforms(config[TRAINING].get(TRANSFORMS))
+    validation_transform = composed_transforms(config[VALIDATION].get(TRANSFORMS))
+
+    return {
+        TRAINING: DynamicDataset(transform=training_transform),
+        VALIDATION: DynamicDataset(transform=validation_transform),
+    }
+
+
+class ConfigBuilder:
+    DEFAULTS = {
+        LOSS_CRITERION_CONFIG: {"method": "MSELoss"},
+        NUM_ITERATIONS_MAX: 0,
+        NUM_ITERATIONS_PER_UPDATE: 1,
+        OPTIMIZER_CONFIG: {"method": "Adam"},
+    }
+
+    @classmethod
+    def build(cls, config):
+        result = {}
+
+        for key, default in cls.DEFAULTS.items():
+            if key not in config[TRAINING]:
+                config[TRAINING][key] = default
+
+        for key, default in cls.DEFAULTS.items():
+            value = config[TRAINING].get(key, default)
+
+            if key == LOSS_CRITERION_CONFIG:
+                kwargs = dict(value)
+                method = kwargs.pop("method")
+                criterion_class = cls._resove_loss(method)
+                criterion_config = {"method": LossWrapper(criterion_class(**kwargs), SparseOneHot())}
+                result[INFERNO_NAMES.get(key, key)] = criterion_config
+            else:
+                result[INFERNO_NAMES.get(key, key)] = value
+
+        result[INFERNO_LOGGER_CONFIG] = {"name": "InfernoTrainer"}
+        result[INFERNO_MAX_NUM_EPOCHS] = "inf"
+
+        return result
+
+    @classmethod
+    def _resove_loss(cls, loss_name):
+        if not isinstance(loss_name, str):
+            raise ValueError(f"Expected string as loss_name, got {loss_name}")
+
+        criterion_class = getattr(torch.nn, loss_name, None)
+        if criterion_class is None:
+            # Look for it in extensions
+            criterion_class = getattr(inferno_criteria, loss_name, None)
+
+        if criterion_class is None:
+            raise Exception(f"Criterion {loss_name} not found.")
+
+        return criterion_class
+
+
 class TrainingProcess(ITraining):
     """
     Process to run an inferno trainer instance to train a neural network. This instance is used for validation as well.
@@ -120,32 +185,12 @@ class TrainingProcess(ITraining):
         self.model = copy.deepcopy(model)
         self.optimizer_state = optimizer_state
 
-        training_transform = Compose(
-            *[
-                get_transform(name, **kwargs)
-                for name, kwargs in config[TRAINING].get(TRANSFORMS, {"Normalize": {"apply_to": [0]}}).items()
-            ]
-        )
-        validation_transform = Compose(
-            *[
-                get_transform(name, **kwargs)
-                for name, kwargs in config[VALIDATION].get(TRANSFORMS, {"Normalize": {"apply_to": [0]}}).items()
-            ]
-        )
-
-        self.datasets = {
-            TRAINING: DynamicDataset(transform=training_transform),
-            VALIDATION: DynamicDataset(transform=validation_transform),
-        }
-
-        for key, default in self.trainer_defaults.items():
-            if key not in config[TRAINING]:
-                config[TRAINING][key] = default
-
         self.config = config
 
+        self.datasets = make_datasets(config)
+
         self.trainer = worker.TikTrainer.build(
-            dataset_by_name=self.datasets, model=self.model, **self.create_trainer_config()
+            dataset_by_name=self.datasets, model=self.model, **ConfigBuilder.build(config)
         )
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
@@ -211,36 +256,10 @@ class TrainingProcess(ITraining):
         else:
             return optimizer
 
-    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
-        """
-        set devices to train on. This request blocks until previous devices are free.
-        :param devices: devices to use for training
-        """
-        return self._worker.set_devices(devices)
-
-    def get_idle(self) -> bool:
-        return self._worker.get_idle()
-
-    def shutdown(self) -> Shutdown:
-        self._worker.shutdown()
-        return Shutdown()
-
-    def resume_training(self) -> None:
-        self._worker.resume_training()
-
-    def pause_training(self) -> None:
-        self._worker.pause_training()
-
     def remove_data(self, name: str, ids: List[str]) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         for id_ in ids:
             self.datasets[name].remove(id_)
-
-    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
-        self._worker.update_dataset(name, data=data, labels=labels)
-
-        self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
-        self._worker.set_max_number_of_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
 
     def update_config(self, partial_config: dict) -> None:
         return
@@ -302,6 +321,32 @@ class TrainingProcess(ITraining):
             num_iterations_done=self.config[TRAINING].get(NUM_ITERATIONS_DONE, 0),
             num_iterations_max=self.config[TRAINING][NUM_ITERATIONS_MAX],
         )
+
+    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
+        """
+        set devices to train on. This request blocks until previous devices are free.
+        :param devices: devices to use for training
+        """
+        return self._worker.set_devices(devices)
+
+    def get_idle(self) -> bool:
+        return self._worker.get_idle()
+
+    def shutdown(self) -> Shutdown:
+        self._worker.shutdown()
+        return Shutdown()
+
+    def resume_training(self) -> None:
+        self._worker.resume_training()
+
+    def pause_training(self) -> None:
+        self._worker.pause_training()
+
+    def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
+        self._worker.update_dataset(name, data=data, labels=labels)
+
+        self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
+        self._worker.set_max_number_of_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
 
 
 class SparseOneHot(Transform):

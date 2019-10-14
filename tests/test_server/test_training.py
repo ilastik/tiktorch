@@ -9,11 +9,12 @@ from unittest import mock
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
 from tiktorch.server.training import ITraining
-from tiktorch.server.training.base import TrainingProcess, run
+from tiktorch.server.training.base import TrainingProcess, ConfigBuilder, run
 from tiktorch.server import training
 from tiktorch.server.training.worker.base import Engine
 from tiktorch.server.training.worker import commands, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
+from tiktorch import configkeys as confkeys
 
 
 def test_initialization(tiny_model_2d):
@@ -206,3 +207,34 @@ class TestTrainingWorkerEngine:
         fit_called.wait()
         time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
         assert State.Paused == worker.state
+
+
+class TestConfigBuilder:
+    @pytest.mark.parametrize(
+        "key,expected_default,provided_value",
+        [
+            (confkeys.NUM_ITERATIONS_MAX, 0, 100),
+            (confkeys.NUM_ITERATIONS_PER_UPDATE, 1, 4),
+            (confkeys.OPTIMIZER_CONFIG, {"method": "Adam"}, {"method": "Adagrad"}),
+        ],
+    )
+    def test_config_defauts(self, key, expected_default, provided_value):
+        config = ConfigBuilder.build({"training": {}})
+
+        assert expected_default == config[key]
+
+        config = ConfigBuilder.build({"training": {key: provided_value}})
+        assert provided_value == config[key]
+
+    def test_config_with_default_loss(self):
+        config = ConfigBuilder.build({"training": {}})
+
+        loss_conf = config.get("criterion_config")
+        assert loss_conf
+        assert isinstance(loss_conf["method"].criterion, torch.nn.MSELoss)
+
+    def test_config_with_specified_loss(self):
+        config = ConfigBuilder.build({"training": {confkeys.LOSS_CRITERION_CONFIG: {"method": "CrossEntropyLoss"}}})
+        loss_conf = config.get("criterion_config")
+        assert loss_conf
+        assert isinstance(loss_conf["method"].criterion, torch.nn.CrossEntropyLoss)
