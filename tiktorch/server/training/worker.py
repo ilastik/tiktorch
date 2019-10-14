@@ -6,7 +6,7 @@ from typing import List
 
 from .trainer import TikTrainer
 from .types import State
-from . import commands as cmds
+from . import commands
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,8 @@ class TrainingWorker:
         self._devices = Devices()
         self._idle_callbacks = []
 
-    def send_command(self, cmd: cmds.ICommand) -> None:
-        if not isinstance(cmd, cmds.ICommand):
+    def send_command(self, cmd: commands.ICommand) -> None:
+        if not isinstance(cmd, commands.ICommand):
             raise ValueError(f"Expected instance of ICommand got {cmd}")
 
         logger.debug("Sending command %s", cmd)
@@ -146,7 +146,7 @@ class TrainingWorker:
         except Exception as e:
             logger.error("Exception during training fit. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
-            self.send_command(cmds.PauseCmd(self))
+            self.send_command(commands.PauseCmd(self))
 
     def _update_state(self):
         if self._state == State.Running:

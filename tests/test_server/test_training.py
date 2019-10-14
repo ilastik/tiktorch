@@ -8,7 +8,7 @@ from unittest import mock
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
-from tiktorch.server.training import ITraining, commands as cmds
+from tiktorch.server.training import ITraining, commands
 from tiktorch.server.training.base import TrainingProcess, run
 from tiktorch.server import training
 from tiktorch.server.training.worker import TrainingWorker, State
@@ -93,7 +93,7 @@ def test_training_in_proc(tiny_model_2d, log_queue):
 
 
 class TestTrainingWorker:
-    class DummyCmd(cmds.ICommand):
+    class DummyCmd(commands.ICommand):
         def execute(self):
             pass
 
@@ -134,7 +134,7 @@ class TestTrainingWorker:
         t = threading.Thread(target=worker.run)
         t.start()
         yield t
-        worker.send_command(cmds.StopCmd(worker))
+        worker.send_command(commands.StopCmd(worker))
         t.join()
 
     def test_not_running_worker_has_stopped_status(self, worker):
@@ -148,30 +148,30 @@ class TestTrainingWorker:
         assert State.Paused == worker.state
 
     def test_resuming_transitions_to_idle_with_no_devices(self, worker, worker_thread):
-        cmd = cmds.ResumeCmd(worker).awaitable
+        cmd = commands.ResumeCmd(worker).awaitable
         worker.send_command(cmd)
         cmd.wait()
 
         assert State.Idle == worker.state
 
     def test_transition_to_running(self, worker, worker_thread):
-        cmd = cmds.ResumeCmd(worker)
+        cmd = commands.ResumeCmd(worker)
         worker.send_command(cmd)
 
-        add_work = cmds.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = commands.SetMaxNumberOfIterations(worker, 1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
         assert State.Idle == worker.state
 
-        add_device = cmds.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        add_device = commands.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
         worker.send_command(add_device)
 
         add_device.wait()
 
         assert State.Running == worker.state
 
-        remove_device = cmds.SetDevicesCmd(worker, [])
+        remove_device = commands.SetDevicesCmd(worker, [])
         awaitable_remove = remove_device.awaitable
         worker.send_command(awaitable_remove)
         awaitable_remove.wait()
@@ -188,17 +188,17 @@ class TestTrainingWorker:
 
         trainer.fit = _exc
 
-        cmd = cmds.ResumeCmd(worker)
+        cmd = commands.ResumeCmd(worker)
         worker.send_command(cmd)
 
-        add_work = cmds.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = commands.SetMaxNumberOfIterations(worker, 1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
         assert State.Idle == worker.state
 
         assert not fit_called.is_set()
-        add_device = cmds.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        add_device = commands.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
         worker.send_command(add_device)
         add_device.wait()
 
