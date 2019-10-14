@@ -134,7 +134,7 @@ class TestTrainingWorker:
         t = threading.Thread(target=worker.run)
         t.start()
         yield t
-        worker.send_command(commands.StopCmd(worker))
+        worker.send_command(commands.StopCmd())
         t.join()
 
     def test_not_running_worker_has_stopped_status(self, worker):
@@ -148,30 +148,30 @@ class TestTrainingWorker:
         assert State.Paused == worker.state
 
     def test_resuming_transitions_to_idle_with_no_devices(self, worker, worker_thread):
-        cmd = commands.ResumeCmd(worker).awaitable
+        cmd = commands.ResumeCmd().awaitable
         worker.send_command(cmd)
         cmd.wait()
 
         assert State.Idle == worker.state
 
     def test_transition_to_running(self, worker, worker_thread):
-        cmd = commands.ResumeCmd(worker)
+        cmd = commands.ResumeCmd()
         worker.send_command(cmd)
 
-        add_work = commands.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = commands.SetMaxNumberOfIterations(1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
         assert State.Idle == worker.state
 
-        add_device = commands.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        add_device = commands.SetDevicesCmd([torch.device("cpu")]).awaitable
         worker.send_command(add_device)
 
         add_device.wait()
 
         assert State.Running == worker.state
 
-        remove_device = commands.SetDevicesCmd(worker, [])
+        remove_device = commands.SetDevicesCmd([])
         awaitable_remove = remove_device.awaitable
         worker.send_command(awaitable_remove)
         awaitable_remove.wait()
@@ -188,17 +188,17 @@ class TestTrainingWorker:
 
         trainer.fit = _exc
 
-        cmd = commands.ResumeCmd(worker)
+        cmd = commands.ResumeCmd()
         worker.send_command(cmd)
 
-        add_work = commands.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = commands.SetMaxNumberOfIterations(1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
         assert State.Idle == worker.state
 
         assert not fit_called.is_set()
-        add_device = commands.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        add_device = commands.SetDevicesCmd([torch.device("cpu")]).awaitable
         worker.send_command(add_device)
         add_device.wait()
 

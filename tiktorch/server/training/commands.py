@@ -10,7 +10,9 @@ from tiktorch.server.datasets import DynamicDataLoaderWrapper
 from .types import State
 
 if typing.TYPE_CHECKING:
-    from .worker import TrainingWorker
+    from tiktorch.server.worker import TrainingWorker
+    from tiktorch.server.trainer import TikTrainer
+    from tiktorch.server.datasets import DynamicDataset
 
 
 __all__ = [
@@ -25,6 +27,17 @@ __all__ = [
 ]
 
 
+class Context:
+    """
+    Command execution context
+    Contains modifiable entities as attributes
+    """
+
+    def __init__(self, *, worker: TrainingWorker, trainer: TikTrainer) -> None:
+        self.worker = worker
+        self.trainer = trainer
+
+
 class ICommand:
     __awaitable = None
 
@@ -35,7 +48,7 @@ class ICommand:
 
         return self.__awaitable
 
-    def execute(self) -> None:
+    def execute(self, ctx: Context) -> None:
         raise NotImplementedError()
 
 
@@ -47,9 +60,9 @@ class AwaitableCommand(ICommand):
     def wait(self):
         self._done_evt.wait()
 
-    def execute(self):
+    def execute(self, ctx: Context) -> None:
         try:
-            self._cmd.execute()
+            self._cmd.execute(ctx)
         finally:
             self._done_evt.set()
 
@@ -57,55 +70,47 @@ class AwaitableCommand(ICommand):
         return f"Awaitable {self._cmd!r}"
 
 
-class _WorkerCmd(ICommand):
-    def __init__(self, worker: TrainingWorker):
-        self._worker = worker
+class PauseCmd(ICommand):
+    def execute(self, ctx: Context) -> None:
+        ctx.worker.transition_to(State.Paused)
 
 
-class PauseCmd(_WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Paused)
+class ResumeCmd(ICommand):
+    def execute(self, ctx: Context) -> None:
+        ctx.worker.transition_to(State.Running)
 
 
-class ResumeCmd(_WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Running)
-
-
-class StopCmd(_WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Stopped)
+class StopCmd(ICommand):
+    def execute(self, ctx: Context) -> None:
+        ctx.worker.transition_to(State.Stopped)
 
 
 class SetDevicesCmd(ICommand):
-    def __init__(self, worker, devices):
-        self._worker = worker
+    def __init__(self, devices):
         self._devices = devices
 
         self.result = None
 
-    def execute(self):
-        self.result = self._worker.set_devices(self._devices)
+    def execute(self, ctx: Context) -> None:
+        self.result = ctx.worker.set_devices(self._devices)
 
 
 class UpdateDatasetCmd(ICommand):
-    def __init__(self, trainer, dataset, loader_kwargs, *, raw_data, labels):
-        self._trainer = trainer
+    def __init__(self, dataset, loader_kwargs, *, raw_data, labels):
         self._dataset = dataset
         self._raw_data = raw_data
         self._labels = labels
         self._loader_kwargs = loader_kwargs  # FIXME
 
-    def execute(self):
+    def execute(self, ctx: Context) -> None:
         self._dataset.update(self._raw_data, self._labels)
         loader = DataLoader(**self._loader_kwargs)
-        self._trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
+        ctx.trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
 
 
 class SetMaxNumberOfIterations(ICommand):
-    def __init__(self, worker: TrainingWorker, num_iterations: int) -> None:
-        self._worker = worker
+    def __init__(self, num_iterations: int) -> None:
         self._num_iterations = num_iterations
 
-    def execute(self) -> None:
-        self._worker.set_max_num_iterations(self._num_iterations)
+    def execute(self, ctx: Context) -> None:
+        ctx.worker.set_max_num_iterations(self._num_iterations)

@@ -126,9 +126,10 @@ class TrainingWorker:
             try:
                 cmd = self._command_queue.get_nowait()
                 logger.debug("Executing %s", cmd)
+                ctx = commands.Context(worker=self, trainer=self._trainer)
 
                 try:
-                    cmd.execute()
+                    cmd.execute(ctx)
                 except Exception:
                     logger.exception("Failed to execute %s", cmd)
                 finally:
@@ -146,7 +147,7 @@ class TrainingWorker:
         except Exception as e:
             logger.error("Exception during training fit. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
-            self.send_command(commands.PauseCmd(self))
+            self.send_command(commands.PauseCmd())
 
     def _update_state(self):
         if self._state == State.Running:
