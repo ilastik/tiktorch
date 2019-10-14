@@ -139,11 +139,6 @@ class TrainingProcess(ITraining):
             TRAINING: DynamicDataset(transform=training_transform),
             VALIDATION: DynamicDataset(transform=validation_transform),
         }
-        self.update_loader = {TRAINING: True, VALIDATION: True}
-        self.loader_kwargs = {
-            TRAINING: {"dataset": self.datasets[TRAINING]},
-            VALIDATION: {"dataset": self.datasets[VALIDATION]},
-        }
 
         for key, default in self.trainer_defaults.items():
             if key not in config[TRAINING]:
@@ -286,9 +281,7 @@ class TrainingProcess(ITraining):
                         if subkey in self.config[key]:
                             del self.config[key][subkey]
                     elif subkey == BATCH_SIZE:
-                        self.update_loader[key] = True
-                        self.loader_kwargs[key][INFERNO_NAMES[BATCH_SIZE]] = subvalue
-                pass
+                        raise NotImplementedError("Batch size update")
             elif key in [NAME, TORCH_VERSION]:
                 self.config[key] = value
             else:
