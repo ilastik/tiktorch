@@ -8,10 +8,10 @@ from unittest import mock
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
-from tiktorch.server.training import ITraining
+from tiktorch.server.training import ITraining, commands as cmds
 from tiktorch.server.training.base import TrainingProcess, run
 from tiktorch.server import training
-from tiktorch.server.training.worker import ICommand, TrainingWorker, State
+from tiktorch.server.training.worker import TrainingWorker, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
@@ -93,7 +93,7 @@ def test_training_in_proc(tiny_model_2d, log_queue):
 
 
 class TestTrainingWorker:
-    class DummyCmd(ICommand):
+    class DummyCmd(cmds.ICommand):
         def execute(self):
             pass
 
@@ -134,72 +134,74 @@ class TestTrainingWorker:
         t = threading.Thread(target=worker.run)
         t.start()
         yield t
-        worker.send_command(training.StopCmd(worker))
+        worker.send_command(cmds.StopCmd(worker))
         t.join()
 
     def test_not_running_worker_has_stopped_status(self, worker):
-        assert training.State.Stopped == worker.state
+        assert State.Stopped == worker.state
 
     def test_started_worker_has_idle_status(self, worker, worker_thread):
         cmd = self.DummyCmd().awaitable
         worker.send_command(cmd)
         cmd.wait()
 
-        assert training.State.Paused == worker.state
+        assert State.Paused == worker.state
 
     def test_resuming_transitions_to_idle_with_no_devices(self, worker, worker_thread):
-        cmd = training.ResumeCmd(worker).awaitable
+        cmd = cmds.ResumeCmd(worker).awaitable
         worker.send_command(cmd)
         cmd.wait()
 
-        assert training.State.Idle == worker.state
+        assert State.Idle == worker.state
 
     def test_transition_to_running(self, worker, worker_thread):
-        cmd = training.ResumeCmd(worker)
+        cmd = cmds.ResumeCmd(worker)
         worker.send_command(cmd)
 
-        add_work = training.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = cmds.SetMaxNumberOfIterations(worker, 1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
-        assert training.State.Idle == worker.state
+        assert State.Idle == worker.state
 
-        add_device = training.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        add_device = cmds.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
         worker.send_command(add_device)
 
         add_device.wait()
 
-        assert training.State.Running == worker.state
+        assert State.Running == worker.state
 
-        remove_device = training.SetDevicesCmd(worker, [])
+        remove_device = cmds.SetDevicesCmd(worker, [])
         awaitable_remove = remove_device.awaitable
         worker.send_command(awaitable_remove)
         awaitable_remove.wait()
         assert [torch.device("cpu")] == remove_device.result
 
-        assert training.State.Idle == worker.state
+        assert State.Idle == worker.state
 
-    def test_exception_during_trainign_should_transition_to_paused(self, worker, worker_thread, trainer):
+    def test_exception_during_train_should_transition_to_paused(self, worker, worker_thread, trainer):
+        fit_called = threading.Event()
+
         def _exc():
+            fit_called.set()
             raise Exception()
 
         trainer.fit = _exc
 
-        cmd = training.ResumeCmd(worker)
+        cmd = cmds.ResumeCmd(worker)
         worker.send_command(cmd)
 
-        add_work = training.SetMaxNumberOfIterations(worker, 1000).awaitable
+        add_work = cmds.SetMaxNumberOfIterations(worker, 1000).awaitable
         worker.send_command(add_work)
         add_work.wait()
 
-        assert training.State.Idle == worker.state
+        assert State.Idle == worker.state
 
-        add_device = training.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
+        assert not fit_called.is_set()
+        add_device = cmds.SetDevicesCmd(worker, [torch.device("cpu")]).awaitable
         worker.send_command(add_device)
-
         add_device.wait()
 
-        dummy = self.DummyCmd()
-        worker.send_command(dummy.awaitable)
-        dummy.awaitable.wait()
-        assert training.State.Paused == worker.state
+        fit_called.wait()
+        time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
+        assert State.Paused == worker.state
