@@ -115,7 +115,6 @@ class DynamicDataset(Dataset):
 
             numpy_image = image.as_numpy()
             numpy_label = label.as_numpy()
-            print("UPDATING DATASET WITH", numpy_image.shape, numpy_label.shape)
 
             id_ = image.id
 
