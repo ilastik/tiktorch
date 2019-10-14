@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from tiktorch import tiktypes as types
-from tiktorch.server.handler import datasets
+from tiktorch.server import datasets
 
 
 class TestDynamicDataset:

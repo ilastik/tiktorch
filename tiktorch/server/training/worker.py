@@ -1,4 +1,3 @@
-import enum
 import torch
 import queue
 import logging
@@ -6,19 +5,10 @@ import threading
 from typing import List
 
 from .trainer import TikTrainer
-from tiktorch.server.datasets import DynamicDataLoaderWrapper
-from torch.utils.data import DataLoader
-
+from .types import State
+from . import commands as cmds
 
 logger = logging.getLogger(__name__)
-
-
-@enum.unique
-class State(enum.Enum):
-    Idle = "idle"
-    Paused = "paused"
-    Running = "running"
-    Stopped = "stopped"
 
 
 class Devices:
@@ -59,8 +49,8 @@ class TrainingWorker:
         self._devices = Devices()
         self._idle_callbacks = []
 
-    def send_command(self, cmd: "ICommand") -> None:
-        if not isinstance(cmd, ICommand):
+    def send_command(self, cmd: cmds.ICommand) -> None:
+        if not isinstance(cmd, cmds.ICommand):
             raise ValueError(f"Expected instance of ICommand got {cmd}")
 
         logger.debug("Sending command %s", cmd)
@@ -155,7 +145,8 @@ class TrainingWorker:
             self._trainer.fit()
         except Exception as e:
             logger.error("Exception during training fit. Pausing...", exc_info=True)
-            self.send_command(PauseCmd(self))
+            # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
+            self.send_command(cmds.PauseCmd(self))
 
     def _update_state(self):
         if self._state == State.Running:
@@ -172,89 +163,3 @@ class TrainingWorker:
         self._state = new_state
         self._notify_idle()
         logger.debug("Set new state %s", self._state)
-
-
-class ICommand:
-    __awaitable = None
-
-    @property
-    def awaitable(self):
-        if not self.__awaitable:
-            self.__awaitable = AwaitableCommand(self)
-
-        return self.__awaitable
-
-    def execute(self) -> None:
-        raise NotImplementedError()
-
-
-class AwaitableCommand(ICommand):
-    def __init__(self, cmd: ICommand):
-        self._cmd = cmd
-        self._done_evt = threading.Event()
-
-    def wait(self):
-        self._done_evt.wait()
-
-    def execute(self):
-        try:
-            self._cmd.execute()
-        finally:
-            self._done_evt.set()
-
-    def __repr__(self):
-        return f"Awaitable {self._cmd!r}"
-
-
-class WorkerCmd(ICommand):
-    def __init__(self, worker: TrainingWorker):
-        self._worker = worker
-
-
-class PauseCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Paused)
-
-
-class ResumeCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Running)
-
-
-class StopCmd(WorkerCmd):
-    def execute(self):
-        self._worker.transition_to(State.Stopped)
-
-
-class SetDevicesCmd(ICommand):
-    def __init__(self, worker, devices):
-        self._worker = worker
-        self._devices = devices
-
-        self.result = None
-
-    def execute(self):
-        self.result = self._worker.set_devices(self._devices)
-
-
-class UpdateDatasetCmd(ICommand):
-    def __init__(self, trainer, dataset, loader_kwargs, *, raw_data, labels):
-        self._trainer = trainer
-        self._dataset = dataset
-        self._raw_data = raw_data
-        self._labels = labels
-        self._loader_kwargs = loader_kwargs  # FIXME
-
-    def execute(self):
-        self._dataset.update(self._raw_data, self._labels)
-        loader = DataLoader(**self._loader_kwargs)
-        self._trainer.bind_loader("train", DynamicDataLoaderWrapper(loader))
-
-
-class SetMaxNumberOfIterations(ICommand):
-    def __init__(self, worker: TrainingWorker, num_iterations: int) -> None:
-        self._worker = worker
-        self._num_iterations = num_iterations
-
-    def execute(self) -> None:
-        self._worker.set_max_num_iterations(self._num_iterations)

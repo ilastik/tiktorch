@@ -63,6 +63,7 @@ from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 from tiktorch.server.datasets import DynamicDataLoaderWrapper, DynamicDataset, DynamicWeightedRandomSampler
 from .interface import ITraining
 from .trainer import TikTrainer
+from . import commands
 from . import worker
 
 
@@ -223,7 +224,7 @@ class TrainingProcess(ITraining):
         set devices to train on. This request blocks until previous devices are free.
         :param devices: devices to use for training
         """
-        set_dev_cmd = worker.SetDevicesCmd(self._worker, devices)
+        set_dev_cmd = commands.SetDevicesCmd(self._worker, devices)
         set_dev_cmd_awaitable = set_dev_cmd.awaitable
         self._worker.send_command(set_dev_cmd_awaitable)
         set_dev_cmd_awaitable.wait()
@@ -239,7 +240,7 @@ class TrainingProcess(ITraining):
     def shutdown(self) -> Shutdown:
         self.logger.debug("Shutting down...")
 
-        stop_cmd = worker.StopCmd(self._worker)
+        stop_cmd = commands.StopCmd(self._worker)
         self._worker.send_command(stop_cmd.awaitable)
         stop_cmd.awaitable.wait()
 
@@ -247,12 +248,12 @@ class TrainingProcess(ITraining):
         return Shutdown()
 
     def resume_training(self) -> None:
-        resume_cmd = worker.ResumeCmd(self._worker)
+        resume_cmd = commands.ResumeCmd(self._worker)
         self._worker.send_command(resume_cmd.awaitable)
         resume_cmd.awaitable.wait()
 
     def pause_training(self) -> None:
-        self._worker.send_command(worker.PauseCmd(self._worker))
+        self._worker.send_command(commands.PauseCmd(self._worker))
 
     def remove_data(self, name: str, ids: List[str]) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
@@ -261,13 +262,13 @@ class TrainingProcess(ITraining):
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        update_cmd = worker.UpdateDatasetCmd(
+        update_cmd = commands.UpdateDatasetCmd(
             self.trainer, self.datasets[name], self.loader_kwargs[name], raw_data=data, labels=labels
         )
         self._worker.send_command(update_cmd)
         self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
         self._worker.send_command(
-            worker.SetMaxNumberOfIterations(self._worker, self.config[TRAINING][NUM_ITERATIONS_MAX])
+            commands.SetMaxNumberOfIterations(self._worker, self.config[TRAINING][NUM_ITERATIONS_MAX])
         )
 
     def update_config(self, partial_config: dict) -> None:
