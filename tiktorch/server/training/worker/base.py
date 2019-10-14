@@ -1,52 +1,27 @@
+from __future__ import annotations
+
 import torch
 import queue
 import logging
 import threading
-from typing import List
+from typing import List, TYPE_CHECKING
 
-from .trainer import TikTrainer
-from .types import State
-from . import commands
+from . import types, commands
+
+if TYPE_CHECKING:
+    from .trainer import TikTrainer
 
 logger = logging.getLogger(__name__)
 
 
-class Devices:
-    def __init__(self):
-        self.devices = []
-        self.base_device = "cpu"
-
-    def update(self, devices: List[torch.device]) -> List[torch.device]:
-        free_devices = [d for d in self.devices if d not in devices]
-
-        if not devices:
-            self.base_device = "cpu"
-            self.devices = []
-
-        else:
-            self.base_device = devices[0].type
-            if not all(d.type == self.base_device for d in devices):
-                raise ValueError("Can't train on cpu and gpu at the same time")
-
-            self.devices = devices
-
-        return free_devices
-
-    def __len__(self):
-        return len(self.devices)
-
-    def __iter__(self):
-        return iter(self.devices)
-
-
-class TrainingWorker:
+class Engine:
     def __init__(self, trainer: TikTrainer) -> None:
-        self._state = State.Stopped
+        self._state = types.State.Stopped
 
         self._command_queue = queue.Queue()
         self._trainer = trainer
         self._trainer.set_break_callback(self.has_commands)
-        self._devices = Devices()
+        self._devices = types.Devices()
         self._idle_callbacks = []
 
     def send_command(self, cmd: commands.ICommand) -> None:
@@ -72,7 +47,7 @@ class TrainingWorker:
         self._update_state()
         return free_devs
 
-    def transition_to(self, new_state: State) -> None:
+    def transition_to(self, new_state: types.State) -> None:
         logger.debug("Attempting transition to state %s", new_state)
         self._state = new_state
         self._update_state()
@@ -86,7 +61,7 @@ class TrainingWorker:
         self._notify_idle()
 
     def _notify_idle(self):
-        if self._state in (State.Idle, State.Paused):
+        if self._state in (types.State.Idle, types.State.Paused):
             idle_cbs = self._idle_callbacks
             self._idle_callbacks = []
             for cb in idle_cbs:
@@ -105,19 +80,19 @@ class TrainingWorker:
             logger.info("Stopped training worker")
 
     def _run(self):
-        self._set_state(State.Paused)
+        self._set_state(types.State.Paused)
 
         while True:
             self._process_commands()
 
-            if self.state == State.Stopped:
+            if self.state == types.State.Stopped:
                 break
 
-            elif self._state == State.Idle or self._state == State.Paused:
+            elif self._state == types.State.Idle or self._state == types.State.Paused:
                 with self._command_queue.not_empty:
                     self._command_queue.not_empty.wait()
 
-            elif self._state == State.Running:
+            elif self._state == types.State.Running:
                 self._train()
                 self._update_state()
 
@@ -150,17 +125,17 @@ class TrainingWorker:
             self.send_command(commands.PauseCmd())
 
     def _update_state(self):
-        if self._state == State.Running:
+        if self._state == types.State.Running:
             should_idle = not (self._devices and self.has_work())
             if should_idle:
-                self._set_state(State.Idle)
+                self._set_state(types.State.Idle)
 
-        elif self._state == State.Idle:
+        elif self._state == types.State.Idle:
             should_run = self._devices and self.has_work()
             if should_run:
-                self._set_state(State.Running)
+                self._set_state(types.State.Running)
 
-    def _set_state(self, new_state: State) -> None:
+    def _set_state(self, new_state: types.State) -> None:
         self._state = new_state
         self._notify_idle()
         logger.debug("Set new state %s", self._state)

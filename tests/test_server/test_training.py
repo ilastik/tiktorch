@@ -8,10 +8,11 @@ from unittest import mock
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
-from tiktorch.server.training import ITraining, commands
+from tiktorch.server.training import ITraining
 from tiktorch.server.training.base import TrainingProcess, run
 from tiktorch.server import training
-from tiktorch.server.training.worker import TrainingWorker, State
+from tiktorch.server.training.worker.base import Engine
+from tiktorch.server.training.worker import commands, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 
 
@@ -92,9 +93,9 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         client.shutdown()
 
 
-class TestTrainingWorker:
+class TestTrainingWorkerEngine:
     class DummyCmd(commands.ICommand):
-        def execute(self):
+        def execute(self, ctx):
             pass
 
     class DummyTrainer:
@@ -127,7 +128,7 @@ class TestTrainingWorker:
 
     @pytest.fixture
     def worker(self, trainer):
-        return TrainingWorker(trainer)
+        return Engine(trainer)
 
     @pytest.fixture
     def worker_thread(self, worker):

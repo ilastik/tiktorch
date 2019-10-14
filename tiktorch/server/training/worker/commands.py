@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader
 
 from tiktorch.server.datasets import DynamicDataLoaderWrapper
 
-from .types import State
+from . import types
 
 if typing.TYPE_CHECKING:
-    from tiktorch.server.worker import TrainingWorker
+    from .base import TrainingWorker
     from tiktorch.server.trainer import TikTrainer
     from tiktorch.server.datasets import DynamicDataset
 
@@ -72,17 +72,17 @@ class AwaitableCommand(ICommand):
 
 class PauseCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(State.Paused)
+        ctx.worker.transition_to(types.State.Paused)
 
 
 class ResumeCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(State.Running)
+        ctx.worker.transition_to(types.State.Running)
 
 
 class StopCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(State.Stopped)
+        ctx.worker.transition_to(types.State.Stopped)
 
 
 class SetDevicesCmd(ICommand):

@@ -61,8 +61,6 @@ from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
 
 from tiktorch.server.datasets import DynamicDataset
 from .interface import ITraining
-from .trainer import TikTrainer
-from . import commands
 from . import worker
 
 
@@ -146,7 +144,9 @@ class TrainingProcess(ITraining):
 
         self.config = config
 
-        self.trainer = TikTrainer.build(dataset_by_name=self.datasets, model=self.model, **self.create_trainer_config())
+        self.trainer = worker.TikTrainer.build(
+            dataset_by_name=self.datasets, model=self.model, **self.create_trainer_config()
+        )
         log_dir = self.config.get(LOGGING, {}).get(DIRECTORY, "")
         if os.path.exists(log_dir):
             log_dir = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -165,8 +165,6 @@ class TrainingProcess(ITraining):
                 self.trainer.build_optimizer(optimizer)
 
         self._worker = worker.TrainingWorker(self.trainer)
-        self._worker_thread = threading.Thread(target=self._worker.run, name="TrainingWorker")
-        self._worker_thread.start()
 
     def create_trainer_config(self) -> Dict:
         trainer_config = {}
@@ -218,36 +216,20 @@ class TrainingProcess(ITraining):
         set devices to train on. This request blocks until previous devices are free.
         :param devices: devices to use for training
         """
-        set_dev_cmd = commands.SetDevicesCmd(devices)
-        set_dev_cmd_awaitable = set_dev_cmd.awaitable
-        self._worker.send_command(set_dev_cmd_awaitable)
-        set_dev_cmd_awaitable.wait()
-        if set_dev_cmd.result is None:
-            self.logger.error("Failed to set devices")
-            return []
+        return self._worker.set_devices(devices)
 
-        return set_dev_cmd.result
-
-    def get_idle(self):
-        return self._worker.state == worker.State.Paused
+    def get_idle(self) -> bool:
+        return self._worker.get_idle()
 
     def shutdown(self) -> Shutdown:
-        self.logger.debug("Shutting down...")
-
-        stop_cmd = commands.StopCmd()
-        self._worker.send_command(stop_cmd.awaitable)
-        stop_cmd.awaitable.wait()
-
-        self.logger.debug("Shutdown complete")
+        self._worker.shutdown()
         return Shutdown()
 
     def resume_training(self) -> None:
-        resume_cmd = commands.ResumeCmd()
-        self._worker.send_command(resume_cmd.awaitable)
-        resume_cmd.awaitable.wait()
+        self._worker.resume_training()
 
     def pause_training(self) -> None:
-        self._worker.send_command(commands.PauseCmd())
+        self._worker.pause_training()
 
     def remove_data(self, name: str, ids: List[str]) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
@@ -255,11 +237,10 @@ class TrainingProcess(ITraining):
             self.datasets[name].remove(id_)
 
     def update_dataset(self, name: str, data: TikTensorBatch, labels: TikTensorBatch) -> None:
-        assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
-        update_cmd = commands.UpdateDatasetCmd(name, raw_data=data, labels=labels)
-        self._worker.send_command(update_cmd)
+        self._worker.update_dataset(name, data=data, labels=labels)
+
         self.config[TRAINING][NUM_ITERATIONS_MAX] += self.config[TRAINING][NUM_ITERATIONS_PER_UPDATE] * len(data)
-        self._worker.send_command(commands.SetMaxNumberOfIterations(self.config[TRAINING][NUM_ITERATIONS_MAX]))
+        self._worker.set_max_number_of_iterations(self.config[TRAINING][NUM_ITERATIONS_MAX])
 
     def update_config(self, partial_config: dict) -> None:
         return
