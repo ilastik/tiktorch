@@ -42,8 +42,7 @@ from .dryrun import IDryRun
 from .dryrun import run as run_dryrun
 from .inference import IInference
 from .inference import run as run_inference
-from .training import ITraining
-from .training import run as run_training
+from tiktorch.server.training import start_training_process
 
 
 class IHandler(RPCInterface):
@@ -181,20 +180,7 @@ class HandlerProcess(IHandler):
             self._dry_run: IDryRun = create_client(IDryRun, handler2dryrun_conn)
 
             self.logger.debug("start training process")
-            handler2training_conn, training2handler_conn = mp.Pipe()
-            self._training_proc = mp.Process(
-                target=run_training,
-                name="Training",
-                kwargs={
-                    "conn": training2handler_conn,
-                    "config": config,
-                    "model": self.model,
-                    "optimizer_state": optimizer_state,
-                    "log_queue": log_queue,
-                },
-            )
-            self._training_proc.start()
-            self._training: ITraining = create_client(ITraining, handler2training_conn)
+            self._training_proc, self._training = start_training_process(config, self.model, optimizer_state, log_queue)
 
             self.logger.debug("start inference process")
             handler2inference_conn, inference2handler_conn = mp.Pipe()
