@@ -1,13 +1,12 @@
 import os
-import random
-
-import numpy as np
-
-import matplotlib.pyplot as plt
 import pytest
+import numpy as np
+import random
+import matplotlib.pyplot as plt
+
 from mr_robot.mr_robot import MrRobot
-from mr_robot.strategies.strategy import ClassWiseLoss, HighestLoss, StrategyAbstract, StrategyRandom
-from mr_robot.utils import get_confusion_matrix, make_plot, tile_image
+from mr_robot.strategies.strategy import HighestLoss, ClassWiseLoss, StrategyRandom, StrategyAbstract
+from mr_robot.utils import tile_image, get_confusion_matrix, make_plot
 from tiktorch.server import TikTorchServer
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "7"
@@ -62,7 +61,7 @@ def test_tile_image():
 
 def test_MrRobot():
 
-    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", [StrategyRandom, HighestLoss], ["gpu:3"])
+    robo = MrRobot("/home/psharma/psharma/repos/tiktorch/mr_robot/robot_config.yml", "strategyabstract", ["gpu:3"])
     assert isinstance(robo, MrRobot)
     assert isinstance(robo.new_server, TikTorchServer)
 

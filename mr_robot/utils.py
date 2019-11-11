@@ -145,39 +145,44 @@ def get_random_patch(canvas_shape):
 
 
 def make_plot(stats):
+    hack_array = [0]*len(stats["training_loss"])
     plt.figure(1)
     fig1, ax1 = plt.subplots()
     ax1.set_xlabel("number_of_patches")
     ax1.set_ylabel("losses")
-    ax1.plot(stats["number_of_patches"], stats["training_loss"], color="tab:red")
+    print("training_loss:", stats["training_loss"])
+    print("robo_predict_loss:", stats["robo_predict_loss"])
+    ax1.plot(stats["number_of_patches"], stats["training_loss"], color="yellow")
     ax1.plot(stats["number_of_patches"], stats["robo_predict_loss"], color="tab:blue")
-    ax1.plot(stats["number_of_patches"], stats["validation_loss"], color="tab:green")
+    #ax1.plot(stats["number_of_patches"], stats["validation_loss"], color="tab:green")
     ax1.tick_params(axis="y", labelcolor="tab:red")
 
     ax2 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
 
     ax2.set_xlabel("training iterations")  # we already handled the x-label with ax1
-    ax2.plot(stats["training_iterations"], stats["training_loss"], color="tab:red")
+    ax2.plot(stats["training_iterations"], hack_array, color="white")
     ax2.tick_params(axis="y", labelcolor="tab:blue")
-    ax1.legend(["training", "robo predict", "validation"], loc="upper right")
+    ax1.legend(["training loss", "robo prediction loss"], loc="upper right")
     fig1.tight_layout()
     # plt.savefig("abc")
 
+    hack_array = [0]*len(stats["validation_accuracy"])
     plt.figure(2)
     fig2, ax3 = plt.subplots()
     ax3.set_xlabel("number_of_patches")
     ax3.set_ylabel("accuracies")
-    ax3.plot(stats["number_of_patches"], stats["validation_accuracy"], color="tab:red")
+    ax3.plot(stats["number_of_patches"], stats["training_accuracy"], color="orange")
+    #ax3.plot(stats["number_of_patches"], stats["validation_accuracy"], color="tab:red")
     ax3.plot(stats["number_of_patches"], stats["robo_predict_accuracy"], color="tab:blue")
-    ax3.plot(stats["number_of_patches"], stats["f1_score"], color="tab:green")
+    #ax3.plot(stats["number_of_patches"], stats["f1_score"], color="tab:green")
     ax3.tick_params(axis="y", labelcolor="tab:red")
 
-    ax4 = ax1.twiny()  # instantiate a second axes that shares the same x-axis
+    ax4 = ax3.twiny()  # instantiate a second axes that shares the same x-axis
 
     ax4.set_xlabel("training iterations")  # we already handled the x-label with ax1
-    ax4.plot(stats["training_iterations"], stats["validation_accuracy"], color="tab:red")
+    ax4.plot(stats["training_iterations"], hack_array)
     ax4.tick_params(axis="y", labelcolor="tab:blue")
-    ax1.legend(["validation", "robo prediction accuracy", "f1 score (validation)"], loc="upper right")
+    ax3.legend(["training", "robo prediction"], loc="lower right")
     fig2.tight_layout()
     # plt.savefig("def")
     plt.close(fig1)
