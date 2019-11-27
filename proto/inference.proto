@@ -1,0 +1,38 @@
+// The greeting service definition.
+syntax = "proto3";
+
+service DeviceInfo {
+  rpc CreateSession(Empty) returns (Session) {}
+  rpc GetDevices(Empty) returns (Devices) {}
+  rpc Predict(PredictRequest) returns (PredictResponse) {}
+}
+
+// The response message list of available device names
+message Devices {
+  repeated string names = 1;
+}
+
+message TensorDim {
+    uint32 size = 1;
+    string name = 2;
+}
+
+message Tensor {
+  bytes buffer = 1;
+  string dtype = 2;
+  repeated TensorDim shape = 3;
+}
+
+message Empty {}
+
+message Session {
+    string id = 1;
+}
+
+message PredictRequest {
+  repeated Tensor tensor = 1;
+}
+
+message PredictResponse {
+  repeated Tensor tensor = 1;
+}
