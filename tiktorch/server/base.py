@@ -314,6 +314,6 @@ def main():
             srv.listen(provider_cls=DummyServerForFrontendDev)
         srv.listen()
     elif args.rpc_proto == "grpc":
-        from . import grpc
+        from . import grpc_svc
 
-        grpc.start_grpc()
+        grpc_svc.serve(args.addr, args.port)
