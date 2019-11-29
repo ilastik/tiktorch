@@ -1,9 +1,12 @@
 // The greeting service definition.
 syntax = "proto3";
 
-service DeviceInfo {
-  rpc CreateSession(Empty) returns (Session) {}
+service SessionProvider {
   rpc GetDevices(Empty) returns (Devices) {}
+  rpc CreateSession(Empty) returns (Session) {}
+}
+
+service Inference {
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
@@ -30,9 +33,9 @@ message Session {
 }
 
 message PredictRequest {
-  repeated Tensor tensor = 1;
+  Tensor tensor = 1;
 }
 
 message PredictResponse {
-  repeated Tensor tensor = 1;
+  Tensor tensor = 1;
 }

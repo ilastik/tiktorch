@@ -4,7 +4,7 @@ import grpc
 import inference_pb2 as inference__pb2
 
 
-class DeviceInfoStub(object):
+class SessionProviderStub(object):
   # missing associated documentation comment in .proto file
   pass
 
@@ -14,26 +14,28 @@ class DeviceInfoStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.CreateSession = channel.unary_unary(
-        '/DeviceInfo/CreateSession',
-        request_serializer=inference__pb2.Empty.SerializeToString,
-        response_deserializer=inference__pb2.Session.FromString,
-        )
     self.GetDevices = channel.unary_unary(
-        '/DeviceInfo/GetDevices',
+        '/SessionProvider/GetDevices',
         request_serializer=inference__pb2.Empty.SerializeToString,
         response_deserializer=inference__pb2.Devices.FromString,
         )
-    self.Predict = channel.unary_unary(
-        '/DeviceInfo/Predict',
-        request_serializer=inference__pb2.PredictRequest.SerializeToString,
-        response_deserializer=inference__pb2.PredictResponse.FromString,
+    self.CreateSession = channel.unary_unary(
+        '/SessionProvider/CreateSession',
+        request_serializer=inference__pb2.Empty.SerializeToString,
+        response_deserializer=inference__pb2.Session.FromString,
         )
 
 
-class DeviceInfoServicer(object):
+class SessionProviderServicer(object):
   # missing associated documentation comment in .proto file
   pass
+
+  def GetDevices(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
 
   def CreateSession(self, request, context):
     # missing associated documentation comment in .proto file
@@ -42,12 +44,45 @@ class DeviceInfoServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def GetDevices(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
+
+def add_SessionProviderServicer_to_server(servicer, server):
+  rpc_method_handlers = {
+      'GetDevices': grpc.unary_unary_rpc_method_handler(
+          servicer.GetDevices,
+          request_deserializer=inference__pb2.Empty.FromString,
+          response_serializer=inference__pb2.Devices.SerializeToString,
+      ),
+      'CreateSession': grpc.unary_unary_rpc_method_handler(
+          servicer.CreateSession,
+          request_deserializer=inference__pb2.Empty.FromString,
+          response_serializer=inference__pb2.Session.SerializeToString,
+      ),
+  }
+  generic_handler = grpc.method_handlers_generic_handler(
+      'SessionProvider', rpc_method_handlers)
+  server.add_generic_rpc_handlers((generic_handler,))
+
+
+class InferenceStub(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def __init__(self, channel):
+    """Constructor.
+
+    Args:
+      channel: A grpc.Channel.
+    """
+    self.Predict = channel.unary_unary(
+        '/Inference/Predict',
+        request_serializer=inference__pb2.PredictRequest.SerializeToString,
+        response_deserializer=inference__pb2.PredictResponse.FromString,
+        )
+
+
+class InferenceServicer(object):
+  # missing associated documentation comment in .proto file
+  pass
 
   def Predict(self, request, context):
     # missing associated documentation comment in .proto file
@@ -57,18 +92,8 @@ class DeviceInfoServicer(object):
     raise NotImplementedError('Method not implemented!')
 
 
-def add_DeviceInfoServicer_to_server(servicer, server):
+def add_InferenceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'CreateSession': grpc.unary_unary_rpc_method_handler(
-          servicer.CreateSession,
-          request_deserializer=inference__pb2.Empty.FromString,
-          response_serializer=inference__pb2.Session.SerializeToString,
-      ),
-      'GetDevices': grpc.unary_unary_rpc_method_handler(
-          servicer.GetDevices,
-          request_deserializer=inference__pb2.Empty.FromString,
-          response_serializer=inference__pb2.Devices.SerializeToString,
-      ),
       'Predict': grpc.unary_unary_rpc_method_handler(
           servicer.Predict,
           request_deserializer=inference__pb2.PredictRequest.FromString,
@@ -76,5 +101,5 @@ def add_DeviceInfoServicer_to_server(servicer, server):
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
-      'DeviceInfo', rpc_method_handlers)
+      'Inference', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))

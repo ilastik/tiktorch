@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"\x18\n\x07\x44\x65vices\x12\r\n\x05names\x18\x01 \x03(\t\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x03(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x03(\x0b\x32\x07.Tensor2\x83\x01\n\nDeviceInfo\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12 \n\nGetDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"\x18\n\x07\x44\x65vices\x12\r\n\x05names\x18\x01 \x03(\t\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2X\n\x0fSessionProvider\x12 \n\nGetDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x32;\n\tInference\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
 )
 
 
@@ -203,8 +203,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='tensor', full_name='PredictRequest.tensor', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
@@ -234,8 +234,8 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='tensor', full_name='PredictResponse.tensor', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
@@ -318,45 +318,60 @@ _sym_db.RegisterMessage(PredictResponse)
 
 
 
-_DEVICEINFO = _descriptor.ServiceDescriptor(
-  name='DeviceInfo',
-  full_name='DeviceInfo',
+_SESSIONPROVIDER = _descriptor.ServiceDescriptor(
+  name='SessionProvider',
+  full_name='SessionProvider',
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=274,
-  serialized_end=405,
+  serialized_start=273,
+  serialized_end=361,
   methods=[
   _descriptor.MethodDescriptor(
-    name='CreateSession',
-    full_name='DeviceInfo.CreateSession',
-    index=0,
-    containing_service=None,
-    input_type=_EMPTY,
-    output_type=_SESSION,
-    serialized_options=None,
-  ),
-  _descriptor.MethodDescriptor(
     name='GetDevices',
-    full_name='DeviceInfo.GetDevices',
-    index=1,
+    full_name='SessionProvider.GetDevices',
+    index=0,
     containing_service=None,
     input_type=_EMPTY,
     output_type=_DEVICES,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
+    name='CreateSession',
+    full_name='SessionProvider.CreateSession',
+    index=1,
+    containing_service=None,
+    input_type=_EMPTY,
+    output_type=_SESSION,
+    serialized_options=None,
+  ),
+])
+_sym_db.RegisterServiceDescriptor(_SESSIONPROVIDER)
+
+DESCRIPTOR.services_by_name['SessionProvider'] = _SESSIONPROVIDER
+
+
+_INFERENCE = _descriptor.ServiceDescriptor(
+  name='Inference',
+  full_name='Inference',
+  file=DESCRIPTOR,
+  index=1,
+  serialized_options=None,
+  serialized_start=363,
+  serialized_end=422,
+  methods=[
+  _descriptor.MethodDescriptor(
     name='Predict',
-    full_name='DeviceInfo.Predict',
-    index=2,
+    full_name='Inference.Predict',
+    index=0,
     containing_service=None,
     input_type=_PREDICTREQUEST,
     output_type=_PREDICTRESPONSE,
     serialized_options=None,
   ),
 ])
-_sym_db.RegisterServiceDescriptor(_DEVICEINFO)
+_sym_db.RegisterServiceDescriptor(_INFERENCE)
 
-DESCRIPTOR.services_by_name['DeviceInfo'] = _DEVICEINFO
+DESCRIPTOR.services_by_name['Inference'] = _INFERENCE
 
 # @@protoc_insertion_point(module_scope)
