@@ -2,7 +2,6 @@
 syntax = "proto3";
 
 service Inference {
-  rpc ListAvailableDevices(Empty) returns (Devices) {}
   rpc ListDevices(Empty) returns (Devices) {}
   rpc CreateSession(Empty) returns (Session) {}
   rpc UseDevices(Devices) returns (Devices) {}

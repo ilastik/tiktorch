@@ -33,7 +33,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         session = self.__session_manager.create_session()
         return inference_pb2.Session(id=session.id)
 
-    def ListAvailableDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:
+    def ListDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:
         session = self._get_session(context)
         devices = self.__device_manager.list_available_devices(session)
         return inference_pb2.Devices(devices=[inference_pb2.Device(id=id_) for id_ in devices])

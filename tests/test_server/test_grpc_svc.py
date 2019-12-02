@@ -29,7 +29,7 @@ def grpc_stub_cls(grpc_channel):
 
 def pytest_generate_tests(metafunc):
     if "method_requiring_session" in metafunc.fixturenames:
-        methods = [("ListAvailableDevices", inference_pb2.Empty()), ("Predict", inference_pb2.PredictRequest())]
+        methods = [("ListDevices", inference_pb2.Empty()), ("Predict", inference_pb2.PredictRequest())]
         metafunc.parametrize(
             "method_requiring_session", methods, ids=[method_name for method_name, _ in methods], indirect=True
         )
@@ -71,5 +71,5 @@ class TestSessionManagement:
 class TestListAvailableDevicer:
     def test_list_available_devices(self, grpc_stub):
         session = grpc_stub.CreateSession(inference_pb2.Empty())
-        resp = grpc_stub.ListAvailableDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
+        resp = grpc_stub.ListDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
         assert "cpu" in [d.id for d in resp.devices]
