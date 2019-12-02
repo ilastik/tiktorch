@@ -68,7 +68,7 @@ class TestSessionManagement:
         assert grpc.StatusCode.OK == call.code()
 
 
-class TestListAvailableDevicer:
+class TestDeviceManagement:
     def test_list_available_devices(self, grpc_stub):
         session = grpc_stub.CreateSession(inference_pb2.Empty())
         resp = grpc_stub.ListDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
