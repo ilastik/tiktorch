@@ -19,10 +19,71 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"\x18\n\x07\x44\x65vices\x12\r\n\x05names\x18\x01 \x03(\t\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2\xd4\x01\n\tInference\x12*\n\x14ListAvailableDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12\"\n\nHasSession\x12\x08.Session\x1a\x08.Session\"\x00\x12\"\n\x0c\x43loseSession\x12\x08.Session\x1a\x06.Empty\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2\x9b\x02\n\tInference\x12*\n\x14ListAvailableDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12\"\n\nUseDevices\x12\x08.Devices\x1a\x08.Devices\"\x00\x12\"\n\nHasSession\x12\x08.Session\x1a\x08.Session\"\x00\x12\"\n\x0c\x43loseSession\x12\x08.Session\x1a\x06.Empty\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
 )
 
 
+
+_DEVICE_STATUS = _descriptor.EnumDescriptor(
+  name='Status',
+  full_name='Device.Status',
+  filename=None,
+  file=DESCRIPTOR,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='AVAILABLE', index=0, number=0,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='IN_USE', index=1, number=1,
+      serialized_options=None,
+      type=None),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=73,
+  serialized_end=108,
+)
+_sym_db.RegisterEnumDescriptor(_DEVICE_STATUS)
+
+
+_DEVICE = _descriptor.Descriptor(
+  name='Device',
+  full_name='Device',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='Device.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='status', full_name='Device.status', index=1,
+      number=2, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+    _DEVICE_STATUS,
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=19,
+  serialized_end=108,
+)
 
 
 _DEVICES = _descriptor.Descriptor(
@@ -33,8 +94,8 @@ _DEVICES = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='names', full_name='Devices.names', index=0,
-      number=1, type=9, cpp_type=9, label=3,
+      name='devices', full_name='Devices.devices', index=0,
+      number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -51,8 +112,8 @@ _DEVICES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=19,
-  serialized_end=43,
+  serialized_start=110,
+  serialized_end=145,
 )
 
 
@@ -89,8 +150,8 @@ _TENSORDIM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=45,
-  serialized_end=84,
+  serialized_start=147,
+  serialized_end=186,
 )
 
 
@@ -134,8 +195,8 @@ _TENSOR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=86,
-  serialized_end=152,
+  serialized_start=188,
+  serialized_end=254,
 )
 
 
@@ -158,8 +219,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=154,
-  serialized_end=161,
+  serialized_start=256,
+  serialized_end=263,
 )
 
 
@@ -189,8 +250,8 @@ _SESSION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=163,
-  serialized_end=184,
+  serialized_start=265,
+  serialized_end=286,
 )
 
 
@@ -220,8 +281,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=186,
-  serialized_end=227,
+  serialized_start=288,
+  serialized_end=329,
 )
 
 
@@ -251,13 +312,17 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=229,
-  serialized_end=271,
+  serialized_start=331,
+  serialized_end=373,
 )
 
+_DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
+_DEVICE_STATUS.containing_type = _DEVICE
+_DEVICES.fields_by_name['devices'].message_type = _DEVICE
 _TENSOR.fields_by_name['shape'].message_type = _TENSORDIM
 _PREDICTREQUEST.fields_by_name['tensor'].message_type = _TENSOR
 _PREDICTRESPONSE.fields_by_name['tensor'].message_type = _TENSOR
+DESCRIPTOR.message_types_by_name['Device'] = _DEVICE
 DESCRIPTOR.message_types_by_name['Devices'] = _DEVICES
 DESCRIPTOR.message_types_by_name['TensorDim'] = _TENSORDIM
 DESCRIPTOR.message_types_by_name['Tensor'] = _TENSOR
@@ -266,6 +331,13 @@ DESCRIPTOR.message_types_by_name['Session'] = _SESSION
 DESCRIPTOR.message_types_by_name['PredictRequest'] = _PREDICTREQUEST
 DESCRIPTOR.message_types_by_name['PredictResponse'] = _PREDICTRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+Device = _reflection.GeneratedProtocolMessageType('Device', (_message.Message,), dict(
+  DESCRIPTOR = _DEVICE,
+  __module__ = 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:Device)
+  ))
+_sym_db.RegisterMessage(Device)
 
 Devices = _reflection.GeneratedProtocolMessageType('Devices', (_message.Message,), dict(
   DESCRIPTOR = _DEVICES,
@@ -324,8 +396,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=274,
-  serialized_end=486,
+  serialized_start=376,
+  serialized_end=659,
   methods=[
   _descriptor.MethodDescriptor(
     name='ListAvailableDevices',
@@ -337,18 +409,36 @@ _INFERENCE = _descriptor.ServiceDescriptor(
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
+    name='ListDevices',
+    full_name='Inference.ListDevices',
+    index=1,
+    containing_service=None,
+    input_type=_EMPTY,
+    output_type=_DEVICES,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
     name='CreateSession',
     full_name='Inference.CreateSession',
-    index=1,
+    index=2,
     containing_service=None,
     input_type=_EMPTY,
     output_type=_SESSION,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
+    name='UseDevices',
+    full_name='Inference.UseDevices',
+    index=3,
+    containing_service=None,
+    input_type=_DEVICES,
+    output_type=_DEVICES,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
     name='HasSession',
     full_name='Inference.HasSession',
-    index=2,
+    index=4,
     containing_service=None,
     input_type=_SESSION,
     output_type=_SESSION,
@@ -357,7 +447,7 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='CloseSession',
     full_name='Inference.CloseSession',
-    index=3,
+    index=5,
     containing_service=None,
     input_type=_SESSION,
     output_type=_EMPTY,
@@ -366,7 +456,7 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Predict',
     full_name='Inference.Predict',
-    index=4,
+    index=6,
     containing_service=None,
     input_type=_PREDICTREQUEST,
     output_type=_PREDICTRESPONSE,

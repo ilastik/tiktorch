@@ -71,5 +71,5 @@ class TestSessionManagement:
 class TestListAvailableDevicer:
     def test_list_available_devices(self, grpc_stub):
         session = grpc_stub.CreateSession(inference_pb2.Empty())
-        devices = grpc_stub.ListAvailableDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
-        assert "cpu" in devices.names
+        resp = grpc_stub.ListAvailableDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
+        assert "cpu" in [d.id for d in resp.devices]
