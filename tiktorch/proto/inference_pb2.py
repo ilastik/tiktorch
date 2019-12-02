@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"\x18\n\x07\x44\x65vices\x12\r\n\x05names\x18\x01 \x03(\t\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2X\n\x0fSessionProvider\x12 \n\nGetDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x32;\n\tInference\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"\x18\n\x07\x44\x65vices\x12\r\n\x05names\x18\x01 \x03(\t\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2\xd4\x01\n\tInference\x12*\n\x14ListAvailableDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12\"\n\nHasSession\x12\x08.Session\x1a\x08.Session\"\x00\x12\"\n\x0c\x43loseSession\x12\x08.Session\x1a\x06.Empty\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
 )
 
 
@@ -318,18 +318,18 @@ _sym_db.RegisterMessage(PredictResponse)
 
 
 
-_SESSIONPROVIDER = _descriptor.ServiceDescriptor(
-  name='SessionProvider',
-  full_name='SessionProvider',
+_INFERENCE = _descriptor.ServiceDescriptor(
+  name='Inference',
+  full_name='Inference',
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=273,
-  serialized_end=361,
+  serialized_start=274,
+  serialized_end=486,
   methods=[
   _descriptor.MethodDescriptor(
-    name='GetDevices',
-    full_name='SessionProvider.GetDevices',
+    name='ListAvailableDevices',
+    full_name='Inference.ListAvailableDevices',
     index=0,
     containing_service=None,
     input_type=_EMPTY,
@@ -338,32 +338,35 @@ _SESSIONPROVIDER = _descriptor.ServiceDescriptor(
   ),
   _descriptor.MethodDescriptor(
     name='CreateSession',
-    full_name='SessionProvider.CreateSession',
+    full_name='Inference.CreateSession',
     index=1,
     containing_service=None,
     input_type=_EMPTY,
     output_type=_SESSION,
     serialized_options=None,
   ),
-])
-_sym_db.RegisterServiceDescriptor(_SESSIONPROVIDER)
-
-DESCRIPTOR.services_by_name['SessionProvider'] = _SESSIONPROVIDER
-
-
-_INFERENCE = _descriptor.ServiceDescriptor(
-  name='Inference',
-  full_name='Inference',
-  file=DESCRIPTOR,
-  index=1,
-  serialized_options=None,
-  serialized_start=363,
-  serialized_end=422,
-  methods=[
+  _descriptor.MethodDescriptor(
+    name='HasSession',
+    full_name='Inference.HasSession',
+    index=2,
+    containing_service=None,
+    input_type=_SESSION,
+    output_type=_SESSION,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='CloseSession',
+    full_name='Inference.CloseSession',
+    index=3,
+    containing_service=None,
+    input_type=_SESSION,
+    output_type=_EMPTY,
+    serialized_options=None,
+  ),
   _descriptor.MethodDescriptor(
     name='Predict',
     full_name='Inference.Predict',
-    index=0,
+    index=4,
     containing_service=None,
     input_type=_PREDICTREQUEST,
     output_type=_PREDICTRESPONSE,

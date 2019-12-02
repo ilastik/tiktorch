@@ -10,6 +10,9 @@ class _Session:
     def id(self):
         return self.__id
 
+    def register_close_handler(self, handler):
+        raise NotImplementedError()
+
 
 class SessionManager:
     def __init__(self):
@@ -21,5 +24,8 @@ class SessionManager:
         self.__store[session_id] = session
         return session
 
+    def get(self, session_id):
+        return self.__store.get(session_id, None)
+
     def close_session(self, session):
-        pass
+        raise NotImplementedError()

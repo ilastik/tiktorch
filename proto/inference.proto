@@ -1,12 +1,11 @@
 // The greeting service definition.
 syntax = "proto3";
 
-service SessionProvider {
-  rpc GetDevices(Empty) returns (Devices) {}
-  rpc CreateSession(Empty) returns (Session) {}
-}
-
 service Inference {
+  rpc ListAvailableDevices(Empty) returns (Devices) {}
+  rpc CreateSession(Empty) returns (Session) {}
+  rpc HasSession(Session) returns (Session) {}
+  rpc CloseSession(Session) returns (Empty) {}
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
