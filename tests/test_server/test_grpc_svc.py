@@ -33,6 +33,7 @@ def pytest_generate_tests(metafunc):
             # ("ListDevices", inference_pb2.Empty()), TODO: Devices state in session
             ("Predict", inference_pb2.PredictRequest()),
             ("UseDevices", inference_pb2.Devices()),
+            ("LoadModel", inference_pb2.LoadModelRequest()),
             # ("GetLogs", inference_pb2.Empty()), FIXME: Streaming requires one iteration to start before termination
         ]
         metafunc.parametrize(
@@ -129,6 +130,19 @@ class TestDeviceManagement:
         assert inference_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
 
         grpc_stub.CloseSession(session)
+
+
+class TestInference:
+    def test_load_model(self, grpc_stub, nn_zip):
+        session = grpc_stub.CreateSession(inference_pb2.Empty())
+        resp = grpc_stub.ListDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
+        device_by_id = {d.id: d for d in resp.devices}
+        assert "cpu" in device_by_id
+        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
+        with open(nn_zip, "rb") as in_file:
+            grpc_stub.LoadModel(
+                inference_pb2.LoadModelRequest(model=in_file.read()), metadata=[("session-id", session.id)]
+            )
 
 
 class TestGetLogs:

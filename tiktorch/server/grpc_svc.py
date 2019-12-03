@@ -15,26 +15,22 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self.__device_manager = device_manager
         self.__session_manager = session_manager
 
-    def _get_session(self, context):
-        meta = dict(context.invocation_metadata())
-        session_id = meta.get("session-id", None)
-
-        if session_id is None:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "session-id has not been provided by client")
-
-        session = self.__session_manager.get(session_id)
-
-        if session is None:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, f"session with id {session_id} doesn't exist")
-
-        return session
-
     def CreateSession(self, request: inference_pb2.Empty, context) -> inference_pb2.Session:
         session = self.__session_manager.create_session()
         return inference_pb2.Session(id=session.id)
 
     def CloseSession(self, request: inference_pb2.Session, context) -> inference_pb2.Empty:
         self.__session_manager.close_session(request.id)
+        return inference_pb2.Empty()
+
+    def GetLogs(self, request: inference_pb2.Empty, context):
+        session = self._get_session(context)
+        yield inference_pb2.LogEntry(
+            timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending session logs"
+        )
+
+    def LoadModel(self, request: inference_pb2.Empty, context) -> inference_pb2.Empty:
+        session = self._get_session(context)
         return inference_pb2.Empty()
 
     def ListDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:
@@ -61,11 +57,19 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         session = self._get_session(context)
         return inference_pb2.PredictResponse()
 
-    def GetLogs(self, request: inference_pb2.Empty, context):
-        session = self._get_session(context)
-        yield inference_pb2.LogEntry(
-            timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending session logs"
-        )
+    def _get_session(self, context):
+        meta = dict(context.invocation_metadata())
+        session_id = meta.get("session-id", None)
+
+        if session_id is None:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "session-id has not been provided by client")
+
+        session = self.__session_manager.get(session_id)
+
+        if session is None:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, f"session with id {session_id} doesn't exist")
+
+        return session
 
 
 def serve(host, port):
