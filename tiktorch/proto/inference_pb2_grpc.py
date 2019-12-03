@@ -14,11 +14,6 @@ class InferenceStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.ListAvailableDevices = channel.unary_unary(
-        '/Inference/ListAvailableDevices',
-        request_serializer=inference__pb2.Empty.SerializeToString,
-        response_deserializer=inference__pb2.Devices.FromString,
-        )
     self.ListDevices = channel.unary_unary(
         '/Inference/ListDevices',
         request_serializer=inference__pb2.Empty.SerializeToString,
@@ -49,18 +44,16 @@ class InferenceStub(object):
         request_serializer=inference__pb2.PredictRequest.SerializeToString,
         response_deserializer=inference__pb2.PredictResponse.FromString,
         )
+    self.GetLogs = channel.unary_stream(
+        '/Inference/GetLogs',
+        request_serializer=inference__pb2.Empty.SerializeToString,
+        response_deserializer=inference__pb2.LogEntry.FromString,
+        )
 
 
 class InferenceServicer(object):
   # missing associated documentation comment in .proto file
   pass
-
-  def ListAvailableDevices(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
 
   def ListDevices(self, request, context):
     # missing associated documentation comment in .proto file
@@ -104,14 +97,16 @@ class InferenceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def GetLogs(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
 
 def add_InferenceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'ListAvailableDevices': grpc.unary_unary_rpc_method_handler(
-          servicer.ListAvailableDevices,
-          request_deserializer=inference__pb2.Empty.FromString,
-          response_serializer=inference__pb2.Devices.SerializeToString,
-      ),
       'ListDevices': grpc.unary_unary_rpc_method_handler(
           servicer.ListDevices,
           request_deserializer=inference__pb2.Empty.FromString,
@@ -141,6 +136,11 @@ def add_InferenceServicer_to_server(servicer, server):
           servicer.Predict,
           request_deserializer=inference__pb2.PredictRequest.FromString,
           response_serializer=inference__pb2.PredictResponse.SerializeToString,
+      ),
+      'GetLogs': grpc.unary_stream_rpc_method_handler(
+          servicer.GetLogs,
+          request_deserializer=inference__pb2.Empty.FromString,
+          response_serializer=inference__pb2.LogEntry.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
