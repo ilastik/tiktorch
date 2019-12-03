@@ -2,13 +2,17 @@
 syntax = "proto3";
 
 service Inference {
-  rpc ListDevices(Empty) returns (Devices) {}
   rpc CreateSession(Empty) returns (Session) {}
-  rpc UseDevices(Devices) returns (Devices) {}
-  rpc HasSession(Session) returns (Session) {}
   rpc CloseSession(Session) returns (Empty) {}
-  rpc Predict(PredictRequest) returns (PredictResponse) {}
+  rpc HasSession(Session) returns (Session) {}
+
   rpc GetLogs(Empty) returns (stream LogEntry) {}
+
+  rpc ListDevices(Empty) returns (Devices) {}
+  rpc UseDevices(Devices) returns (Devices) {}
+
+  rpc LoadModel(LoadModelRequest) returns (Empty) {}
+  rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
 // The response message list of available device names
@@ -21,6 +25,13 @@ message Device {
   string id = 1;
   Status status = 2;
 }
+
+
+message LoadModelRequest {
+  bytes model = 1;
+  bytes state = 2;
+}
+
 
 message LogEntry {
   enum Level {
