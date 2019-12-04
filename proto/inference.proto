@@ -27,9 +27,21 @@ message Device {
 }
 
 
+message Blob {
+  string format = 1;
+  bytes content = 2;
+}
+
 message LoadModelRequest {
-  bytes model = 1;
-  bytes state = 2;
+  oneof model {
+    string model_uri = 1;
+    Blob model_blob = 2;
+  }
+
+  oneof state {
+    string state_uri = 3;
+    Blob state_blob = 4;
+  }
 }
 
 

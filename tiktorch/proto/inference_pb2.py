@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"0\n\x10LoadModelRequest\x12\r\n\x05model\x18\x01 \x01(\x0c\x12\r\n\x05state\x18\x02 \x01(\x0c\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2\xbb\x02\n\tInference\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12\"\n\x0c\x43loseSession\x12\x08.Session\x1a\x06.Empty\"\x00\x12\"\n\nHasSession\x12\x08.Session\x1a\x08.Session\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12\"\n\nUseDevices\x12\x08.Devices\x1a\x08.Devices\"\x00\x12(\n\tLoadModel\x12\x11.LoadModelRequest\x1a\x06.Empty\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"\x88\x01\n\x10LoadModelRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x13\n\tstate_uri\x18\x03 \x01(\tH\x01\x12\x1b\n\nstate_blob\x18\x04 \x01(\x0b\x32\x05.BlobH\x01\x42\x07\n\x05modelB\x07\n\x05state\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"\x07\n\x05\x45mpty\"\x15\n\x07Session\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x0ePredictRequest\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor2\xbb\x02\n\tInference\x12#\n\rCreateSession\x12\x06.Empty\x1a\x08.Session\"\x00\x12\"\n\x0c\x43loseSession\x12\x08.Session\x1a\x06.Empty\"\x00\x12\"\n\nHasSession\x12\x08.Session\x1a\x08.Session\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12\"\n\nUseDevices\x12\x08.Devices\x1a\x08.Devices\"\x00\x12(\n\tLoadModel\x12\x11.LoadModelRequest\x1a\x06.Empty\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x62\x06proto3')
 )
 
 
@@ -79,8 +79,8 @@ _LOGENTRY_LEVEL = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=241,
-  serialized_end=319,
+  serialized_start=371,
+  serialized_end=449,
 )
 _sym_db.RegisterEnumDescriptor(_LOGENTRY_LEVEL)
 
@@ -124,22 +124,22 @@ _DEVICE = _descriptor.Descriptor(
 )
 
 
-_LOADMODELREQUEST = _descriptor.Descriptor(
-  name='LoadModelRequest',
-  full_name='LoadModelRequest',
+_BLOB = _descriptor.Descriptor(
+  name='Blob',
+  full_name='Blob',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='model', full_name='LoadModelRequest.model', index=0,
-      number=1, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
+      name='format', full_name='Blob.format', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='state', full_name='LoadModelRequest.state', index=1,
+      name='content', full_name='Blob.content', index=1,
       number=2, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
@@ -158,7 +158,65 @@ _LOADMODELREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=110,
-  serialized_end=158,
+  serialized_end=149,
+)
+
+
+_LOADMODELREQUEST = _descriptor.Descriptor(
+  name='LoadModelRequest',
+  full_name='LoadModelRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='model_uri', full_name='LoadModelRequest.model_uri', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='model_blob', full_name='LoadModelRequest.model_blob', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='state_uri', full_name='LoadModelRequest.state_uri', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='state_blob', full_name='LoadModelRequest.state_blob', index=3,
+      number=4, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='model', full_name='LoadModelRequest.model',
+      index=0, containing_type=None, fields=[]),
+    _descriptor.OneofDescriptor(
+      name='state', full_name='LoadModelRequest.state',
+      index=1, containing_type=None, fields=[]),
+  ],
+  serialized_start=152,
+  serialized_end=288,
 )
 
 
@@ -203,8 +261,8 @@ _LOGENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=161,
-  serialized_end=319,
+  serialized_start=291,
+  serialized_end=449,
 )
 
 
@@ -234,8 +292,8 @@ _DEVICES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=321,
-  serialized_end=356,
+  serialized_start=451,
+  serialized_end=486,
 )
 
 
@@ -272,8 +330,8 @@ _TENSORDIM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=358,
-  serialized_end=397,
+  serialized_start=488,
+  serialized_end=527,
 )
 
 
@@ -317,8 +375,8 @@ _TENSOR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=399,
-  serialized_end=465,
+  serialized_start=529,
+  serialized_end=595,
 )
 
 
@@ -341,8 +399,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=467,
-  serialized_end=474,
+  serialized_start=597,
+  serialized_end=604,
 )
 
 
@@ -372,8 +430,8 @@ _SESSION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=476,
-  serialized_end=497,
+  serialized_start=606,
+  serialized_end=627,
 )
 
 
@@ -403,8 +461,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=499,
-  serialized_end=540,
+  serialized_start=629,
+  serialized_end=670,
 )
 
 
@@ -434,12 +492,26 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=542,
-  serialized_end=584,
+  serialized_start=672,
+  serialized_end=714,
 )
 
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
 _DEVICE_STATUS.containing_type = _DEVICE
+_LOADMODELREQUEST.fields_by_name['model_blob'].message_type = _BLOB
+_LOADMODELREQUEST.fields_by_name['state_blob'].message_type = _BLOB
+_LOADMODELREQUEST.oneofs_by_name['model'].fields.append(
+  _LOADMODELREQUEST.fields_by_name['model_uri'])
+_LOADMODELREQUEST.fields_by_name['model_uri'].containing_oneof = _LOADMODELREQUEST.oneofs_by_name['model']
+_LOADMODELREQUEST.oneofs_by_name['model'].fields.append(
+  _LOADMODELREQUEST.fields_by_name['model_blob'])
+_LOADMODELREQUEST.fields_by_name['model_blob'].containing_oneof = _LOADMODELREQUEST.oneofs_by_name['model']
+_LOADMODELREQUEST.oneofs_by_name['state'].fields.append(
+  _LOADMODELREQUEST.fields_by_name['state_uri'])
+_LOADMODELREQUEST.fields_by_name['state_uri'].containing_oneof = _LOADMODELREQUEST.oneofs_by_name['state']
+_LOADMODELREQUEST.oneofs_by_name['state'].fields.append(
+  _LOADMODELREQUEST.fields_by_name['state_blob'])
+_LOADMODELREQUEST.fields_by_name['state_blob'].containing_oneof = _LOADMODELREQUEST.oneofs_by_name['state']
 _LOGENTRY.fields_by_name['level'].enum_type = _LOGENTRY_LEVEL
 _LOGENTRY_LEVEL.containing_type = _LOGENTRY
 _DEVICES.fields_by_name['devices'].message_type = _DEVICE
@@ -447,6 +519,7 @@ _TENSOR.fields_by_name['shape'].message_type = _TENSORDIM
 _PREDICTREQUEST.fields_by_name['tensor'].message_type = _TENSOR
 _PREDICTRESPONSE.fields_by_name['tensor'].message_type = _TENSOR
 DESCRIPTOR.message_types_by_name['Device'] = _DEVICE
+DESCRIPTOR.message_types_by_name['Blob'] = _BLOB
 DESCRIPTOR.message_types_by_name['LoadModelRequest'] = _LOADMODELREQUEST
 DESCRIPTOR.message_types_by_name['LogEntry'] = _LOGENTRY
 DESCRIPTOR.message_types_by_name['Devices'] = _DEVICES
@@ -464,6 +537,13 @@ Device = _reflection.GeneratedProtocolMessageType('Device', (_message.Message,),
   # @@protoc_insertion_point(class_scope:Device)
   ))
 _sym_db.RegisterMessage(Device)
+
+Blob = _reflection.GeneratedProtocolMessageType('Blob', (_message.Message,), dict(
+  DESCRIPTOR = _BLOB,
+  __module__ = 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:Blob)
+  ))
+_sym_db.RegisterMessage(Blob)
 
 LoadModelRequest = _reflection.GeneratedProtocolMessageType('LoadModelRequest', (_message.Message,), dict(
   DESCRIPTOR = _LOADMODELREQUEST,
@@ -536,8 +616,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=587,
-  serialized_end=902,
+  serialized_start=717,
+  serialized_end=1032,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateSession',
