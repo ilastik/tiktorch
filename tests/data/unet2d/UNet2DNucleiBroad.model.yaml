@@ -1,0 +1,46 @@
+name: UNet2DNucleiBroad
+description: A 2d U-Net pretrained on broad nucleus dataset.
+cite:
+    - text: "Ronneberger, Olaf et al. U-net: Convolutional networks for biomedical image segmentation. MICCAI 2015."
+      doi: https://doi.org/10.1007/978-3-319-24574-4_28
+authors:
+  - Constantin Pape;@bioimage-io
+documentation: UNet2DNucleiBroad.md
+tags: [unet2d, pytorch, nucleus-segmentation]
+
+format_version: 0.1.0
+language: python
+framework: pytorch
+
+source: unet2d.py::UNet2d
+optional_kwargs: {input_channels: 1, output_channels: 1}
+
+test_input: null # ../test_input.npy
+test_output: null # ../test_output.npy
+thumbnail: null # ./nuclei_thumbnail.png
+
+# TODO double check inputs/outputs
+inputs:
+  - name: input
+    axes: bcyx
+    data_type: float32
+    data_range: [-inf, inf]
+    shape: [1, 1, 128, 128]
+outputs:
+  - name: output
+    axes: bcyx
+    data_type: float32
+    data_range: [0, 1]
+    shape:
+        reference_input: input   # FIXME(m-novikov) ignoring for now
+        scale: [1, 1, 1, 1]
+        offset: [0, 0, 0, 0]
+        #halo: [0, 0, 32, 32]   # Should be moved to outputs
+
+prediction:
+    preprocess: null
+    weights:
+        source: todo.doi
+        hash: {md5: TODO}
+    postprocess: null
+    dependencies: conda:./environment.yaml
