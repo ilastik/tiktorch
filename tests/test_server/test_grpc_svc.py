@@ -33,7 +33,7 @@ def pytest_generate_tests(metafunc):
             # ("ListDevices", inference_pb2.Empty()), TODO: Devices state in session
             ("Predict", inference_pb2.PredictRequest()),
             ("UseDevices", inference_pb2.Devices()),
-            ("LoadModel", inference_pb2.LoadModelRequest()),
+            # ("LoadModel", inference_pb2.LoadModelRequest()), FIXME: Fails if no devices specified
             # ("GetLogs", inference_pb2.Empty()), FIXME: Streaming requires one iteration to start before termination
         ]
         metafunc.parametrize(
@@ -133,16 +133,27 @@ class TestDeviceManagement:
 
 
 class TestInference:
-    def test_load_model(self, grpc_stub, nn_zip):
+    def test_load_model(self, grpc_stub, pybio_nn_zip):
         session = grpc_stub.CreateSession(inference_pb2.Empty())
         resp = grpc_stub.ListDevices(inference_pb2.Empty(), metadata=[("session-id", session.id)])
-        device_by_id = {d.id: d for d in resp.devices}
-        assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
-        with open(nn_zip, "rb") as in_file:
+        grpc_stub.UseDevices(resp, metadata=[("session-id", session.id)])
+
+        with open(pybio_nn_zip, "rb") as in_file:
+            model_blob = inference_pb2.Blob(content=in_file.read(), format="zip+tiktorch")
             grpc_stub.LoadModel(
-                inference_pb2.LoadModelRequest(model=in_file.read()), metadata=[("session-id", session.id)]
+                inference_pb2.LoadModelRequest(model_blob=model_blob), metadata=[("session-id", session.id)]
             )
+
+    def test_load_model_fails_if_no_devices_are_specified(self, grpc_stub):
+        session = grpc_stub.CreateSession(inference_pb2.Empty())
+
+        with pytest.raises(grpc.RpcError) as e:
+            grpc_stub.LoadModel(
+                inference_pb2.LoadModelRequest(model_blob=inference_pb2.Blob()), metadata=[("session-id", session.id)]
+            )
+
+        assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
+        assert "session has no devices" in e.value.details()
 
 
 class TestGetLogs:

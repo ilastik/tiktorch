@@ -1,11 +1,14 @@
 import time
 from concurrent import futures
+import multiprocessing as mp
 
 import grpc
 
+from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.device_manager import IDeviceManager, TorchDeviceManager, DeviceStatus
 from tiktorch.server.session_manager import SessionManager
+from tiktorch.server.handler import inference_new as inference
 
 _ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
@@ -29,8 +32,20 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending session logs"
         )
 
-    def LoadModel(self, request: inference_pb2.Empty, context) -> inference_pb2.Empty:
+    def LoadModel(self, request: inference_pb2.LoadModelRequest, context) -> inference_pb2.Empty:
         session = self._get_session(context)
+        devices = self.__device_manager.list_session_devices(session)
+        if not devices:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "session has no devices")
+
+        handler2inference_conn, inference2handler_conn = mp.Pipe()
+        self._inference_proc = mp.Process(
+            target=inference.run, name="Inference", kwargs={"conn": inference2handler_conn}
+        )
+        self._inference_proc.start()
+        self._inference = create_client(inference.IInference, handler2inference_conn)
+        self._inference.load_model(request.model_blob).result()
+
         return inference_pb2.Empty()
 
     def ListDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:

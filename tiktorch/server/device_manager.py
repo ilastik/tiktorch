@@ -74,6 +74,7 @@ class TorchDeviceManager(IDeviceManager):
     def list_devices(self) -> List[IDevice]:
         with self.__lock:
             ids = ["cpu"]
+
             if torch.cuda.is_available():
                 ids += [f"gpu:{idx}" for idx in range(torch.cuda.device_count())]
 
@@ -86,6 +87,11 @@ class TorchDeviceManager(IDeviceManager):
                 devices.append(_Device(id_=id_, status=status))
 
             return devices
+
+    def list_session_devices(self, session: ISession) -> List[Device]:
+        with self.__lock:
+            dev_ids = self.__device_ids_by_session_id[session.id]
+            return [_Device(id_=id_, status=DeviceStatus.IN_USE) for id_ in dev_ids]
 
     def lease(self, session: ISession, device_ids: List[str]) -> None:
         with self.__lock:
