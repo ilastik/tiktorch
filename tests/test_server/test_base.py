@@ -43,7 +43,7 @@ def test_forward(datadir, srv, nn_sample):
 
     res = srv.forward(NDArray(input_arr)).result(timeout=30)
     res_numpy = res.as_numpy()
-    np.testing.assert_array_almost_equal(res_numpy[0], out_arr)
+    np.testing.assert_array_almost_equal(res_numpy[0], out_arr, decimal=2)
 
 
 class TestWatchdog:
