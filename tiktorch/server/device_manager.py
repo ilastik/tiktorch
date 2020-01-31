@@ -1,5 +1,6 @@
 from __future__ import annotations
 import abc
+import uuid
 
 from typing import List, Dict
 from collections import defaultdict
@@ -8,7 +9,7 @@ import threading
 import enum
 import torch
 
-from .session_manager import ISession
+from .model_manager import IModel
 
 
 @enum.unique
@@ -35,6 +36,31 @@ class IDevice(abc.ABC):
         ...
 
 
+class ILease(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def id(self) -> str:
+        """
+        Returns unique lease id
+        """
+        ...
+
+    @abc.abstractmethod
+    def terminate(self) -> None:
+        """
+        Terminates lease
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def devices(self) -> List[IDevice]:
+        """
+        Returns list of leased devices
+        """
+        ...
+
+
 class IDeviceManager(abc.ABC):
     @abc.abstractmethod
     def list_devices(self) -> List[IDevice]:
@@ -44,7 +70,7 @@ class IDeviceManager(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def lease(self, session, device_ids: List[str]) -> None:
+    def lease(self, device_ids: List[str]) -> ILease:
         """
         Lease devices for session
         """
@@ -65,10 +91,27 @@ class _Device(IDevice):
         return self.__status
 
 
+class _Lease(ILease):
+    def __init__(self, manager, id_: str) -> None:
+        self.__id = id_
+        self.__manager = manager
+
+    @property
+    def id(self) -> str:
+        return self.__id
+
+    @property
+    def devices(self) -> List[IDevice]:
+        return self.__manager._get_devices(self.__id)
+
+    def terminate(self) -> None:
+        self.__manager._release_devices(self.__id)
+
+
 class TorchDeviceManager(IDeviceManager):
     def __init__(self):
-        self.__session_id_by_device_id = {}
-        self.__device_ids_by_session_id = defaultdict(list)
+        self.__lease_id_by_device_id = {}
+        self.__device_ids_by_lease_id = defaultdict(list)
         self.__lock = threading.Lock()
 
     def list_devices(self) -> List[IDevice]:
@@ -81,33 +124,35 @@ class TorchDeviceManager(IDeviceManager):
             devices = []
             for id_ in ids:
                 status = DeviceStatus.AVAILABLE
-                if id_ in self.__session_id_by_device_id:
+                if id_ in self.__lease_id_by_device_id:
                     status = DeviceStatus.IN_USE
 
                 devices.append(_Device(id_=id_, status=status))
 
             return devices
 
-    def list_session_devices(self, session: ISession) -> List[Device]:
-        with self.__lock:
-            dev_ids = self.__device_ids_by_session_id[session.id]
-            return [_Device(id_=id_, status=DeviceStatus.IN_USE) for id_ in dev_ids]
+    def lease(self, device_ids: List[str]) -> ILease:
+        if not device_ids:
+            raise Exception("No devices specified")
 
-    def lease(self, session: ISession, device_ids: List[str]) -> None:
         with self.__lock:
+            lease_id = uuid.uuid4().hex
             for dev_id in device_ids:
-                if dev_id in self.__session_id_by_device_id:
+                if dev_id in self.__lease_id_by_device_id:
                     raise Exception(f"Device {dev_id} is already in use")
 
             for dev_id in device_ids:
-                self.__session_id_by_device_id[dev_id] = session.id
-                self.__device_ids_by_session_id[session.id].append(dev_id)
+                self.__lease_id_by_device_id[dev_id] = lease_id
+                self.__device_ids_by_lease_id[lease_id].append(dev_id)
 
-            session.on_close(self.__on_session_close)
+            return _Lease(self, id_=lease_id)
 
-    def __on_session_close(self, session: ISession) -> None:
+    def _get_lease_devices(self, lease_id: str) -> List[IDevice]:
+        return [_Device(id_=dev_id, status=DeviceStatus.IN_USE) for dev_id in self.__device_ids_by_lease_id[lease_id]]
+
+    def _release_devices(self, lease_id: str) -> None:
         with self.__lock:
-            dev_ids = self.__device_ids_by_session_id.pop(session.id, [])
+            dev_ids = self.__device_ids_by_lease_id.pop(lease_id, [])
 
             for id_ in dev_ids:
-                del self.__session_id_by_device_id[id_]
+                del self.__lease_id_by_device_id[id_]

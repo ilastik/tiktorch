@@ -2,16 +2,13 @@
 syntax = "proto3";
 
 service Inference {
-  rpc CreateSession(Empty) returns (Session) {}
-  rpc CloseSession(Session) returns (Empty) {}
-  rpc HasSession(Session) returns (Session) {}
+  rpc CreateModel(CreateModelRequest) returns (Model) {}
+  rpc CloseModel(Model) returns (Empty) {}
 
   rpc GetLogs(Empty) returns (stream LogEntry) {}
 
   rpc ListDevices(Empty) returns (Devices) {}
-  rpc UseDevices(Devices) returns (Devices) {}
 
-  rpc LoadModel(LoadModelRequest) returns (Empty) {}
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
@@ -26,24 +23,23 @@ message Device {
   Status status = 2;
 }
 
-
 message Blob {
   string format = 1;
   bytes content = 2;
 }
 
-message LoadModelRequest {
+message CreateModelRequest {
   oneof model {
     string model_uri = 1;
     Blob model_blob = 2;
   }
 
-  oneof state {
-    string state_uri = 3;
-    Blob state_blob = 4;
-  }
+  repeated string deviceIds = 5;
 }
 
+message Model {
+  string id = 1;
+}
 
 message LogEntry {
   enum Level {
@@ -75,16 +71,13 @@ message Tensor {
   repeated TensorDim shape = 3;
 }
 
-message Empty {}
-
-message Session {
-    string id = 1;
-}
-
 message PredictRequest {
-  Tensor tensor = 1;
+  string modelId = 1;
+  Tensor tensor = 2;
 }
 
 message PredictResponse {
   Tensor tensor = 1;
 }
+
+message Empty {}

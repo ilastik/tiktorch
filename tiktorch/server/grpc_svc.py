@@ -7,46 +7,40 @@ import grpc
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.device_manager import IDeviceManager, TorchDeviceManager, DeviceStatus
-from tiktorch.server.session_manager import SessionManager
+from tiktorch.server.model_manager import ModelManager, IModel
 from tiktorch.server.handler import inference_new as inference
+
 
 _ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
-    def __init__(self, device_manager: IDeviceManager, session_manager: SessionManager) -> None:
+    def __init__(self, device_manager: IDeviceManager, model_manager: ModelManager) -> None:
         self.__device_manager = device_manager
-        self.__session_manager = session_manager
+        self.__model_manager = model_manager
 
-    def CreateSession(self, request: inference_pb2.Empty, context) -> inference_pb2.Session:
-        session = self.__session_manager.create_session()
-        return inference_pb2.Session(id=session.id)
+    def CreateModel(self, request: inference_pb2.CreateModelRequest, context) -> inference_pb2.Model:
+        lease = self.__device_manager.lease(request.deviceIds)
+        model = self.__model_manager.create_model()
+        model.on_close(lease.terminate)
+        # model.on_close(lease.terminate)
+        # handler2inference_conn, inference2handler_conn = mp.Pipe()
+        # self._inference_proc = mp.Process(
+        #     target=inference.run, name="Inference", kwargs={"conn": inference2handler_conn}
+        # )
+        # self._inference_proc.start()
+        # self._inference = create_client(inference.IInference, handler2inference_conn)
+        # self._inference.load_model(request.model_blob).result()
+        return inference_pb2.Model(id=model.id)
 
-    def CloseSession(self, request: inference_pb2.Session, context) -> inference_pb2.Empty:
-        self.__session_manager.close_session(request.id)
+    def CloseModel(self, request: inference_pb2.Model, context) -> inference_pb2.Empty:
+        self.__model_manager.close_model(request.id)
         return inference_pb2.Empty()
 
     def GetLogs(self, request: inference_pb2.Empty, context):
-        session = self._get_session(context)
         yield inference_pb2.LogEntry(
-            timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending session logs"
+            timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending model logs"
         )
-
-    def LoadModel(self, request: inference_pb2.LoadModelRequest, context) -> inference_pb2.Empty:
-        session = self._get_session(context)
-        devices = self.__device_manager.list_session_devices(session)
-        if not devices:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "session has no devices")
-
-        handler2inference_conn, inference2handler_conn = mp.Pipe()
-        self._inference_proc = mp.Process(
-            target=inference.run, name="Inference", kwargs={"conn": inference2handler_conn}
-        )
-        self._inference_proc.start()
-        self._inference = create_client(inference.IInference, handler2inference_conn)
-        self._inference.load_model(request.model_blob).result()
-
-        return inference_pb2.Empty()
 
     def ListDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:
         devices = self.__device_manager.list_devices()
@@ -63,33 +57,25 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
         return inference_pb2.Devices(devices=pb_devices)
 
-    def UseDevices(self, request: inference_pb2.Devices, context) -> inference_pb2.Devices:
-        session = self._get_session(context)
-        self.__device_manager.lease(session, [d.id for d in request.devices])
-        return inference_pb2.Devices(devices=[])
-
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
-        session = self._get_session(context)
+        model = self._getModel(context, request.modelId)
         return inference_pb2.PredictResponse()
 
-    def _get_session(self, context):
-        meta = dict(context.invocation_metadata())
-        session_id = meta.get("session-id", None)
+    def _getModel(self, context, modelId: str) -> IModel:
+        if not modelId:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "model-id has not been provided by client")
 
-        if session_id is None:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "session-id has not been provided by client")
+        model = self.__model_manager.get(modelId)
 
-        session = self.__session_manager.get(session_id)
+        if model is None:
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, f"model with id {modelId} doesn't exist")
 
-        if session is None:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, f"session with id {session_id} doesn't exist")
-
-        return session
+        return model
 
 
 def serve(host, port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    session_svc = InferenceServicer(TorchDeviceManager(), SessionManager())
+    session_svc = InferenceServicer(TorchDeviceManager(), ModelManager())
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
     server.add_insecure_port(f"{host}:{port}")
     server.start()

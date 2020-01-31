@@ -14,20 +14,15 @@ class InferenceStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.CreateSession = channel.unary_unary(
-        '/Inference/CreateSession',
-        request_serializer=inference__pb2.Empty.SerializeToString,
-        response_deserializer=inference__pb2.Session.FromString,
+    self.CreateModel = channel.unary_unary(
+        '/Inference/CreateModel',
+        request_serializer=inference__pb2.CreateModelRequest.SerializeToString,
+        response_deserializer=inference__pb2.Model.FromString,
         )
-    self.CloseSession = channel.unary_unary(
-        '/Inference/CloseSession',
-        request_serializer=inference__pb2.Session.SerializeToString,
+    self.CloseModel = channel.unary_unary(
+        '/Inference/CloseModel',
+        request_serializer=inference__pb2.Model.SerializeToString,
         response_deserializer=inference__pb2.Empty.FromString,
-        )
-    self.HasSession = channel.unary_unary(
-        '/Inference/HasSession',
-        request_serializer=inference__pb2.Session.SerializeToString,
-        response_deserializer=inference__pb2.Session.FromString,
         )
     self.GetLogs = channel.unary_stream(
         '/Inference/GetLogs',
@@ -38,16 +33,6 @@ class InferenceStub(object):
         '/Inference/ListDevices',
         request_serializer=inference__pb2.Empty.SerializeToString,
         response_deserializer=inference__pb2.Devices.FromString,
-        )
-    self.UseDevices = channel.unary_unary(
-        '/Inference/UseDevices',
-        request_serializer=inference__pb2.Devices.SerializeToString,
-        response_deserializer=inference__pb2.Devices.FromString,
-        )
-    self.LoadModel = channel.unary_unary(
-        '/Inference/LoadModel',
-        request_serializer=inference__pb2.LoadModelRequest.SerializeToString,
-        response_deserializer=inference__pb2.Empty.FromString,
         )
     self.Predict = channel.unary_unary(
         '/Inference/Predict',
@@ -60,21 +45,14 @@ class InferenceServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def CreateSession(self, request, context):
+  def CreateModel(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def CloseSession(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
-  def HasSession(self, request, context):
+  def CloseModel(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -95,20 +73,6 @@ class InferenceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def UseDevices(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
-  def LoadModel(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
   def Predict(self, request, context):
     # missing associated documentation comment in .proto file
     pass
@@ -119,20 +83,15 @@ class InferenceServicer(object):
 
 def add_InferenceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'CreateSession': grpc.unary_unary_rpc_method_handler(
-          servicer.CreateSession,
-          request_deserializer=inference__pb2.Empty.FromString,
-          response_serializer=inference__pb2.Session.SerializeToString,
+      'CreateModel': grpc.unary_unary_rpc_method_handler(
+          servicer.CreateModel,
+          request_deserializer=inference__pb2.CreateModelRequest.FromString,
+          response_serializer=inference__pb2.Model.SerializeToString,
       ),
-      'CloseSession': grpc.unary_unary_rpc_method_handler(
-          servicer.CloseSession,
-          request_deserializer=inference__pb2.Session.FromString,
+      'CloseModel': grpc.unary_unary_rpc_method_handler(
+          servicer.CloseModel,
+          request_deserializer=inference__pb2.Model.FromString,
           response_serializer=inference__pb2.Empty.SerializeToString,
-      ),
-      'HasSession': grpc.unary_unary_rpc_method_handler(
-          servicer.HasSession,
-          request_deserializer=inference__pb2.Session.FromString,
-          response_serializer=inference__pb2.Session.SerializeToString,
       ),
       'GetLogs': grpc.unary_stream_rpc_method_handler(
           servicer.GetLogs,
@@ -143,16 +102,6 @@ def add_InferenceServicer_to_server(servicer, server):
           servicer.ListDevices,
           request_deserializer=inference__pb2.Empty.FromString,
           response_serializer=inference__pb2.Devices.SerializeToString,
-      ),
-      'UseDevices': grpc.unary_unary_rpc_method_handler(
-          servicer.UseDevices,
-          request_deserializer=inference__pb2.Devices.FromString,
-          response_serializer=inference__pb2.Devices.SerializeToString,
-      ),
-      'LoadModel': grpc.unary_unary_rpc_method_handler(
-          servicer.LoadModel,
-          request_deserializer=inference__pb2.LoadModelRequest.FromString,
-          response_serializer=inference__pb2.Empty.SerializeToString,
       ),
       'Predict': grpc.unary_unary_rpc_method_handler(
           servicer.Predict,
