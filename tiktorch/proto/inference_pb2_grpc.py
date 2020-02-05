@@ -14,14 +14,14 @@ class InferenceStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.CreateModel = channel.unary_unary(
-        '/Inference/CreateModel',
-        request_serializer=inference__pb2.CreateModelRequest.SerializeToString,
-        response_deserializer=inference__pb2.Model.FromString,
+    self.CreateModelSession = channel.unary_unary(
+        '/Inference/CreateModelSession',
+        request_serializer=inference__pb2.CreateModelSessionRequest.SerializeToString,
+        response_deserializer=inference__pb2.ModelSession.FromString,
         )
-    self.CloseModel = channel.unary_unary(
-        '/Inference/CloseModel',
-        request_serializer=inference__pb2.Model.SerializeToString,
+    self.CloseModelSession = channel.unary_unary(
+        '/Inference/CloseModelSession',
+        request_serializer=inference__pb2.ModelSession.SerializeToString,
         response_deserializer=inference__pb2.Empty.FromString,
         )
     self.GetLogs = channel.unary_stream(
@@ -45,14 +45,14 @@ class InferenceServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def CreateModel(self, request, context):
+  def CreateModelSession(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def CloseModel(self, request, context):
+  def CloseModelSession(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -83,14 +83,14 @@ class InferenceServicer(object):
 
 def add_InferenceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'CreateModel': grpc.unary_unary_rpc_method_handler(
-          servicer.CreateModel,
-          request_deserializer=inference__pb2.CreateModelRequest.FromString,
-          response_serializer=inference__pb2.Model.SerializeToString,
+      'CreateModelSession': grpc.unary_unary_rpc_method_handler(
+          servicer.CreateModelSession,
+          request_deserializer=inference__pb2.CreateModelSessionRequest.FromString,
+          response_serializer=inference__pb2.ModelSession.SerializeToString,
       ),
-      'CloseModel': grpc.unary_unary_rpc_method_handler(
-          servicer.CloseModel,
-          request_deserializer=inference__pb2.Model.FromString,
+      'CloseModelSession': grpc.unary_unary_rpc_method_handler(
+          servicer.CloseModelSession,
+          request_deserializer=inference__pb2.ModelSession.FromString,
           response_serializer=inference__pb2.Empty.SerializeToString,
       ),
       'GetLogs': grpc.unary_stream_rpc_method_handler(

@@ -9,8 +9,6 @@ import threading
 import enum
 import torch
 
-from .model_manager import IModel
-
 
 @enum.unique
 class DeviceStatus(enum.Enum):
