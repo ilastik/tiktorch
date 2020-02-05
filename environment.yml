@@ -22,4 +22,4 @@ dependencies:
   - anaconda-client
   - bump2version
   - pip:
-      - pytest-grpc=0.7.0
+      - pytest-grpc==0.7.0
