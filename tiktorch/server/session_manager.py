@@ -33,7 +33,7 @@ class ISession(abc.ABC):
         ...
 
 
-CloseCallback = Callable[[ISession], None]
+CloseCallback = Callable[[], None]
 
 
 class _Session(ISession):
