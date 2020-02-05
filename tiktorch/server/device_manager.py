@@ -2,7 +2,7 @@ from __future__ import annotations
 import abc
 import uuid
 
-from typing import List, Dict
+from typing import Dict, List
 from collections import defaultdict
 
 import threading
@@ -119,7 +119,7 @@ class TorchDeviceManager(IDeviceManager):
             if torch.cuda.is_available():
                 ids += [f"gpu:{idx}" for idx in range(torch.cuda.device_count())]
 
-            devices = []
+            devices: List[IDevice] = []
             for id_ in ids:
                 status = DeviceStatus.AVAILABLE
                 if id_ in self.__lease_id_by_device_id:
