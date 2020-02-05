@@ -2,7 +2,7 @@ import pytest
 import grpc
 
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
-from tiktorch.server.device_manager import IDeviceManager, TorchDeviceManager
+from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
 
@@ -17,7 +17,7 @@ def grpc_add_to_server():
 def grpc_servicer():
     from tiktorch.server import grpc_svc
 
-    return grpc_svc.InferenceServicer(TorchDeviceManager(), SessionManager())
+    return grpc_svc.InferenceServicer(TorchDevicePool(), SessionManager())
 
 
 @pytest.fixture(scope="module")

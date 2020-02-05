@@ -59,7 +59,7 @@ class ILease(abc.ABC):
         ...
 
 
-class IDeviceManager(abc.ABC):
+class IDevicePool(abc.ABC):
     @abc.abstractmethod
     def list_devices(self) -> List[IDevice]:
         """
@@ -90,9 +90,9 @@ class _Device(IDevice):
 
 
 class _Lease(ILease):
-    def __init__(self, manager, id_: str) -> None:
+    def __init__(self, pool, id_: str) -> None:
         self.__id = id_
-        self.__manager = manager
+        self.__pool = pool
 
     @property
     def id(self) -> str:
@@ -100,13 +100,13 @@ class _Lease(ILease):
 
     @property
     def devices(self) -> List[IDevice]:
-        return self.__manager._get_devices(self.__id)
+        return self.__pool._get_devices(self.__id)
 
     def terminate(self) -> None:
-        self.__manager._release_devices(self.__id)
+        self.__pool._release_devices(self.__id)
 
 
-class TorchDeviceManager(IDeviceManager):
+class TorchDevicePool(IDevicePool):
     def __init__(self):
         self.__lease_id_by_device_id = {}
         self.__device_ids_by_lease_id = defaultdict(list)

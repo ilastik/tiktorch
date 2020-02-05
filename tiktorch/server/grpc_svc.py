@@ -6,7 +6,7 @@ import grpc
 
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
-from tiktorch.server.device_manager import IDeviceManager, TorchDeviceManager, DeviceStatus
+from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
 
 
@@ -14,14 +14,14 @@ _ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
-    def __init__(self, device_manager: IDeviceManager, session_manager: SessionManager) -> None:
-        self.__device_manager = device_manager
+    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager) -> None:
+        self.__device_pool = device_pool
         self.__session_manager = session_manager
 
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
     ) -> inference_pb2.ModelSession:
-        lease = self.__device_manager.lease(request.deviceIds)
+        lease = self.__device_pool.lease(request.deviceIds)
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
         # model.on_close(lease.terminate)
@@ -44,7 +44,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         )
 
     def ListDevices(self, request: inference_pb2.Empty, context) -> inference_pb2.Devices:
-        devices = self.__device_manager.list_devices()
+        devices = self.__device_pool.list_devices()
         pb_devices = []
         for dev in devices:
             if dev.status == DeviceStatus.AVAILABLE:
@@ -76,7 +76,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
 def serve(host, port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    session_svc = InferenceServicer(TorchDeviceManager(), SessionManager())
+    session_svc = InferenceServicer(TorchDevicePool(), SessionManager())
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
     server.add_insecure_port(f"{host}:{port}")
     server.start()
