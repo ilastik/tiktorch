@@ -21,3 +21,5 @@ dependencies:
   - conda-build
   - anaconda-client
   - bump2version
+  - pip:
+      - pytest-grpc=0.7.0
