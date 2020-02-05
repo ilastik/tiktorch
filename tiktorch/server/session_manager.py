@@ -61,7 +61,7 @@ class SessionManager:
         with self.__lock:
             session_id = uuid4().hex
             session = _Session(session_id, manager=self)
-            self.__Session_by_id[session_id] = session
+            self.__session_by_id[session_id] = session
             logger.info("Created session %s", session.id)
             return session
 
@@ -70,18 +70,18 @@ class SessionManager:
         Returns existing session with given id if it exists
         """
         with self.__lock:
-            return self.__Session_by_id.get(session_id, None)
+            return self.__session_by_id.get(session_id, None)
 
     def close_session(self, session_id: str) -> None:
         """
         Closes session with given id if it exists and invokes close handlers
         """
         with self.__lock:
-            if session_id not in self.__Session_by_id:
+            if session_id not in self.__session_by_id:
                 raise ValueError("Unknown session")
 
-            session = self.__Session_by_id.pop(session_id)
-            for handler in self.__close_handlers_by_Session_id.pop(session_id, []):
+            session = self.__session_by_id.pop(session_id)
+            for handler in self.__close_handlers_by_session_id.pop(session_id, []):
                 try:
                     handler()
                 except Exception:
@@ -91,10 +91,10 @@ class SessionManager:
 
     def __init__(self) -> None:
         self.__lock = threading.Lock()
-        self.__Session_by_id: Dict[str, ISession] = {}
-        self.__close_handlers_by_Session_id: Dict[str, List[CloseCallback]] = defaultdict(list)
+        self.__session_by_id: Dict[str, ISession] = {}
+        self.__close_handlers_by_session_id: Dict[str, List[CloseCallback]] = defaultdict(list)
 
     def _on_close(self, session: ISession, handler: CloseCallback):
         with self.__lock:
             logger.debug("Registered close handler %s for session %s", handler, session.id)
-            self.__close_handlers_by_Session_id[session.id].append(handler)
+            self.__close_handlers_by_session_id[session.id].append(handler)
