@@ -7,7 +7,6 @@ import grpc
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.device_manager import IDeviceManager, TorchDeviceManager, DeviceStatus
-from tiktorch.server.model_manager import ModelManager, IModel
 from tiktorch.server.handler import inference_new as inference
 
 
