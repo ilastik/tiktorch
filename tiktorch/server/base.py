@@ -299,16 +299,21 @@ def main():
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
     parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
+    parsey.add_argument("--rpc-proto", choices=["zmq", "grpc"], default="zmq")
 
     args = parsey.parse_args()
-    print(f"Starting server on {args.addr}:{args.port}")
+    print(f"Starting {args.rpc_proto} server on {args.addr}:{args.port}")
 
-    srv = ServerProcess(address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout)
+    if args.rpc_proto == "zmq":
+        srv = ServerProcess(
+            address=args.addr, port=args.port, notify_port=args.notify_port, kill_timeout=args.kill_timeout
+        )
+        if args.dummy:
+            from tiktorch.dev.dummy_server import DummyServerForFrontendDev
 
-    if args.dummy:
-        from tiktorch.dev.dummy_server import DummyServerForFrontendDev
-
-        srv.listen(provider_cls=DummyServerForFrontendDev)
-
-    else:
+            srv.listen(provider_cls=DummyServerForFrontendDev)
         srv.listen()
+    elif args.rpc_proto == "grpc":
+        from . import grpc_svc
+
+        grpc_svc.serve(args.addr, args.port)

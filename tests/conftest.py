@@ -47,6 +47,11 @@ def nn_zip(datadir):
 
 
 @pytest.fixture
+def pybio_nn_zip(datadir):
+    return path.join(datadir, f"pybio_unet.zip")
+
+
+@pytest.fixture
 def nn_dir(tmpdir, nn_zip):
     tmp_model_dir = tmpdir / "models"
     tmp_model_dir.mkdir()
