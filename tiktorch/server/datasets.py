@@ -1,36 +1,36 @@
-import itertools
 import logging
+from typing import List
 
-import numpy
 import torch
 from torch.utils.data import Sampler
-from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 
-from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
+from pybio.core.samplers.base import PyBioSampler
+from tiktorch.tiktypes import TikTensorBatch
 
 logger = logging.getLogger(__name__)
-
-
-class EntryRemoved(Exception):
-    pass
 
 
 class EmptyDataset(Exception):
     pass
 
 
-class DynamicDataLoaderWrapper(DataLoader):
-    def __init__(self, dataloader: DataLoader) -> None:
-        self._dataloader = dataloader
+# class EntryRemoved(Exception):
+#     pass
 
-    def __iter__(self):
-        loader = iter(self._dataloader)
-        while True:
-            try:
-                yield next(loader)
-            except EntryRemoved:
-                pass
+
+# not needed anymore as we don't raise EntryRemoved (and only set the entry's weight to zero)
+# class DynamicDataLoaderWrapper(DataLoader):
+#     def __init__(self, dataloader: DataLoader) -> None:
+#         self._dataloader = dataloader
+#
+#     def __iter__(self):
+#         loader = iter(self._dataloader)
+#         while True:
+#             try:
+#                 yield next(loader)
+#             except EntryRemoved:
+#                 pass
 
 
 class DynamicDataset(Dataset):
@@ -58,9 +58,10 @@ class DynamicDataset(Dataset):
     def __getitem__(self, index):
         entry = self._data[index]
         if entry.removed:
-            raise EntryRemoved()
+            logger.warning("accessing deleted sample")
 
-        entry.weight = max(self.min_weight, entry.weight * self.gamma)
+        if entry.weight:
+            entry.weight = max(self.min_weight, entry.weight * self.gamma)
 
         result = entry.data
         if self.transform is not None:
@@ -98,14 +99,10 @@ class DynamicDataset(Dataset):
 
         self._data[idx].removed = True
         self._data[idx].weight = 0.0
-        self._data[idx].data = None
+        # self._data[idx].data = None  # leave data valid in case it was scheduled to be accessed already
         self._size -= 1
 
     def update(self, images: TikTensorBatch, labels: TikTensorBatch) -> None:
-        """
-        :param keys: list of keys to identify each value by
-        :param values: list of new values. (remove from dataset if not bool(value). The count will be kept.)
-        """
         if len(images) != len(labels):
             raise ValueError("images and labels should have length")
 
@@ -129,13 +126,11 @@ class DynamicWeightedRandomSampler(Sampler):
 
     Arguments:
         dataset (DynamicDataset): providing get_weights method
-        replacement (bool): if ``True``, samples are drawn with replacement.
-            If not, they are drawn without replacement, which means that when a
-            sample index is drawn for a row, it cannot be drawn again for that row.
     """
 
     def __init__(self, dataset: DynamicDataset) -> None:
         self._dataset = dataset
+        super().__init__(dataset)
 
     def __iter__(self):
         while True:
@@ -148,3 +143,29 @@ class DynamicWeightedRandomSampler(Sampler):
 
     def __len__(self):
         return len(self._dataset)
+
+
+
+class DynamicWeightedRandomPyBioSampler(PyBioSampler):
+    r"""Samples elements from [0,..,len(weights)-1] with given probabilities (weights).
+
+    Arguments:
+        dataset (DynamicDataset): providing get_weights method
+    """
+
+    def __init__(self, dataset: DynamicDataset) -> None:
+        self._dataset = dataset
+        super().__init__(dataset)
+
+    def __iter__(self):
+        while True:
+            if not len(self._dataset):
+                raise EmptyDataset()
+
+            weights = self._dataset.get_weights()
+            val = torch.multinomial(weights, num_samples=1)
+            yield int(val)
+
+    def __len__(self):
+        return len(self._dataset)
+
