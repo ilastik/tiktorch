@@ -1,7 +1,9 @@
 import faulthandler
 import logging.handlers
 import multiprocessing as mp
+import pathlib
 import pickle
+import io
 import signal
 import sys
 import threading
@@ -17,6 +19,7 @@ from tiktorch.types import Model, ModelState
 
 TEST_DATA = "data"
 TEST_NET = "CREMI_DUNet_pretrained_new"
+TEST_PYBIO_NET = "unet2d"
 
 NNModel = namedtuple("NNModel", ["model", "state"])
 
@@ -167,3 +170,15 @@ def assert_threads_cleanup():
     running_threads = [str(t) for t in threading.enumerate() if t != threading.current_thread() and not t.daemon]
     if len(running_threads):
         pytest.fail("Threads still running:\n\t%s" % "\n\t".join(running_threads))
+
+
+@pytest.fixture
+def pybio_unet_zip(datadir):
+    pybio_net_dir = pathlib.Path(datadir) / TEST_PYBIO_NET
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, mode="w") as zip_model:
+        for f_path in pybio_net_dir.iterdir():
+            with f_path.open(mode="rb") as f:
+                zip_model.writestr(f_path.name, f.read())
+
+    return data

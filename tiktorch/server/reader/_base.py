@@ -5,7 +5,7 @@ from typing import List, Optional
 import yaml
 
 from pybio.spec import schema
-from pybio.spec import spec_types
+from pybio.spec import node as nodes
 from pybio.spec.utils import NodeTransformer
 
 
@@ -16,15 +16,15 @@ class ImportTransformer(NodeTransformer):
     def __init__(self, src: zipfile.ZipFile):
         self._src = src
 
-    def visit_ImportablePath(self, node: spec_types.ImportablePath):
+    def transform_ImportablePath(self, node: nodes.ImportablePath):
         # TODO: Namespace modules eg "user_modules.<uuid>.module"
         code = self._src.read(node.filepath)
         mymodule = imp.new_module(f"user_modules.")
         exec(code, mymodule.__dict__)
         model_factory = getattr(mymodule, node.callable_name)
-        return NodeTransformer.Transform(model_factory)
+        return model_factory
 
-    def visit_ImportableModule(self, node):
+    def transform_ImportableModule(self, node):
         raise NotImplementedError
 
 
@@ -41,9 +41,9 @@ def eval_model(model_file: zipfile.ZipFile):
     config_file = model_file.read(config_file_name)
     config_data = yaml.safe_load(config_file)
 
-    model_config = schema.Model().load(config_data)
+    model_config = schema.ModelSpec().load(config_data)
 
     import_transformer = ImportTransformer(model_file)
-    import_transformer.visit(model_config)
-    model = model_config.source(**model_config.optional_kwargs)
+    model_config_evaluated = import_transformer.transform(model_config)
+    model = model_config_evaluated.source(**model_config.optional_kwargs)
     return model

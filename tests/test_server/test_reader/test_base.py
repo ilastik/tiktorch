@@ -19,7 +19,6 @@ def test_guess_model_path_without_model_file(paths):
 p = pathlib.Path(__file__)
 
 
-def test_read_config():
-    pzip = p.parent.parent / "unet_sample.zip"
-    with zipfile.ZipFile(pzip) as zip_file:
-        print(eval_model(zip_file))
+def test_read_config(pybio_unet_zip):
+    with zipfile.ZipFile(pybio_unet_zip) as zip_file:
+        assert eval_model(zip_file)
