@@ -32,13 +32,15 @@ class InferenceOutput(IterationOutput):
 
 
 class Exemplum:
-    def __init__(self, pybio_model: node.Model, config: Union[Dict[str, Any], Config], devices: Sequence[torch.device]):
+    def __init__(self, pybio_model: node.Model, config: Union[Dict[str, Any], Config]):
+        self.devices = [torch.device("cpu")]
         spec = pybio_model.spec
         self.model = get_instance(pybio_model)
+        self.model.to(self.devices[0])
         if spec.framework == "pytorch":
             assert isinstance(self.model, torch.nn.Module)
             if config.warmstart:
-                state = torch.load(spec.prediction.weights.source, map_location=devices[0])
+                state = torch.load(spec.prediction.weights.source, map_location=self.devices[0])
                 self.model.load_state_dict(state)
         else:
             raise NotImplementedError
@@ -47,10 +49,9 @@ class Exemplum:
         # .add_event_handler(Events.STARTED, self.prepare_engine)
         # .add_event_handler(Events.COMPLETED, self.log_compute_time)
 
-    #
-    # def _inference_step_function(self, engine: ignite.engine.Engine, batch) -> InferenceOutput:
-    #     prediction = self.model(batch)
-    #     return InferenceOutput(prediction=prediction)
+    def _inference_step_function(self, batch) -> InferenceOutput:
+        prediction = self.model(batch.to(self.devices[0]))
+        return InferenceOutput(prediction=prediction)
 
     # def _validation_step_function(self) -> ValidationOutput:
     #     return ValidationOutput()
@@ -60,8 +61,8 @@ class Exemplum:
     #     return TrainingOutput()
 
     def forward(self, batch) -> InferenceOutput:
-        prediction = self.model(batch)
-        return InferenceOutput(prediction=prediction)
+        out = self._inference_step_function(batch)
+        return out.prediction
 
     @property
     def max_num_iterations(self):
@@ -75,3 +76,8 @@ class Exemplum:
 
     def set_break_callback(self):
         return NotImplementedError
+
+    def set_devices(self, devices: Sequence[torch.device]):
+        main_device = devices[0]
+        self.model = self.model.to(main_device)
+        self.devices = devices
