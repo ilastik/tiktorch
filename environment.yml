@@ -14,7 +14,7 @@ dependencies:
   - inferno=v0.4.*
   - pillow=6.2.1
   - pyzmq=18.0.1
-  - pyyaml=3.13
+  - pyyaml=5.3
   - pytest=4.3.0
   - black
   - isort
@@ -23,3 +23,4 @@ dependencies:
   - bump2version
   - pip:
       - pytest-grpc==0.7.0
+      - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio
