@@ -2,13 +2,14 @@ import zipfile
 import imp
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Sequence
 
+import torch
 import yaml
 
 from pybio import spec
 from pybio.spec import schema
-from pybio.spec import node as nodes
+from pybio.spec import nodes as nodes
 from pybio.spec.utils import NodeTransformer
 from tiktorch.server.exemplum import Exemplum
 
@@ -39,17 +40,17 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
     return None
 
 
-def eval_model(model_file: zipfile.ZipFile):
+def eval_model(model_file: zipfile.ZipFile, devices: Sequence[str]):
     with TemporaryDirectory() as temp_dir:
         model_file.extractall(temp_dir)
         temp_dir = Path(temp_dir)
         spec_file_str = guess_model_path([str(file_name) for file_name in temp_dir.glob("*")])
         pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_dir, cache_path=temp_dir)
 
-    if pybio_model.spec.training is None:
-        return Exemplum(pybio_model=pybio_model)
-    else:
-        raise NotImplementedError
+        if pybio_model.spec.training is None:
+            return Exemplum(pybio_model=pybio_model, _devices=[torch.device(d) for d in devices])
+        else:
+            raise NotImplementedError
 
     # config_file_name = guess_model_path(model_file.namelist())
     # config_file = model_file.read(config_file_name)

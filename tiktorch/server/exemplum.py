@@ -3,7 +3,7 @@ from typing import Any, Sequence
 
 import torch
 
-from pybio.spec import node
+from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
 
@@ -28,11 +28,17 @@ class InferenceOutput(IterationOutput):
 
 class Exemplum:
     def __init__(
-        self, pybio_model: node.Model, warmstart: bool = True, batch_size: int = 1, num_iterations_per_update: int = 2
+        self,
+        *,
+        pybio_model: nodes.Model,
+        warmstart: bool = False,
+        batch_size: int = 1,
+        num_iterations_per_update: int = 2,
+        _devices=Sequence[torch.device],
     ):
         self.max_num_iterations = 0
         self.iteration_count = 0
-        self.devices = [torch.device("cpu")]
+        self.devices = _devices
         spec = pybio_model.spec
         self.model = get_instance(pybio_model)
         self.model.to(self.devices[0])
@@ -68,11 +74,6 @@ class Exemplum:
 
     def set_break_callback(self):
         return NotImplementedError
-
-    def set_devices(self, devices: Sequence[torch.device]) -> None:
-        main_device = devices[0]
-        self.model = self.model.to(main_device)
-        self.devices = devices
 
     def fit(self):
         raise NotImplementedError

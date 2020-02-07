@@ -20,5 +20,5 @@ def test_guess_model_path_without_model_file(paths):
 
 def test_read_config(pybio_unet_zip):
     with zipfile.ZipFile(pybio_unet_zip) as zip_file:
-        exemplum =  eval_model(zip_file)
+        exemplum = eval_model(zip_file)
         assert isinstance(exemplum, Exemplum)
