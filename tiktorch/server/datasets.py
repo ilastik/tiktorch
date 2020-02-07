@@ -167,4 +167,3 @@ class DynamicWeightedRandomPyBioSampler(PyBioSampler):
 
     def __len__(self):
         return len(self._dataset)
-    
