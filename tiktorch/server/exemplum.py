@@ -16,17 +16,21 @@ class Config:
     warmstart: bool
 
 
+@dataclass
 class IterationOutput:
     prediction: Any
 
 
+@dataclass
 class InferenceOutput(IterationOutput):
     pass
 
 
+# @dataclass
 # class ValidationOutput(IterationOutput):
 #     pass
-#
+
+# @dataclass
 # class TrainingOutput(IterationOutput):
 #     pass
 
@@ -84,4 +88,7 @@ class Exemplum:
         self.devices = devices
 
     def fit(self):
-        return None
+        raise NotImplementedError
+
+    def train(self):
+        raise NotImplementedError
