@@ -28,6 +28,9 @@ class TrainingWorker:
     def set_max_number_of_iterations(self, num: int) -> None:
         self._worker.send_command(commands.SetMaxNumberOfIterations(num))
 
+    def forward(self, input_tensor):
+        return self._worker.forward(input_tensor)
+
     def shutdown(self) -> None:
         logger.debug("Shutting down...")
 

@@ -1,5 +1,6 @@
 import torch
 import pytest
+import zipfile
 import time
 import queue
 import threading
@@ -9,7 +10,7 @@ from unittest import mock
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
 from tiktorch.server.training import ITraining
-from tiktorch.server.training.base import TrainingProcess, ConfigBuilder, run
+from tiktorch.server.training.base import TrainingProcess, ModelProcess, ConfigBuilder, run
 from tiktorch.server import training
 from tiktorch.server.training.worker.base import Supervisor
 from tiktorch.server.training.worker import commands, State
@@ -247,3 +248,9 @@ class TestConfigBuilder:
         loss_conf = config.get("criterion_config")
         assert loss_conf
         assert isinstance(loss_conf["method"].criterion, torch.nn.CrossEntropyLoss)
+
+
+def test_model_proc_init(pybio_unet_zip):
+    with zipfile.ZipFile(pybio_unet_zip) as model_file:
+        tp = ModelProcess(model_file)
+        tp.shutdown()
