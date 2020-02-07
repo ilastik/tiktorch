@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import itertools
 import typing
+import queue
 import threading
+from dataclasses import dataclass, field
 
 from torch.utils.data import DataLoader
 
@@ -112,3 +115,26 @@ class SetMaxNumberOfIterations(ICommand):
 
     def execute(self, ctx: Context) -> None:
         ctx.worker.set_max_num_iterations(self._num_iterations)
+
+
+class CommandPriorityQueue(queue.PriorityQueue):
+    COMMAND_PRIORITIES = {StopCmd: 0}
+
+    @dataclass(order=True)
+    class _PrioritizedItem:
+        priority: typing.Tuple[int, int]
+        item: ICommand = field(compare=False)
+
+    __counter = itertools.count()
+
+    @classmethod
+    def _make_queue_item(cls, cmd: ICommand):
+        priority = cls.COMMAND_PRIORITIES.get(type(cmd), 999)
+        return cls._PrioritizedItem((priority, next(cls.__counter)), cmd)
+
+    def put(self, cmd: ICommand, block=True, timeout=None) -> None:
+        return super().put(self._make_queue_item(cmd), block, timeout)
+
+    def get(self, block=True, timeout=None):
+        queue_item = super().get(block, timeout)
+        return queue_item.item

@@ -18,7 +18,7 @@ class Engine:
     def __init__(self, trainer: TikTrainer) -> None:
         self._state = types.State.Stopped
 
-        self._command_queue = queue.Queue()
+        self._command_queue = commands.CommandPriorityQueue()
         self._trainer = trainer
         self._trainer.set_break_callback(self.has_commands)
         self._devices = types.Devices()
