@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Engine:
+class Supervisor:
     def __init__(self, trainer: TikTrainer) -> None:
         self._state = types.State.Stopped
 
@@ -40,6 +40,9 @@ class Engine:
 
     def has_work(self):
         return self._trainer.max_num_iterations and self._trainer.max_num_iterations > self._trainer.iteration_count
+
+    def forward(self, input_tensor):
+        return NotImplemented
 
     def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
         free_devs = self._devices.update(devices)

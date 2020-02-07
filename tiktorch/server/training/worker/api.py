@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class TrainingWorker:
     def __init__(self, trainer):
-        self._worker = base.Engine(trainer)
+        self._worker = base.Supervisor(trainer)
         self._worker_thread = threading.Thread(target=self._worker.run, name="TrainingWorkerThread")
         self._worker_thread.start()
 

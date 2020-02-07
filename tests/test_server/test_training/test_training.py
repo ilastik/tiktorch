@@ -11,7 +11,7 @@ from tiktorch.rpc.mp import MPClient, Shutdown, create_client
 from tiktorch.server.training import ITraining
 from tiktorch.server.training.base import TrainingProcess, ConfigBuilder, run
 from tiktorch.server import training
-from tiktorch.server.training.worker.base import Engine
+from tiktorch.server.training.worker.base import Supervisor
 from tiktorch.server.training.worker import commands, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import configkeys as confkeys
@@ -94,7 +94,7 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         client.shutdown()
 
 
-class TestTrainingWorkerEngine:
+class TestTrainingWorkerSupervisor:
     class DummyCmd(commands.ICommand):
         def execute(self, ctx):
             pass
@@ -129,7 +129,7 @@ class TestTrainingWorkerEngine:
 
     @pytest.fixture
     def worker(self, trainer):
-        return Engine(trainer)
+        return Supervisor(trainer)
 
     @pytest.fixture
     def worker_thread(self, worker):
