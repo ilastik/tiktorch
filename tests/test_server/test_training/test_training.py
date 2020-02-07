@@ -109,6 +109,9 @@ class TestTrainingWorkerSupervisor:
         def set_break_callback(self, cb):
             self._break_cb = cb
 
+        def forward(self, input_tensor):
+            return 42
+
         def move_to(self, devices):
             self._devs = devices
 
@@ -212,7 +215,7 @@ class TestTrainingWorkerSupervisor:
         forward_cmd = commands.ForwardPass([1])
         worker.send_command(forward_cmd.awaitable)
         forward_cmd.awaitable.wait()
-        assert forward_cmd.result is NotImplemented
+        assert 42 == forward_cmd.result
 
 
 class TestConfigBuilder:

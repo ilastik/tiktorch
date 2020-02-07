@@ -42,7 +42,7 @@ class Supervisor:
         return self._model.max_num_iterations and self._model.max_num_iterations > self._model.iteration_count
 
     def forward(self, input_tensor):
-        return NotImplemented
+        return self._model.forward(input_tensor)
 
     def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
         free_devs = self._devices.update(devices)
