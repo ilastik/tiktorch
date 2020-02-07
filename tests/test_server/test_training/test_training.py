@@ -252,5 +252,5 @@ class TestConfigBuilder:
 
 def test_model_proc_init(pybio_unet_zip):
     with zipfile.ZipFile(pybio_unet_zip) as model_file:
-        tp = ModelProcess(model_file)
+        tp = ModelProcess(model_file, devices=["cpu"])
         tp.shutdown()
