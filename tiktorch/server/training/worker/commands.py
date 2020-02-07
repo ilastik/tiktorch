@@ -130,7 +130,7 @@ class CommandPriorityQueue(queue.PriorityQueue):
     @classmethod
     def _make_queue_item(cls, cmd: ICommand):
         priority = cls.COMMAND_PRIORITIES.get(type(cmd), 999)
-        return cls._PrioritizedItem(priority, cmd)
+        return cls._PrioritizedItem((priority, next(cls.__counter)), cmd)
 
     def put(self, cmd: ICommand, block=True, timeout=None) -> None:
         return super().put(self._make_queue_item(cmd), block, timeout)
