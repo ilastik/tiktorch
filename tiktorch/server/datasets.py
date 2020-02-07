@@ -145,7 +145,6 @@ class DynamicWeightedRandomSampler(Sampler):
         return len(self._dataset)
 
 
-
 class DynamicWeightedRandomPyBioSampler(PyBioSampler):
     r"""Samples elements from [0,..,len(weights)-1] with given probabilities (weights).
 
@@ -168,4 +167,4 @@ class DynamicWeightedRandomPyBioSampler(PyBioSampler):
 
     def __len__(self):
         return len(self._dataset)
-
+    
