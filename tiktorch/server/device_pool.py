@@ -100,7 +100,7 @@ class _Lease(ILease):
 
     @property
     def devices(self) -> List[IDevice]:
-        return self.__pool._get_devices(self.__id)
+        return self.__pool._get_lease_devices(self.__id)
 
     def terminate(self) -> None:
         self.__pool._release_devices(self.__id)
@@ -117,7 +117,7 @@ class TorchDevicePool(IDevicePool):
             ids = ["cpu"]
 
             if torch.cuda.is_available():
-                ids += [f"gpu:{idx}" for idx in range(torch.cuda.device_count())]
+                ids += [f"cuda:{idx}" for idx in range(torch.cuda.device_count())]
 
             devices: List[IDevice] = []
             for id_ in ids:

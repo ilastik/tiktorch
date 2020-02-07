@@ -72,7 +72,7 @@ class Exemplum:
     def set_max_num_iterations(self, max_num_iterations: int) -> None:
         self.max_num_iterations = max_num_iterations
 
-    def set_break_callback(self):
+    def set_break_callback(self, cb):
         return NotImplementedError
 
     def fit(self):

@@ -1,6 +1,7 @@
 import copy
 import io
 import logging
+import zipfile
 import multiprocessing as mp
 import os
 import threading
@@ -429,8 +430,9 @@ class LossWrapper(torch.nn.Module):
 
 
 class ModelProcess(ITraining):
-    def __init__(self, model_zip: bytes) -> None:
-        model = eval_model(model_zip)
+    def __init__(self, model_zip: bytes, devices: List[str]) -> None:
+        with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
+            model = eval_model(model_file, devices)
         self._worker = worker.TrainingWorker(model)
 
     def forward(self, input_tensor):
@@ -441,7 +443,7 @@ class ModelProcess(ITraining):
         return Shutdown()
 
 
-def run_model_process(conn: Connection, model_zip: bytes, log_queue: Optional[mp.Queue] = None):
+def run_model_process(conn: Connection, model_zip: bytes, devices: List[str], log_queue: Optional[mp.Queue] = None):
     try:
         # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
         import resource
@@ -451,7 +453,8 @@ def run_model_process(conn: Connection, model_zip: bytes, log_queue: Optional[mp
     except ModuleNotFoundError:
         pass  # probably running on windows
 
-    log.configure(log_queue)
-    model_proc = ModelProcess(model_zip)
+    if log_queue:
+        log.configure(log_queue)
+    model_proc = ModelProcess(model_zip, devices)
     srv = MPServer(model_proc, conn)
     srv.listen()
