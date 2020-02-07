@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class TrainingWorker:
     def __init__(self, trainer):
-        self._worker = base.Engine(trainer)
+        self._worker = base.Supervisor(trainer)
         self._worker_thread = threading.Thread(target=self._worker.run, name="TrainingWorkerThread")
         self._worker_thread.start()
 
@@ -27,6 +27,9 @@ class TrainingWorker:
 
     def set_max_number_of_iterations(self, num: int) -> None:
         self._worker.send_command(commands.SetMaxNumberOfIterations(num))
+
+    def forward(self, input_tensor):
+        return self._worker.forward(input_tensor)
 
     def shutdown(self) -> None:
         logger.debug("Shutting down...")

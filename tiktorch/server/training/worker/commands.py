@@ -8,8 +8,6 @@ from dataclasses import dataclass, field
 
 from torch.utils.data import DataLoader
 
-from tiktorch.server.datasets import DynamicDataLoaderWrapper
-
 from . import types
 
 if typing.TYPE_CHECKING:
@@ -115,6 +113,15 @@ class SetMaxNumberOfIterations(ICommand):
 
     def execute(self, ctx: Context) -> None:
         ctx.worker.set_max_num_iterations(self._num_iterations)
+
+
+class ForwardPass(ICommand):
+    def __init__(self, input_tensor):
+        self._input_tensor = input_tensor
+        self.result = None
+
+    def execute(self, ctx: Context) -> None:
+        self.result = ctx.worker.forward(self._input_tensor)
 
 
 class CommandPriorityQueue(queue.PriorityQueue):

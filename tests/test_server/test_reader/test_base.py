@@ -3,6 +3,8 @@ import yaml
 import zipfile
 import pytest
 from itertools import permutations
+
+from tiktorch.server.exemplum import Exemplum
 from tiktorch.server.reader._base import guess_model_path, eval_model
 
 
@@ -16,9 +18,7 @@ def test_guess_model_path_without_model_file(paths):
     assert guess_model_path(paths) is None
 
 
-p = pathlib.Path(__file__)
-
-
 def test_read_config(pybio_unet_zip):
     with zipfile.ZipFile(pybio_unet_zip) as zip_file:
-        assert eval_model(zip_file)
+        exemplum = eval_model(zip_file, devices=["cpu"])
+        assert isinstance(exemplum, Exemplum)

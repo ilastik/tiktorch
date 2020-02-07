@@ -8,6 +8,7 @@ from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
+from tiktorch.server.training import start_model_process
 
 
 _ONE_DAY_IN_SECONDS = 24 * 60 * 60
@@ -22,8 +23,10 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self, request: inference_pb2.CreateModelSessionRequest, context
     ) -> inference_pb2.ModelSession:
         lease = self.__device_pool.lease(request.deviceIds)
+        _, client = start_model_process(model_zip=request.model_blob.content, devices=[d.id for d in lease.devices])
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
+        session.on_close(client.shutdown)
         # model.on_close(lease.terminate)
         # handler2inference_conn, inference2handler_conn = mp.Pipe()
         # self._inference_proc = mp.Process(

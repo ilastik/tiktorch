@@ -14,13 +14,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Engine:
-    def __init__(self, trainer: TikTrainer) -> None:
+class Supervisor:
+    def __init__(self, model) -> None:
         self._state = types.State.Stopped
 
         self._command_queue = commands.CommandPriorityQueue()
-        self._trainer = trainer
-        self._trainer.set_break_callback(self.has_commands)
+        self._model = model
+        self._model.set_break_callback(self.has_commands)
         self._devices = types.Devices()
         self._idle_callbacks = []
 
@@ -39,11 +39,14 @@ class Engine:
         return not self._command_queue.empty()
 
     def has_work(self):
-        return self._trainer.max_num_iterations and self._trainer.max_num_iterations > self._trainer.iteration_count
+        return self._model.max_num_iterations and self._model.max_num_iterations > self._model.iteration_count
+
+    def forward(self, input_tensor):
+        return self._model.forward(input_tensor)
 
     def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
         free_devs = self._devices.update(devices)
-        self._trainer.move_to(self._devices)
+        self._model.move_to(self._devices)
         self._update_state()
         return free_devs
 
@@ -53,7 +56,7 @@ class Engine:
         self._update_state()
 
     def set_max_num_iterations(self, num: int):
-        self._trainer.set_max_num_iterations(num)
+        self._model.set_max_num_iterations(num)
         self._update_state()
 
     def on_idle(self, callback):
@@ -101,7 +104,7 @@ class Engine:
             try:
                 cmd = self._command_queue.get_nowait()
                 logger.debug("Executing %s", cmd)
-                ctx = commands.Context(worker=self, trainer=self._trainer)
+                ctx = commands.Context(worker=self, trainer=self._model)
 
                 try:
                     cmd.execute(ctx)
@@ -114,11 +117,9 @@ class Engine:
                 pass
 
     def _train(self):
-        logger.info(
-            "Start training for %d iterations", self._trainer.max_num_iterations - self._trainer.iteration_count
-        )
+        logger.info("Start training for %d iterations", self._model.max_num_iterations - self._model.iteration_count)
         try:
-            self._trainer.fit()
+            self._model.fit()
         except Exception as e:
             logger.error("Exception during training fit. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.

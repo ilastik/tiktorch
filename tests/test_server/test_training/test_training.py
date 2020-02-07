@@ -1,5 +1,6 @@
 import torch
 import pytest
+import zipfile
 import time
 import queue
 import threading
@@ -9,9 +10,9 @@ from unittest import mock
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
 from tiktorch.server.training import ITraining
-from tiktorch.server.training.base import TrainingProcess, ConfigBuilder, run
+from tiktorch.server.training.base import TrainingProcess, ModelProcess, ConfigBuilder, run
 from tiktorch.server import training
-from tiktorch.server.training.worker.base import Engine
+from tiktorch.server.training.worker.base import Supervisor
 from tiktorch.server.training.worker import commands, State
 from tiktorch.tiktypes import TikTensor, TikTensorBatch
 from tiktorch import configkeys as confkeys
@@ -94,7 +95,7 @@ def test_training_in_proc(tiny_model_2d, log_queue):
         client.shutdown()
 
 
-class TestTrainingWorkerEngine:
+class TestTrainingWorkerSupervisor:
     class DummyCmd(commands.ICommand):
         def execute(self, ctx):
             pass
@@ -108,6 +109,9 @@ class TestTrainingWorkerEngine:
 
         def set_break_callback(self, cb):
             self._break_cb = cb
+
+        def forward(self, input_tensor):
+            return 42
 
         def move_to(self, devices):
             self._devs = devices
@@ -129,7 +133,7 @@ class TestTrainingWorkerEngine:
 
     @pytest.fixture
     def worker(self, trainer):
-        return Engine(trainer)
+        return Supervisor(trainer)
 
     @pytest.fixture
     def worker_thread(self, worker):
@@ -208,6 +212,12 @@ class TestTrainingWorkerEngine:
         time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
         assert State.Paused == worker.state
 
+    def test_forward(self, worker, worker_thread, trainer):
+        forward_cmd = commands.ForwardPass([1])
+        worker.send_command(forward_cmd.awaitable)
+        forward_cmd.awaitable.wait()
+        assert 42 == forward_cmd.result
+
 
 class TestConfigBuilder:
     @pytest.mark.parametrize(
@@ -238,3 +248,8 @@ class TestConfigBuilder:
         loss_conf = config.get("criterion_config")
         assert loss_conf
         assert isinstance(loss_conf["method"].criterion, torch.nn.CrossEntropyLoss)
+
+
+def test_model_proc_init(pybio_unet_zip):
+    tp = ModelProcess(pybio_unet_zip.getvalue(), devices=["cpu"])
+    tp.shutdown()

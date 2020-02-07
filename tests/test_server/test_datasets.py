@@ -82,15 +82,14 @@ class TestDynamicDataset:
         assert torch.equal(first_label, ret_label)
         assert torch.equal(first_data, ret_data)
 
-    def test_access_by_index_to_deleted_element_raises_entry_deleted(self, dataset):
+    def test_access_by_index_to_deleted_element_is_allowed(self, dataset):
         labels = types.TikTensorBatch([types.TikTensor(np.ones(shape=(3, 3)), id_=(0, 0))])
         data = types.TikTensorBatch([types.TikTensor(np.ones(shape=(3, 3)), id_=(0, 0))])
         dataset.update(data, labels)
 
         dataset.remove((0, 0))
 
-        with pytest.raises(datasets.EntryRemoved):
-            assert dataset[0]
+        assert dataset[0]
 
     def test_initial_get_weights(self, simple_dataset):
         expected = torch.DoubleTensor([1.0, 1.0])

@@ -1,6 +1,7 @@
 import copy
 import io
 import logging
+import zipfile
 import multiprocessing as mp
 import os
 import threading
@@ -32,6 +33,7 @@ from inferno.io.transform import Compose, Transform
 from inferno.trainers.callbacks.logging import TensorboardLogger
 from inferno.utils.exceptions import NotSetError
 
+
 from tiktorch import log
 from tiktorch.configkeys import (
     BATCH_SIZE,
@@ -58,6 +60,7 @@ from tiktorch.server.utils import get_transform
 from tiktorch.tiktypes import LabeledTikTensorBatch, TikTensor, TikTensorBatch
 from tiktorch.types import ModelState
 from tiktorch.utils import add_logger, get_error_msg_for_invalid_config
+from tiktorch.server.reader import eval_model
 
 from tiktorch.server.datasets import DynamicDataset
 from .interface import ITraining
@@ -424,3 +427,34 @@ class LossWrapper(torch.nn.Module):
 
         loss = self.criterion(transformed_prediction, transformed_target)
         return loss
+
+
+class ModelProcess(ITraining):
+    def __init__(self, model_zip: bytes, devices: List[str]) -> None:
+        with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
+            model = eval_model(model_file, devices)
+        self._worker = worker.TrainingWorker(model)
+
+    def forward(self, input_tensor):
+        self._worker.forward(input_tensor)
+
+    def shutdown(self) -> Shutdown:
+        self._worker.shutdown()
+        return Shutdown()
+
+
+def run_model_process(conn: Connection, model_zip: bytes, devices: List[str], log_queue: Optional[mp.Queue] = None):
+    try:
+        # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
+        import resource
+
+        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+    except ModuleNotFoundError:
+        pass  # probably running on windows
+
+    if log_queue:
+        log.configure(log_queue)
+    model_proc = ModelProcess(model_zip, devices)
+    srv = MPServer(model_proc, conn)
+    srv.listen()

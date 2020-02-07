@@ -47,3 +47,7 @@ class ITraining(RPCInterface):
     @exposed
     def wait_for_idle(self) -> RPCFuture:
         raise NotImplementedError
+
+    @exposed
+    def forward(self, input_tensor):
+        raise NotImplementedError
