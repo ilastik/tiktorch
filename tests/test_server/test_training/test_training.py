@@ -208,6 +208,12 @@ class TestTrainingWorkerSupervisor:
         time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
         assert State.Paused == worker.state
 
+    def test_forward(self, worker, worker_thread, trainer):
+        forward_cmd = commands.ForwardPass([1])
+        worker.send_command(forward_cmd.awaitable)
+        forward_cmd.awaitable.wait()
+        assert forward_cmd.result is NotImplemented
+
 
 class TestConfigBuilder:
     @pytest.mark.parametrize(

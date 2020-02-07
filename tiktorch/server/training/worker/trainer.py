@@ -4,7 +4,7 @@ from inferno.trainers import Trainer as InfernoTrainer
 
 from torch.utils.data import DataLoader
 
-from tiktorch.server.datasets import DynamicDataLoaderWrapper, DynamicDataset
+from tiktorch.server.datasets import DynamicDataset
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,9 @@ class TikTrainer(InfernoTrainer):
 
     def set_break_callback(self, callback):
         self._break_cb = callback
+
+    def forward(self, input_tensor):
+        return NotImplemented
 
     def get_dataset(self, name: str) -> DynamicDataset:
         return self._dataset_by_name[name]
@@ -42,7 +45,7 @@ class TikTrainer(InfernoTrainer):
         for name, dataset in dataset_by_name.items():
             name = cls._ALIASES.get(name, name)
             loader = DataLoader(dataset=dataset)
-            trainer.bind_loader(name, DynamicDataLoaderWrapper(loader))
+            trainer.bind_loader(name, loader)
 
         return trainer
 
