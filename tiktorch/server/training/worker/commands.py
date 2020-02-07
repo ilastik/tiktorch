@@ -8,8 +8,6 @@ from dataclasses import dataclass, field
 
 from torch.utils.data import DataLoader
 
-from tiktorch.server.datasets import DynamicDataLoaderWrapper
-
 from . import types
 
 if typing.TYPE_CHECKING:
