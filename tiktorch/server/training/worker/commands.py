@@ -117,6 +117,15 @@ class SetMaxNumberOfIterations(ICommand):
         ctx.worker.set_max_num_iterations(self._num_iterations)
 
 
+class ForwardPass(ICommand):
+    def __init__(self, input_tensor):
+        self._input_tensor = input_tensor
+        self.result = None
+
+    def execute(self, ctx: Context) -> None:
+        self.result = ctx.worker.forward(self._input_tensor)
+
+
 class CommandPriorityQueue(queue.PriorityQueue):
     COMMAND_PRIORITIES = {StopCmd: 0}
 
