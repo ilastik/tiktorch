@@ -65,19 +65,23 @@ class Exemplum:
         return out.prediction
 
     @property
-    def max_num_iterations(self):
-        raise NotImplementedError
+    def max_num_iterations(self) -> int:
+        return 0
 
-    def set_max_num_iterations(self):
-        raise NotImplementedError
+    def set_max_num_iterations(self, max_num_iterations: int) -> None:
+        return None
 
-    def iteration_count(self):
-        raise NotImplementedError
+    @property
+    def iteration_count(self) -> int:
+        return 0
 
     def set_break_callback(self):
         return NotImplementedError
 
-    def set_devices(self, devices: Sequence[torch.device]):
+    def set_devices(self, devices: Sequence[torch.device]) -> None:
         main_device = devices[0]
         self.model = self.model.to(main_device)
         self.devices = devices
+
+    def fit(self):
+        return None
