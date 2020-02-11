@@ -1,7 +1,9 @@
 import pytest
 import grpc
+import numpy as np
+from numpy.testing import assert_array_equal
 
-from tiktorch.proto import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc, converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
@@ -118,3 +120,17 @@ class TestGetLogs:
         assert inference_pb2.LogEntry.Level.INFO == record.level
         assert "Sending model logs" == record.content
         grpc_stub.CloseModelSession(model)
+
+
+class TestForwardPass:
+    def test_call_predict(self, grpc_stub, pybio_dummy_zip):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_dummy_zip))
+
+        arr = np.arange(32 * 32).reshape(1, 1, 32, 32)
+        expected = arr + 1
+        input_tensor = converters.numpy_to_pb_tensor(arr)
+        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensor=input_tensor))
+
+        grpc_stub.CloseModelSession(model)
+
+        assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensor))

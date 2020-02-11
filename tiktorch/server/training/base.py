@@ -436,7 +436,9 @@ class ModelProcess(ITraining):
         self._worker = worker.TrainingWorker(model)
 
     def forward(self, input_tensor):
-        self._worker.forward(input_tensor)
+        torch_tensor = torch.from_numpy(input_tensor)
+        torch_result = self._worker.forward(torch_tensor)
+        return torch_result.numpy()
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()

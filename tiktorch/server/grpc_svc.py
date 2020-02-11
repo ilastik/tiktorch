@@ -5,7 +5,7 @@ import multiprocessing as mp
 import grpc
 
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
-from tiktorch.proto import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc, converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
 from tiktorch.server.training import start_model_process
@@ -27,14 +27,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
-        # model.on_close(lease.terminate)
-        # handler2inference_conn, inference2handler_conn = mp.Pipe()
-        # self._inference_proc = mp.Process(
-        #     target=inference.run, name="Inference", kwargs={"conn": inference2handler_conn}
-        # )
-        # self._inference_proc.start()
-        # self._inference = create_client(inference.IInference, handler2inference_conn)
-        # self._inference.load_model(request.model_blob).result()
+        session.client = client
         return inference_pb2.ModelSession(id=session.id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
@@ -63,7 +56,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        return inference_pb2.PredictResponse()
+        arr = converters.pb_tensor_to_numpy(request.tensor)
+        res = session.client.forward(arr)
+        return inference_pb2.PredictResponse(tensor=converters.numpy_to_pb_tensor(res))
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:
@@ -78,7 +73,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
 
 def serve(host, port):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=32))
     session_svc = InferenceServicer(TorchDevicePool(), SessionManager())
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
     server.add_insecure_port(f"{host}:{port}")
