@@ -7,6 +7,8 @@ import threading
 from torch import multiprocessing as mp
 from unittest import mock
 from concurrent.futures import Future
+import numpy as np
+import torch
 
 from tests.data.tiny_models import TinyConvNet2d
 from tiktorch.rpc.mp import MPClient, Shutdown, create_client
@@ -112,7 +114,7 @@ class TestTrainingWorkerSupervisor:
             self._break_cb = cb
 
         def forward(self, input_tensor):
-            return 42
+            return torch.Tensor([42])
 
         def move_to(self, devices):
             self._devs = devices
@@ -215,7 +217,7 @@ class TestTrainingWorkerSupervisor:
 
     def test_forward(self, worker, worker_thread, trainer):
         fut = Future()
-        forward_cmd = commands.ForwardPass(fut, [1])
+        forward_cmd = commands.ForwardPass(fut, np.array([1]))
         worker.send_command(forward_cmd)
         assert 42 == fut.result(timeout=0.5)
 
