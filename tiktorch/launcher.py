@@ -7,8 +7,10 @@ import time
 from socket import timeout
 from typing import Optional
 
+import grpc
 from paramiko import AutoAddPolicy, SSHClient
 
+from tiktorch.proto import inference_pb2_grpc, inference_pb2
 from .rpc import Client, Shutdown, TCPConnConf, Timeout
 from .rpc_interface import IFlightControl
 
@@ -43,12 +45,36 @@ class _ZMQClientWrapper:
         return self.__client.shutdown()
 
 
+class _GRPCClientWrapper:
+    def __init__(self, conn_str):
+        self.__conn_str = conn_str
+
+    def ping(self):
+        try:
+            with grpc.insecure_channel(self.__conn_str) as chan:
+                client = inference_pb2_grpc.FlightControlStub(chan)
+                client.Ping(inference_pb2.Empty())
+
+                return True
+        except Exception as e:
+            return False
+
+    def shutdown(self):
+        with grpc.insecure_channel(self.__conn_str) as chan:
+            client = inference_pb2_grpc.FlightControlStub(chan)
+            client.Shutdown(inference_pb2.Empty())
+
+            return True
+
+
 def client_factory(conn_conf: ConnConf):
     if conn_conf.protocol == "zmq":
         tcp_conf = TCPConnConf(
             addr=conn_conf.addr, port=conn_conf.port1, pubsub_port=conn_conf.port2, timeout=conn_conf.timeout
         )
         return _ZMQClientWrapper(Client(IFlightControl(), tcp_conf))
+    elif conn_conf.protocol == "grpc":
+        return _GRPCClientWrapper(f"{conn_conf.addr}:{conn_conf.port1}")
 
     raise ValueError("Unknown protocol {protocol}")
 

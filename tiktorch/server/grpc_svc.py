@@ -1,6 +1,7 @@
 import time
 from concurrent import futures
 import multiprocessing as mp
+import threading
 
 import grpc
 
@@ -14,10 +15,11 @@ from tiktorch.server.training import start_model_process
 _ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
 
-class InferenceServicer(inference_pb2_grpc.InferenceServicer):
-    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager) -> None:
+class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc.FlightControlServicer):
+    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager, *, done_evt=None) -> None:
         self.__device_pool = device_pool
         self.__session_manager = session_manager
+        self.__done_evt = done_evt
 
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
@@ -71,16 +73,24 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
         return session
 
+    def Ping(self, request: inference_pb2.Empty, context):
+        return inference_pb2.Empty()
+
+    def Shutdown(self, request: inference_pb2.Empty, context):
+        if self.__done_evt:
+            self.__done_evt.set()
+        return inference_pb2.Empty()
+
 
 def serve(host, port):
+    done_evt = threading.Event()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=32))
-    session_svc = InferenceServicer(TorchDevicePool(), SessionManager())
+    session_svc = InferenceServicer(TorchDevicePool(), SessionManager(), done_evt=done_evt)
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
+    inference_pb2_grpc.add_FlightControlServicer_to_server(session_svc, server)
     server.add_insecure_port(f"{host}:{port}")
     server.start()
 
-    try:
-        while True:
-            time.sleep(_ONE_DAY_IN_SECONDS)
-    except KeyboardInterrupt:
-        server.stop(0)
+    done_evt.wait()
+
+    server.stop(0).wait()

@@ -15,8 +15,9 @@ SSH_PWD_VAR = "TEST_SSH_PWD"
 SSH_KEY_VAR = "TEST_SSH_KEY"
 
 
-def test_start_local_server(srv_port, pub_port):
-    conn_conf = ConnConf("zmq", "127.0.0.1", srv_port, pub_port, timeout=5)
+@pytest.mark.parametrize("proto", ["grpc", "zmq"])
+def test_start_local_server(proto, srv_port, pub_port):
+    conn_conf = ConnConf(proto, "127.0.0.1", srv_port, pub_port, timeout=5)
     launcher = LocalServerLauncher(conn_conf)
     launcher.start()
 

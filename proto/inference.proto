@@ -1,4 +1,3 @@
-// The greeting service definition.
 syntax = "proto3";
 
 service Inference {
@@ -12,7 +11,6 @@ service Inference {
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
-// The response message list of available device names
 message Device {
   enum Status {
     AVAILABLE = 0;
@@ -81,3 +79,9 @@ message PredictResponse {
 }
 
 message Empty {}
+
+
+service FlightControl {
+  rpc Ping(Empty) returns (Empty) {}
+  rpc Shutdown(Empty) returns (Empty) {}
+}
