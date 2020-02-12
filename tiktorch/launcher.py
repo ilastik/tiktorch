@@ -102,7 +102,7 @@ class IServerLauncher:
     @_conn_conf.setter
     def _conn_conf(self, value: ConnConf) -> None:
         if not isinstance(value, ConnConf):
-            raise ValueError("Should be instance of TCPConnConf")
+            raise ValueError("Should be instance of ConnConf")
 
         self.__conn_conf = value
 
