@@ -12,9 +12,6 @@ from tiktorch.server.session_manager import SessionManager, ISession
 from tiktorch.server.training import start_model_process
 
 
-_ONE_DAY_IN_SECONDS = 24 * 60 * 60
-
-
 class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc.FlightControlServicer):
     def __init__(self, device_pool: IDevicePool, session_manager: SessionManager, *, done_evt=None) -> None:
         self.__device_pool = device_pool
