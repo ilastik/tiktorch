@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from tiktorch.launcher import LocalServerLauncher, RemoteSSHServerLauncher, SSHCred, wait
+from tiktorch.launcher import LocalServerLauncher, RemoteSSHServerLauncher, SSHCred, wait, ConnConf, client_factory
 from tiktorch.rpc import Client, TCPConnConf
 from tiktorch.rpc_interface import IFlightControl
 
@@ -16,19 +16,17 @@ SSH_KEY_VAR = "TEST_SSH_KEY"
 
 
 def test_start_local_server(srv_port, pub_port):
-    conn_conf = TCPConnConf("127.0.0.1", srv_port, pub_port, timeout=20)
+    conn_conf = ConnConf("zmq", "127.0.0.1", srv_port, pub_port, timeout=5)
     launcher = LocalServerLauncher(conn_conf)
     launcher.start()
 
     assert launcher.is_server_running()
 
-    client = Client(IFlightControl(), conn_conf)
+    client = client_factory(conn_conf)
 
-    assert client.ping() == b"pong"
+    assert client.ping()
 
     launcher.stop()
-
-    launcher.is_server_running()
 
 
 def test_start_remote_server(srv_port, pub_port):

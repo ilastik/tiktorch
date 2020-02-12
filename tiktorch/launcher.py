@@ -20,6 +20,39 @@ class AlreadyRunningError(Exception):
     pass
 
 
+class ConnConf:
+    def __init__(self, proto, addr, port1, port2, timeout):
+        self.protocol = proto
+        self.addr = addr
+        self.port1 = port1
+        self.port2 = port2
+        self.timeout = timeout
+
+    def get_timeout(self):
+        return self.timeout
+
+
+class _ZMQClientWrapper:
+    def __init__(self, client):
+        self.__client = client
+
+    def ping(self):
+        return self.__client.ping() == b"pong"
+
+    def shutdown(self):
+        return self.__client.shutdown()
+
+
+def client_factory(conn_conf: ConnConf):
+    if conn_conf.protocol == "zmq":
+        tcp_conf = TCPConnConf(
+            addr=conn_conf.addr, port=conn_conf.port1, pubsub_port=conn_conf.port2, timeout=conn_conf.timeout
+        )
+        return _ZMQClientWrapper(Client(IFlightControl(), tcp_conf))
+
+    raise ValueError("Unknown protocol {protocol}")
+
+
 class IServerLauncher:
     class State(enum.Enum):
         Stopped = "Stopped"
@@ -34,15 +67,15 @@ class IServerLauncher:
         return logging.getLogger(self.__class__.__qualname__)
 
     @property
-    def _conn_conf(self) -> TCPConnConf:
+    def _conn_conf(self) -> ConnConf:
         if self.__conn_conf is None:
             raise Exception("Please set self._conn_conf")
 
         return self.__conn_conf
 
     @_conn_conf.setter
-    def _conn_conf(self, value: TCPConnConf) -> None:
-        if not isinstance(value, TCPConnConf):
+    def _conn_conf(self, value: ConnConf) -> None:
+        if not isinstance(value, ConnConf):
             raise ValueError("Should be instance of TCPConnConf")
 
         self.__conn_conf = value
@@ -57,8 +90,8 @@ class IServerLauncher:
 
     def _ping(self):
         try:
-            c = Client(IFlightControl(), self._conn_conf)
-            return c.ping() == b"pong"
+            c = client_factory(self.__conn_conf)
+            return c.ping()
         except Timeout:
             return False
 
@@ -82,7 +115,7 @@ class IServerLauncher:
 
         self._stop.set()
 
-        c = Client(IFlightControl(), self._conn_conf)
+        c = client_factory(self._conn_conf)
         try:
             c.shutdown()
         except Shutdown:
@@ -108,13 +141,13 @@ def wait(done, interval=0.1, max_wait=10):
 
 
 class LocalServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, path=None):
+    def __init__(self, conn_conf: ConnConf, path=None):
         self._conn_conf = conn_conf
         self._process = None
         self._path = path
 
     def _start_server(self, dummy: bool, kill_timeout: int):
-        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
+        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port1, self._conn_conf.port2
 
         if addr != "127.0.0.1":
             raise ValueError("LocalServerHandler only possible to run on localhost")
@@ -137,6 +170,8 @@ class LocalServerLauncher(IServerLauncher):
             str(notify_port),
             "--addr",
             addr,
+            "--rpc-proto",
+            self._conn_conf.protocol,
             "--kill-timeout",
             str(kill_timeout),
         ]
@@ -162,7 +197,7 @@ class SSHCred:
 
 
 class RemoteSSHServerLauncher(IServerLauncher):
-    def __init__(self, conn_conf: TCPConnConf, *, cred: SSHCred, ssh_port: int = 22, path="tiktorch") -> None:
+    def __init__(self, conn_conf: ConnConf, *, cred: SSHCred, ssh_port: int = 22, path="tiktorch") -> None:
         self._path = path
         self._ssh_port = ssh_port
         self._channel = None
@@ -180,7 +215,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         if self._channel:
             raise RuntimeError("SSH server is already running")
 
-        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port, self._conn_conf.pubsub_port
+        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port1, self._conn_conf.port2
 
         ssh_params = {
             "hostname": addr,
@@ -229,7 +264,10 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            cmd = f"{self._path} --addr {addr} --port {port} --notify-port {notify_port} --kill-timeout {kill_timeout}"
+            cmd = (
+                f"{self._path} --addr {addr} --port {port} --notify-port {notify_port} "
+                f"--kill-timeout {kill_timeout} --rpc-proto {self._conn_conf.protocol}"
+            )
             if dummy:
                 cmd += " --dummy"
 
