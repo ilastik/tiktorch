@@ -116,12 +116,15 @@ class SetMaxNumberOfIterations(ICommand):
 
 
 class ForwardPass(ICommand):
-    def __init__(self, input_tensor):
+    def __init__(self, future, input_tensor):
         self._input_tensor = input_tensor
-        self.result = None
+        self._future = future
 
     def execute(self, ctx: Context) -> None:
-        self.result = ctx.worker.forward(self._input_tensor)
+        try:
+            self._future.set_result(ctx.worker.forward(self._input_tensor))
+        except Exception as e:
+            self._future.set_exception(e)
 
 
 class CommandPriorityQueue(queue.PriorityQueue):

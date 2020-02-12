@@ -1,4 +1,8 @@
+import pytest
+
+from unittest import mock
 from tiktorch.server.training.worker import commands as cmds
+from concurrent.futures import Future
 
 
 class TestCommandQueue:
@@ -20,3 +24,34 @@ class TestCommandQueue:
 
         for expected_cmd in stop_cmds:
             assert expected_cmd is cmd_queue.get_nowait()
+
+
+class TestForwardPassCmd:
+    class FailException(Exception):
+        pass
+
+    def test_cmd_accepts_future_as_constructor_arg(self):
+        fut = Future()
+        cmd = cmds.ForwardPass(fut, [1])
+
+    def test_executing_resolves_future(self):
+        fut = Future()
+
+        cmd = cmds.ForwardPass(fut, [1])
+        ctx = cmds.Context(worker=mock.Mock(), trainer=mock.Mock())
+        cmd.execute(ctx)
+
+        assert fut.result(timeout=0)
+
+    def test_executing_resolves_future_if_raised(self):
+
+        fut = Future()
+        cmd = cmds.ForwardPass(fut, [1])
+        worker = mock.Mock()
+        worker.forward.side_effect = self.FailException("fail")
+
+        ctx = cmds.Context(worker=worker, trainer=mock.Mock())
+        cmd.execute(ctx)
+
+        with pytest.raises(self.FailException):
+            assert fut.result(timeout=0)

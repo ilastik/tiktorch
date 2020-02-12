@@ -53,18 +53,6 @@ class TestModelManagement:
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
         assert "model-session-id has not been provided" in e.value.details()
 
-    def test_predict_call_fails_with_unknown_model_session_id(self, grpc_stub):
-        with pytest.raises(grpc.RpcError) as e:
-            res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId="myid1"))
-        assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
-        assert "model-session with id myid1 doesn't exist" in e.value.details()
-
-    def test_call_succeeds_with_valid_model_session_id(self, grpc_stub, pybio_unet_zip):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip))
-        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id))
-        assert res
-        grpc_stub.CloseModelSession(model)
-
 
 class TestDeviceManagement:
     def test_list_devices(self, grpc_stub):
@@ -123,6 +111,12 @@ class TestGetLogs:
 
 
 class TestForwardPass:
+    def test_call_fails_with_unknown_model_session_id(self, grpc_stub):
+        with pytest.raises(grpc.RpcError) as e:
+            res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId="myid1"))
+        assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
+        assert "model-session with id myid1 doesn't exist" in e.value.details()
+
     def test_call_predict(self, grpc_stub, pybio_dummy_zip):
         model = grpc_stub.CreateModelSession(valid_model_request(pybio_dummy_zip))
 

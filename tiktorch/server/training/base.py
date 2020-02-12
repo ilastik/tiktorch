@@ -2,6 +2,7 @@ import copy
 import io
 import logging
 import zipfile
+import numpy as np
 import multiprocessing as mp
 import os
 import threading
@@ -9,6 +10,7 @@ import time
 import queue
 from datetime import datetime
 from multiprocessing.connection import Connection
+from concurrent.futures import Future
 from typing import (
     Any,
     Callable,
@@ -435,10 +437,10 @@ class ModelProcess(ITraining):
             model = eval_model(model_file, devices)
         self._worker = worker.TrainingWorker(model)
 
-    def forward(self, input_tensor):
-        torch_tensor = torch.from_numpy(input_tensor)
-        torch_result = self._worker.forward(torch_tensor)
-        return torch_result.numpy()
+    def forward(self, input_tensor: np.ndarray) -> Future:
+        res = self._worker.forward(input_tensor)
+        print(res)
+        return res
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()
