@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import io
 import logging
 import zipfile
@@ -431,16 +432,24 @@ class LossWrapper(torch.nn.Module):
         return loss
 
 
+@dataclasses.dataclass
+class ModelInfo:
+    # TODO: Test for model info
+    name: str
+
+
 class ModelProcess(ITraining):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
         with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
-            model = eval_model(model_file, devices)
-        self._worker = worker.TrainingWorker(model)
+            self._model = eval_model(model_file, devices)
+        self._worker = worker.TrainingWorker(self._model)
 
     def forward(self, input_tensor: np.ndarray) -> Future:
         res = self._worker.forward(input_tensor)
-        print(res)
         return res
+
+    def get_model_info(self) -> ModelInfo:
+        return ModelInfo(self._model.name)
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()

@@ -51,3 +51,7 @@ class ITraining(RPCInterface):
     @exposed
     def forward(self, input_tensor):
         raise NotImplementedError
+
+    @exposed
+    def get_model_info(self):
+        raise NotImplementedError

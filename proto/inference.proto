@@ -37,6 +37,7 @@ message CreateModelSessionRequest {
 
 message ModelSession {
   string id = 1;
+  string name = 2;
 }
 
 message LogEntry {

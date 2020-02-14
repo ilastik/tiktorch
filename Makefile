@@ -1,7 +1,7 @@
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 sample_model:
-	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet_sample.zip ./*
+	cd tests/data/dummy && zip -r $(ROOT_DIR)/dummy.tmodel ./*
 
 protos:
 	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/proto --grpc_python_out=tiktorch/proto ./proto/inference.proto

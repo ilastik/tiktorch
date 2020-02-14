@@ -27,7 +27,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
         session.client = client
-        return inference_pb2.ModelSession(id=session.id)
+        model_info = session.client.get_model_info()
+        return inference_pb2.ModelSession(id=session.id, name=model_info.name)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
         self.__session_manager.close_session(request.id)

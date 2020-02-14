@@ -40,6 +40,7 @@ class Exemplum:
         self.iteration_count = 0
         self.devices = _devices
         spec = pybio_model.spec
+        self.name = spec.name
         self.model = get_instance(pybio_model)
         self.model.to(self.devices[0])
         if spec.framework == "pytorch":
