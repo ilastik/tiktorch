@@ -1,6 +1,7 @@
 import faulthandler
 import logging.handlers
 import multiprocessing as mp
+import os
 import pathlib
 import pickle
 import io
@@ -195,3 +196,7 @@ def pybio_dummy_zip(datadir):
                 zip_model.writestr(f_path.name, f.read())
 
     return data
+
+@pytest.fixture
+def cache_path(tmp_path):
+    return pathlib.Path(os.getenv("PYBIO_CACHE_PATH", tmp_path))

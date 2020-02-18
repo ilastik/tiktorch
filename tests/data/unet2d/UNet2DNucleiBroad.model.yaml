@@ -15,8 +15,8 @@ framework: pytorch
 source: unet2d.py::UNet2d
 optional_kwargs: {input_channels: 1, output_channels: 1}
 
-test_input: null # ../test_input.npy
-test_output: null # ../test_output.npy
+test_input: test_ipt.npy
+test_output: test_out.npy
 thumbnail: null # ./nuclei_thumbnail.png
 
 # TODO double check inputs/outputs
@@ -25,22 +25,68 @@ inputs:
     axes: bcyx
     data_type: float32
     data_range: [-inf, inf]
-    shape: [1, 1, 128, 128]
+    shape: [1, 1, 512, 512]
+
 outputs:
-  - name: output
+  - name: logits
     axes: bcyx
     data_type: float32
-    data_range: [0, 1]
+    data_range: [-inf, inf]
+    halo: [0, 0, 32, 32]
     shape:
         reference_input: input   # FIXME(m-novikov) ignoring for now
         scale: [1, 1, 1, 1]
         offset: [0, 0, 0, 0]
-        #halo: [0, 0, 32, 32]   # Should be moved to outputs
 
 prediction:
-    preprocess: null
+    preprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureTorch.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Cast.transformation.yaml
+          kwargs: {dtype: float32}
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+          kwargs: {apply_to: [0]}
     weights:
         source: https://zenodo.org/record/3446812/files/unet2d_weights.torch
         hash: {md5: TODO}
-    postprocess: null
+    postprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Sigmoid.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureNumpy.transformation.yaml
     dependencies: conda:./environment.yaml
+
+training:
+  setup:
+#    meta_sampler:
+#      spec:
+#      kwargs:
+    samplers:
+      - spec: https://github.com/bioimage-io/python-bioimage-io/blob/b72f9743f25367ee5d70d699551bd03013765b1f/specs/samplers/SequentialSamplerAlongDimension.sampler.yaml
+        kwargs: {sample_dimensions: [0, 0]}
+        readers:
+          - spec: https://github.com/bioimage-io/python-bioimage-io/blob/b72f9743f25367ee5d70d699551bd03013765b1f/specs/readers/BroadNucleusDataBinarized.reader.yaml
+            transformations:
+              - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+                kwargs: {apply_to: [0]}
+    preprocess: []
+    postprocess:
+      - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Sigmoid.transformation.yaml
+        kwargs: {apply_to: [0]}
+      - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Cast.transformation.yaml
+        kwargs: {apply_to: [1], dtype: float32}
+    losses:
+      - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/BCELoss.transformation.yaml
+    optimizer:
+      source: torch.optim.Adam
+      required_kwargs: [params]
+      optional_kwargs: {lr: 0.002}
+    # validation:
+    #   - {}
+
+  source: pybio.torch.training.simple.simple_training
+  required_kwargs: [pybio_model]
+  optional_kwargs: {n_iterations: 25, batch_size: 4, num_workers: 2, out_file: ./weights.pytorch}
+  # enable different ways of specifying the dependencies.
+  # this would hold all training dependencies, e.g. as a frozen conda environment
+  # or as a pom.xml
+  dependencies: # this is a file to the dependencies
+      conda:../environment.yaml
+  description: Train the unet via binary cross entropy
