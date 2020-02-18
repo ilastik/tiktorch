@@ -1,5 +1,9 @@
+import itertools
 import logging
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Sequence, Tuple, Union
+
+import numpy
+import torch
 
 from tiktorch.configkeys import CONFIG, LOSS_CRITERION_CONFIG, MINIMAL_CONFIG, TRAINING
 from tiktorch.types import Point, SetDeviceReturnType
@@ -76,3 +80,16 @@ def add_logger(logger: logging.Logger) -> Callable:
         return wrapper
 
     return with_logging
+
+
+def generate_tile_rois(array_shape: Sequence[int], tile_shape: Sequence[int]):
+    assert len(array_shape) == len(tile_shape), (array_shape, tile_shape)
+    assert all(adim >= tdim for adim, tdim in zip(array_shape, tile_shape)), (array_shape, tile_shape)
+
+    dim_slices = []
+    for i, (adim, tdim) in enumerate(zip(array_shape, tile_shape)):
+        dim_slices.append([slice(stop - tdim, stop) for stop in range(tdim, adim + 1, tdim)])
+        if dim_slices[i][-1].stop < adim:
+            dim_slices[i].append(slice(adim - tdim, adim))
+
+    return itertools.product(*dim_slices)
