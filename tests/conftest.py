@@ -197,6 +197,7 @@ def pybio_dummy_zip(datadir):
 
     return data
 
+
 @pytest.fixture
 def cache_path(tmp_path):
     return pathlib.Path(os.getenv("PYBIO_CACHE_PATH", tmp_path))
