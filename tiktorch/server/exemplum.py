@@ -101,7 +101,6 @@ class Exemplum:
             self._output_transform = _noop
 
         self.halo = list(zip(self.output_axes, _halo))
-        print("HALO", self.halo)
 
         self.model = get_instance(pybio_model)
         self.model.to(self.devices[0])
