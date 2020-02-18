@@ -28,7 +28,30 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
         session.on_close(client.shutdown)
         session.client = client
         model_info = session.client.get_model_info()
-        return inference_pb2.ModelSession(id=session.id, name=model_info.name)
+
+        pb_valid_shapes = []
+        for shape in model_info.valid_shapes:
+            pb_shape = []
+            for tag, size in shape:
+                pb_shape.append(inference_pb2.TensorDim(size=size, name=tag))
+
+            pb_valid_shapes.append(inference_pb2.Shape(dims=pb_shape))
+
+        return inference_pb2.ModelSession(
+            id=session.id,
+            name=model_info.name,
+            inputAxes=model_info.input_axes,
+            outputAxes=model_info.output_axes,
+            validShapes=pb_valid_shapes,
+            halo=[inference_pb2.TensorDim(size=size, name=tag) for tag, size in model_info.halo],
+        )
+
+    def CreateDatasetDescription(
+        self, request: inference_pb2.CreateDatasetDescriptionRequest, context
+    ) -> inference_pb2.DatasetDescription:
+        session = self._getModelSession(context, request.modelSessionId)
+        id = session.client.create_dataset_description(mean=request.mean, stddev=request.stddev)
+        return inference_pb2.DatasetDescription(id=id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
         self.__session_manager.close_session(request.id)

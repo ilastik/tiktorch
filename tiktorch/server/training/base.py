@@ -1,5 +1,6 @@
 import copy
 import dataclasses
+import uuid
 import io
 import logging
 import zipfile
@@ -436,20 +437,36 @@ class LossWrapper(torch.nn.Module):
 class ModelInfo:
     # TODO: Test for model info
     name: str
+    input_axes: str
+    output_axes: str
+    valid_shapes: List[List[Tuple[str, int]]]
+    halo: List[Tuple[str, int]]
 
 
 class ModelProcess(ITraining):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
         with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
             self._model = eval_model(model_file, devices)
+        self._datasets = {}
         self._worker = worker.TrainingWorker(self._model)
 
     def forward(self, input_tensor: np.ndarray) -> Future:
         res = self._worker.forward(input_tensor)
         return res
 
+    def create_dataset(self, mean, stddev):
+        id_ = uuid.uuid4().hex
+        self._datasets[id_] = {"mean": mean, "stddev": stddev}
+        return id_
+
     def get_model_info(self) -> ModelInfo:
-        return ModelInfo(self._model.name)
+        return ModelInfo(
+            self._model.name,
+            self._model.input_axes,
+            self._model.output_axes,
+            valid_shapes=[self._model.input_shape],
+            halo=self._model.halo,
+        )
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()

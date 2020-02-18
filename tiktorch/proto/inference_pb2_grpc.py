@@ -24,6 +24,11 @@ class InferenceStub(object):
         request_serializer=inference__pb2.ModelSession.SerializeToString,
         response_deserializer=inference__pb2.Empty.FromString,
         )
+    self.CreateDatasetDescription = channel.unary_unary(
+        '/Inference/CreateDatasetDescription',
+        request_serializer=inference__pb2.CreateDatasetDescriptionRequest.SerializeToString,
+        response_deserializer=inference__pb2.DatasetDescription.FromString,
+        )
     self.GetLogs = channel.unary_stream(
         '/Inference/GetLogs',
         request_serializer=inference__pb2.Empty.SerializeToString,
@@ -53,6 +58,13 @@ class InferenceServicer(object):
     raise NotImplementedError('Method not implemented!')
 
   def CloseModelSession(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def CreateDatasetDescription(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -92,6 +104,11 @@ def add_InferenceServicer_to_server(servicer, server):
           servicer.CloseModelSession,
           request_deserializer=inference__pb2.ModelSession.FromString,
           response_serializer=inference__pb2.Empty.SerializeToString,
+      ),
+      'CreateDatasetDescription': grpc.unary_unary_rpc_method_handler(
+          servicer.CreateDatasetDescription,
+          request_deserializer=inference__pb2.CreateDatasetDescriptionRequest.FromString,
+          response_serializer=inference__pb2.DatasetDescription.SerializeToString,
       ),
       'GetLogs': grpc.unary_stream_rpc_method_handler(
           servicer.GetLogs,
