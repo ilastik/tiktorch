@@ -49,5 +49,13 @@ class ITraining(RPCInterface):
         raise NotImplementedError
 
     @exposed
+    def create_dataset_description(self, mean, stddev) -> str:
+        raise NotImplementedError
+
+    @exposed
     def forward(self, input_tensor):
+        raise NotImplementedError
+
+    @exposed
+    def get_model_info(self):
         raise NotImplementedError

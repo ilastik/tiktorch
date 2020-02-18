@@ -19,7 +19,8 @@ from tiktorch.types import Model, ModelState
 
 TEST_DATA = "data"
 TEST_NET = "CREMI_DUNet_pretrained_new"
-TEST_PYBIO_NET = "unet2d"
+TEST_PYBIO_UNET = "unet2d"
+TEST_PYBIO_DUMMY = "dummy"
 
 NNModel = namedtuple("NNModel", ["model", "state"])
 
@@ -174,7 +175,19 @@ def assert_threads_cleanup():
 
 @pytest.fixture
 def pybio_unet_zip(datadir):
-    pybio_net_dir = pathlib.Path(datadir) / TEST_PYBIO_NET
+    pybio_net_dir = pathlib.Path(datadir) / TEST_PYBIO_UNET
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, mode="w") as zip_model:
+        for f_path in pybio_net_dir.iterdir():
+            with f_path.open(mode="rb") as f:
+                zip_model.writestr(f_path.name, f.read())
+
+    return data
+
+
+@pytest.fixture
+def pybio_dummy_zip(datadir):
+    pybio_net_dir = pathlib.Path(datadir) / TEST_PYBIO_DUMMY
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode="w") as zip_model:
         for f_path in pybio_net_dir.iterdir():

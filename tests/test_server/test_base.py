@@ -5,7 +5,7 @@ from unittest import mock
 import numpy as np
 import pytest
 
-from tiktorch.launcher import LocalServerLauncher
+from tiktorch.launcher import LocalServerLauncher, ConnConf
 from tiktorch.rpc import Client, Shutdown, TCPConnConf
 from tiktorch.rpc_interface import IFlightControl
 from tiktorch.server.base import TikTorchServer, Watchdog
@@ -88,7 +88,7 @@ class TestWatchdog:
         srv_stub.shutdown.assert_not_called()
 
     def test_shutdown(self, srv_port, pub_port):
-        conn_conf = TCPConnConf("127.0.0.1", srv_port, pub_port, timeout=2)
+        conn_conf = ConnConf("zmq", "127.0.0.1", srv_port, pub_port, timeout=2)
         launcher = LocalServerLauncher(conn_conf)
         launcher.start(kill_timeout=1, ping_interval=9999)
 

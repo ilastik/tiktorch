@@ -24,6 +24,11 @@ class InferenceStub(object):
         request_serializer=inference__pb2.ModelSession.SerializeToString,
         response_deserializer=inference__pb2.Empty.FromString,
         )
+    self.CreateDatasetDescription = channel.unary_unary(
+        '/Inference/CreateDatasetDescription',
+        request_serializer=inference__pb2.CreateDatasetDescriptionRequest.SerializeToString,
+        response_deserializer=inference__pb2.DatasetDescription.FromString,
+        )
     self.GetLogs = channel.unary_stream(
         '/Inference/GetLogs',
         request_serializer=inference__pb2.Empty.SerializeToString,
@@ -53,6 +58,13 @@ class InferenceServicer(object):
     raise NotImplementedError('Method not implemented!')
 
   def CloseModelSession(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def CreateDatasetDescription(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -93,6 +105,11 @@ def add_InferenceServicer_to_server(servicer, server):
           request_deserializer=inference__pb2.ModelSession.FromString,
           response_serializer=inference__pb2.Empty.SerializeToString,
       ),
+      'CreateDatasetDescription': grpc.unary_unary_rpc_method_handler(
+          servicer.CreateDatasetDescription,
+          request_deserializer=inference__pb2.CreateDatasetDescriptionRequest.FromString,
+          response_serializer=inference__pb2.DatasetDescription.SerializeToString,
+      ),
       'GetLogs': grpc.unary_stream_rpc_method_handler(
           servicer.GetLogs,
           request_deserializer=inference__pb2.Empty.FromString,
@@ -111,4 +128,63 @@ def add_InferenceServicer_to_server(servicer, server):
   }
   generic_handler = grpc.method_handlers_generic_handler(
       'Inference', rpc_method_handlers)
+  server.add_generic_rpc_handlers((generic_handler,))
+
+
+class FlightControlStub(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def __init__(self, channel):
+    """Constructor.
+
+    Args:
+      channel: A grpc.Channel.
+    """
+    self.Ping = channel.unary_unary(
+        '/FlightControl/Ping',
+        request_serializer=inference__pb2.Empty.SerializeToString,
+        response_deserializer=inference__pb2.Empty.FromString,
+        )
+    self.Shutdown = channel.unary_unary(
+        '/FlightControl/Shutdown',
+        request_serializer=inference__pb2.Empty.SerializeToString,
+        response_deserializer=inference__pb2.Empty.FromString,
+        )
+
+
+class FlightControlServicer(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def Ping(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Shutdown(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+
+def add_FlightControlServicer_to_server(servicer, server):
+  rpc_method_handlers = {
+      'Ping': grpc.unary_unary_rpc_method_handler(
+          servicer.Ping,
+          request_deserializer=inference__pb2.Empty.FromString,
+          response_serializer=inference__pb2.Empty.SerializeToString,
+      ),
+      'Shutdown': grpc.unary_unary_rpc_method_handler(
+          servicer.Shutdown,
+          request_deserializer=inference__pb2.Empty.FromString,
+          response_serializer=inference__pb2.Empty.SerializeToString,
+      ),
+  }
+  generic_handler = grpc.method_handlers_generic_handler(
+      'FlightControl', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))

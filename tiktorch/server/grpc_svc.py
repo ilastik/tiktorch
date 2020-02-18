@@ -1,23 +1,22 @@
 import time
 from concurrent import futures
 import multiprocessing as mp
+import threading
 
 import grpc
 
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
-from tiktorch.proto import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc, converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
 from tiktorch.server.training import start_model_process
 
 
-_ONE_DAY_IN_SECONDS = 24 * 60 * 60
-
-
-class InferenceServicer(inference_pb2_grpc.InferenceServicer):
-    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager) -> None:
+class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc.FlightControlServicer):
+    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager, *, done_evt=None) -> None:
         self.__device_pool = device_pool
         self.__session_manager = session_manager
+        self.__done_evt = done_evt
 
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
@@ -27,15 +26,32 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
-        # model.on_close(lease.terminate)
-        # handler2inference_conn, inference2handler_conn = mp.Pipe()
-        # self._inference_proc = mp.Process(
-        #     target=inference.run, name="Inference", kwargs={"conn": inference2handler_conn}
-        # )
-        # self._inference_proc.start()
-        # self._inference = create_client(inference.IInference, handler2inference_conn)
-        # self._inference.load_model(request.model_blob).result()
-        return inference_pb2.ModelSession(id=session.id)
+        session.client = client
+        model_info = session.client.get_model_info()
+
+        pb_valid_shapes = []
+        for shape in model_info.valid_shapes:
+            pb_shape = []
+            for tag, size in shape:
+                pb_shape.append(inference_pb2.TensorDim(size=size, name=tag))
+
+            pb_valid_shapes.append(inference_pb2.Shape(dims=pb_shape))
+
+        return inference_pb2.ModelSession(
+            id=session.id,
+            name=model_info.name,
+            inputAxes=model_info.input_axes,
+            outputAxes=model_info.output_axes,
+            validShapes=pb_valid_shapes,
+            halo=[inference_pb2.TensorDim(size=size, name=tag) for tag, size in model_info.halo],
+        )
+
+    def CreateDatasetDescription(
+        self, request: inference_pb2.CreateDatasetDescriptionRequest, context
+    ) -> inference_pb2.DatasetDescription:
+        session = self._getModelSession(context, request.modelSessionId)
+        id = session.client.create_dataset_description(mean=request.mean, stddev=request.stddev)
+        return inference_pb2.DatasetDescription(id=id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
         self.__session_manager.close_session(request.id)
@@ -63,7 +79,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        return inference_pb2.PredictResponse()
+        arr = converters.pb_tensor_to_numpy(request.tensor)
+        res = session.client.forward(arr)
+        return inference_pb2.PredictResponse(tensor=converters.numpy_to_pb_tensor(res))
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:
@@ -76,16 +94,24 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
         return session
 
+    def Ping(self, request: inference_pb2.Empty, context):
+        return inference_pb2.Empty()
+
+    def Shutdown(self, request: inference_pb2.Empty, context):
+        if self.__done_evt:
+            self.__done_evt.set()
+        return inference_pb2.Empty()
+
 
 def serve(host, port):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    session_svc = InferenceServicer(TorchDevicePool(), SessionManager())
+    done_evt = threading.Event()
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=32))
+    session_svc = InferenceServicer(TorchDevicePool(), SessionManager(), done_evt=done_evt)
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
+    inference_pb2_grpc.add_FlightControlServicer_to_server(session_svc, server)
     server.add_insecure_port(f"{host}:{port}")
     server.start()
 
-    try:
-        while True:
-            time.sleep(_ONE_DAY_IN_SECONDS)
-    except KeyboardInterrupt:
-        server.stop(0)
+    done_evt.wait()
+
+    server.stop(0).wait()

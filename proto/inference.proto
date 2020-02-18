@@ -1,9 +1,10 @@
-// The greeting service definition.
 syntax = "proto3";
 
 service Inference {
   rpc CreateModelSession(CreateModelSessionRequest) returns (ModelSession) {}
   rpc CloseModelSession(ModelSession) returns (Empty) {}
+
+  rpc CreateDatasetDescription(CreateDatasetDescriptionRequest) returns (DatasetDescription) {}
 
   rpc GetLogs(Empty) returns (stream LogEntry) {}
 
@@ -12,7 +13,6 @@ service Inference {
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
-// The response message list of available device names
 message Device {
   enum Status {
     AVAILABLE = 0;
@@ -21,6 +21,16 @@ message Device {
 
   string id = 1;
   Status status = 2;
+}
+
+message CreateDatasetDescriptionRequest {
+  string modelSessionId = 1;
+  double mean = 3;
+  double stddev = 4;
+}
+
+message DatasetDescription {
+  string id = 1;
 }
 
 message Blob {
@@ -37,8 +47,18 @@ message CreateModelSessionRequest {
   repeated string deviceIds = 5;
 }
 
+message Shape {
+    repeated TensorDim dims = 1;
+}
+
 message ModelSession {
   string id = 1;
+  string name = 2;
+  string inputAxes = 3;
+  string outputAxes = 4;
+  bool hasTraining = 5;
+  repeated Shape validShapes = 6;
+  repeated TensorDim halo = 7;
 }
 
 message LogEntry {
@@ -74,6 +94,7 @@ message Tensor {
 message PredictRequest {
   string modelSessionId = 1;
   Tensor tensor = 2;
+  string datasetId = 3;
 }
 
 message PredictResponse {
@@ -81,3 +102,9 @@ message PredictResponse {
 }
 
 message Empty {}
+
+
+service FlightControl {
+  rpc Ping(Empty) returns (Empty) {}
+  rpc Shutdown(Empty) returns (Empty) {}
+}
