@@ -300,3 +300,8 @@ class RemoteSSHServerLauncher(IServerLauncher):
             channel.exec_command(cmd)
         except timeout as e:
             raise RuntimeError("Failed to start TiktorchServer")
+
+        try:
+            wait(self.is_server_running)
+        except Timeout:
+            raise Exception("Failed to start local TikTorchServer")
