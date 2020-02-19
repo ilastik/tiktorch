@@ -10,7 +10,8 @@ from typing import Optional
 import grpc
 from paramiko import AutoAddPolicy, SSHClient
 
-from tiktorch.proto import inference_pb2_grpc, inference_pb2
+import inference_pb2_grpc
+import inference_pb2
 from .rpc import Client, Shutdown, TCPConnConf, Timeout
 from .rpc_interface import IFlightControl
 
@@ -298,6 +299,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
                 cmd += " --dummy"
 
             channel.exec_command(cmd)
+
         except timeout as e:
             raise RuntimeError("Failed to start TiktorchServer")
 
