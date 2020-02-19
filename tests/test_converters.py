@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from numpy.testing import assert_array_equal
 
-from tiktorch.proto.converters import numpy_to_pb_tensor, pb_tensor_to_numpy
-from tiktorch.proto import inference_pb2
+from tiktorch.converters import numpy_to_pb_tensor, pb_tensor_to_numpy
+import inference_pb2
 
 
 def _numpy_to_pb_tensor(arr):

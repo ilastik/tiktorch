@@ -3,7 +3,8 @@ import grpc
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from tiktorch.proto import inference_pb2, inference_pb2_grpc, converters
+from tiktorch import converters
+import inference_pb2, inference_pb2_grpc
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
