@@ -6,10 +6,13 @@ import threading
 import grpc
 
 from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
-from tiktorch.proto import inference_pb2, inference_pb2_grpc, converters
+from tiktorch import converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
 from tiktorch.server.training import start_model_process
+
+import inference_pb2
+import inference_pb2_grpc
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc.FlightControlServicer):
