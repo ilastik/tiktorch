@@ -11,7 +11,7 @@ from tiktorch.server.session_manager import SessionManager
 
 @pytest.fixture(scope="module")
 def grpc_add_to_server():
-    from tiktorch.proto.inference_pb2_grpc import add_InferenceServicer_to_server
+    from inference_pb2_grpc import add_InferenceServicer_to_server
 
     return add_InferenceServicer_to_server
 
@@ -25,7 +25,7 @@ def grpc_servicer():
 
 @pytest.fixture(scope="module")
 def grpc_stub_cls(grpc_channel):
-    from tiktorch.proto.inference_pb2_grpc import InferenceStub
+    from inference_pb2_grpc import InferenceStub
 
     return InferenceStub
 
