@@ -43,6 +43,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
             inputAxes=model_info.input_axes,
             outputAxes=model_info.output_axes,
             validShapes=pb_valid_shapes,
+            hasTraining=False,
             halo=[inference_pb2.TensorDim(size=size, name=tag) for tag, size in model_info.halo],
         )
 
@@ -81,7 +82,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
         session = self._getModelSession(context, request.modelSessionId)
         arr = converters.pb_tensor_to_numpy(request.tensor)
         res = session.client.forward(arr)
-        return inference_pb2.PredictResponse(tensor=converters.numpy_to_pb_tensor(res))
+        pb_tensor = converters.numpy_to_pb_tensor(res)
+        return inference_pb2.PredictResponse(tensor=pb_tensor)
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:
