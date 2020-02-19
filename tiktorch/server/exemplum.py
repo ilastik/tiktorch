@@ -118,7 +118,7 @@ class Exemplum:
         batch = self.model(*batch)
         batch = self._output_batch_dimension_transform(batch)
         batch = self._prediction_postprocess(batch)
-        return batch
+        return batch[0]
 
     def set_max_num_iterations(self, max_num_iterations: int) -> None:
         self.max_num_iterations = max_num_iterations
