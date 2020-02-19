@@ -4,30 +4,27 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 from tiktorch import converters
-import inference_pb2, inference_pb2_grpc
+from tiktorch.server import grpc_svc
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
+
+import inference_pb2
+import inference_pb2_grpc
 
 
 @pytest.fixture(scope="module")
 def grpc_add_to_server():
-    from inference_pb2_grpc import add_InferenceServicer_to_server
-
-    return add_InferenceServicer_to_server
+    return inference_pb2_grpc.add_InferenceServicer_to_server
 
 
 @pytest.fixture(scope="module")
 def grpc_servicer():
-    from tiktorch.server import grpc_svc
-
     return grpc_svc.InferenceServicer(TorchDevicePool(), SessionManager())
 
 
 @pytest.fixture(scope="module")
 def grpc_stub_cls(grpc_channel):
-    from inference_pb2_grpc import InferenceStub
-
-    return InferenceStub
+    return inference_pb2_grpc.InferenceStub
 
 
 def valid_model_request(model_bytes, device_ids=None):

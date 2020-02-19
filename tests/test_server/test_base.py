@@ -29,23 +29,6 @@ def test_tiktorch_server_ping(srv):
     assert srv.ping() == b"pong"
 
 
-def test_load_model(srv, nn_sample):
-    srv.load_model(nn_sample.model, nn_sample.state, [])
-    assert "Handler" in srv.active_children()
-
-
-def test_forward(datadir, srv, nn_sample):
-    input_arr = np.load(os.path.join(datadir, "fwd_input.npy"))
-    out_arr = np.load(os.path.join(datadir, "fwd_out.npy"))
-    out_arr.shape = (1, 320, 320)
-
-    srv.load_model(nn_sample.model, nn_sample.state, [])
-
-    res = srv.forward(NDArray(input_arr)).result(timeout=30)
-    res_numpy = res.as_numpy()
-    np.testing.assert_array_almost_equal(res_numpy[0], out_arr, decimal=2)
-
-
 class TestWatchdog:
     class SrvStub:
         def __init__(self):
@@ -86,14 +69,3 @@ class TestWatchdog:
         srv_stub.set_lastping_time(None)
         time.sleep(0.2)
         srv_stub.shutdown.assert_not_called()
-
-    def test_shutdown(self, srv_port, pub_port):
-        conn_conf = ConnConf("zmq", "127.0.0.1", srv_port, pub_port, timeout=2)
-        launcher = LocalServerLauncher(conn_conf)
-        launcher.start(kill_timeout=1, ping_interval=9999)
-
-        assert launcher.is_server_running()
-
-        time.sleep(3)
-
-        assert not launcher.is_server_running()
