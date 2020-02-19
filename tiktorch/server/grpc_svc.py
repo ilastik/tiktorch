@@ -106,8 +106,14 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
 
 
 def serve(host, port):
+    _100_MB = 100 * 1024 * 1024
+
     done_evt = threading.Event()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=32))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=32),
+        options=[("grpc.max_send_message_length", _100_MB), ("grpc.max_receive_message_length", _100_MB)],
+    )
+
     session_svc = InferenceServicer(TorchDevicePool(), SessionManager(), done_evt=done_evt)
     inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
     inference_pb2_grpc.add_FlightControlServicer_to_server(session_svc, server)
