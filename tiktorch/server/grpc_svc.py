@@ -25,12 +25,23 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
         self, request: inference_pb2.CreateModelSessionRequest, context
     ) -> inference_pb2.ModelSession:
         lease = self.__device_pool.lease(request.deviceIds)
-        _, client = start_model_process(model_zip=request.model_blob.content, devices=[d.id for d in lease.devices])
+
+        try:
+            _, client = start_model_process(model_zip=request.model_blob.content, devices=[d.id for d in lease.devices])
+        except Exception:
+            lease.terminate()
+            raise
+
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
         session.client = client
-        model_info = session.client.get_model_info()
+
+        try:
+            model_info = session.client.get_model_info()
+        except Exception:
+            lease.terminate()
+            raise
 
         pb_valid_shapes = []
         for shape in model_info.valid_shapes:

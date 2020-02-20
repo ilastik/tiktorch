@@ -3,6 +3,7 @@ import grpc
 import numpy as np
 from numpy.testing import assert_array_equal
 
+
 from tiktorch import converters
 from tiktorch.server import grpc_svc
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
@@ -63,6 +64,20 @@ class TestDeviceManagement:
         dev_resp = grpc_stub.ListDevices(inference_pb2.Empty())
         device_by_id = {d.id: d for d in dev_resp.devices}
         return device_by_id
+
+    def test_if_model_create_fails_devices_are_released(self, grpc_stub):
+        model_req = inference_pb2.CreateModelSessionRequest(model_blob=inference_pb2.Blob(content=b""), deviceIds=["cpu"])
+
+        model = None
+        with pytest.raises(Exception):
+            model = grpc_stub.CreateModelSession(model_req)
+
+        device_by_id = self._query_devices(grpc_stub)
+        assert "cpu" in device_by_id
+        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
+
+        if model:
+            grpc_stub.CloseModelSession(model)
 
     def test_use_device(self, grpc_stub, pybio_unet_zip):
         device_by_id = self._query_devices(grpc_stub)
