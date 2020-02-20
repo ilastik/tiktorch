@@ -66,7 +66,9 @@ class TestDeviceManagement:
         return device_by_id
 
     def test_if_model_create_fails_devices_are_released(self, grpc_stub):
-        model_req = inference_pb2.CreateModelSessionRequest(model_blob=inference_pb2.Blob(content=b""), deviceIds=["cpu"])
+        model_req = inference_pb2.CreateModelSessionRequest(
+            model_blob=inference_pb2.Blob(content=b""), deviceIds=["cpu"]
+        )
 
         model = None
         with pytest.raises(Exception):
