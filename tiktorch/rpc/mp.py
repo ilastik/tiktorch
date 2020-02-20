@@ -136,15 +136,15 @@ class MPClient:
                     res: Result
                     try:
                         msg = self._conn.recv()
-                    except EOFError:
+                    except Exception as exc:
                         self.logger.warning("Communication channel closed. Shutting Down.")
-                        self._shutdown()
+                        self._shutdown(exc)
                     else:
                         # signal
                         if isinstance(msg, Signal):
                             if msg.payload == b"shutdown":
                                 self.logger.debug("[signal] Shutdown")
-                                self._shutdown()
+                                self._shutdown(Shutdown())
 
                         # method
                         elif isinstance(msg, MethodReturn):
@@ -175,6 +175,9 @@ class MPClient:
 
     def _invoke(self, method_name, *args, **kwargs):
         # request id, method, args, kwargs
+        if self._shutdown_event.is_set():
+            raise Exception("Cannot connect to server")
+
         id_ = self._new_id()
         self.logger.debug("[id:%s] %s call '%s' method", id_, self._name, method_name)
         self._request_by_id[id_] = f = self._make_future()
@@ -183,8 +186,10 @@ class MPClient:
             self._conn.send(MethodCall(id_, method_name, args, kwargs))
         return f
 
-    def _shutdown(self):
+    def _shutdown(self, exc):
         self._shutdown_event.set()
+        for fut in self._request_by_id.values():
+            fut.set_exception(exc)
 
 
 class Message:
