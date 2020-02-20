@@ -1,3 +1,4 @@
+import time
 from typing import Any, Sequence, List
 
 import torch
@@ -112,13 +113,14 @@ class Exemplum:
     #     return TrainingOutput()
 
     def forward(self, batch) -> List[Any]:
-        batch = self._input_batch_dimension_transform(batch)
-        batch = self._prediction_preprocess(batch)
-        batch = [b.to(self.devices[0]) for b in batch]
-        batch = self.model(*batch)
-        batch = self._output_batch_dimension_transform(batch)
-        batch = self._prediction_postprocess(batch)
-        return batch[0]
+        with torch.no_grad():
+            batch = self._input_batch_dimension_transform(batch)
+            batch = self._prediction_preprocess(batch)
+            batch = [b.to(self.devices[0]) for b in batch]
+            batch = self.model(*batch)
+            batch = self._output_batch_dimension_transform(batch)
+            batch = self._prediction_postprocess(batch)
+            return batch[0]
 
     def set_max_num_iterations(self, max_num_iterations: int) -> None:
         self.max_num_iterations = max_num_iterations
