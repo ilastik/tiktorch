@@ -180,7 +180,7 @@ def pybio_unet_zip(datadir):
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode="w") as zip_model:
         for f_path in pybio_net_dir.iterdir():
-            if str(f_path).startswith("__"):
+            if str(f_path.name).startswith("__"):
                 continue
 
             with f_path.open(mode="rb") as f:
@@ -195,7 +195,7 @@ def pybio_dummy_zip(datadir):
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode="w") as zip_model:
         for f_path in pybio_net_dir.iterdir():
-            if str(f_path).startswith("__"):
+            if str(f_path.name).startswith("__"):
                 continue
 
             with f_path.open(mode="rb") as f:
