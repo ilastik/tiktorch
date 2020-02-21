@@ -28,8 +28,6 @@ requirements:
     - numpy >=1.14
     - pyyaml
     - paramiko
-    - pyzmq
-    - zeromq
     - pytorch {{ pytorch_version }}*
     - inferno {{ inferno_version }}*
 

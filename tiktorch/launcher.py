@@ -12,8 +12,6 @@ from paramiko import AutoAddPolicy, SSHClient
 
 import inference_pb2_grpc
 import inference_pb2
-from .rpc import Client, Shutdown, TCPConnConf, Timeout
-from .rpc_interface import IFlightControl
 
 HEARTBEAT_INTERVAL = 10  # seconds
 KILL_TIMEOUT = 60  # seconds
@@ -33,17 +31,6 @@ class ConnConf:
 
     def get_timeout(self):
         return self.timeout
-
-
-class _ZMQClientWrapper:
-    def __init__(self, client):
-        self.__client = client
-
-    def ping(self):
-        return self.__client.ping() == b"pong"
-
-    def shutdown(self):
-        return self.__client.shutdown()
 
 
 class _GRPCClientWrapper:
@@ -69,12 +56,7 @@ class _GRPCClientWrapper:
 
 
 def client_factory(conn_conf: ConnConf):
-    if conn_conf.protocol == "zmq":
-        tcp_conf = TCPConnConf(
-            addr=conn_conf.addr, port=conn_conf.port1, pubsub_port=conn_conf.port2, timeout=conn_conf.timeout
-        )
-        return _ZMQClientWrapper(Client(IFlightControl(), tcp_conf))
-    elif conn_conf.protocol == "grpc":
+    if conn_conf.protocol == "grpc":
         return _GRPCClientWrapper(f"{conn_conf.addr}:{conn_conf.port1}")
 
     raise ValueError("Unknown protocol {protocol}")
