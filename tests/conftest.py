@@ -1,6 +1,7 @@
 import faulthandler
 import logging.handlers
 import multiprocessing as mp
+import os
 import pathlib
 import pickle
 import io
@@ -179,6 +180,9 @@ def pybio_unet_zip(datadir):
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode="w") as zip_model:
         for f_path in pybio_net_dir.iterdir():
+            if str(f_path.name).startswith("__"):
+                continue
+
             with f_path.open(mode="rb") as f:
                 zip_model.writestr(f_path.name, f.read())
 
@@ -191,7 +195,15 @@ def pybio_dummy_zip(datadir):
     data = io.BytesIO()
     with zipfile.ZipFile(data, mode="w") as zip_model:
         for f_path in pybio_net_dir.iterdir():
+            if str(f_path.name).startswith("__"):
+                continue
+
             with f_path.open(mode="rb") as f:
                 zip_model.writestr(f_path.name, f.read())
 
     return data
+
+
+@pytest.fixture
+def cache_path(tmp_path):
+    return pathlib.Path(os.getenv("PYBIO_CACHE_PATH", tmp_path))

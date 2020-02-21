@@ -26,4 +26,4 @@ dependencies:
   - bump2version
   - pip:
       - pytest-grpc==0.7.0
-      - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio # version with nodes
+      - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio # bump

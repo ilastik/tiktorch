@@ -43,8 +43,11 @@ class Supervisor:
 
     def forward(self, input_tensor):
         torch_input = torch.from_numpy(input_tensor)
-        torch_result = self._model.forward(torch_input)
-        return torch_result.detach().numpy()
+        result = self._model.forward(torch_input)
+        if isinstance(result, torch.Tensor):
+            return result.detach().cpu().numpy()
+        else:
+            return result
 
     def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
         free_devs = self._devices.update(devices)

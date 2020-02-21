@@ -37,9 +37,4 @@ outputs:
         #halo: [0, 0, 32, 32]   # Should be moved to outputs
 
 prediction:
-    preprocess: null
-    weights:
-        source: https://zenodo.org/record/3446812/files/unet2d_weights.torch
-        hash: {md5: TODO}
-    postprocess: null
     dependencies: conda:./environment.yaml

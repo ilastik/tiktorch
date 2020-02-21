@@ -15,8 +15,8 @@ framework: pytorch
 source: unet2d.py::UNet2d
 optional_kwargs: {input_channels: 1, output_channels: 1}
 
-test_input: null # ../test_input.npy
-test_output: null # ../test_output.npy
+test_input: test_ipt.npy
+test_output: test_out.npy
 thumbnail: null # ./nuclei_thumbnail.png
 
 # TODO double check inputs/outputs
@@ -25,22 +25,30 @@ inputs:
     axes: bcyx
     data_type: float32
     data_range: [-inf, inf]
-    shape: [1, 1, 128, 128]
+    shape: [1, 1, 512, 512]
+
 outputs:
-  - name: output
+  - name: logits
     axes: bcyx
     data_type: float32
-    data_range: [0, 1]
+    data_range: [-inf, inf]
+    halo: [0, 0, 32, 32]
     shape:
         reference_input: input   # FIXME(m-novikov) ignoring for now
         scale: [1, 1, 1, 1]
         offset: [0, 0, 0, 0]
-        #halo: [0, 0, 32, 32]   # Should be moved to outputs
 
 prediction:
-    preprocess: null
+    preprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureTorch.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Cast.transformation.yaml
+          kwargs: {dtype: float32}
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+          kwargs: {apply_to: [0]}
     weights:
         source: https://zenodo.org/record/3446812/files/unet2d_weights.torch
         hash: {md5: TODO}
-    postprocess: null
+    postprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Sigmoid.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureNumpy.transformation.yaml
     dependencies: conda:./environment.yaml

@@ -1,3 +1,6 @@
+import numpy
+import pytest
+
 from tiktorch.utils_client import read_model
 
 

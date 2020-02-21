@@ -1,5 +1,9 @@
+import itertools
 import logging
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Sequence, Tuple, Union
+
+import numpy
+import torch
 
 from tiktorch.configkeys import CONFIG, LOSS_CRITERION_CONFIG, MINIMAL_CONFIG, TRAINING
 from tiktorch.types import Point, SetDeviceReturnType
