@@ -27,6 +27,7 @@ requirements:
     - grpcio=1.16.0
     - protobuf=3.11.4
     - paramiko
+    - pyyaml
 
 test:
   imports:
