@@ -9,6 +9,7 @@ from typing import Optional
 
 import grpc
 from paramiko import AutoAddPolicy, SSHClient
+from tiktorch.rpc import Timeout
 
 import inference_pb2_grpc
 import inference_pb2
@@ -22,11 +23,9 @@ class AlreadyRunningError(Exception):
 
 
 class ConnConf:
-    def __init__(self, proto, addr, port1, port2, timeout):
-        self.protocol = proto
+    def __init__(self, addr, port, timeout):
         self.addr = addr
-        self.port1 = port1
-        self.port2 = port2
+        self.port = port
         self.timeout = timeout
 
     def get_timeout(self):
@@ -56,10 +55,7 @@ class _GRPCClientWrapper:
 
 
 def client_factory(conn_conf: ConnConf):
-    if conn_conf.protocol == "grpc":
-        return _GRPCClientWrapper(f"{conn_conf.addr}:{conn_conf.port1}")
-
-    raise ValueError("Unknown protocol {protocol}")
+    return _GRPCClientWrapper(f"{conn_conf.addr}:{conn_conf.port}")
 
 
 class IServerLauncher:
@@ -156,7 +152,7 @@ class LocalServerLauncher(IServerLauncher):
         self._path = path
 
     def _start_server(self, dummy: bool, kill_timeout: int):
-        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port1, self._conn_conf.port2
+        addr, port = self._conn_conf.addr, self._conn_conf.port
 
         if addr != "127.0.0.1":
             raise ValueError("LocalServerHandler only possible to run on localhost")
@@ -171,19 +167,7 @@ class LocalServerLauncher(IServerLauncher):
         else:
             script = [sys.executable, "-m", "tiktorch.server"]
 
-        cmd = [
-            *script,
-            "--port",
-            str(port),
-            "--notify-port",
-            str(notify_port),
-            "--addr",
-            addr,
-            "--rpc-proto",
-            self._conn_conf.protocol,
-            "--kill-timeout",
-            str(kill_timeout),
-        ]
+        cmd = [*script, "--port", str(port), "--addr", addr, "--kill-timeout", str(kill_timeout)]
         if dummy:
             cmd.append("--dummy")
 
@@ -224,7 +208,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         if self._channel:
             raise RuntimeError("SSH server is already running")
 
-        addr, port, notify_port = self._conn_conf.addr, self._conn_conf.port1, self._conn_conf.port2
+        addr, port = self._conn_conf.addr, self._conn_conf.port
 
         ssh_params = {
             "hostname": addr,
@@ -273,12 +257,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
         self._channel = channel
 
         try:
-            cmd = (
-                f"{self._path} --addr {addr} --port {port} --notify-port {notify_port} "
-                f"--kill-timeout {kill_timeout} --rpc-proto {self._conn_conf.protocol}"
-            )
-            if dummy:
-                cmd += " --dummy"
+            cmd = f"{self._path} --addr {addr} --port {port} --kill-timeout {kill_timeout}"
 
             channel.exec_command(cmd)
 
