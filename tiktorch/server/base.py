@@ -19,14 +19,12 @@ def main():
     parsey = argparse.ArgumentParser()
     parsey.add_argument("--addr", type=str, default="127.0.0.1")
     parsey.add_argument("--port", type=str, default="29500")
-    parsey.add_argument("--notify-port", type=str, default="29501")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
     parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
-    parsey.add_argument("--rpc-proto", choices=["grpc"], default="grpc")
 
     args = parsey.parse_args()
-    print(f"Starting {args.rpc_proto} server on {args.addr}:{args.port}")
+    print(f"Starting server on {args.addr}:{args.port}")
 
     from . import grpc_svc
 
