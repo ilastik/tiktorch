@@ -1,0 +1,44 @@
+package:
+  name: python-bioimage-io
+  version: 0.1
+
+source:
+  git_url: https://github.com/bioimage-io/python-bioimage-io
+  git_rev: 67e2a060122d208c7ddd3f2908187b6b96716149
+
+build:
+  noarch: python
+  number: 0
+  script: "{{ PYTHON }} -m pip install --no-deps --ignore-installed ."
+
+requirements:
+  host:
+    - python
+    - pip
+    - setuptools_scm
+  run:
+    - python
+    - scikit-learn
+    - requests
+    - marshmallow >=3.4,<3.5
+    - git
+    - pyyaml
+    - dataclasses >=0.6  # [py<37]
+
+test:
+  imports:
+    - pybio.spec
+
+about:
+  home: https://github.com/bioimage-io/python-bioimage-io
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: 'Tools for parsing pybio model specification'
+
+  doc_url: https://github.com/bioimage-io/python-bioimage-io
+  dev_url: https://github.com/bioimage-io/python-bioimage-io
+
+extra:
+  recipe-maintainers:
+    - m-novikov

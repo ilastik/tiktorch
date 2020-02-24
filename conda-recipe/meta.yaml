@@ -16,7 +16,8 @@ build:
   number: {{ GIT_DESCRIBE_NUMBER }}
   script: python -m pip install --no-deps --ignore-installed .
   string: np{{CONDA_NPY}}py{{CONDA_PY}}_{{PKG_BUILDNUM}}_h{{PKG_HASH}}_g{{GIT_FULL_HASH[:7]}}
-
+  entrypoints:
+    - tiktorch-server = tiktorch.server.base:main
 
 requirements:
   build:
@@ -26,12 +27,13 @@ requirements:
     - h5py
     - python >=3.7
     - numpy >=1.14
+    - python-bioimage-io
+    - pytorch-bioimage-io
     - pyyaml
     - paramiko
-    - pytorch {{ pytorch_version }}*
-    - inferno {{ inferno_version }}*
-
+    - inferno
 
 test:
   imports:
-    - tiktorch
+    - tiktorch.server.base
+    - tiktorch.server.training
