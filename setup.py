@@ -25,7 +25,15 @@ setup(
         "Programming Language :: Python :: 3.7",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
-    install_requires=["inferno-pytorch", "paramiko", "numpy", "pyyaml", "torch"],
+    install_requires=[
+        "inferno-pytorch",
+        "paramiko",
+        "numpy",
+        "pyyaml",
+        "torch",
+        "pybio.core @ git+ssh://git@github.com/m-novikov/python-bioimage-io#egg=pybio.core",
+        "pybio.torch @ git+ssh://git@github.com/m-novikov/pytorch-bioimage-io#egg=pybio.torch",
+    ],
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional
