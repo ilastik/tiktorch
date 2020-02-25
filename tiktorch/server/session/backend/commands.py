@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import itertools
-import typing
 import queue
 import threading
+import typing
 from dataclasses import dataclass, field
 
-from torch.utils.data import DataLoader
-
 from . import types
+from ..exemplum import Exemplum
 
 if typing.TYPE_CHECKING:
-    from .base import TrainingWorker
-    from tiktorch.server.trainer import TikTrainer
-    from tiktorch.server.datasets import DynamicDataset
+    from .worker import SessionBackend
+    # from tiktorch.server.trainer import TikTrainer
+    # from tiktorch.server.datasets import DynamicDataset
 
 
 __all__ = [
@@ -34,7 +33,7 @@ class Context:
     Contains modifiable entities as attributes
     """
 
-    def __init__(self, *, worker: TrainingWorker, trainer: TikTrainer) -> None:
+    def __init__(self, *, worker: SessionBackend, trainer: Exemplum) -> None:
         self.worker = worker
         self.trainer = trainer
 

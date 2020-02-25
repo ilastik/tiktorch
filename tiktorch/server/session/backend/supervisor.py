@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import torch
-import queue
 import logging
-import threading
-from typing import List, TYPE_CHECKING
+import queue
+from typing import List
 
-from . import types, commands
+import torch
 
-if TYPE_CHECKING:
-    from .trainer import TikTrainer
+from tiktorch.server.session import commands, types
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +76,13 @@ class Supervisor:
                     logger.exception("Exception during idle callback")
 
     def run(self):
-        logger.info("Starting training worker")
+        logger.info("Starting session worker")
         try:
             self._run()
         except Exception:
-            logger.exception("Uncaught exception in training worker")
+            logger.exception("Uncaught exception in session worker")
         finally:
-            logger.info("Stopped training worker")
+            logger.info("Stopped session worker")
 
     def _run(self):
         self._set_state(types.State.Paused)
@@ -122,11 +119,11 @@ class Supervisor:
                 pass
 
     def _train(self):
-        logger.info("Start training for %d iterations", self._model.max_num_iterations - self._model.iteration_count)
+        logger.info("Start session for %d iterations", self._model.max_num_iterations - self._model.iteration_count)
         try:
             self._model.fit()
         except Exception as e:
-            logger.error("Exception during training fit. Pausing...", exc_info=True)
+            logger.error("Exception during session fit. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
             self.send_command(commands.PauseCmd())
 

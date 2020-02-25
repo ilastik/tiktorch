@@ -1,23 +1,13 @@
-import torch
-import pytest
-import zipfile
-import time
-import queue
 import threading
-from torch import multiprocessing as mp
-from unittest import mock
+import time
 from concurrent.futures import Future
+
 import numpy as np
+import pytest
 import torch
 
-from tests.data.tiny_models import TinyConvNet2d
-from tiktorch.rpc.mp import MPClient, Shutdown, create_client
-from tiktorch.server.training import ITraining
-from tiktorch.server.training.base import TrainingProcess, ModelProcess, ConfigBuilder, run
-from tiktorch.server import training
-from tiktorch.server.training.worker.base import Supervisor
-from tiktorch.server.training.worker import commands, State
-from tiktorch import configkeys as confkeys
+from tiktorch.server.session import State, commands
+from tiktorch.server.session.supervisor import Supervisor
 
 
 class TestTrainingWorkerSupervisor:
@@ -142,39 +132,3 @@ class TestTrainingWorkerSupervisor:
         forward_cmd = commands.ForwardPass(fut, np.array([1]))
         worker.send_command(forward_cmd)
         assert 42 == fut.result(timeout=0.5)
-
-
-class TestConfigBuilder:
-    @pytest.mark.parametrize(
-        "key,expected_default,provided_value",
-        [
-            (confkeys.NUM_ITERATIONS_MAX, 0, 100),
-            (confkeys.NUM_ITERATIONS_PER_UPDATE, 1, 4),
-            (confkeys.OPTIMIZER_CONFIG, {"method": "Adam"}, {"method": "Adagrad"}),
-        ],
-    )
-    def test_config_defauts(self, key, expected_default, provided_value):
-        config = ConfigBuilder.build({"training": {}})
-
-        assert expected_default == config[key]
-
-        config = ConfigBuilder.build({"training": {key: provided_value}})
-        assert provided_value == config[key]
-
-    def test_config_with_default_loss(self):
-        config = ConfigBuilder.build({"training": {}})
-
-        loss_conf = config.get("criterion_config")
-        assert loss_conf
-        assert isinstance(loss_conf["method"].criterion, torch.nn.MSELoss)
-
-    def test_config_with_specified_loss(self):
-        config = ConfigBuilder.build({"training": {confkeys.LOSS_CRITERION_CONFIG: {"method": "CrossEntropyLoss"}}})
-        loss_conf = config.get("criterion_config")
-        assert loss_conf
-        assert isinstance(loss_conf["method"].criterion, torch.nn.CrossEntropyLoss)
-
-
-def test_model_proc_init(pybio_unet_zip):
-    tp = ModelProcess(pybio_unet_zip.getvalue(), devices=["cpu"])
-    tp.shutdown()

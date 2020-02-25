@@ -41,7 +41,7 @@ class TestTrainy(unittest.TestCase):
 
     def test_train(self):
         logger = logging.getLogger("test_train")
-        # Start training
+        # Start session
         mock_data = [np.random.uniform(size=(1, 320, 320)).astype("float32") for _ in range(3)]
         mock_label = [np.random.randint(0, 2, size=(1, 320, 320)).astype("float32") for _ in range(3)]
         logger.info(f"Starting Training")

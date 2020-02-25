@@ -1,7 +1,7 @@
 #############
 # version 0.0
 #############
-TRAINING = "training"
+TRAINING = "session"
 VALIDATION = "validation"
 TESTING = "testing"
 DRY_RUN = "dry_run"
@@ -18,7 +18,7 @@ TRANSFORMS = "transforms"
 # inference
 INFERENCE_BATCH_SIZE = "inference_batch_size"
 
-# training
+# session
 BATCH_SIZE = "batch_size"
 TRAINING_SHAPE = "training_shape"  # e.g.  'tczyx', 'zyxc', or 'cxy' (without batch_size)
 TRAINING_SHAPE_LOWER_BOUND = "training_shape_lower_bound"  # same conventions as for TRAINING_SHAPE

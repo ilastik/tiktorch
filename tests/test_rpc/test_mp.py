@@ -2,14 +2,13 @@ import multiprocessing as mp
 import queue
 import threading
 import time
-from collections import namedtuple
 from concurrent.futures import CancelledError, Future, TimeoutError
 
 import pytest
 
 from tiktorch import log
 from tiktorch.rpc import RPCFuture, RPCInterface, Shutdown, exposed
-from tiktorch.rpc.mp import FutureStore, MPClient, MPServer, create_client
+from tiktorch.rpc.mp import FutureStore, MPServer, create_client
 
 
 class ITestApi(RPCInterface):

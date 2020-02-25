@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import typing
-import threading
 import logging
+import threading
+import typing
 from concurrent.futures import Future
+from typing import List
 
-from . import base, commands, types
 from tiktorch.configkeys import TRAINING, VALIDATION
+from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.server.session import commands, supervisor, types
 
 if typing.TYPE_CHECKING:
     import torch
@@ -15,9 +17,9 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TrainingWorker:
-    def __init__(self, trainer):
-        self._supervisor = base.Supervisor(trainer)
+class SessionBackend:
+    def __init__(self, exemplum):
+        self._supervisor = supervisor.Supervisor(exemplum)
         self._supervisor_thread = threading.Thread(target=self._supervisor.run, name="ModelThread")
         self._supervisor_thread.start()
 
@@ -56,7 +58,7 @@ class TrainingWorker:
     def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
         """
         set devices to train on. This request blocks until previous devices are free.
-        :param devices: devices to use for training
+        :param devices: devices to use for session
         """
         set_dev_cmd = commands.SetDevicesCmd(devices)
         self._supervisor.send_command(set_dev_cmd.awaitable)
@@ -71,5 +73,5 @@ class TrainingWorker:
     def get_idle(self) -> bool:
         return self._supervisor.state == types.State.Paused
 
-    def on_idle(self, callback: typing.Callable[[], []]) -> None:
+    def on_idle(self, callback: typing.Callable[[], None]) -> None:
         self._supervisor.on_idle(callback)

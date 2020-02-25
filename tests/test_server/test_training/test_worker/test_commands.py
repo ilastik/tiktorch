@@ -1,7 +1,7 @@
 import pytest
 
 from unittest import mock
-from tiktorch.server.training.worker import commands as cmds
+from tiktorch.server.session import commands as cmds
 from concurrent.futures import Future
 
 

@@ -192,7 +192,7 @@ class TikTorchSpec(object):
         description: str
             description of the pre-trained mode, optional
         data_source: str
-            url to data used for pre-training, optional
+            url to data used for pre-session, optional
         """
         self.code_path = code_path
         self.model_class_name = model_class_name

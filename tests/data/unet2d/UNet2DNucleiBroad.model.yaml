@@ -41,15 +41,15 @@ outputs:
 
 prediction:
     preprocess:
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureTorch.transformation.yaml
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Cast.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/EnsureTorch.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/Cast.transformation.yaml
           kwargs: {dtype: float32}
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
           kwargs: {apply_to: [0]}
     weights:
         source: https://zenodo.org/record/3446812/files/unet2d_weights.torch
         hash: {md5: TODO}
     postprocess:
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/Sigmoid.transformation.yaml
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/8959dab1236a72593613a5c89ea973c2f5612aea/specs/transformations/EnsureNumpy.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/Sigmoid.transformation.yaml
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/EnsureNumpy.transformation.yaml
     dependencies: conda:./environment.yaml
