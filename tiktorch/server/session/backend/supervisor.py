@@ -6,7 +6,8 @@ from typing import List
 
 import torch
 
-from tiktorch.server.session import commands, types
+from tiktorch.server.session import types
+from tiktorch.server.session.backend import commands
 
 logger = logging.getLogger(__name__)
 

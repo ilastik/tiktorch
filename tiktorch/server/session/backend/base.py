@@ -8,7 +8,8 @@ from typing import List
 
 from tiktorch.configkeys import TRAINING, VALIDATION
 from tiktorch.tiktypes import TikTensorBatch
-from tiktorch.server.session import commands, supervisor, types
+from tiktorch.server.session import types
+from tiktorch.server.session.backend import commands, supervisor
 
 if typing.TYPE_CHECKING:
     import torch

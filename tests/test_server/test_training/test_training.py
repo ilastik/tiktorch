@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 import torch
 
-from tiktorch.server.session import State, commands
-from tiktorch.server.session.supervisor import Supervisor
+from tiktorch.server.session import State
+from tiktorch.server.session.backend import commands
+from tiktorch.server.session.backend.supervisor import Supervisor
 
 
 class TestTrainingWorkerSupervisor:

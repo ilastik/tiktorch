@@ -93,7 +93,7 @@ def pybio_model_bytes(data_path):
     return data
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def pybio_model_zipfile(pybio_model_bytes):
     with ZipFile(pybio_model_bytes, mode="r") as zf:
         yield zf

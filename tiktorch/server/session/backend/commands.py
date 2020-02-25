@@ -6,11 +6,11 @@ import threading
 import typing
 from dataclasses import dataclass, field
 
-from . import types
-from ..exemplum import Exemplum
+from tiktorch.server.session import types
+from tiktorch.server.exemplum import Exemplum
 
 if typing.TYPE_CHECKING:
-    from .worker import SessionBackend
+    from tiktorch.server.session.backend.base import SessionBackend
     # from tiktorch.server.trainer import TikTrainer
     # from tiktorch.server.datasets import DynamicDataset
 
