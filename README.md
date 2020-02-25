@@ -1,36 +1,26 @@
 # tiktorch
-[![CircleCI](https://circleci.com/gh/ilastik/tiktorch.svg?style=svg)](https://circleci.com/gh/ilastik/tiktorch)
+[![CircleCI](https://circleci.com/gh/ilastik/tiktorch.svg?style=shield)](https://circleci.com/gh/ilastik/tiktorch)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Wrappers for Pytorch
+## Installation
+To install tiktorch and start server run:
+```
+conda create -n tiktorch-server-env -c ilastik-forge -c conda-forge -c pytorch tiktorch
 
-## tiktorch specification
+conda activate tiktorch-server-env
 
-Models saved for tiktorch must follow this specification:
+tiktorch-server
+```
 
-A folder containing the files
+## Development environment
 
-- `model.py`: python file that defines the model.
-- `state.nn`: state dict of the model, as obtained by `torch.save(model.state_dict(), 'state.nn')`
-- `tiktorch_config.yml`: yaml file with metadata
+To create development environment run:
 
-The config must contain the following keys:
+```
+conda env create --name tiktorch-env --file ./environment.yml
+```
 
-- `input_shape`: shape of valid network input, must be either CHW (2D) or CDHW (3D)
-- `output_shape`: shape of network output given input with `input_shape`; same format
-- `dynamic_input_shape`: TODO explain
-- `model_class_name`: name of the model class in `model.py`
-- `model_init_kwargs`: keyword arguments to build model
-- `torch_version`: torch version used to train this model
-
-In addition, the config may contain the following keys:
-
-- `description`: Description of the pre-trained model
-- `data_source`: URL of the data used for pre-training
-
-TODO explain how to generate with tiktorch.
-
-Possible extensions:
-
-- specification for training set-up
-- specifiying additional python modules necessary to run the model
-- load model saved via `torch.save(model, path)` instead of state dict
+Run tests:
+```
+pytest
+```

@@ -23,6 +23,7 @@ dependencies:
   - conda-build
   - anaconda-client
   - bump2version
+  - pre_commit
   - pip:
       - pytest-grpc==0.7.0
       - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio # bump
