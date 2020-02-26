@@ -32,11 +32,11 @@ class TestExemplumSupervisor:
         def set_max_num_iterations(self, val):
             self.max_num_iterations = val
 
-        def stop_fitting(self, max_num_iterations=None, max_num_epochs=None):
+        def stop_training(self, max_num_iterations=None, max_num_epochs=None):
             return self._break_cb and self._break_cb() or self.iteration_count >= self.max_num_iterations
 
-        def fit(self):
-            while not self.stop_fitting():
+        def train(self):
+            while not self.stop_training():
                 self.iteration_count += 1
                 time.sleep(0.01)
 
@@ -77,53 +77,44 @@ class TestExemplumSupervisor:
         cmd = commands.ResumeCmd()
         supervisor.send_command(cmd)
 
-        add_work = commands.SetMaxNumIterations(1000).awaitable
+        add_work = commands.SetMaxNumIterations(2).awaitable
         supervisor.send_command(add_work)
         add_work.wait()
 
-        # assert State.Idle == worker.state
-        #
-        # add_device = commands.SetDevicesCmd([torch.device("cpu")]).awaitable
-        # worker.send_command(add_device)
-        #
-        # add_device.wait()
-
-        assert State.Running == supervisor.state
-
-        # remove_device = commands.SetDevicesCmd([])
-        # awaitable_remove = remove_device.awaitable
-        # worker.send_command(awaitable_remove)
-        # awaitable_remove.wait()
-        # assert [torch.device("cpu")] == remove_device.result
-        #
-        # assert State.Idle == worker.state
+        assert supervisor.state == State.Running
 
     def test_exception_during_train_should_transition_to_paused(self, supervisor, worker_thread, exemplum):
-        fit_called = threading.Event()
+        train_called = threading.Event()
 
         def _exc():
-            fit_called.set()
+            train_called.set()
             raise Exception()
 
-        exemplum.fit = _exc
+        exemplum.train = _exc
 
         cmd = commands.ResumeCmd()
         supervisor.send_command(cmd)
 
-        add_work = commands.SetMaxNumIterations(1000).awaitable
+        add_work = commands.SetMaxNumIterations(2).awaitable
         supervisor.send_command(add_work)
         add_work.wait()
 
-        assert State.Idle == supervisor.state
-
-        assert not fit_called.is_set()
-        add_device = commands.SetDevicesCmd([torch.device("cpu")]).awaitable
-        supervisor.send_command(add_device)
-        add_device.wait()
-
-        fit_called.wait()
+        assert supervisor.state == State.Running
+        assert train_called.is_set()
+        train_called.wait()
         time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
-        assert State.Paused == supervisor.state
+        assert supervisor.state == State.Paused
+
+    def test_finished_training_should_transition_to_paused(self, supervisor, worker_thread, exemplum):
+        cmd = commands.ResumeCmd()
+        supervisor.send_command(cmd)
+
+        add_work = commands.SetMaxNumIterations(2).awaitable
+        supervisor.send_command(add_work)
+        add_work.wait()
+        assert supervisor.state == State.Running
+        time.sleep(0.1)  # FIXME: Find a better way to wait for pause event with timeout
+        assert supervisor.state == State.Idle
 
     def test_forward(self, supervisor, worker_thread, exemplum):
         fut = Future()

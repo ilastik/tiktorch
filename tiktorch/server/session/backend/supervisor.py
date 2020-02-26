@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 import queue
-from typing import List
 
 import torch
-from tiktorch.server.exemplum import Exemplum
 
+from tiktorch.server.exemplum import Exemplum
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
 
@@ -20,7 +19,6 @@ class Supervisor:
         self._command_queue = commands.CommandPriorityQueue()
         self._exemplum = exemplum
         self._exemplum.set_break_callback(self.has_commands)
-        self._devices = types.Devices()
         self._idle_callbacks = []
 
     def send_command(self, cmd: commands.ICommand) -> None:
@@ -115,22 +113,26 @@ class Supervisor:
                 pass
 
     def _train(self):
-        logger.info("Start session for %d iterations", self._exemplum.max_num_iterations - self._exemplum.iteration_count)
+        logger.info(
+            "Start session for %d iterations", self._exemplum.max_num_iterations - self._exemplum.iteration_count
+        )
         try:
-            self._exemplum.fit()
+            self._exemplum.train()
         except Exception as e:
-            logger.error("Exception during session fit. Pausing...", exc_info=True)
+            logger.error("Exception during session training. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
             self.send_command(commands.PauseCmd())
 
+        self._update_state()
+
     def _update_state(self):
         if self._state == types.State.Running:
-            should_idle = not (self._devices and self.has_work())
+            should_idle = not self.has_work()
             if should_idle:
                 self._set_state(types.State.Idle)
 
         elif self._state == types.State.Idle:
-            should_run = self._devices and self.has_work()
+            should_run = self.has_work()
             if should_run:
                 self._set_state(types.State.Running)
 
