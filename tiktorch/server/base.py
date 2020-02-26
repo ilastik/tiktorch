@@ -18,7 +18,7 @@ def main():
 
     parsey = argparse.ArgumentParser()
     parsey.add_argument("--addr", type=str, default="127.0.0.1")
-    parsey.add_argument("--port", type=str, default="29500")
+    parsey.add_argument("--port", type=str, default="5567")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
     parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
