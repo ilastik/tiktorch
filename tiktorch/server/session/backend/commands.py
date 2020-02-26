@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import queue
 import threading
 import typing
 from dataclasses import dataclass, field
 
 from tiktorch.server.session import types
-from tiktorch.server.exemplum import Exemplum
 
 if typing.TYPE_CHECKING:
-    from tiktorch.server.session.backend.base import SessionBackend
-    # from tiktorch.server.trainer import TikTrainer
+    from tiktorch.server.session.backend.supervisor import Supervisor
+
     # from tiktorch.server.datasets import DynamicDataset
 
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "ICommand",
@@ -21,9 +23,8 @@ __all__ = [
     "PauseCmd",
     "ResumeCmd",
     "StopCmd",
-    "SetDevicesCmd",
     "UpdateDatasetCmd",
-    "SetMaxNumberOfIterations",
+    "SetMaxNumIterations",
 ]
 
 
@@ -33,9 +34,8 @@ class Context:
     Contains modifiable entities as attributes
     """
 
-    def __init__(self, *, worker: SessionBackend, trainer: Exemplum) -> None:
-        self.worker = worker
-        self.trainer = trainer
+    def __init__(self, *, supervisor: Supervisor) -> None:
+        self.session = supervisor
 
 
 class ICommand:
@@ -72,27 +72,17 @@ class AwaitableCommand(ICommand):
 
 class PauseCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(types.State.Paused)
+        ctx.session.transition_to(types.State.Paused)
 
 
 class ResumeCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(types.State.Running)
+        ctx.session.transition_to(types.State.Running)
 
 
 class StopCmd(ICommand):
     def execute(self, ctx: Context) -> None:
-        ctx.worker.transition_to(types.State.Stopped)
-
-
-class SetDevicesCmd(ICommand):
-    def __init__(self, devices):
-        self._devices = devices
-
-        self.result = None
-
-    def execute(self, ctx: Context) -> None:
-        self.result = ctx.worker.set_devices(self._devices)
+        ctx.session.transition_to(types.State.Stopped)
 
 
 class UpdateDatasetCmd(ICommand):
@@ -102,16 +92,17 @@ class UpdateDatasetCmd(ICommand):
         self._labels = labels
 
     def execute(self, ctx: Context) -> None:
-        dataset = ctx.trainer.get_dataset(self._name)
-        dataset.update(self._raw_data, self._labels)
+        logger.warning("Not Implemented")
+        # dataset = ctx.exemplum.get_dataset(self._name)
+        # dataset.update(self._raw_data, self._labels)
 
 
-class SetMaxNumberOfIterations(ICommand):
+class SetMaxNumIterations(ICommand):
     def __init__(self, num_iterations: int) -> None:
         self._num_iterations = num_iterations
 
     def execute(self, ctx: Context) -> None:
-        ctx.worker.set_max_num_iterations(self._num_iterations)
+        ctx.session.set_max_num_iterations(self._num_iterations)
 
 
 class ForwardPass(ICommand):
@@ -121,7 +112,7 @@ class ForwardPass(ICommand):
 
     def execute(self, ctx: Context) -> None:
         try:
-            self._future.set_result(ctx.worker.forward(self._input_tensor))
+            self._future.set_result(ctx.session.forward(self._input_tensor))
         except Exception as e:
             self._future.set_exception(e)
 

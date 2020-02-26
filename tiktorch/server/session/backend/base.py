@@ -4,22 +4,18 @@ import logging
 import threading
 import typing
 from concurrent.futures import Future
-from typing import List
 
 from tiktorch.configkeys import TRAINING, VALIDATION
-from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.server.exemplum import Exemplum
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands, supervisor
-
-if typing.TYPE_CHECKING:
-    import torch
-
+from tiktorch.tiktypes import TikTensorBatch
 
 logger = logging.getLogger(__name__)
 
 
 class SessionBackend:
-    def __init__(self, exemplum):
+    def __init__(self, exemplum: Exemplum):
         self._supervisor = supervisor.Supervisor(exemplum)
         self._supervisor_thread = threading.Thread(target=self._supervisor.run, name="ModelThread")
         self._supervisor_thread.start()
@@ -29,8 +25,8 @@ class SessionBackend:
         update_cmd = commands.UpdateDatasetCmd(name, raw_data=data, labels=labels)
         self._supervisor.send_command(update_cmd)
 
-    def set_max_number_of_iterations(self, num: int) -> None:
-        self._supervisor.send_command(commands.SetMaxNumberOfIterations(num))
+    def set_max_num_iterations(self, num: int) -> None:
+        self._supervisor.send_command(commands.SetMaxNumIterations(num))
 
     def forward(self, input_tensor):
         res = Future()
@@ -55,21 +51,6 @@ class SessionBackend:
 
     def pause_training(self) -> None:
         self._supervisor.send_command(commands.PauseCmd())
-
-    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
-        """
-        set devices to train on. This request blocks until previous devices are free.
-        :param devices: devices to use for session
-        """
-        set_dev_cmd = commands.SetDevicesCmd(devices)
-        self._supervisor.send_command(set_dev_cmd.awaitable)
-        set_dev_cmd.awaitable.wait()
-
-        if set_dev_cmd.result is None:
-            logger.error("Failed to set devices")
-            return []
-
-        return set_dev_cmd.result
 
     def get_idle(self) -> bool:
         return self._supervisor.state == types.State.Paused

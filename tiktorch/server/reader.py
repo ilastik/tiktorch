@@ -6,7 +6,7 @@ from zipfile import ZipFile
 import torch
 
 from pybio import spec
-from pybio.spec.utils import get_training_instance
+from pybio.spec.utils import train
 from tiktorch.server.exemplum import Exemplum
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
@@ -34,6 +34,6 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
         if pybio_model.spec.training is None:
             return Exemplum(pybio_model=pybio_model, _devices=devices)
         else:
-            ret = get_training_instance(pybio_model, _devices=devices)
+            ret = train(pybio_model, _devices=devices)
             assert isinstance(ret, Exemplum)
             return ret

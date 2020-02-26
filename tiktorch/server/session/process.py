@@ -87,7 +87,7 @@ def _run_model_session_process(
 
 def start_model_session_process(
     model_zip: bytes, devices: List[str], log_queue: Optional[_mp.Queue] = None
-) -> Tuple[_mp.Process, ISession]:
+) -> Tuple[_mp.Process, IRPCModelSession]:
     client_conn, server_conn = _mp.Pipe()
     proc = _mp.Process(
         target=_run_model_session_process,
@@ -95,4 +95,4 @@ def start_model_session_process(
         kwargs={"conn": server_conn, "devices": devices, "log_queue": log_queue, "model_zip": model_zip},
     )
     proc.start()
-    return proc, _mp_rpc.create_client(ISession, client_conn)
+    return proc, _mp_rpc.create_client(IRPCModelSession, client_conn)

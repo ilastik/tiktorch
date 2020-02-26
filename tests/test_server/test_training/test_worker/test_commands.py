@@ -38,7 +38,7 @@ class TestForwardPassCmd:
         fut = Future()
 
         cmd = cmds.ForwardPass(fut, [1])
-        ctx = cmds.Context(worker=mock.Mock(), trainer=mock.Mock())
+        ctx = cmds.Context(supervisor=mock.Mock())
         cmd.execute(ctx)
 
         assert fut.result(timeout=0)
@@ -47,10 +47,10 @@ class TestForwardPassCmd:
 
         fut = Future()
         cmd = cmds.ForwardPass(fut, [1])
-        worker = mock.Mock()
-        worker.forward.side_effect = self.FailException("fail")
+        supervisor = mock.Mock()
+        supervisor.forward.side_effect = self.FailException("fail")
 
-        ctx = cmds.Context(worker=worker, trainer=mock.Mock())
+        ctx = cmds.Context(supervisor=supervisor)
         cmd.execute(ctx)
 
         with pytest.raises(self.FailException):

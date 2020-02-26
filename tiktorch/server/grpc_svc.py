@@ -6,7 +6,7 @@ import grpc
 
 from tiktorch import converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
-from tiktorch.server.session.manager import SessionManager, ISession
+from tiktorch.server.session_manager import SessionManager, ISession
 from tiktorch.server.session.process import start_model_session_process
 
 import inference_pb2

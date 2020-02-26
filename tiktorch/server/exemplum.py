@@ -1,5 +1,5 @@
-import time
-from typing import Any, Sequence, List
+import logging
+from typing import Any, List, Sequence
 
 import torch
 
@@ -7,7 +7,7 @@ from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
-
+logger = logging.getLogger(__name__)
 # @dataclass
 # class ValidationOutput(IterationOutput):
 #     pass

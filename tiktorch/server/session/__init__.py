@@ -1,3 +1,3 @@
-from .rpc_interface import ISession
+from .rpc_interface import IRPCModelSession
 from .types import State
 

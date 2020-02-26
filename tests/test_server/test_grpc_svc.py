@@ -7,7 +7,7 @@ from numpy.testing import assert_array_equal
 from tiktorch import converters
 from tiktorch.server import grpc_svc
 from tiktorch.server.device_pool import TorchDevicePool
-from tiktorch.server.session.manager import SessionManager
+from tiktorch.server.session_manager import SessionManager
 
 import inference_pb2
 import inference_pb2_grpc
