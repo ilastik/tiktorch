@@ -16,7 +16,7 @@ dependencies:
   - pyyaml=5.3
   - marshmallow=3.4.0
   - pytest=4.3.0
-  - grpcio=1.16.0
+  - grpcio>=1.16.1
   - protobuf=3.11.4
   - black
   - isort
