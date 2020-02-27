@@ -7,6 +7,7 @@ authors:
   - Constantin Pape;@bioimage-io
 documentation: UNet2DNucleiBroad.md
 tags: [unet2d, pytorch, nucleus-segmentation]
+license: MIT
 
 format_version: 0.1.0
 language: python
@@ -17,7 +18,6 @@ optional_kwargs: {input_channels: 1, output_channels: 1}
 
 test_input: test_ipt.npy
 test_output: test_out.npy
-thumbnail: null # ./nuclei_thumbnail.png
 
 # TODO double check inputs/outputs
 inputs:
