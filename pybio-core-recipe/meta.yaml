@@ -4,11 +4,11 @@ package:
 
 source:
   git_url: https://github.com/bioimage-io/python-bioimage-io
-  git_rev: 67e2a060122d208c7ddd3f2908187b6b96716149
+  git_rev: a245ef34018ce9f0f1b4ca8c0965efc4ca8c75f8
 
 build:
   noarch: python
-  number: 0
+  number: 1
   script: "{{ PYTHON }} -m pip install --no-deps --ignore-installed ."
 
 requirements:
