@@ -38,4 +38,4 @@ requirements:
 test:
   imports:
     - tiktorch.server.base
-    - tiktorch.server.training
+    - tiktorch.server.session
