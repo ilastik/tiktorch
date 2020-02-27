@@ -1,10 +1,10 @@
 package:
   name: pytorch-bioimage-io
-  version: 0.1
+  version: 0.1.1
 
 source:
   git_url: https://github.com/bioimage-io/pytorch-bioimage-io
-  git_rev: 1309f87e6557b96395ab167215458a1caafe5637
+  git_rev: v0.1.1
 
 build:
   number: 1
