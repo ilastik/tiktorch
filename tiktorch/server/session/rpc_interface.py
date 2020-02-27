@@ -1,17 +1,11 @@
 from typing import List
 
-import torch
-
-from tiktorch.rpc import RPCInterface, RPCFuture, exposed, Shutdown
+from tiktorch.rpc import RPCInterface, Shutdown, exposed
 from tiktorch.tiktypes import TikTensorBatch
 from tiktorch.types import ModelState
 
 
-class ITraining(RPCInterface):
-    @exposed
-    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
-        raise NotImplementedError
-
+class IRPCModelSession(RPCInterface):
     @exposed
     def shutdown(self) -> Shutdown:
         raise NotImplementedError
@@ -42,10 +36,6 @@ class ITraining(RPCInterface):
 
     @exposed
     def remove_data(self, name: str, ids: List[str]) -> None:
-        raise NotImplementedError
-
-    @exposed
-    def wait_for_idle(self) -> RPCFuture:
         raise NotImplementedError
 
     @exposed

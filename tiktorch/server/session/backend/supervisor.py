@@ -1,27 +1,24 @@
 from __future__ import annotations
 
-import torch
-import queue
 import logging
-import threading
-from typing import List, TYPE_CHECKING
+import queue
 
-from . import types, commands
+import torch
 
-if TYPE_CHECKING:
-    from .trainer import TikTrainer
+from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.session import types
+from tiktorch.server.session.backend import commands
 
 logger = logging.getLogger(__name__)
 
 
 class Supervisor:
-    def __init__(self, model) -> None:
+    def __init__(self, exemplum: Exemplum) -> None:
         self._state = types.State.Stopped
 
         self._command_queue = commands.CommandPriorityQueue()
-        self._model = model
-        self._model.set_break_callback(self.has_commands)
-        self._devices = types.Devices()
+        self._exemplum = exemplum
+        self._exemplum.set_break_callback(self.has_commands)
         self._idle_callbacks = []
 
     def send_command(self, cmd: commands.ICommand) -> None:
@@ -39,21 +36,15 @@ class Supervisor:
         return not self._command_queue.empty()
 
     def has_work(self):
-        return self._model.max_num_iterations and self._model.max_num_iterations > self._model.iteration_count
+        return self._exemplum.max_num_iterations and self._exemplum.max_num_iterations > self._exemplum.iteration_count
 
     def forward(self, input_tensor):
         torch_input = torch.from_numpy(input_tensor)
-        result = self._model.forward(torch_input)
+        result = self._exemplum.forward(torch_input)
         if isinstance(result, torch.Tensor):
             return result.detach().cpu().numpy()
         else:
             return result
-
-    def set_devices(self, devices: List[torch.device]) -> List[torch.device]:
-        free_devs = self._devices.update(devices)
-        self._model.move_to(self._devices)
-        self._update_state()
-        return free_devs
 
     def transition_to(self, new_state: types.State) -> None:
         logger.debug("Attempting transition to state %s", new_state)
@@ -61,7 +52,7 @@ class Supervisor:
         self._update_state()
 
     def set_max_num_iterations(self, num: int):
-        self._model.set_max_num_iterations(num)
+        self._exemplum.set_max_num_iterations(num)
         self._update_state()
 
     def on_idle(self, callback):
@@ -79,13 +70,13 @@ class Supervisor:
                     logger.exception("Exception during idle callback")
 
     def run(self):
-        logger.info("Starting training worker")
+        logger.info("Starting session worker")
         try:
             self._run()
         except Exception:
-            logger.exception("Uncaught exception in training worker")
+            logger.exception("Uncaught exception in session worker")
         finally:
-            logger.info("Stopped training worker")
+            logger.info("Stopped session worker")
 
     def _run(self):
         self._set_state(types.State.Paused)
@@ -109,7 +100,7 @@ class Supervisor:
             try:
                 cmd = self._command_queue.get_nowait()
                 logger.debug("Executing %s", cmd)
-                ctx = commands.Context(worker=self, trainer=self._model)
+                ctx = commands.Context(supervisor=self)
 
                 try:
                     cmd.execute(ctx)
@@ -122,22 +113,26 @@ class Supervisor:
                 pass
 
     def _train(self):
-        logger.info("Start training for %d iterations", self._model.max_num_iterations - self._model.iteration_count)
+        logger.info(
+            "Start session for %d iterations", self._exemplum.max_num_iterations - self._exemplum.iteration_count
+        )
         try:
-            self._model.fit()
+            self._exemplum.train()
         except Exception as e:
-            logger.error("Exception during training fit. Pausing...", exc_info=True)
+            logger.error("Exception during session training. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
             self.send_command(commands.PauseCmd())
 
+        self._update_state()
+
     def _update_state(self):
         if self._state == types.State.Running:
-            should_idle = not (self._devices and self.has_work())
+            should_idle = not self.has_work()
             if should_idle:
                 self._set_state(types.State.Idle)
 
         elif self._state == types.State.Idle:
-            should_run = self._devices and self.has_work()
+            should_run = self.has_work()
             if should_run:
                 self._set_state(types.State.Running)
 

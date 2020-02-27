@@ -7,6 +7,7 @@ authors:
   - ilastik team
 documentation: dummy.md
 tags: [pytorch, nucleus-segmentation]
+license: MIT
 
 format_version: 0.1.0
 language: python
@@ -16,7 +17,6 @@ source: dummy.py::Dummy
 
 test_input: null # ../test_input.npy
 test_output: null # ../test_output.npy
-thumbnail: null # ./nuclei_thumbnail.png
 
 # TODO double check inputs/outputs
 inputs:

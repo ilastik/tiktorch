@@ -55,13 +55,13 @@ class DummyServerForFrontendDev(INeuralNetworkAPI, IFlightControl):
         return fut
 
     def pause_training(self) -> None:
-        logger.info("pause training")
+        logger.info("pause session")
 
     def resume_training(self) -> None:
-        logger.info("resume training")
+        logger.info("resume session")
 
     def update_training_data(self, data: LabeledNDArrayBatch) -> None:
-        logger.info("update training data with batch of length %d", len(data))
+        logger.info("update session data with batch of length %d", len(data))
 
     def update_validation_data(self, data: LabeledNDArrayBatch) -> None:
         logger.info("update validation data with batch of length %d", len(data))

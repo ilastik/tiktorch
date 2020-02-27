@@ -7,10 +7,9 @@ from pybio.spec import load_spec_and_kwargs
 from tiktorch.server.exemplum import Exemplum
 
 
-def test_exemplum(datadir, cache_path):
-
-    spec_path = Path(datadir) / "unet2d/UNet2DNucleiBroad.model.yaml"
-    assert spec_path.exists()
+def test_exemplum(data_path, cache_path):
+    spec_path = data_path / "unet2d/UNet2DNucleiBroad.model.yaml"
+    assert spec_path.exists(), spec_path.absolute()
     pybio_model = load_spec_and_kwargs(str(spec_path), cache_path=cache_path)
 
     exemplum = Exemplum(pybio_model=pybio_model, _devices=[torch.device("cpu")])

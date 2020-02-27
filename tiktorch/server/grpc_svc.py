@@ -1,15 +1,13 @@
 import time
 from concurrent import futures
-import multiprocessing as mp
 import threading
 
 import grpc
 
-from tiktorch.rpc.mp import MPClient, MPServer, Shutdown, create_client
 from tiktorch import converters
 from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
 from tiktorch.server.session_manager import SessionManager, ISession
-from tiktorch.server.training import start_model_process
+from tiktorch.server.session.process import start_model_session_process
 
 import inference_pb2
 import inference_pb2_grpc
@@ -27,7 +25,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
         lease = self.__device_pool.lease(request.deviceIds)
 
         try:
-            _, client = start_model_process(model_zip=request.model_blob.content, devices=[d.id for d in lease.devices])
+            _, client = start_model_session_process(
+                model_zip=request.model_blob.content, devices=[d.id for d in lease.devices]
+            )
         except Exception:
             lease.terminate()
             raise

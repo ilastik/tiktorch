@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal
 
 from tiktorch import converters
 from tiktorch.server import grpc_svc
-from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
+from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
 import inference_pb2
@@ -40,8 +40,8 @@ class TestModelManagement:
         method_name, req = request.param
         return getattr(grpc_stub, method_name), req
 
-    def test_model_session_creation(self, grpc_stub, pybio_unet_zip):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip))
+    def test_model_session_creation(self, grpc_stub, pybio_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes))
         assert model.id
         grpc_stub.CloseModelSession(model)
 
@@ -81,12 +81,12 @@ class TestDeviceManagement:
         if model:
             grpc_stub.CloseModelSession(model)
 
-    def test_use_device(self, grpc_stub, pybio_unet_zip):
+    def test_use_device(self, grpc_stub, pybio_model_bytes):
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
         assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
 
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip, device_ids=["cpu"]))
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes, device_ids=["cpu"]))
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
@@ -94,15 +94,15 @@ class TestDeviceManagement:
 
         grpc_stub.CloseModelSession(model)
 
-    def test_using_same_device_fails(self, grpc_stub, pybio_unet_zip):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip, device_ids=["cpu"]))
+    def test_using_same_device_fails(self, grpc_stub, pybio_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes, device_ids=["cpu"]))
         with pytest.raises(grpc.RpcError) as e:
-            model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip, device_ids=["cpu"]))
+            model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes, device_ids=["cpu"]))
 
         grpc_stub.CloseModelSession(model)
 
-    def test_closing_session_releases_devices(self, grpc_stub, pybio_unet_zip):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip, device_ids=["cpu"]))
+    def test_closing_session_releases_devices(self, grpc_stub, pybio_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes, device_ids=["cpu"]))
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
@@ -116,8 +116,8 @@ class TestDeviceManagement:
 
 
 class TestGetLogs:
-    def test_returns_ack_message(self, pybio_unet_zip, grpc_stub):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_unet_zip))
+    def test_returns_ack_message(self, pybio_model_bytes, grpc_stub):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes))
         resp = grpc_stub.GetLogs(inference_pb2.Empty())
         record = next(resp)
         assert inference_pb2.LogEntry.Level.INFO == record.level
@@ -132,8 +132,8 @@ class TestForwardPass:
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
         assert "model-session with id myid1 doesn't exist" in e.value.details()
 
-    def test_call_predict(self, grpc_stub, pybio_dummy_zip):
-        model = grpc_stub.CreateModelSession(valid_model_request(pybio_dummy_zip))
+    def test_call_predict(self, grpc_stub, pybio_dummy_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(pybio_dummy_model_bytes))
 
         arr = np.arange(32 * 32).reshape(1, 1, 32, 32)
         expected = arr + 1
