@@ -99,9 +99,8 @@ class TestExemplumSupervisor:
         supervisor.send_command(add_work)
         add_work.wait()
 
-        assert supervisor.state == State.Running
-        assert train_called.is_set()
         train_called.wait()
+        assert supervisor.state == State.Running
         time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
         assert supervisor.state == State.Paused
 
