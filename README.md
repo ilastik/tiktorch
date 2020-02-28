@@ -1,6 +1,7 @@
 # tiktorch
 [![CircleCI](https://circleci.com/gh/ilastik/tiktorch.svg?style=shield)](https://circleci.com/gh/ilastik/tiktorch)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Conda](https://anaconda.org/ilastik-forge/tiktorch/badges/version.svg)](https://anaconda.org/ilastik-forge/tiktorch)
 
 ## Installation
 To install tiktorch and start server run:
