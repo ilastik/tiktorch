@@ -35,6 +35,15 @@ requirements:
     - paramiko
     - inferno
 
+about:
+  home: https://github.com/ilastik/tiktorch
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: 'Neural network server'
+  doc_url: https://github.com/ilastik/tiktorch
+  dev_url: https://github.com/ilastik/tiktorch
+
 test:
   imports:
     - tiktorch.server.base
