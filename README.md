@@ -19,6 +19,8 @@ To create development environment run:
 
 ```
 conda env create --name tiktorch-env --file ./environment.yml
+
+conda develop .
 ```
 Then run sever:
 
