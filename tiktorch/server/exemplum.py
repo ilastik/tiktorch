@@ -21,8 +21,8 @@ def _noop(tensor):
     return tensor
 
 
-def _remove_batch_dim(tensor):
-    return tensor.reshape(tensor.shape[1:])
+def _remove_batch_dim(batch: List):
+    return [t.reshape(t.shape[1:]) for t in batch]
 
 
 def _add_batch_dim(tensor):
@@ -118,8 +118,9 @@ class Exemplum:
             batch = self._prediction_preprocess(batch)
             batch = [b.to(self.devices[0]) for b in batch]
             batch = self.model(*batch)
-            batch = self._output_batch_dimension_transform(batch)
             batch = self._prediction_postprocess(batch)
+            batch = self._output_batch_dimension_transform(batch)
+            assert all([bs > 0 for bs in batch[0].shape]), batch[0].shape
             return batch[0]
 
     def set_max_num_iterations(self, max_num_iterations: int) -> None:
