@@ -24,7 +24,7 @@ requirements:
   run:
     - python >=3.7
     - numpy >=1.14
-    - grpcio>=1.16.0
+    - grpcio >=1.23
     - protobuf=3.11.4
     - paramiko
     - pyyaml
