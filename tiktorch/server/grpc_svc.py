@@ -125,7 +125,11 @@ def serve(host, port):
     done_evt = threading.Event()
     server = grpc.server(
         futures.ThreadPoolExecutor(max_workers=32),
-        options=[("grpc.max_send_message_length", _100_MB), ("grpc.max_receive_message_length", _100_MB)],
+        options=[
+            ("grpc.max_send_message_length", _100_MB),
+            ("grpc.max_receive_message_length", _100_MB),
+            ("grpc.so_reuseport", 0),
+        ],
     )
 
     session_svc = InferenceServicer(TorchDevicePool(), SessionManager(), done_evt=done_evt)
