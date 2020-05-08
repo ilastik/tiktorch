@@ -12,6 +12,8 @@ from pathlib import Path
 from random import randint
 from zipfile import ZipFile
 
+import numpy as np
+
 import pytest
 
 TEST_DATA = "data"
@@ -101,6 +103,22 @@ def pybio_model_zipfile(pybio_model_bytes):
 
 
 @pytest.fixture
+def pybio_dummy_model_filepath(data_path, tmpdir):
+    pybio_net_dir = Path(data_path) / TEST_PYBIO_DUMMY
+    path = tmpdir / "dummy_model.zip"
+
+    with ZipFile(path, mode="w") as zip_model:
+        for f_path in pybio_net_dir.iterdir():
+            if str(f_path.name).startswith("__"):
+                continue
+
+            with f_path.open(mode="rb") as f:
+                zip_model.writestr(f_path.name, f.read())
+
+    return path
+
+
+@pytest.fixture
 def pybio_dummy_model_bytes(data_path):
     pybio_net_dir = Path(data_path) / TEST_PYBIO_DUMMY
     data = io.BytesIO()
@@ -141,6 +159,14 @@ def archive(directory):
 def pybio_dummy_tensorflow_model_bytes(data_path):
     pybio_net_dir = Path(data_path) / TEST_PYBIO_TENSORFLOW_DUMMY
     return archive(pybio_net_dir)
+
+
+@pytest.fixture
+def npy_zeros_file(tmpdir):
+    path = str(tmpdir / "zeros.npy")
+    zeros = np.zeros(shape=(64, 64))
+    np.save(path, zeros)
+    return path
 
 
 @pytest.fixture
