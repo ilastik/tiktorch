@@ -8,9 +8,8 @@ import numpy as np
 from . import reader
 
 
-
 parser = argparse.ArgumentParser()
-parser.add_argument("-m", "--model",  help="bioimage model zip", required=True)
+parser.add_argument("-m", "--model", help="bioimage model zip", required=True)
 parser.add_argument("image", nargs="?", help="image to process")
 parser.add_argument("-o", "--output", nargs="?", help="image to process", required=True)
 
