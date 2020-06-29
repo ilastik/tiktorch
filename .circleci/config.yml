@@ -116,6 +116,7 @@ jobs:
             ./scripts/conda_build.sh pybio-core-recipe
             ./scripts/conda_build.sh pybio-torch-recipe
             ./scripts/conda_build.sh conda-recipe
+            ./scripts/conda_build.sh conda-recipe-cpu
 
 
 workflows:
