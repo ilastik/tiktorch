@@ -18,12 +18,14 @@ dependencies:
   - pytest=4.3.0
   - grpcio=1.23
   - protobuf=3.11.4
+  - cudatoolkit>=9.0,<9.1
   - black
   - isort
   - conda-build
   - anaconda-client
   - bump2version
   - pre_commit
+  - scikit-learn
   - pip:
       - pytest-grpc==0.7.0
       - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio # bump again

@@ -34,6 +34,8 @@ requirements:
     - pyyaml
     - paramiko
     - inferno
+    - cudatoolkit >=9.0,<9.1
+    - scikit-learn
 
 about:
   home: https://github.com/ilastik/tiktorch
