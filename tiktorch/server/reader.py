@@ -1,5 +1,7 @@
+import logging
+import shutil
+import tempfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
@@ -10,6 +12,7 @@ from pybio.spec.utils import train
 from tiktorch.server.exemplum import Exemplum
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
+logger = logging.getLogger(__name__)
 
 
 def guess_model_path(file_names: List[str]) -> Optional[str]:
@@ -21,19 +24,24 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
 
 
 def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None):
-    with TemporaryDirectory() as tempdir:
-        temp_path = Path(tempdir)
-        if cache_path is None:
-            cache_path = temp_path / "cache"
+    temp_path = Path(tempfile.mkdtemp(prefix="tiktorch"))
+    if cache_path is None:
+        cache_path = temp_path / "cache"
 
-        model_zip.extractall(temp_path)
-        spec_file_str = guess_model_path([str(file_name) for file_name in temp_path.glob("*")])
-        pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
+    model_zip.extractall(temp_path)
+    spec_file_str = guess_model_path([str(file_name) for file_name in temp_path.glob("*")])
+    pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
 
-        devices = [torch.device(d) for d in devices]
-        if pybio_model.spec.training is None:
-            return Exemplum(pybio_model=pybio_model, _devices=devices)
-        else:
-            ret = train(pybio_model, _devices=devices)
-            assert isinstance(ret, Exemplum)
-            return ret
+    devices = [torch.device(d) for d in devices]
+    if pybio_model.spec.training is None:
+        return Exemplum(pybio_model=pybio_model, _devices=devices)
+    else:
+        ret = train(pybio_model, _devices=devices)
+        assert isinstance(ret, Exemplum)
+
+    def _on_errror(function, path, exc_info):
+        logger.warning("Failed to delete temp directory %s", path)
+
+    shutil.rmtree(temp_path, on_error=_on_errror)
+
+    return ret
