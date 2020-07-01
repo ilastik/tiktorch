@@ -18,7 +18,7 @@ dependencies:
   - pytest=4.3.0
   - grpcio=1.23
   - protobuf=3.11.4
-  - cudatoolkit>=10.2,<11
+  - cudatoolkit>=10.1,<11
   - black
   - isort
   - conda-build
