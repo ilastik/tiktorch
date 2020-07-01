@@ -34,7 +34,7 @@ requirements:
     - pyyaml
     - paramiko
     - inferno
-    - cudatoolkit >=9.0,<9.1
+    - cudatoolkit >=10.2,<11
     - scikit-learn
 
 about:
