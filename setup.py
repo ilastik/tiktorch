@@ -21,7 +21,6 @@ setup(
     classifiers=[  # Optional
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
