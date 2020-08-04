@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\"!\n\x05Shape\x12\x18\n\x04\x64ims\x18\x01 \x03(\x0b\x32\n.TensorDim\"\x9b\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x01(\t\x12\x12\n\noutputAxes\x18\x04 \x01(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12\x1b\n\x0bvalidShapes\x18\x06 \x03(\x0b\x32\x06.Shape\x12\x18\n\x04halo\x18\x07 \x03(\x0b\x32\n.TensorDim\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"T\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x17\n\x06tensor\x18\x02 \x01(\x0b\x32\x07.Tensor\x12\x11\n\tdatasetId\x18\x03 \x01(\t\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"\x9f\x01\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x18\n\x10totalMemoryBytes\x18\x04 \x01(\x04\x12\x1c\n\x14\x61llocatedMemoryBytes\x18\x05 \x01(\x04\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\"!\n\x05Shape\x12\x18\n\x04\x64ims\x18\x01 \x03(\x0b\x32\n.TensorDim\"\x9b\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x01(\t\x12\x12\n\noutputAxes\x18\x04 \x01(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12\x1b\n\x0bvalidShapes\x18\x06 \x03(\x0b\x32\x06.Shape\x12\x18\n\x04halo\x18\x07 \x03(\x0b\x32\n.TensorDim\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"4\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\x12\x0f\n\x07hasCuda\x18\x02 \x01(\x08\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"T\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x17\n\x06tensor\x18\x02 \x01(\x0b\x32\x07.Tensor\x12\x11\n\tdatasetId\x18\x03 \x01(\t\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
 )
 
 
@@ -41,8 +41,8 @@ _DEVICE_STATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=73,
-  serialized_end=108,
+  serialized_start=144,
+  serialized_end=179,
 )
 _sym_db.RegisterEnumDescriptor(_DEVICE_STATUS)
 
@@ -79,8 +79,8 @@ _LOGENTRY_LEVEL = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=655,
-  serialized_end=733,
+  serialized_start=726,
+  serialized_end=804,
 )
 _sym_db.RegisterEnumDescriptor(_LOGENTRY_LEVEL)
 
@@ -106,6 +106,27 @@ _DEVICE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='name', full_name='Device.name', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='totalMemoryBytes', full_name='Device.totalMemoryBytes', index=3,
+      number=4, type=4, cpp_type=4, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='allocatedMemoryBytes', full_name='Device.allocatedMemoryBytes', index=4,
+      number=5, type=4, cpp_type=4, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -119,8 +140,8 @@ _DEVICE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=19,
-  serialized_end=108,
+  serialized_start=20,
+  serialized_end=179,
 )
 
 
@@ -164,8 +185,8 @@ _CREATEDATASETDESCRIPTIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=110,
-  serialized_end=197,
+  serialized_start=181,
+  serialized_end=268,
 )
 
 
@@ -195,8 +216,8 @@ _DATASETDESCRIPTION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=199,
-  serialized_end=231,
+  serialized_start=270,
+  serialized_end=302,
 )
 
 
@@ -233,8 +254,8 @@ _BLOB = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=233,
-  serialized_end=272,
+  serialized_start=304,
+  serialized_end=343,
 )
 
 
@@ -281,8 +302,8 @@ _CREATEMODELSESSIONREQUEST = _descriptor.Descriptor(
       name='model', full_name='CreateModelSessionRequest.model',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=274,
-  serialized_end=379,
+  serialized_start=345,
+  serialized_end=450,
 )
 
 
@@ -312,8 +333,8 @@ _SHAPE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=381,
-  serialized_end=414,
+  serialized_start=452,
+  serialized_end=485,
 )
 
 
@@ -385,8 +406,8 @@ _MODELSESSION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=417,
-  serialized_end=572,
+  serialized_start=488,
+  serialized_end=643,
 )
 
 
@@ -431,8 +452,8 @@ _LOGENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=575,
-  serialized_end=733,
+  serialized_start=646,
+  serialized_end=804,
 )
 
 
@@ -450,6 +471,13 @@ _DEVICES = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='hasCuda', full_name='Devices.hasCuda', index=1,
+      number=2, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -462,8 +490,8 @@ _DEVICES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=735,
-  serialized_end=770,
+  serialized_start=806,
+  serialized_end=858,
 )
 
 
@@ -500,8 +528,8 @@ _TENSORDIM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=772,
-  serialized_end=811,
+  serialized_start=860,
+  serialized_end=899,
 )
 
 
@@ -545,8 +573,8 @@ _TENSOR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=813,
-  serialized_end=879,
+  serialized_start=901,
+  serialized_end=967,
 )
 
 
@@ -590,8 +618,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=881,
-  serialized_end=965,
+  serialized_start=969,
+  serialized_end=1053,
 )
 
 
@@ -621,8 +649,8 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=967,
-  serialized_end=1009,
+  serialized_start=1055,
+  serialized_end=1097,
 )
 
 
@@ -645,8 +673,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1011,
-  serialized_end=1018,
+  serialized_start=1099,
+  serialized_end=1106,
 )
 
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
@@ -789,8 +817,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=1021,
-  serialized_end=1347,
+  serialized_start=1109,
+  serialized_end=1435,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateModelSession',
@@ -858,8 +886,8 @@ _FLIGHTCONTROL = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=1,
   serialized_options=None,
-  serialized_start=1349,
-  serialized_end=1420,
+  serialized_start=1437,
+  serialized_end=1508,
   methods=[
   _descriptor.MethodDescriptor(
     name='Ping',

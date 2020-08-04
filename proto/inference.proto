@@ -21,6 +21,9 @@ message Device {
 
   string id = 1;
   Status status = 2;
+  string name = 3;
+  uint64 totalMemoryBytes = 4;
+  uint64 allocatedMemoryBytes = 5;
 }
 
 message CreateDatasetDescriptionRequest {
@@ -78,6 +81,7 @@ message LogEntry {
 
 message Devices {
   repeated Device devices = 1;
+  bool hasCuda = 2;
 }
 
 message TensorDim {
