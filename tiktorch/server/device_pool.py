@@ -1,12 +1,12 @@
 from __future__ import annotations
+
 import abc
-import uuid
-
-from typing import Dict, List
-from collections import defaultdict
-
-import threading
 import enum
+import threading
+import uuid
+from collections import defaultdict
+from typing import Dict, List
+
 import torch
 
 

@@ -2,10 +2,10 @@ import logging
 from typing import List
 
 import torch
+from pybio.core.samplers.base import PyBioSampler
 from torch.utils.data import Sampler
 from torch.utils.data.dataset import Dataset
 
-from pybio.core.samplers.base import PyBioSampler
 from tiktorch.tiktypes import TikTensorBatch
 
 logger = logging.getLogger(__name__)

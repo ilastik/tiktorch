@@ -1,13 +1,13 @@
+import threading
 import time
 from concurrent import futures
-import threading
 
 import grpc
 
 from tiktorch import converters
-from tiktorch.server.device_pool import IDevicePool, TorchDevicePool, DeviceStatus
-from tiktorch.server.session_manager import SessionManager, ISession
+from tiktorch.server.device_pool import DeviceStatus, IDevicePool, TorchDevicePool
 from tiktorch.server.session.process import start_model_session_process
+from tiktorch.server.session_manager import ISession, SessionManager
 
 import inference_pb2
 import inference_pb2_grpc

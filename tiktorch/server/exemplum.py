@@ -2,7 +2,6 @@ import logging
 from typing import Any, List, Sequence
 
 import torch
-
 from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance

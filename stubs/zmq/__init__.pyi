@@ -1,4 +1,4 @@
-from typing import Optional, Union, Iterable
+from typing import Iterable, Optional, Union
 
 bytes_t = bytes
 
