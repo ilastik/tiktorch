@@ -1,7 +1,6 @@
 import dataclasses
 import io
 import multiprocessing as _mp
-import multiprocessing as mp
 import os
 import uuid
 import zipfile
@@ -13,9 +12,11 @@ from typing import List, Optional, Tuple
 import numpy
 
 from tiktorch import log
-from tiktorch.rpc import Shutdown, mp as _mp_rpc
+from tiktorch.rpc import Shutdown
+from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
 from tiktorch.server.reader import eval_model_zip
+
 from .backend import base
 from .rpc_interface import IRPCModelSession
 
@@ -66,7 +67,7 @@ class ModelSessionProcess(IRPCModelSession):
 
 
 def _run_model_session_process(
-    conn: Connection, model_zip: bytes, devices: List[str], log_queue: Optional[mp.Queue] = None
+    conn: Connection, model_zip: bytes, devices: List[str], log_queue: Optional[_mp.Queue] = None
 ):
     try:
         # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667

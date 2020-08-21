@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import abc
 import threading
-
-from typing import Callable, Dict, List, Optional
-from uuid import uuid4
 from collections import defaultdict
 from logging import getLogger
+from typing import Callable, Dict, List, Optional
+from uuid import uuid4
 
 logger = getLogger(__name__)
 

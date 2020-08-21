@@ -1,8 +1,9 @@
+from concurrent.futures import Future
+from unittest import mock
+
 import pytest
 
-from unittest import mock
 from tiktorch.server.session.backend import commands as cmds
-from concurrent.futures import Future
 
 
 class TestCommandQueue:

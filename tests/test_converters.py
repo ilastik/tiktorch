@@ -3,6 +3,7 @@ import pytest
 from numpy.testing import assert_array_equal
 
 from tiktorch.converters import numpy_to_pb_tensor, pb_tensor_to_numpy
+
 import inference_pb2
 
 

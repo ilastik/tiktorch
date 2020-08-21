@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from tiktorch.launcher import LocalServerLauncher, RemoteSSHServerLauncher, SSHCred, wait, ConnConf, client_factory
+from tiktorch.launcher import ConnConf, LocalServerLauncher, RemoteSSHServerLauncher, SSHCred, client_factory, wait
 
 SSH_HOST_VAR = "TEST_SSH_HOST"
 SSH_PORT_VAR = "TEST_SSH_PORT"

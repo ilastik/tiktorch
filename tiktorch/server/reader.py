@@ -6,9 +6,9 @@ from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
 import torch
-
 from pybio import spec
 from pybio.spec.utils import train
+
 from tiktorch.server.exemplum import Exemplum
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
