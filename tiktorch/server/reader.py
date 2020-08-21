@@ -29,7 +29,13 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
         cache_path = temp_path / "cache"
 
     model_zip.extractall(temp_path)
+
     spec_file_str = guess_model_path([str(file_name) for file_name in temp_path.glob("*")])
+    if not spec_file_str:
+        raise Exception(
+            "Model config file not found, make sure that .model.yaml file in the root of your model archive"
+        )
+
     pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
 
     devices = [torch.device(d) for d in devices]
