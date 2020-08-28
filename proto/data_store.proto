@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+service DataStore {
+  rpc Upload(stream UploadRequest) returns (UploadResponse) {}
+  rpc Remove(RemoveRequest) returns (RemoveResponse) {}
+}
+
+message UploadResponse {
+  string id = 1;
+  uint32 size = 2;
+  string sha256 = 3;
+}
+
+message UploadInfo {
+  uint32 size = 1;
+}
+
+message UploadRequest {
+  oneof payload {
+    UploadInfo info = 1;
+    bytes content = 2;
+  }
+}
+
+message RemoveRequest {
+  string uploadId = 1;
+}
+
+message RemoveResponse {}
