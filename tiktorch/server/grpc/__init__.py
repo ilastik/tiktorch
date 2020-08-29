@@ -5,11 +5,14 @@ import grpc
 
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
+from tiktorch.server.data_store import DataStore
 
 from .inference_servicer import InferenceServicer
 from .flight_control_servicer import FlightControlServicer
+from .data_store_servicer import DataStoreServicer
 
 import inference_pb2_grpc
+import data_store_pb2_grpc
 
 
 def serve(host, port):
@@ -25,10 +28,15 @@ def serve(host, port):
         ],
     )
 
+    data_store = DataStore()
+
     inference_svc = InferenceServicer(TorchDevicePool(), SessionManager())
-    fligh_svc = FlightControlServicer(done_evt)
+    fligh_svc = FlightControlServicer(done_evt=done_evt)
+    data_svc = DataStoreServicer(data_store)
+
     inference_pb2_grpc.add_InferenceServicer_to_server(inference_svc, server)
     inference_pb2_grpc.add_FlightControlServicer_to_server(fligh_svc, server)
+    data_store_pb2_grpc.add_DataStoreServicer_to_server(data_svc, server)
     server.add_insecure_port(f"{host}:{port}")
     server.start()
 

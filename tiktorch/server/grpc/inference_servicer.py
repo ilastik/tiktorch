@@ -6,24 +6,35 @@ from tiktorch import converters
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool, TorchDevicePool
 from tiktorch.server.session.process import start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
+from tiktorch.server.data_store import IDataStore
 
 import inference_pb2
 import inference_pb2_grpc
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
-    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager) -> None:
+    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager, data_store: IDataStore) -> None:
         self.__device_pool = device_pool
         self.__session_manager = session_manager
+        self.__data_store = data_store
 
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
     ) -> inference_pb2.ModelSession:
         lease = self.__device_pool.lease(request.deviceIds)
 
+        if request.HasField("model_uri"):
+            if not request.model_uri.startswith("upload://"):
+                raise NotImplementedError("Only upload:// URI supported")
+
+            upload_id = request.model_uri.replace("upload://", "")
+            content = self.__data_store.get(upload_id)
+        else:
+            content = request.model_blob.content
+
         try:
             _, client = start_model_session_process(
-                model_zip=request.model_blob.content, devices=[d.id for d in lease.devices]
+                model_zip=content, devices=[d.id for d in lease.devices]
             )
         except Exception:
             lease.terminate()
