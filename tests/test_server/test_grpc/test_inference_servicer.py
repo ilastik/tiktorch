@@ -4,7 +4,7 @@ import pytest
 from numpy.testing import assert_array_equal
 
 from tiktorch import converters
-from tiktorch.server import grpc_svc
+from tiktorch.server.grpc import inference_servicer
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
@@ -19,7 +19,7 @@ def grpc_add_to_server():
 
 @pytest.fixture(scope="module")
 def grpc_servicer():
-    return grpc_svc.InferenceServicer(TorchDevicePool(), SessionManager())
+    return inference_servicer.InferenceServicer(TorchDevicePool(), SessionManager())
 
 
 @pytest.fixture(scope="module")

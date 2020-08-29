@@ -27,6 +27,6 @@ def main():
     args = parsey.parse_args()
     print(f"Starting server on {args.addr}:{args.port}")
 
-    from . import grpc_svc
+    from . import grpc
 
-    grpc_svc.serve(args.addr, args.port)
+    grpc.serve(args.addr, args.port)

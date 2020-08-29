@@ -1,6 +1,4 @@
-import threading
 import time
-from concurrent import futures
 
 import grpc
 
@@ -13,11 +11,10 @@ import inference_pb2
 import inference_pb2_grpc
 
 
-class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc.FlightControlServicer):
-    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager, *, done_evt=None) -> None:
+class InferenceServicer(inference_pb2_grpc.InferenceServicer):
+    def __init__(self, device_pool: IDevicePool, session_manager: SessionManager) -> None:
         self.__device_pool = device_pool
         self.__session_manager = session_manager
-        self.__done_evt = done_evt
 
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
@@ -109,35 +106,3 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer, inference_pb2_grpc
             context.abort(grpc.StatusCode.FAILED_PRECONDITION, f"model-session with id {modelSessionId} doesn't exist")
 
         return session
-
-    def Ping(self, request: inference_pb2.Empty, context):
-        return inference_pb2.Empty()
-
-    def Shutdown(self, request: inference_pb2.Empty, context):
-        if self.__done_evt:
-            self.__done_evt.set()
-        return inference_pb2.Empty()
-
-
-def serve(host, port):
-    _100_MB = 100 * 1024 * 1024
-
-    done_evt = threading.Event()
-    server = grpc.server(
-        futures.ThreadPoolExecutor(max_workers=32),
-        options=[
-            ("grpc.max_send_message_length", _100_MB),
-            ("grpc.max_receive_message_length", _100_MB),
-            ("grpc.so_reuseport", 0),
-        ],
-    )
-
-    session_svc = InferenceServicer(TorchDevicePool(), SessionManager(), done_evt=done_evt)
-    inference_pb2_grpc.add_InferenceServicer_to_server(session_svc, server)
-    inference_pb2_grpc.add_FlightControlServicer_to_server(session_svc, server)
-    server.add_insecure_port(f"{host}:{port}")
-    server.start()
-
-    done_evt.wait()
-
-    server.stop(0).wait()
