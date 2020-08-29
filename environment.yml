@@ -17,6 +17,7 @@ dependencies:
   - marshmallow=3.4.0
   - pytest=4.3.0
   - grpcio=1.23
+  - grpcio-tools
   - protobuf=3.11.4
   - cudatoolkit>=10.1,<11
   - black
