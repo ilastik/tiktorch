@@ -30,7 +30,7 @@ def serve(host, port):
 
     data_store = DataStore()
 
-    inference_svc = InferenceServicer(TorchDevicePool(), SessionManager())
+    inference_svc = InferenceServicer(TorchDevicePool(), SessionManager(), data_store)
     fligh_svc = FlightControlServicer(done_evt=done_evt)
     data_svc = DataStoreServicer(data_store)
 
