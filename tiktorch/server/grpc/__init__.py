@@ -3,16 +3,16 @@ from concurrent import futures
 
 import grpc
 
+from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
-from tiktorch.server.data_store import DataStore
 
-from .inference_servicer import InferenceServicer
-from .flight_control_servicer import FlightControlServicer
-from .data_store_servicer import DataStoreServicer
-
-import inference_pb2_grpc
 import data_store_pb2_grpc
+import inference_pb2_grpc
+
+from .data_store_servicer import DataStoreServicer
+from .flight_control_servicer import FlightControlServicer
+from .inference_servicer import InferenceServicer
 
 
 def serve(host, port):

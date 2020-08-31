@@ -3,10 +3,10 @@ import time
 import grpc
 
 from tiktorch import converters
+from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool, TorchDevicePool
 from tiktorch.server.session.process import start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
-from tiktorch.server.data_store import IDataStore
 
 import inference_pb2
 import inference_pb2_grpc
@@ -33,9 +33,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             content = request.model_blob.content
 
         try:
-            _, client = start_model_session_process(
-                model_zip=content, devices=[d.id for d in lease.devices]
-            )
+            _, client = start_model_session_process(model_zip=content, devices=[d.id for d in lease.devices])
         except Exception:
             lease.terminate()
             raise

@@ -1,21 +1,19 @@
+import hashlib
 import time
 
 import grpc
-import hashlib
+
+from tiktorch.server.data_store import IDataStore
 
 import data_store_pb2
 import data_store_pb2_grpc
-
-from tiktorch.server.data_store import IDataStore
 
 
 class DataStoreServicer(data_store_pb2_grpc.DataStoreServicer):
     def __init__(self, data_store: IDataStore) -> None:
         self.__data_store = data_store
 
-    def Upload(
-        self, request_iterator: data_store_pb2.UploadRequest, context
-    ) -> data_store_pb2.UploadResponse:
+    def Upload(self, request_iterator: data_store_pb2.UploadRequest, context) -> data_store_pb2.UploadResponse:
         # TODO: Move hash to data_store
 
         rq = next(request_iterator)

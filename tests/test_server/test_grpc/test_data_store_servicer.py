@@ -3,11 +3,12 @@ import hashlib
 import grpc
 import pytest
 
-from tiktorch.server.grpc import data_store_servicer
 from tiktorch.server.data_store import DataStore
+from tiktorch.server.grpc import data_store_servicer
 
 import data_store_pb2
 import data_store_pb2_grpc
+
 
 @pytest.fixture(scope="module")
 def grpc_add_to_server():
@@ -42,7 +43,7 @@ class TestUpload:
         def _gen():
             yield data_store_pb2.UploadRequest(info=data_store_pb2.UploadInfo(size=12))
             for i in range(0, len(content), 3):
-                yield data_store_pb2.UploadRequest(content=content[i:i+3])
+                yield data_store_pb2.UploadRequest(content=content[i : i + 3])
 
         res = grpc_stub.Upload(_gen())
         assert res.id
