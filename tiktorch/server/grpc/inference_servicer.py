@@ -21,8 +21,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
     def CreateModelSession(
         self, request: inference_pb2.CreateModelSessionRequest, context
     ) -> inference_pb2.ModelSession:
-        lease = self.__device_pool.lease(request.deviceIds)
-
         if request.HasField("model_uri"):
             if not request.model_uri.startswith("upload://"):
                 raise NotImplementedError("Only upload:// URI supported")
@@ -31,6 +29,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             content = self.__data_store.get(upload_id)
         else:
             content = request.model_blob.content
+
+        lease = self.__device_pool.lease(request.deviceIds)
 
         try:
             _, client = start_model_session_process(model_zip=content, devices=[d.id for d in lease.devices])
