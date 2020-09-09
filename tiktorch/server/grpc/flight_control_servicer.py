@@ -1,6 +1,6 @@
 import grpc
 
-from tiktorch.generated import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc
 
 
 class FlightControlServicer(inference_pb2_grpc.FlightControlServicer):

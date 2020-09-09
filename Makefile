@@ -7,8 +7,8 @@ unet2d:
 	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet2d.tmodel ./*
 
 protos:
-	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/generated/ --grpc_python_out=tiktorch/generated/ ./proto/*.proto
-	sed -i -r 's/import (.+_pb2.*)/from . import \1/g' tiktorch/generated/*_pb2*.py
+	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/proto/ --grpc_python_out=tiktorch/proto/ ./proto/*.proto
+	sed -i -r 's/import (.+_pb2.*)/from . import \1/g' tiktorch/proto/*_pb2*.py
 
 version:
 	python -c "import sys; print(sys.version)"

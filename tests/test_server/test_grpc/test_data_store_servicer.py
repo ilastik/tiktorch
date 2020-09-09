@@ -3,7 +3,7 @@ import hashlib
 import grpc
 import pytest
 
-from tiktorch.generated import data_store_pb2, data_store_pb2_grpc
+from tiktorch.proto import data_store_pb2, data_store_pb2_grpc
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.grpc import data_store_servicer
 

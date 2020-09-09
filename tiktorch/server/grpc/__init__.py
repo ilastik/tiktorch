@@ -3,7 +3,7 @@ from concurrent import futures
 
 import grpc
 
-from tiktorch.generated import data_store_pb2_grpc, inference_pb2_grpc
+from tiktorch.proto import data_store_pb2_grpc, inference_pb2_grpc
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.session_manager import SessionManager

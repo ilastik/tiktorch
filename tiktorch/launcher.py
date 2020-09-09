@@ -10,7 +10,7 @@ from typing import Optional
 import grpc
 from paramiko import AutoAddPolicy, SSHClient
 
-from tiktorch.generated import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.rpc import Timeout
 
 HEARTBEAT_INTERVAL = 10  # seconds
