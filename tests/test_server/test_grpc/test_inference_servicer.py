@@ -4,12 +4,18 @@ import pytest
 from numpy.testing import assert_array_equal
 
 from tiktorch import converters
-from tiktorch.server import grpc_svc
+from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
+from tiktorch.server.grpc import inference_servicer
 from tiktorch.server.session_manager import SessionManager
 
 import inference_pb2
 import inference_pb2_grpc
+
+
+@pytest.fixture(scope="module")
+def data_store():
+    return DataStore()
 
 
 @pytest.fixture(scope="module")
@@ -18,8 +24,8 @@ def grpc_add_to_server():
 
 
 @pytest.fixture(scope="module")
-def grpc_servicer():
-    return grpc_svc.InferenceServicer(TorchDevicePool(), SessionManager())
+def grpc_servicer(data_store):
+    return inference_servicer.InferenceServicer(TorchDevicePool(), SessionManager(), data_store)
 
 
 @pytest.fixture(scope="module")
@@ -43,6 +49,24 @@ class TestModelManagement:
         model = grpc_stub.CreateModelSession(valid_model_request(pybio_model_bytes))
         assert model.id
         grpc_stub.CloseModelSession(model)
+
+    def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, pybio_dummy_model_bytes):
+        id_ = data_store.put(pybio_dummy_model_bytes.getvalue())
+
+        rq = inference_pb2.CreateModelSessionRequest(model_uri=f"upload://{id_}", deviceIds=["cpu"])
+        model = grpc_stub.CreateModelSession(rq)
+        assert model.id
+        grpc_stub.CloseModelSession(model)
+
+    def test_model_session_creation_using_random_uri(self, grpc_stub):
+        rq = inference_pb2.CreateModelSessionRequest(model_uri=f"randomSchema://", deviceIds=["cpu"])
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.CreateModelSession(rq)
+
+    def test_model_session_creation_using_non_existent_upload(self, grpc_stub):
+        rq = inference_pb2.CreateModelSessionRequest(model_uri=f"upload://test123", deviceIds=["cpu"])
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.CreateModelSession(rq)
 
     def test_predict_call_fails_without_specifying_model_session_id(self, grpc_stub):
         with pytest.raises(grpc.RpcError) as e:

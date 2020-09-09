@@ -108,3 +108,14 @@ service FlightControl {
   rpc Ping(Empty) returns (Empty) {}
   rpc Shutdown(Empty) returns (Empty) {}
 }
+
+message ModelInfo {
+    repeated string deviceIds = 1;
+}
+
+message CreateModelSessionChunkedRequest {
+  oneof data {
+    ModelInfo info = 1;
+    Blob chunk = 2;
+  }
+}

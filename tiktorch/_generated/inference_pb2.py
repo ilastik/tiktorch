@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\"!\n\x05Shape\x12\x18\n\x04\x64ims\x18\x01 \x03(\x0b\x32\n.TensorDim\"\x9b\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x01(\t\x12\x12\n\noutputAxes\x18\x04 \x01(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12\x1b\n\x0bvalidShapes\x18\x06 \x03(\x0b\x32\x06.Shape\x12\x18\n\x04halo\x18\x07 \x03(\x0b\x32\n.TensorDim\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"T\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x17\n\x06tensor\x18\x02 \x01(\x0b\x32\x07.Tensor\x12\x11\n\tdatasetId\x18\x03 \x01(\t\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\"!\n\x05Shape\x12\x18\n\x04\x64ims\x18\x01 \x03(\x0b\x32\n.TensorDim\"\x9b\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x01(\t\x12\x12\n\noutputAxes\x18\x04 \x01(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12\x1b\n\x0bvalidShapes\x18\x06 \x03(\x0b\x32\x06.Shape\x12\x18\n\x04halo\x18\x07 \x03(\x0b\x32\n.TensorDim\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"\'\n\tTensorDim\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"B\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x19\n\x05shape\x18\x03 \x03(\x0b\x32\n.TensorDim\"T\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x17\n\x06tensor\x18\x02 \x01(\x0b\x32\x07.Tensor\x12\x11\n\tdatasetId\x18\x03 \x01(\t\"*\n\x0fPredictResponse\x12\x17\n\x06tensor\x18\x01 \x01(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
 )
 
 
@@ -649,6 +649,78 @@ _EMPTY = _descriptor.Descriptor(
   serialized_end=1018,
 )
 
+
+_MODELINFO = _descriptor.Descriptor(
+  name='ModelInfo',
+  full_name='ModelInfo',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='deviceIds', full_name='ModelInfo.deviceIds', index=0,
+      number=1, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1020,
+  serialized_end=1050,
+)
+
+
+_CREATEMODELSESSIONCHUNKEDREQUEST = _descriptor.Descriptor(
+  name='CreateModelSessionChunkedRequest',
+  full_name='CreateModelSessionChunkedRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='info', full_name='CreateModelSessionChunkedRequest.info', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='chunk', full_name='CreateModelSessionChunkedRequest.chunk', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='data', full_name='CreateModelSessionChunkedRequest.data',
+      index=0, containing_type=None, fields=[]),
+  ],
+  serialized_start=1052,
+  serialized_end=1146,
+)
+
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
 _DEVICE_STATUS.containing_type = _DEVICE
 _CREATEMODELSESSIONREQUEST.fields_by_name['model_blob'].message_type = _BLOB
@@ -667,6 +739,14 @@ _DEVICES.fields_by_name['devices'].message_type = _DEVICE
 _TENSOR.fields_by_name['shape'].message_type = _TENSORDIM
 _PREDICTREQUEST.fields_by_name['tensor'].message_type = _TENSOR
 _PREDICTRESPONSE.fields_by_name['tensor'].message_type = _TENSOR
+_CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['info'].message_type = _MODELINFO
+_CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['chunk'].message_type = _BLOB
+_CREATEMODELSESSIONCHUNKEDREQUEST.oneofs_by_name['data'].fields.append(
+  _CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['info'])
+_CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['info'].containing_oneof = _CREATEMODELSESSIONCHUNKEDREQUEST.oneofs_by_name['data']
+_CREATEMODELSESSIONCHUNKEDREQUEST.oneofs_by_name['data'].fields.append(
+  _CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['chunk'])
+_CREATEMODELSESSIONCHUNKEDREQUEST.fields_by_name['chunk'].containing_oneof = _CREATEMODELSESSIONCHUNKEDREQUEST.oneofs_by_name['data']
 DESCRIPTOR.message_types_by_name['Device'] = _DEVICE
 DESCRIPTOR.message_types_by_name['CreateDatasetDescriptionRequest'] = _CREATEDATASETDESCRIPTIONREQUEST
 DESCRIPTOR.message_types_by_name['DatasetDescription'] = _DATASETDESCRIPTION
@@ -681,6 +761,8 @@ DESCRIPTOR.message_types_by_name['Tensor'] = _TENSOR
 DESCRIPTOR.message_types_by_name['PredictRequest'] = _PREDICTREQUEST
 DESCRIPTOR.message_types_by_name['PredictResponse'] = _PREDICTRESPONSE
 DESCRIPTOR.message_types_by_name['Empty'] = _EMPTY
+DESCRIPTOR.message_types_by_name['ModelInfo'] = _MODELINFO
+DESCRIPTOR.message_types_by_name['CreateModelSessionChunkedRequest'] = _CREATEMODELSESSIONCHUNKEDREQUEST
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Device = _reflection.GeneratedProtocolMessageType('Device', (_message.Message,), dict(
@@ -781,6 +863,20 @@ Empty = _reflection.GeneratedProtocolMessageType('Empty', (_message.Message,), d
   ))
 _sym_db.RegisterMessage(Empty)
 
+ModelInfo = _reflection.GeneratedProtocolMessageType('ModelInfo', (_message.Message,), dict(
+  DESCRIPTOR = _MODELINFO,
+  __module__ = 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:ModelInfo)
+  ))
+_sym_db.RegisterMessage(ModelInfo)
+
+CreateModelSessionChunkedRequest = _reflection.GeneratedProtocolMessageType('CreateModelSessionChunkedRequest', (_message.Message,), dict(
+  DESCRIPTOR = _CREATEMODELSESSIONCHUNKEDREQUEST,
+  __module__ = 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:CreateModelSessionChunkedRequest)
+  ))
+_sym_db.RegisterMessage(CreateModelSessionChunkedRequest)
+
 
 
 _INFERENCE = _descriptor.ServiceDescriptor(
@@ -789,8 +885,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=1021,
-  serialized_end=1347,
+  serialized_start=1149,
+  serialized_end=1475,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateModelSession',
@@ -858,8 +954,8 @@ _FLIGHTCONTROL = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=1,
   serialized_options=None,
-  serialized_start=1349,
-  serialized_end=1420,
+  serialized_start=1477,
+  serialized_end=1548,
   methods=[
   _descriptor.MethodDescriptor(
     name='Ping',

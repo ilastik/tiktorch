@@ -7,7 +7,7 @@ unet2d:
 	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet2d.tmodel ./*
 
 protos:
-	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/_generated/ --grpc_python_out=tiktorch/_generated/ ./proto/inference.proto
+	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/_generated/ --grpc_python_out=tiktorch/_generated/ ./proto/*.proto
 
 version:
 	python -c "import sys; print(sys.version)"
