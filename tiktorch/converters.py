@@ -1,6 +1,6 @@
 import numpy as np
 
-import inference_pb2
+from tiktorch.generated import inference_pb2
 
 
 def numpy_to_pb_tensor(array: np.ndarray) -> inference_pb2.Tensor:
