@@ -18,12 +18,16 @@ class DataStoreServicer(data_store_pb2_grpc.DataStoreServicer):
         if not rq.HasField("info"):
             raise ValueError("Header information is not provided")
 
+        expected_size = rq.info.size
         data = b""
         sha256 = hashlib.sha256()
+
         for rq in request_iterator:
             data += rq.content
             sha256.update(rq.content)
 
         id_ = self.__data_store.put(data)
+        if expected_size != len(data):
+            raise RuntimeError(f"Expected data of size {expected_size} bytes but got only {len(data)}")
 
         return data_store_pb2.UploadResponse(id=id_, size=len(data), sha256=sha256.hexdigest())
