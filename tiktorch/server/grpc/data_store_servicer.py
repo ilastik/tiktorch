@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import time
 
 import grpc
 
 from tiktorch.proto import data_store_pb2, data_store_pb2_grpc
 from tiktorch.server.data_store import IDataStore
+
+logger = logging.getLogger(__name__)
 
 
 class DataStoreServicer(data_store_pb2_grpc.DataStoreServicer):
@@ -28,6 +31,7 @@ class DataStoreServicer(data_store_pb2_grpc.DataStoreServicer):
 
         id_ = self.__data_store.put(data)
         if expected_size != len(data):
+            logger.debug("Upload truncated expected %s bytes but received only %s", expected_size, len(data))
             raise RuntimeError(f"Expected data of size {expected_size} bytes but got only {len(data)}")
 
         return data_store_pb2.UploadResponse(id=id_, size=len(data), sha256=sha256.hexdigest())
