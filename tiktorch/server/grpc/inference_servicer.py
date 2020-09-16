@@ -3,13 +3,11 @@ import time
 import grpc
 
 from tiktorch import converters
+from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool, TorchDevicePool
 from tiktorch.server.session.process import start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
-
-import inference_pb2
-import inference_pb2_grpc
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
