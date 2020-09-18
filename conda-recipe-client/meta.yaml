@@ -41,3 +41,7 @@ about:
 test:
   imports:
     - tiktorch
+    - tiktorch.proto.inference_pb2
+    - tiktorch.proto.inference_pb2_grpc
+    - tiktorch.proto.data_store_pb2
+    - tiktorch.proto.data_store_pb2_grpc
