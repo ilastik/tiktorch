@@ -50,3 +50,16 @@ class TestUpload:
 
         data = data_store.get(res.id)
         assert data == content
+
+    def test_calling_upload_early_termination(self, grpc_stub, data_store):
+        content = b"aabbbacaaraa"
+        sha256_hash = hashlib.sha256(content).hexdigest()
+
+        def _gen():
+            yield data_store_pb2.UploadRequest(info=data_store_pb2.UploadInfo(size=12))
+            for i in range(0, len(content), 3):
+                yield data_store_pb2.UploadRequest(content=content[i : i + 3])
+                return  # Terminate early
+
+        with pytest.raises(grpc.RpcError) as e:
+            res = grpc_stub.Upload(_gen())
