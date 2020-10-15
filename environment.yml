@@ -29,7 +29,7 @@ dependencies:
   - bump2version
   - pre_commit
   - scikit-learn
+  - pip>=19
   - pip:
       - tensorflow
       - pytest-grpc==0.7.0
-      - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio # bump again
