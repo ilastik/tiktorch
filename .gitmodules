@@ -1,0 +1,6 @@
+[submodule "vendor/python-bioimage-io"]
+	path = vendor/python-bioimage-io
+	url = git@github.com:bioimage-io/python-bioimage-io.git
+[submodule "vendor/pytorch-bioimage-io"]
+	path = vendor/pytorch-bioimage-io
+	url = git@github.com:bioimage-io/pytorch-bioimage-io.git

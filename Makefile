@@ -1,4 +1,5 @@
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+TIKTORCH_ENV_NAME ?= tiktorch-server-env
 
 sample_model:
 	cd tests/data/dummy && zip -r $(ROOT_DIR)/dummy.tmodel ./*
@@ -13,4 +14,17 @@ protos:
 version:
 	python -c "import sys; print(sys.version)"
 
-.PHONY: protos version sample_model
+
+devenv:
+	. $$(conda info --base)/etc/profile.d/conda.sh
+	conda env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
+	conda develop "$(ROOT_DIR)" --name $(TIKTORCH_ENV_NAME)
+	conda develop "$(ROOT_DIR)/vendor/python-bioimage-io" --name $(TIKTORCH_ENV_NAME)
+	conda develop "$(ROOT_DIR)/vendor/pytorch-bioimage-io" --name $(TIKTORCH_ENV_NAME)
+
+
+remove_devenv:
+	conda env remove --yes --name $(TIKTORCH_ENV_NAME)
+
+
+.PHONY: protos version sample_model devenv remove_devenv
