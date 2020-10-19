@@ -1,0 +1,43 @@
+name: DummyTFModel
+description: A dummy tensorflow model for testing
+authors:
+  - ilastik team
+cite:
+  - text: "Ilastik"
+    doi: https://doi.org
+documentation: dummy.md
+tags: [tensorflow]
+license: MIT
+
+format_version: 0.1.0
+language: python
+framework: tensorflow
+
+source: dummy.py::TensorflowModelWrapper
+
+test_input: null # ../test_input.npy
+test_output: null # ../test_output.npy
+
+# TODO double check inputs/outputs
+inputs:
+  - name: input
+    axes: bcyx
+    data_type: float32
+    data_range: [-inf, inf]
+    shape: [1, 1, 128, 128]
+outputs:
+  - name: output
+    axes: bcyx
+    data_type: float32
+    data_range: [0, 1]
+    shape:
+        reference_input: input   # FIXME(m-novikov) ignoring for now
+        scale: [1, 1, 1, 1]
+        offset: [0, 0, 0, 0]
+        #halo: [0, 0, 32, 32]   # Should be moved to outputs
+
+prediction:
+  weights:
+    source: ./model
+    hash: {md5: TODO}
+  dependencies: conda:./environment.yaml

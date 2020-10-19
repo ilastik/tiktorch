@@ -46,11 +46,10 @@ class Exemplum:
         pybio_model: nodes.Model,
         batch_size: int = 1,
         num_iterations_per_update: int = 2,
-        _devices=Sequence[torch.device],
+        _devices=Sequence[str],
     ):
         self.max_num_iterations = 0
         self.iteration_count = 0
-        self.devices = _devices
         spec = pybio_model.spec
         self.name = spec.name
 
@@ -89,12 +88,18 @@ class Exemplum:
         self.halo = list(zip(self.output_axes, _halo))
 
         self.model = get_instance(pybio_model)
-        self.model.to(self.devices[0])
         if spec.framework == "pytorch":
+            self.devices = [torch.device(d) for d in _devices]
+            self.model.to(self.devices[0])
             assert isinstance(self.model, torch.nn.Module)
             if spec.prediction.weights is not None:
                 state = torch.load(spec.prediction.weights.source, map_location=self.devices[0])
                 self.model.load_state_dict(state)
+        # elif spec.framework == "tensorflow":
+        #     import tensorflow as tf
+        #     self.devices = []
+        #     tf_model = tf.keras.models.load_model(spec.prediction.weights.source)
+        #     self.model.set_model(tf_model)
         else:
             raise NotImplementedError
 

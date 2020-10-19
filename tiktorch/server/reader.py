@@ -38,7 +38,6 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
 
     pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
 
-    devices = [torch.device(d) for d in devices]
     if pybio_model.spec.training is None:
         return Exemplum(pybio_model=pybio_model, _devices=devices)
     else:
