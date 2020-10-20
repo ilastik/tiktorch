@@ -6,7 +6,7 @@ import typing
 from concurrent.futures import Future
 
 from tiktorch.configkeys import TRAINING, VALIDATION
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter import ModelAdapter
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands, supervisor
 from tiktorch.tiktypes import TikTensorBatch
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class SessionBackend:
-    def __init__(self, exemplum: Exemplum):
+    def __init__(self, exemplum: ModelAdapter):
         self._supervisor = supervisor.Supervisor(exemplum)
         self._supervisor_thread = threading.Thread(target=self._supervisor.run, name="ModelThread")
         self._supervisor_thread.start()

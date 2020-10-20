@@ -3,17 +3,16 @@ from __future__ import annotations
 import logging
 import queue
 
-import torch
+import numpy as np
 
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter import ModelAdapter
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
 
 logger = logging.getLogger(__name__)
 
-
 class Supervisor:
-    def __init__(self, exemplum: Exemplum) -> None:
+    def __init__(self, exemplum: ModelAdapter) -> None:
         self._state = types.State.Stopped
 
         self._command_queue = commands.CommandPriorityQueue()
@@ -39,12 +38,9 @@ class Supervisor:
         return self._exemplum.max_num_iterations and self._exemplum.max_num_iterations > self._exemplum.iteration_count
 
     def forward(self, input_tensor):
-        torch_input = torch.from_numpy(input_tensor)
-        result = self._exemplum.forward(torch_input)
-        if isinstance(result, torch.Tensor):
-            return result.detach().cpu().numpy()
-        else:
-            return result
+        result = self._exemplum.forward(input_tensor)
+        assert isinstance(result, np.ndarray)
+        return result
 
     def transition_to(self, new_state: types.State) -> None:
         logger.debug("Attempting transition to state %s", new_state)

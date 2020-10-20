@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
-import torch
 from pybio import spec
 from pybio.spec.utils import train
 
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter import ModelAdapter, create_model_adapter
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
 logger = logging.getLogger(__name__)
@@ -23,8 +22,8 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
     return None
 
 
-def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None):
-    temp_path = Path(tempfile.mkdtemp(prefix="tiktorch"))
+def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None) -> ModelAdapter:
+    temp_path = Path(tempfile.mkdtemp(prefix="tiktorch_"))
     if cache_path is None:
         cache_path = temp_path / "cache"
 
@@ -39,14 +38,13 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
     pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
 
     if pybio_model.spec.training is None:
-        return Exemplum(pybio_model=pybio_model, _devices=devices)
+        return create_model_adapter(pybio_model=pybio_model, devices=devices)
     else:
         ret = train(pybio_model, _devices=devices)
-        assert isinstance(ret, Exemplum)
 
-    def _on_errror(function, path, exc_info):
+    def _on_error(function, path, exc_info):
         logger.warning("Failed to delete temp directory %s", path)
 
-    shutil.rmtree(temp_path, on_error=_on_errror)
+    shutil.rmtree(temp_path, onerror=_on_error)
 
     return ret
