@@ -5,6 +5,7 @@ import torch
 from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
+
 from ._base import ModelAdapter
 from ._utils import has_batch_dim
 
