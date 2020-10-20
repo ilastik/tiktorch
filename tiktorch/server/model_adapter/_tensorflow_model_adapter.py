@@ -1,9 +1,9 @@
 from typing import Callable, List
-from pybio.spec import nodes
-from pybio.spec.utils import get_instance
 
 import numpy as np
 import tensorflow as tf
+from pybio.spec import nodes
+from pybio.spec.utils import get_instance
 
 from ._base import ModelAdapter
 from ._utils import has_batch_dim

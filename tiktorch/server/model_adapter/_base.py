@@ -24,4 +24,3 @@ class ModelAdapter(abc.ABC):
     @abc.abstractmethod
     def set_max_num_iterations(self, val: int) -> None:
         ...
-

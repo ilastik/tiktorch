@@ -22,6 +22,7 @@ def test_eval_model_zip(pybio_model_bytes, cache_path):
         exemplum = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
         assert isinstance(exemplum, ModelAdapter)
 
+
 @pytest.mark.xfail
 def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_path):
     with ZipFile(pybio_dummy_tensorflow_model_bytes) as zf:

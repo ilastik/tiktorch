@@ -93,6 +93,7 @@ def pybio_model_bytes(data_path):
 
     return data
 
+
 @pytest.fixture
 def pybio_model_zipfile(pybio_model_bytes):
     with ZipFile(pybio_model_bytes, mode="r") as zf:
@@ -118,6 +119,7 @@ def archive(directory):
     result = io.BytesIO()
 
     with ZipFile(result, mode="w") as zip_model:
+
         def _archive(path_to_archive):
             for path in path_to_archive.iterdir():
                 if str(path.name).startswith("__"):

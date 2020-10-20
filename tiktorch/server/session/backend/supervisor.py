@@ -11,6 +11,7 @@ from tiktorch.server.session.backend import commands
 
 logger = logging.getLogger(__name__)
 
+
 class Supervisor:
     def __init__(self, exemplum: ModelAdapter) -> None:
         self._state = types.State.Stopped
