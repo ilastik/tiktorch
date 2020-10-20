@@ -2,8 +2,23 @@ from typing import Callable, List
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
+import numpy as np
+import tensorflow as tf
+
 from ._base import ModelAdapter
 from ._utils import has_batch_dim
+
+
+def _noop(tensor):
+    return tensor
+
+
+def _remove_batch_dim(batch: List):
+    return [t.reshape(t.shape[1:]) for t in batch]
+
+
+def _add_batch_dim(tensor):
+    return tensor.reshape((1,) + tensor.shape)
 
 
 class TensorflowModelAdapter(ModelAdapter):
@@ -54,23 +69,19 @@ class TensorflowModelAdapter(ModelAdapter):
         self.halo = list(zip(self.output_axes, _halo))
 
         self.model = get_instance(pybio_model)
-        if spec.framework == "pytorch":
-            self.devices = [torch.device(d) for d in _devices]
-            self.model.to(self.devices[0])
-            assert isinstance(self.model, torch.nn.Module)
-            if spec.prediction.weights is not None:
-                state = torch.load(spec.prediction.weights.source, map_location=self.devices[0])
-                self.model.load_state_dict(state)
-        # elif spec.framework == "tensorflow":
-        #     import tensorflow as tf
-        #     self.devices = []
-        #     tf_model = tf.keras.models.load_model(spec.prediction.weights.source)
-        #     self.model.set_model(tf_model)
-        else:
-            raise NotImplementedError
+        self.devices = []
+        tf_model = tf.keras.models.load_model(spec.prediction.weights.source)
+        self.model.set_model(tf_model)
 
     def forward(self, input_tensor):
-        pass
+        tf_tensor = tf.convert_to_tensor(input_tensor)
+
+        res = self.model.forward(tf_tensor)
+
+        if isinstance(res, np.ndarray):
+            return res
+        else:
+            return tf.make_ndarray(res)
 
     @property
     def max_num_iterations(self) -> int:

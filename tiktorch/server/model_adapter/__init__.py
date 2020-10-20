@@ -10,3 +10,8 @@ def create_model_adapter(*, pybio_model: nodes.Model, devices = List[str]):
     if spec.framework == "pytorch":
         from ._exemplum import Exemplum
         return Exemplum(pybio_model=pybio_model, devices=devices)
+    elif spec.framework == "tensorflow":
+        from ._tensorflow_model_adapter import TensorflowModelAdapter
+        return TensorflowModelAdapter(pybio_model=pybio_model, devices=devices)
+    else:
+        raise NotImplementedError(f"Unknown framework: {spec.framework}")
