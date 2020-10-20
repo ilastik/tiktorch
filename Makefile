@@ -7,6 +7,9 @@ sample_model:
 unet2d:
 	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet2d.tmodel ./*
 
+dummy_tf:
+	cd tests/data/dummy_tensorflow && zip -r $(ROOT_DIR)/dummy_tf.tmodel ./*
+
 protos:
 	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/proto/ --grpc_python_out=tiktorch/proto/ ./proto/*.proto
 	sed -i -r 's/import (.+_pb2.*)/from . import \1/g' tiktorch/proto/*_pb2*.py
@@ -27,4 +30,4 @@ remove_devenv:
 	conda env remove --yes --name $(TIKTORCH_ENV_NAME)
 
 
-.PHONY: protos version sample_model devenv remove_devenv
+.PHONY: protos version sample_model devenv remove_devenv dummy_tf
