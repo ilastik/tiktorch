@@ -27,7 +27,7 @@ class TestExemplumSupervisor:
             self._break_cb = cb
 
         def forward(self, input_tensor):
-            return torch.Tensor([42])
+            return np.array([42])
 
         def set_max_num_iterations(self, val):
             self.max_num_iterations = val
