@@ -2,7 +2,6 @@ import logging
 from typing import List
 
 import torch
-from pybio.core.samplers.base import PyBioSampler
 from torch.utils.data import Sampler
 from torch.utils.data.dataset import Dataset
 
@@ -145,7 +144,7 @@ class DynamicWeightedRandomSampler(Sampler):
         return len(self._dataset)
 
 
-class DynamicWeightedRandomPyBioSampler(PyBioSampler):
+class DynamicWeightedRandomPyBioSampler(Sampler):
     r"""Samples elements from [0,..,len(weights)-1] with given probabilities (weights).
 
     Arguments:

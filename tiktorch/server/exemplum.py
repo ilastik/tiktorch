@@ -2,7 +2,7 @@ import logging
 from typing import Any, List, Sequence
 
 import torch
-from pybio.core.transformations.base import make_concatenated_apply
+#from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
@@ -39,6 +39,44 @@ def _check_batch_dim(axes: str) -> bool:
         return True
 
 
+def _make_cast(dtype):
+    def _cast(tensor):
+        return tensor.astype(dtype)
+    return _cast
+
+
+def _to_torch(tensor):
+    return torch.from_numpy(tensor)
+
+
+def _zero_mean_unit_variance(tensor, eps=1.0e-6):
+    mean, std = tensor.mean(), tensor.std()
+    return (tensor - mean) / (std + 1.0e-6)
+
+
+def _sigmoid(tensor):
+    return torch.sigmoid(tensor)
+
+
+KNOWN_PREPROCESSING = {
+    "zero_mean_unit_variance": _zero_mean_unit_variance,
+}
+
+KNOWN_POSTPROCESSING = {
+    "sigmoid": _sigmoid,
+}
+
+def chain(*functions):
+    def _chained_function(tensor):
+        tensor = tensor
+        for fn in functions:
+            tensor = fn(tensor)
+
+        return tensor
+
+    return _chained_function
+
+
 class Exemplum:
     def __init__(
         self,
@@ -51,7 +89,7 @@ class Exemplum:
         self.max_num_iterations = 0
         self.iteration_count = 0
         self.devices = _devices
-        spec = pybio_model.spec
+        spec = pybio_model
         self.name = spec.name
 
         if len(spec.inputs) != 1 or len(spec.outputs) != 1:
@@ -92,24 +130,36 @@ class Exemplum:
         self.model.to(self.devices[0])
         if spec.framework == "pytorch":
             assert isinstance(self.model, torch.nn.Module)
-            if spec.prediction.weights is not None:
-                state = torch.load(spec.prediction.weights.source, map_location=self.devices[0])
+            weights = spec.weights.get("pytorch_state_dict")
+            if weights is not None and weights.source:
+                state = torch.load(weights.source, map_location=self.devices[0])
                 self.model.load_state_dict(state)
         else:
             raise NotImplementedError
 
-        self._prediction_preprocess = make_concatenated_apply([get_instance(tf) for tf in spec.prediction.preprocess])
-        self._prediction_postprocess = make_concatenated_apply([get_instance(tf) for tf in spec.prediction.postprocess])
-        # inference_engine = ignite.engine.Engine(self._inference_step_function)
-        # .add_event_handler(Events.STARTED, self.prepare_engine)
-        # .add_event_handler(Events.COMPLETED, self.log_compute_time)
+        preprocessing_functions = [
+            _make_cast(_input.data_type),
+            _to_torch,
+        ]
+        
+        for preprocessing_step in _input.preprocessing:
+            fn = KNOWN_PREPROCESSING.get(preprocessing_step.name)
+            if fn is None:
+                raise NotImplementedError(f"Preprocessing {preprocessing_step.name}")
 
-    # def _validation_step_function(self) -> ValidationOutput:
-    #     return ValidationOutput()
-    #
-    #
-    # def _training_step_function(self) -> TrainingOutput:
-    #     return TrainingOutput()
+            preprocessing_functions.append(fn)
+
+        self._prediction_preprocess = chain(*preprocessing_functions)
+
+        postprocessing_functions = []
+        for postprocessing_step in _output.postprocessing:
+            fn = KNOWN_POSTPROCESSING.get(postprocessing_step.name)
+            if fn is None:
+                raise NotImplementedError(f"Postprocessing {postprocessing_step.name}")
+
+            postprocessing_functions.append(fn)
+
+        self._prediction_postprocess = chain(*postprocessing_functions)
 
     def forward(self, batch) -> List[Any]:
         with torch.no_grad():

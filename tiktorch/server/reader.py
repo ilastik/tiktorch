@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import torch
 from pybio import spec
-from pybio.spec.utils import train
+#from pybio.spec.utils import train
 
 from tiktorch.server.exemplum import Exemplum
 
@@ -36,18 +36,14 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
             "Model config file not found, make sure that .model.yaml file in the root of your model archive"
         )
 
-    pybio_model = spec.utils.load_model(spec_file_str, root_path=temp_path, cache_path=cache_path)
+    pybio_model = spec.load_and_resolve_spec(spec_file_str)
 
     devices = [torch.device(d) for d in devices]
-    if pybio_model.spec.training is None:
-        return Exemplum(pybio_model=pybio_model, _devices=devices)
-    else:
-        ret = train(pybio_model, _devices=devices)
-        assert isinstance(ret, Exemplum)
+    ret = Exemplum(pybio_model=pybio_model, _devices=devices)
 
-    def _on_errror(function, path, exc_info):
+    def _on_error(function, path, exc_info):
         logger.warning("Failed to delete temp directory %s", path)
 
-    shutil.rmtree(temp_path, on_error=_on_errror)
+    shutil.rmtree(temp_path, onerror=_on_error)
 
     return ret
