@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
-import torch
 from pybio import spec
 #from pybio.spec.utils import train
 
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter import ModelAdapter, create_model_adapter
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
 logger = logging.getLogger(__name__)
@@ -23,8 +22,8 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
     return None
 
 
-def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None):
-    temp_path = Path(tempfile.mkdtemp(prefix="tiktorch"))
+def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None) -> ModelAdapter:
+    temp_path = Path(tempfile.mkdtemp(prefix="tiktorch_"))
     if cache_path is None:
         cache_path = temp_path / "cache"
 
@@ -37,9 +36,7 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
         )
 
     pybio_model = spec.load_and_resolve_spec(spec_file_str)
-
-    devices = [torch.device(d) for d in devices]
-    ret = Exemplum(pybio_model=pybio_model, _devices=devices)
+    ret = create_model_adapter(pybio_model=pybio_model, devices=devices)
 
     def _on_error(function, path, exc_info):
         logger.warning("Failed to delete temp directory %s", path)

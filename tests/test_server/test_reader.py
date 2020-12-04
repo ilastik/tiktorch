@@ -3,7 +3,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter import ModelAdapter
 from tiktorch.server.reader import eval_model_zip, guess_model_path
 
 
@@ -20,4 +20,10 @@ def test_guess_model_path_without_model_file(paths):
 def test_eval_model_zip(pybio_model_bytes, cache_path):
     with ZipFile(pybio_model_bytes) as zf:
         exemplum = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
-        assert isinstance(exemplum, Exemplum)
+        assert isinstance(exemplum, ModelAdapter)
+
+
+def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_path):
+    with ZipFile(pybio_dummy_tensorflow_model_bytes) as zf:
+        exemplum = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        assert isinstance(exemplum, ModelAdapter)

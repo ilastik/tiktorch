@@ -17,6 +17,7 @@ import pytest
 TEST_DATA = "data"
 TEST_PYBIO_ZIPFOLDER = "unet2d"
 TEST_PYBIO_DUMMY = "dummy"
+TEST_PYBIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
 
 NNModel = namedtuple("NNModel", ["model", "state"])
 
@@ -112,6 +113,34 @@ def pybio_dummy_model_bytes(data_path):
                 zip_model.writestr(f_path.name, f.read())
 
     return data
+
+
+def archive(directory):
+    result = io.BytesIO()
+
+    with ZipFile(result, mode="w") as zip_model:
+
+        def _archive(path_to_archive):
+            for path in path_to_archive.iterdir():
+                if str(path.name).startswith("__"):
+                    continue
+
+                if path.is_dir():
+                    _archive(path)
+
+                else:
+                    with path.open(mode="rb") as f:
+                        zip_model.writestr(str(path).replace(str(directory), ""), f.read())
+
+        _archive(directory)
+
+    return result
+
+
+@pytest.fixture
+def pybio_dummy_tensorflow_model_bytes(data_path):
+    pybio_net_dir = Path(data_path) / TEST_PYBIO_TENSORFLOW_DUMMY
+    return archive(pybio_net_dir)
 
 
 @pytest.fixture

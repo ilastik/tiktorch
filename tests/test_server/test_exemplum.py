@@ -1,18 +1,16 @@
-from pathlib import Path
-
 import numpy
 import torch
 from pybio.spec.utils.transformers import load_spec, load_and_resolve_spec
 
-from tiktorch.server.exemplum import Exemplum
+from tiktorch.server.model_adapter._exemplum import Exemplum
 
 
 def test_exemplum(data_path, cache_path):
-    spec_path = data_path / "unet2d_v03/UNet2DNucleiBroad.model.yaml"
+    spec_path = data_path / "unet2d/UNet2DNucleiBroad.model.yaml"
     assert spec_path.exists(), spec_path.absolute()
     pybio_model = load_and_resolve_spec(str(spec_path))
 
-    exemplum = Exemplum(pybio_model=pybio_model, _devices=[torch.device("cpu")])
+    exemplum = Exemplum(pybio_model=pybio_model, devices=["cpu"])
     test_ipt = numpy.load(pybio_model.test_inputs[0]).reshape((1, 1, 512, 512))
 
     out = exemplum.forward(test_ipt)  # todo: exemplum.forward should get batch with batch dim
