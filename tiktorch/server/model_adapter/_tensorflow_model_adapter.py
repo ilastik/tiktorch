@@ -28,7 +28,7 @@ class TensorflowModelAdapter(ModelAdapter):
         pybio_model: nodes.Model,
         devices=List[str],
     ):
-        spec = pybio_model.spec
+        spec = pybio_model
         self.name = spec.name
 
         if len(spec.inputs) != 1 or len(spec.outputs) != 1:
@@ -70,7 +70,7 @@ class TensorflowModelAdapter(ModelAdapter):
 
         self.model = get_instance(pybio_model)
         self.devices = []
-        tf_model = tf.keras.models.load_model(spec.prediction.weights.source)
+        tf_model = tf.keras.models.load_model(spec.weights["tensorflow_saved_model_bundle"].source)
         self.model.set_model(tf_model)
 
     def forward(self, input_tensor):
