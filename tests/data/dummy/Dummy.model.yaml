@@ -24,7 +24,7 @@ test_outputs: []
 
 weights:
   pytorch_state_dict:
-    source: null
+    source: ./weights
     sha256: null
 
 # TODO double check inputs/outputs
