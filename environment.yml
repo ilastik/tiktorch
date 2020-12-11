@@ -11,6 +11,7 @@ dependencies:
   - python=3.7.*
   - scipy=1.2.*  # 1.3 removed imsave
   - paramiko=2.4.2
+  - ruamel.yaml
   - inferno=v0.4.*
   - pillow=6.2.1
   - pyyaml=5.3
