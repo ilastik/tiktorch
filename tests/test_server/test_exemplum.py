@@ -1,6 +1,6 @@
 import numpy
 import torch
-from pybio.spec.utils.transformers import load_spec, load_and_resolve_spec
+from pybio.spec.utils.transformers import load_and_resolve_spec, load_spec
 
 from tiktorch.server.model_adapter._exemplum import Exemplum
 
