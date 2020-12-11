@@ -35,13 +35,6 @@ inputs:
         kwargs:
           mode: per_sample      # mode in [fixed, per_dataset, per_sample]
           axes: yx              # subset of axes to normalize jointly, batch ('b') is not a valid axis key here!
-#      # example for zero_mean_unit_variance with mode 'fixed'
-#      - name: zero_mean_unit_variance
-#        kwargs:  # example kwargs for zero_mean_unit_variance
-#          mode: fixed
-#          axes: xy      # subset of axes to reduce
-#          mean: [262.3] # mean if mode == fixed. An array as nested lists. Its shape equals the input shape without the reduced axes.
-#          std: [220.2]  # standard deviation if mode == fixed analogously to mean
 
 outputs:
   - name: probability
