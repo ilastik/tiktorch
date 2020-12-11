@@ -6,7 +6,6 @@ from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
 from pybio import spec
-#from pybio.spec.utils import train
 
 from tiktorch.server.model_adapter import ModelAdapter, create_model_adapter
 

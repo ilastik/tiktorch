@@ -2,7 +2,8 @@ import logging
 from typing import Any, List, Sequence
 
 import torch
-#from pybio.core.transformations.base import make_concatenated_apply
+
+# from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
@@ -38,6 +39,7 @@ def _check_batch_dim(axes: str) -> bool:
 def _make_cast(dtype):
     def _cast(tensor):
         return tensor.astype(dtype)
+
     return _cast
 
 
@@ -61,6 +63,7 @@ KNOWN_PREPROCESSING = {
 KNOWN_POSTPROCESSING = {
     "sigmoid": _sigmoid,
 }
+
 
 def chain(*functions):
     def _chained_function(tensor):
@@ -140,7 +143,7 @@ class Exemplum(ModelAdapter):
             _make_cast(_input.data_type),
             _to_torch,
         ]
-        
+
         for preprocessing_step in _input.preprocessing:
             fn = KNOWN_PREPROCESSING.get(preprocessing_step.name)
             if fn is None:
@@ -169,7 +172,7 @@ class Exemplum(ModelAdapter):
         return self._iteration_count
 
     def forward(self, batch) -> List[Any]:
-        #batch = torch.from_numpy(batch)
+        # batch = torch.from_numpy(batch)
         with torch.no_grad():
             batch = self._input_batch_dimension_transform(batch)
             batch = self._prediction_preprocess(batch)
