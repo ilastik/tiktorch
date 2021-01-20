@@ -2,7 +2,7 @@ format_version: 0.3.0
 language: python
 framework: tensorflow
 
-name: UNet2DNucleiBroad
+name: DummyModel
 description: A dummy tensorflow model for testing
 authors:
   - ilastik team
@@ -24,12 +24,10 @@ test_outputs: []
 weights:
   tensorflow_saved_model_bundle:
     source: ./model
-    sha256: null
 
 # TODO double check inputs/outputs
 inputs:
   - name: input
-    description: description
     axes: cyx
     data_type: float32
     data_range: [-inf, inf]
@@ -37,7 +35,6 @@ inputs:
 
 outputs:
   - name: output
-    description: description
     axes: bcyx
     data_type: float32
     data_range: [0, 1]

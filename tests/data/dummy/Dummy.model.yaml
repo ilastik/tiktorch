@@ -25,12 +25,10 @@ test_outputs: []
 weights:
   pytorch_state_dict:
     source: ./weights
-    sha256: null
 
 # TODO double check inputs/outputs
 inputs:
   - name: input
-    description: description
     axes: bcyx
     data_type: float32
     data_range: [-inf, inf]
@@ -38,7 +36,6 @@ inputs:
 
 outputs:
   - name: output
-    description: description
     axes: bcyx
     data_type: float32
     data_range: [0, 1]

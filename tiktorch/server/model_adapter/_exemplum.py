@@ -170,7 +170,6 @@ class Exemplum(ModelAdapter):
         return self._iteration_count
 
     def forward(self, batch) -> List[Any]:
-        # batch = torch.from_numpy(batch)
         with torch.no_grad():
             batch = self._input_batch_dimension_transform(batch)
             batch = self._prediction_preprocess(batch)
