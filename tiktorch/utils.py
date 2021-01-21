@@ -1,9 +1,6 @@
-import itertools
 import logging
-from typing import Callable, List, Sequence, Tuple, Union
-
-import numpy
-import torch
+import time
+from typing import Callable, List, Tuple, Union
 
 from tiktorch.configkeys import CONFIG, LOSS_CRITERION_CONFIG, MINIMAL_CONFIG, TRAINING
 from tiktorch.types import Point, SetDeviceReturnType
@@ -80,3 +77,18 @@ def add_logger(logger: logging.Logger) -> Callable:
         return wrapper
 
     return with_logging
+
+
+def wait(done, interval=0.1, max_wait=1):
+    start = time.time()
+
+    while True:
+        if done():
+            break
+
+        passed = time.time() - start
+
+        if passed > max_wait:
+            raise RuntimeError("timeout")
+        else:
+            time.sleep(interval)
