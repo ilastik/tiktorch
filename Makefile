@@ -1,3 +1,4 @@
+SHELL=/bin/bash
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TIKTORCH_ENV_NAME ?= tiktorch-server-env
 
@@ -24,6 +25,10 @@ devenv:
 	conda develop "$(ROOT_DIR)" --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)/vendor/python-bioimage-io" --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)/vendor/pytorch-bioimage-io" --name $(TIKTORCH_ENV_NAME)
+
+
+run_server:
+	. $$(conda info --base)/etc/profile.d/conda.sh; conda activate $(TIKTORCH_ENV_NAME); python -m tiktorch.server
 
 
 remove_devenv:

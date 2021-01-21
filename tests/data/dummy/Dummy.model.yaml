@@ -1,3 +1,7 @@
+format_version: 0.3.0
+language: python
+framework: pytorch
+
 name: UNet2DNucleiBroad
 description: A 2d U-Net pretrained on broad nucleus dataset.
 cite:
@@ -8,15 +12,19 @@ authors:
 documentation: dummy.md
 tags: [pytorch, nucleus-segmentation]
 license: MIT
+git_repo: https://github.com/ilastik/tiktorch
 
-format_version: 0.1.0
-language: python
-framework: pytorch
 
 source: dummy.py::Dummy
+dependencies: conda:./environment.yaml
+timestamp: 2019-12-11T12:22:32Z  # ISO 8601
 
-test_input: null # ../test_input.npy
-test_output: null # ../test_output.npy
+test_inputs: []
+test_outputs: []
+
+weights:
+  pytorch_state_dict:
+    source: ./weights
 
 # TODO double check inputs/outputs
 inputs:
@@ -25,6 +33,7 @@ inputs:
     data_type: float32
     data_range: [-inf, inf]
     shape: [1, 1, 128, 128]
+
 outputs:
   - name: output
     axes: bcyx
@@ -36,5 +45,3 @@ outputs:
         offset: [0, 0, 0, 0]
         #halo: [0, 0, 32, 32]   # Should be moved to outputs
 
-prediction:
-    dependencies: conda:./environment.yaml

@@ -2,7 +2,6 @@ import logging
 from typing import Any, List, Sequence
 
 import torch
-from pybio.core.transformations.base import make_concatenated_apply
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
@@ -24,6 +23,57 @@ def _add_batch_dim(tensor):
     return tensor.reshape((1,) + tensor.shape)
 
 
+def _check_batch_dim(axes: str) -> bool:
+    try:
+        index = axes.index("b")
+    except ValueError:
+        return False
+    else:
+        if index != 0:
+            raise ValueError("Batch dimension is only supported in first position")
+        return True
+
+
+def _make_cast(dtype):
+    def _cast(tensor):
+        return tensor.astype(dtype)
+
+    return _cast
+
+
+def _to_torch(tensor):
+    return torch.from_numpy(tensor)
+
+
+def _zero_mean_unit_variance(tensor, eps=1.0e-6):
+    mean, std = tensor.mean(), tensor.std()
+    return (tensor - mean) / (std + 1.0e-6)
+
+
+def _sigmoid(tensor):
+    return torch.sigmoid(tensor)
+
+
+KNOWN_PREPROCESSING = {
+    "zero_mean_unit_variance": _zero_mean_unit_variance,
+}
+
+KNOWN_POSTPROCESSING = {
+    "sigmoid": _sigmoid,
+}
+
+
+def chain(*functions):
+    def _chained_function(tensor):
+        tensor = tensor
+        for fn in functions:
+            tensor = fn(tensor)
+
+        return tensor
+
+    return _chained_function
+
+
 class Exemplum(ModelAdapter):
     def __init__(
         self,
@@ -33,7 +83,7 @@ class Exemplum(ModelAdapter):
     ):
         self._max_num_iterations = 0
         self._iteration_count = 0
-        spec = pybio_model.spec
+        spec = pybio_model
         self.name = spec.name
 
         if len(spec.inputs) != 1 or len(spec.outputs) != 1:
@@ -62,7 +112,7 @@ class Exemplum(ModelAdapter):
 
         if has_batch_dim(self._internal_output_axes):
             self.output_axes = self._internal_output_axes[1:]
-            self._output_batch_dimension_transform = _remove_batch_dim
+            self._output_batch_dimension_transform = _noop
             _halo = _halo[1:]
         else:
             self.output_axes = self._internal_output_axes
@@ -75,8 +125,9 @@ class Exemplum(ModelAdapter):
             self.devices = [torch.device(d) for d in devices]
             self.model.to(self.devices[0])
             assert isinstance(self.model, torch.nn.Module)
-            if spec.prediction.weights is not None:
-                state = torch.load(spec.prediction.weights.source, map_location=self.devices[0])
+            weights = spec.weights.get("pytorch_state_dict")
+            if weights is not None and weights.source:
+                state = torch.load(weights.source, map_location=self.devices[0])
                 self.model.load_state_dict(state)
         # elif spec.framework == "tensorflow":
         #     import tensorflow as tf
@@ -86,8 +137,29 @@ class Exemplum(ModelAdapter):
         else:
             raise NotImplementedError
 
-        self._prediction_preprocess = make_concatenated_apply([get_instance(tf) for tf in spec.prediction.preprocess])
-        self._prediction_postprocess = make_concatenated_apply([get_instance(tf) for tf in spec.prediction.postprocess])
+        preprocessing_functions = [
+            _make_cast(_input.data_type),
+            _to_torch,
+        ]
+
+        for preprocessing_step in _input.preprocessing:
+            fn = KNOWN_PREPROCESSING.get(preprocessing_step.name)
+            if fn is None:
+                raise NotImplementedError(f"Preprocessing {preprocessing_step.name}")
+
+            preprocessing_functions.append(fn)
+
+        self._prediction_preprocess = chain(*preprocessing_functions)
+
+        postprocessing_functions = []
+        for postprocessing_step in _output.postprocessing:
+            fn = KNOWN_POSTPROCESSING.get(postprocessing_step.name)
+            if fn is None:
+                raise NotImplementedError(f"Postprocessing {postprocessing_step.name}")
+
+            postprocessing_functions.append(fn)
+
+        self._prediction_postprocess = chain(*postprocessing_functions)
 
     @property
     def max_num_iterations(self) -> int:
@@ -98,7 +170,6 @@ class Exemplum(ModelAdapter):
         return self._iteration_count
 
     def forward(self, batch) -> List[Any]:
-        batch = torch.from_numpy(batch)
         with torch.no_grad():
             batch = self._input_batch_dimension_transform(batch)
             batch = self._prediction_preprocess(batch)
@@ -107,7 +178,7 @@ class Exemplum(ModelAdapter):
             batch = self._prediction_postprocess(batch)
             batch = self._output_batch_dimension_transform(batch)
             assert all([bs > 0 for bs in batch[0].shape]), batch[0].shape
-            result = batch[0]
+            result = batch
             if isinstance(result, torch.Tensor):
                 return result.detach().cpu().numpy()
             else:

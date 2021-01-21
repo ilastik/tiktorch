@@ -1,55 +1,69 @@
-name: UNet2DNucleiBroad
-description: A 2d U-Net pretrained on broad nucleus dataset.
-cite:
-    - text: "Ronneberger, Olaf et al. U-net: Convolutional networks for biomedical image segmentation. MICCAI 2015."
-      doi: https://doi.org/10.1007/978-3-319-24574-4_28
+# TODO physical scale of the data
+format_version: 0.3.0
+
+name: UNet 2D Nuclei Broad
+description: A 2d U-Net trained on the nuclei broad dataset.
 authors:
   - Constantin Pape;@bioimage-io
-documentation: UNet2DNucleiBroad.md
-tags: [unet2d, pytorch, nucleus-segmentation]
+  - Fynn Beuttenmüller
+
+# we allow for multiple citations. Each citation contains TEXT, DOI and URL. One of DOI or URL needs to be given.
+cite:
+  - text: "Ronneberger, Olaf et al. U-net: Convolutional networks for biomedical image segmentation. MICCAI 2015."
+    doi: https://doi.org/10.1007/978-3-319-24574-4_28
+  - text: "2018 Data Science Bowl"
+    url: https://www.kaggle.com/c/data-science-bowl-2018
+
+git_repo: https://github.com/bioimage-io/pytorch-bioimage-io/tree/master/specs/models/unet2d
+tags: [unet2d, pytorch, nucleus, segmentation, dsb2018]
 license: MIT
 
-format_version: 0.1.0
-language: python
-framework: pytorch
+documentation: UNet2DNucleiBroad.md
+covers: []  # todo unet 2d arch image
+attachments: {}
+timestamp: 2019-12-11T12:22:32Z  # ISO 8601
 
-source: unet2d.py::UNet2d
-optional_kwargs: {input_channels: 1, output_channels: 1}
-
-test_input: test_ipt.npy
-test_output: test_out.npy
-covers: [] # ./nuclei_thumbnail.png
-
-# TODO double check inputs/outputs
 inputs:
-  - name: input
-    axes: bcyx
+  - name: raw
+    description: raw input
+    axes: bcyx  # letters of axes in btczyx
     data_type: float32
     data_range: [-inf, inf]
     shape: [1, 1, 512, 512]
+    preprocessing:  # list of preprocessing steps
+      - name: zero_mean_unit_variance  # name of preprocessing step
+        kwargs:
+          mode: per_sample      # mode in [fixed, per_dataset, per_sample]
+          axes: yx              # subset of axes to normalize jointly, batch ('b') is not a valid axis key here!
 
 outputs:
-  - name: logits
+  - name: probability
+    description: probability in [0,1]
     axes: bcyx
     data_type: float32
     data_range: [-inf, inf]
+    postprocessing:
+      - name: sigmoid
     halo: [0, 0, 32, 32]
     shape:
-        reference_input: input   # FIXME(m-novikov) ignoring for now
-        scale: [1, 1, 1, 1]
-        offset: [0, 0, 0, 0]
+      reference_input: raw
+      scale: [1, 1, 1, 1]
+      offset: [0, 0, 0, 0]
 
-prediction:
-    preprocess:
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/EnsureTorch.transformation.yaml
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/Cast.transformation.yaml
-          kwargs: {dtype: float32}
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
-          kwargs: {apply_to: [0]}
-    weights:
-        source: https://zenodo.org/record/3446812/files/unet2d_weights.torch
-        hash: {md5: TODO}
-    postprocess:
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/Sigmoid.transformation.yaml
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/1ecf075ee3e223dcc66aee8aef7794fe635cc828/specs/transformations/EnsureNumpy.transformation.yaml
-    dependencies: conda:./environment.yaml
+language: python
+framework: pytorch
+source: unet2d.py::UNet2d
+kwargs: {input_channels: 1, output_channels: 1}
+dependencies: conda:../environment.yaml
+
+test_inputs: [test_input.npy]
+test_outputs: [test_output.npy]
+
+sample_inputs: [sample_input.npy]
+sample_outputs: [sample_output.npy]
+
+weights:
+ pytorch_state_dict:
+   authors: [Constantin Pape;@bioimage-io]
+   sha256: e4d3885bccbe41cbf6c1d825f3cd2b707c7021ead5593156007e407a16b27cf2
+   source: https://zenodo.org/record/3446812/files/unet2d_weights.torch

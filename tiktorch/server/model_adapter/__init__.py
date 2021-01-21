@@ -8,7 +8,7 @@ __all__ = ["ModelAdapter", "create_model_adapter"]
 
 
 def create_model_adapter(*, pybio_model: nodes.Model, devices=List[str]):
-    spec = pybio_model.spec
+    spec = pybio_model
     if spec.framework == "pytorch":
         from ._exemplum import Exemplum
 

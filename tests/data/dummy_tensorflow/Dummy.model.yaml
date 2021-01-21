@@ -1,4 +1,8 @@
-name: DummyTFModel
+format_version: 0.3.0
+language: python
+framework: tensorflow
+
+name: DummyModel
 description: A dummy tensorflow model for testing
 authors:
   - ilastik team
@@ -8,15 +12,18 @@ cite:
 documentation: dummy.md
 tags: [tensorflow]
 license: MIT
-
-format_version: 0.1.0
-language: python
-framework: tensorflow
+git_repo: https://github.com/ilastik/tiktorch
 
 source: dummy.py::TensorflowModelWrapper
+dependencies: conda:./environment.yaml
+timestamp: 2019-12-11T12:22:32Z  # ISO 8601
 
-test_input: null # ../test_input.npy
-test_output: null # ../test_output.npy
+test_inputs: []
+test_outputs: []
+
+weights:
+  tensorflow_saved_model_bundle:
+    source: ./model
 
 # TODO double check inputs/outputs
 inputs:
@@ -25,6 +32,7 @@ inputs:
     data_type: float32
     data_range: [-inf, inf]
     shape: [1, 128, 128]
+
 outputs:
   - name: output
     axes: bcyx
@@ -35,9 +43,3 @@ outputs:
         scale: [1, 1, 1]
         offset: [0, 0, 0]
         #halo: [0, 0, 32, 32]   # Should be moved to outputs
-
-prediction:
-  weights:
-    source: ./model
-    hash: {md5: TODO}
-  dependencies: conda:./environment.yaml
