@@ -22,7 +22,7 @@ def main():
     parsey.add_argument("--port", type=str, default="5567")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
-    parsey.add_argument("--connection_file", help="where to write connection parameters file")
+    parsey.add_argument("--connection-file", help="where to write connection parameters file")
     parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
 
     args = parsey.parse_args()
