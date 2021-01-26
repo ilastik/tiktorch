@@ -13,7 +13,6 @@ from random import randint
 from zipfile import ZipFile
 
 import numpy as np
-
 import pytest
 
 TEST_DATA = "data"

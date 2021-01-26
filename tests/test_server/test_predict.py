@@ -1,13 +1,15 @@
-import pytest
 import sys
 
+import numpy as np
+import pytest
+from numpy.testing import assert_array_equal
 
 pytest_plugins = ["pytester"]
 
 
 @pytest.fixture
 def output_path(tmpdir):
-    output = tmpdir / "output.zip"
+    output = tmpdir / "output.npy"
     return str(output)
 
 
@@ -23,6 +25,9 @@ def test_running_predict_with_valid_arguments(testdir, pybio_dummy_model_filepat
         output_path,
     )
     assert result.ret == 0
+    res = np.load(output_path)
+    original = np.load(npy_zeros_file)
+    assert_array_equal(res, original + 1)
 
 
 def test_running_predict_fails_when_model_unspecified(testdir, npy_zeros_file, output_path):
