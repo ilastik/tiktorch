@@ -75,7 +75,6 @@ jobs:
       - run:
           name: run tests
           command: |
-            pip install -e .
             . /opt/conda/etc/profile.d/conda.sh
             conda activate tiktorch-server-env
             python -m pytest
