@@ -22,11 +22,10 @@ def main():
     parsey.add_argument("--port", type=str, default="5567")
     parsey.add_argument("--debug", action="store_true")
     parsey.add_argument("--dummy", action="store_true")
+    parsey.add_argument("--connection-file", help="where to write connection parameters file")
     parsey.add_argument("--kill-timeout", type=int, default=KILL_TIMEOUT)
 
     args = parsey.parse_args()
-    print(f"Starting server on {args.addr}:{args.port}")
-
     from . import grpc
 
-    grpc.serve(args.addr, args.port)
+    grpc.serve(args.addr, args.port, connection_file_path=args.connection_file)

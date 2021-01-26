@@ -1,5 +1,8 @@
+import json
+import os
 import threading
 from concurrent import futures
+from typing import Optional
 
 import grpc
 
@@ -13,7 +16,7 @@ from .flight_control_servicer import FlightControlServicer
 from .inference_servicer import InferenceServicer
 
 
-def serve(host, port):
+def serve(host, port, *, connection_file_path: Optional[str] = None):
     _100_MB = 100 * 1024 * 1024
 
     done_evt = threading.Event()
@@ -35,7 +38,14 @@ def serve(host, port):
     inference_pb2_grpc.add_InferenceServicer_to_server(inference_svc, server)
     inference_pb2_grpc.add_FlightControlServicer_to_server(fligh_svc, server)
     data_store_pb2_grpc.add_DataStoreServicer_to_server(data_svc, server)
-    server.add_insecure_port(f"{host}:{port}")
+
+    acquired_port = server.add_insecure_port(f"{host}:{port}")
+    print(f"Starting server on {host}:{acquired_port}")
+    if connection_file_path:
+        print(f"Writing connection data to {connection_file_path}")
+        with open(connection_file_path, "w") as conn_file:
+            json.dump({"addr": host, "port": acquired_port}, conn_file)
+
     server.start()
 
     done_evt.wait()
