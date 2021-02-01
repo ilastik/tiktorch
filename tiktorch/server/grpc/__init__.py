@@ -16,7 +16,7 @@ from .flight_control_servicer import FlightControlServicer
 from .inference_servicer import InferenceServicer
 
 
-def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeout: Optional[int] = None):
+def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeout: Optional[float] = None):
     """
     Starts grpc server on given host and port and writes connection details to json file
     :param host: ip to listen on

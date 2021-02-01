@@ -24,8 +24,8 @@ def main():
     parsey.add_argument(
         "--kill-timeout",
         type=float,
-        default=0.0,
-        help="how long to wait for pings before sever will automatically shutdown",
+        default=None,
+        help="how long to wait for pings before auto shutdown (if not specified runs forever)",
     )
 
     args = parsey.parse_args()
