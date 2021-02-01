@@ -3,8 +3,6 @@ import threading
 import time
 from typing import Optional
 
-import grpc
-
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 
 logger = logging.getLogger(__name__)

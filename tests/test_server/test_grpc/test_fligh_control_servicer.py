@@ -1,10 +1,5 @@
-import hashlib
 import threading
 import time
-import threading
-
-import grpc
-import pytest
 
 from tiktorch.server.grpc import flight_control_servicer
 
