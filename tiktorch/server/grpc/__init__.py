@@ -16,7 +16,14 @@ from .flight_control_servicer import FlightControlServicer
 from .inference_servicer import InferenceServicer
 
 
-def serve(host, port, *, connection_file_path: Optional[str] = None):
+def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeout: Optional[int] = None):
+    """
+    Starts grpc server on given host and port and writes connection details to json file
+    :param host: ip to listen on
+    :param port: port to listen on (if 0 random port will be assigned)
+    :param connection_file_path: path to file where to write connection parameters
+    :param kill_timeout: how long to wait for heartbeat before stopping server
+    """
     _100_MB = 100 * 1024 * 1024
 
     done_evt = threading.Event()
@@ -32,7 +39,7 @@ def serve(host, port, *, connection_file_path: Optional[str] = None):
     data_store = DataStore()
 
     inference_svc = InferenceServicer(TorchDevicePool(), SessionManager(), data_store)
-    fligh_svc = FlightControlServicer(done_evt=done_evt)
+    fligh_svc = FlightControlServicer(done_evt=done_evt, kill_timeout=kill_timeout)
     data_svc = DataStoreServicer(data_store)
 
     inference_pb2_grpc.add_InferenceServicer_to_server(inference_svc, server)
