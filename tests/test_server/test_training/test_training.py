@@ -9,6 +9,7 @@ import torch
 from tiktorch.server.session import State
 from tiktorch.server.session.backend import commands
 from tiktorch.server.session.backend.supervisor import Supervisor
+from tiktorch.utils import wait
 
 
 class TestExemplumSupervisor:
@@ -85,9 +86,11 @@ class TestExemplumSupervisor:
 
     def test_exception_during_train_should_transition_to_paused(self, supervisor, worker_thread, exemplum):
         train_called = threading.Event()
+        train_proceed = threading.Event()
 
         def _exc():
             train_called.set()
+            train_proceed.wait()
             raise Exception()
 
         exemplum.train = _exc
@@ -95,14 +98,15 @@ class TestExemplumSupervisor:
         cmd = commands.ResumeCmd()
         supervisor.send_command(cmd)
 
+        assert supervisor.state == State.Paused
         add_work = commands.SetMaxNumIterations(2).awaitable
         supervisor.send_command(add_work)
         add_work.wait()
 
         train_called.wait()
-        assert supervisor.state == State.Running
-        time.sleep(0.2)  # FIXME: Find a better way to wait for pause event with timeout
-        assert supervisor.state == State.Paused
+        wait(lambda: supervisor.state == State.Running, max_wait=1)
+        train_proceed.set()
+        wait(lambda: supervisor.state == State.Paused, max_wait=1)
 
     def test_finished_training_should_transition_to_paused(self, supervisor, worker_thread, exemplum):
         cmd = commands.ResumeCmd()
