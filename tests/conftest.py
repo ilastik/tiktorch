@@ -17,6 +17,7 @@ import pytest
 
 TEST_DATA = "data"
 TEST_PYBIO_ZIPFOLDER = "unet2d"
+TEST_PYBIO_ONNX = "unet2d_onnx"
 TEST_PYBIO_DUMMY = "dummy"
 TEST_PYBIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
 
@@ -158,6 +159,20 @@ def archive(directory):
 def pybio_dummy_tensorflow_model_bytes(data_path):
     pybio_net_dir = Path(data_path) / TEST_PYBIO_TENSORFLOW_DUMMY
     return archive(pybio_net_dir)
+
+
+@pytest.fixture
+def pybio_unet2d_onnx_bytes(data_path):
+    pybio_net_dir = Path(data_path) / TEST_PYBIO_ONNX
+    return archive(pybio_net_dir)
+
+
+@pytest.fixture
+def pybio_unet2d_onnx_test_data(data_path):
+    pybio_net_dir = Path(data_path) / TEST_PYBIO_ONNX
+    test_input = pybio_net_dir / "test_input.npy"
+    test_output = pybio_net_dir / "test_output.npy"
+    return {"test_input": test_input, "test_output": test_output}
 
 
 @pytest.fixture
