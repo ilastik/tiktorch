@@ -19,6 +19,7 @@ TEST_DATA = "data"
 TEST_PYBIO_ZIPFOLDER = "unet2d"
 TEST_PYBIO_DUMMY = "dummy"
 TEST_PYBIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
+TEST_PYBIO_TORCHSCRIPT = "unet2d_torchscript"
 
 NNModel = namedtuple("NNModel", ["model", "state"])
 
@@ -166,6 +167,12 @@ def npy_zeros_file(tmpdir):
     zeros = np.zeros(shape=(64, 64))
     np.save(path, zeros)
     return path
+
+
+@pytest.fixture
+def pybio_unet2d_torchscript_bytes(data_path):
+    pybio_net_dir = Path(data_path) / TEST_PYBIO_TORCHSCRIPT
+    return archive(pybio_net_dir)
 
 
 @pytest.fixture

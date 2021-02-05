@@ -4,6 +4,7 @@ from zipfile import ZipFile
 import pytest
 
 from tiktorch.server.model_adapter import ModelAdapter
+from tiktorch.server.model_adapter._torchscript_model_adapter import TorchscriptModelAdapter
 from tiktorch.server.reader import eval_model_zip, guess_model_path
 
 
@@ -27,3 +28,10 @@ def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_pat
     with ZipFile(pybio_dummy_tensorflow_model_bytes) as zf:
         exemplum = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
         assert isinstance(exemplum, ModelAdapter)
+
+
+def test_eval_torchscript_model_zip(pybio_unet2d_torchscript_bytes, cache_path):
+    with ZipFile(pybio_unet2d_torchscript_bytes) as zf:
+        adapter = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        assert isinstance(adapter, ModelAdapter)
+        assert isinstance(adapter, TorchscriptModelAdapter)

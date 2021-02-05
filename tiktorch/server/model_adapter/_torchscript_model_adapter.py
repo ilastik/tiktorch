@@ -21,7 +21,7 @@ def _add_batch_dim(tensor):
     return tensor.reshape((1,) + tensor.shape)
 
 
-class TorchscriptfModelAdapter(ModelAdapter):
+class TorchscriptModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
