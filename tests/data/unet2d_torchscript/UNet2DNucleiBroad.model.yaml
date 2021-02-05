@@ -61,6 +61,6 @@ sample_inputs: [sample_input.npy]
 sample_outputs: [sample_output.npy]
 
 weights:
-pytorch_script:
-    sha256: b7f9dcf1da55a6d4cb29a0186d5558a86e4969916368479754517d00fa365848
-    source: ./weights.pt
+  pytorch_script:
+      sha256: b7f9dcf1da55a6d4cb29a0186d5558a86e4969916368479754517d00fa365848
+      source: ./weights.pt
