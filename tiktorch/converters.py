@@ -4,8 +4,11 @@ import xarray
 from tiktorch.proto import inference_pb2
 
 
-def numpy_to_pb_tensor(array: np.ndarray) -> inference_pb2.Tensor:
-    shape = [inference_pb2.TensorDim(size=dim) for dim in array.shape]
+def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
+    if axistags:
+        shape = [inference_pb2.TensorDim(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
+    else:
+        shape = [inference_pb2.TensorDim(size=dim) for dim in array.shape]
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array))
 
 

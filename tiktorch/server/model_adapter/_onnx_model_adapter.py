@@ -1,7 +1,9 @@
 from typing import Callable, List
 
+import logging
 import numpy as np
 import onnxruntime as rt
+import xarray
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 
@@ -9,13 +11,14 @@ from ._base import ModelAdapter
 from ._preprocessing import make_preprocessing
 from ._utils import has_batch_dim
 
+logger = logging.getLogger(__name__)
 
 def _noop(tensor):
     return tensor
 
 
-def _remove_batch_dim(batch: List):
-    return [t.reshape(t.shape[1:]) for t in batch]
+def _remove_batch_dim(batch: np.ndarray):
+    return batch.reshape(batch.shape[1:])
 
 
 def _add_batch_dim(tensor):
@@ -32,7 +35,7 @@ class ONNXModelAdapter(ModelAdapter):
             self._input_name = inputs[0].name
 
         def forward(self, input):
-            return self._session.run(None, {self._input_name: input})
+            return self._session.run(None, {self._input_name: input})[0]
 
     def __init__(
         self,
@@ -52,8 +55,10 @@ class ONNXModelAdapter(ModelAdapter):
         _input = spec.inputs[0]
         _output = spec.outputs[0]
 
+
         self._internal_input_axes = _input.axes
         self._internal_output_axes = _output.axes
+        self._input_dtype = _input.data_type
 
         if has_batch_dim(self._internal_input_axes):
             self.input_axes = self._internal_input_axes[1:]
@@ -84,12 +89,19 @@ class ONNXModelAdapter(ModelAdapter):
         self.devices = []
 
     def forward(self, batch):
-        batch = self._input_batch_dimension_transform(batch)
+        need_to_add_batch_dim = "b" not in batch.dims and "b" in self._internal_input_axes
+        if need_to_add_batch_dim:
+            batch = batch.expand_dims("b", 0)
+
         batch = self._prediction_preprocess(batch)
-        batch = self.model.forward(batch)
+        batch = self.model.forward(batch.data.astype(self._input_dtype))
         batch = self._prediction_postprocess(batch)
-        batch = self._output_batch_dimension_transform(batch)
-        return batch
+        result = xarray.DataArray(batch, dims=tuple(self._internal_output_axes))
+
+        if "b" in result.sizes:
+            return result.squeeze("b")
+        else:
+            return result
 
     @property
     def max_num_iterations(self) -> int:

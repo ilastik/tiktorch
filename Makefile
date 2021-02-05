@@ -8,6 +8,9 @@ sample_model:
 unet2d:
 	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet2d.tmodel ./*
 
+unet2d_onnx:
+	cd tests/data/unet2d_onnx && zip -r $(ROOT_DIR)/onnx.tmodel ./*
+
 dummy_tf:
 	cd tests/data/dummy_tensorflow && zip -r $(ROOT_DIR)/dummy_tf.tmodel ./*
 

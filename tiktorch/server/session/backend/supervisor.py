@@ -4,6 +4,7 @@ import logging
 import queue
 
 import numpy as np
+import xarray
 
 from tiktorch.server.model_adapter import ModelAdapter
 from tiktorch.server.session import types
@@ -40,7 +41,7 @@ class Supervisor:
 
     def forward(self, input_tensor):
         result = self._exemplum.forward(input_tensor)
-        assert isinstance(result, np.ndarray)
+        assert isinstance(result, xarray.DataArray), f"Not a DataArray, but a {type(result)}"
         return result
 
     def transition_to(self, new_state: types.State) -> None:
