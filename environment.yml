@@ -19,6 +19,7 @@ dependencies:
   - pytest=4.3.0
   - grpcio>=1.31
   - grpcio-tools
+  - xarray>=0.16
   - protobuf=3.11.4
   - cudatoolkit>=10.1,<10.2
   - numpy=1.18.5
