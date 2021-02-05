@@ -3,7 +3,6 @@ from typing import Callable, List
 import numpy as np
 import torch
 from pybio.spec import nodes
-from pybio.spec.utils import get_instance
 
 from ._base import ModelAdapter
 from ._utils import has_batch_dim
@@ -67,16 +66,15 @@ class TorchscriptModelAdapter(ModelAdapter):
 
         self.halo = list(zip(self.output_axes, _halo))
 
-        self.model = get_instance(pybio_model)
-        self.devices = []
-        scripted_model = torch.jit.load(spec.weights["pytorch_script"].source)
-        self.model.set_model(scripted_model)
+        self.devices = devices
+        weight_path = str(spec.weights["pytorch_script"].source.resolve())
+        self.model = torch.jit.load(weight_path)
 
     def forward(self, input_tensor):
         assert isinstance(input_tensor, np.ndarray)
-        with torch.nograd():
+        with torch.no_grad():
             torch_tensor = torch.from_numpy(input_tensor)
-            res = self.model.forward(torch_tensor)
+            res = self.model(torch_tensor)
             if isinstance(res, np.ndarray):
                 return res
             else:

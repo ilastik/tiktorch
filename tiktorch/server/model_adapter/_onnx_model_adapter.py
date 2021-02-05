@@ -2,7 +2,6 @@ from typing import Callable, List
 
 import numpy as np
 import onnxruntime as rt
-import tensorflow as tf
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
 

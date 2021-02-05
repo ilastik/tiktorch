@@ -22,5 +22,9 @@ def create_model_adapter(*, pybio_model: nodes.Model, devices=List[str]):
         from ._onnx_model_adapter import ONNXModelAdapter
 
         return ONNXModelAdapter(pybio_model=pybio_model, devices=devices)
+    elif "pytorch_script" in weights:
+        from ._torchscript_model_adapter import TorchscriptModelAdapter
+
+        return TorchscriptModelAdapter(pybio_model=pybio_model, devices=devices)
     else:
         raise NotImplementedError(f"No supported weight_formats in {spec.weights.keys()}")
