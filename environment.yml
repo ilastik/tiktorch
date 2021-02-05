@@ -33,4 +33,5 @@ dependencies:
   - pip>=19
   - pip:
       - tensorflow
+      - onnxruntime
       - pytest-grpc==0.7.0
