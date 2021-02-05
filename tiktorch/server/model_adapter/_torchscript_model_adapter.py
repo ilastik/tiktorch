@@ -5,6 +5,7 @@ import torch
 from pybio.spec import nodes
 
 from ._base import ModelAdapter
+from ._preprocessing import make_preprocessing
 from ._utils import has_batch_dim
 
 
@@ -70,15 +71,24 @@ class TorchscriptModelAdapter(ModelAdapter):
         weight_path = str(spec.weights["pytorch_script"].source.resolve())
         self.model = torch.jit.load(weight_path)
 
-    def forward(self, input_tensor):
-        assert isinstance(input_tensor, np.ndarray)
+        self._prediction_preprocess = make_preprocessing(_input.preprocessing)
+        self._prediction_postprocess = _noop
+
+    def forward(self, batch):
+        assert isinstance(batch, np.ndarray)
+        batch = self._prediction_preprocess(batch)
+
         with torch.no_grad():
-            torch_tensor = torch.from_numpy(input_tensor)
-            res = self.model(torch_tensor)
-            if isinstance(res, np.ndarray):
-                return res
+            batch = torch.from_numpy(batch)
+            batch = self.model.forward(batch)
+            if isinstance(batch, np.ndarray):
+                return batch
             else:
-                return res.cpu().numpy()
+                return batch.cpu().numpy()
+
+        batch = self._prediction_postprocess(batch)
+        batch = self._output_batch_dimension_transform(batch)
+        return batch
 
     @property
     def max_num_iterations(self) -> int:
