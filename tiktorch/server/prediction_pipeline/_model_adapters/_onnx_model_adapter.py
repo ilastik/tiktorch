@@ -5,11 +5,10 @@ import numpy as np
 import onnxruntime as rt
 import xarray
 from pybio.spec import nodes
-from pybio.spec.utils import get_instance
 
-from ._base import ModelAdapter
-from ._preprocessing import make_preprocessing
-from ._utils import has_batch_dim
+from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
+from tiktorch.server.prediction_pipeline._preprocessing import make_preprocessing
+from tiktorch.server.prediction_pipeline._utils import has_batch_dim
 
 logger = logging.getLogger(__name__)
 

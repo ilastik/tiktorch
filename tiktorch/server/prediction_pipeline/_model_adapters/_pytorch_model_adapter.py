@@ -4,9 +4,10 @@ from typing import Any, List, Sequence
 import torch
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
+from xarray import DataArray
 
-from ._base import ModelAdapter
-from ._utils import has_batch_dim
+from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
+from tiktorch.server.prediction_pipeline._utils import has_batch_dim
 
 logger = logging.getLogger(__name__)
 
@@ -169,20 +170,15 @@ class PytorchModelAdapter(ModelAdapter):
     def iteration_count(self) -> int:
         return self._iteration_count
 
-    def forward(self, batch) -> List[Any]:
+    def forward(self, input_tensor: DataArray) -> DataArray:
         with torch.no_grad():
-            batch = self._input_batch_dimension_transform(batch)
-            batch = self._prediction_preprocess(batch)
-            batch = [b.to(self.devices[0]) for b in batch]
-            batch = self.model(*batch)
-            batch = self._prediction_postprocess(batch)
-            batch = self._output_batch_dimension_transform(batch)
-            assert all([bs > 0 for bs in batch[0].shape]), batch[0].shape
-            result = batch
+            tensor = torch.from_numpy(input_tensor.data)
+            tensor = tensor.to(self.devices[0])
+            result = self.model(*[tensor])
             if isinstance(result, torch.Tensor):
-                return result.detach().cpu().numpy()
-            else:
-                return result
+                result = result.detach().cpu().numpy()
+
+        return DataArray(result, dims=tuple(self._internal_output_axes))
 
     def set_max_num_iterations(self, max_num_iterations: int) -> None:
         self._max_num_iterations = max_num_iterations

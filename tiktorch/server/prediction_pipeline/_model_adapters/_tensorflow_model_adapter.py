@@ -1,12 +1,12 @@
 from typing import Callable, List
 
 import numpy as np
-import torch
+import tensorflow as tf
 from pybio.spec import nodes
+from pybio.spec.utils import get_instance
 
-from ._base import ModelAdapter
-from ._preprocessing import make_preprocessing
-from ._utils import has_batch_dim
+from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
+from tiktorch.server.prediction_pipeline._utils import has_batch_dim
 
 
 def _noop(tensor):
@@ -21,7 +21,7 @@ def _add_batch_dim(tensor):
     return tensor.reshape((1,) + tensor.shape)
 
 
-class TorchscriptModelAdapter(ModelAdapter):
+class TensorflowModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
@@ -36,11 +36,12 @@ class TorchscriptModelAdapter(ModelAdapter):
 
         assert len(spec.inputs) == 1
         assert len(spec.outputs) == 1
-        # assert spec.framework == "tensorflow"
+        assert spec.framework == "tensorflow"
 
         _input = spec.inputs[0]
         _output = spec.outputs[0]
 
+        # FIXME: TF probably uses different axis names
         self._internal_input_axes = _input.axes
         self._internal_output_axes = _output.axes
 
@@ -67,28 +68,20 @@ class TorchscriptModelAdapter(ModelAdapter):
 
         self.halo = list(zip(self.output_axes, _halo))
 
-        self.devices = devices
-        weight_path = str(spec.weights["pytorch_script"].source.resolve())
-        self.model = torch.jit.load(weight_path)
+        self.model = get_instance(pybio_model)
+        self.devices = []
+        tf_model = tf.keras.models.load_model(spec.weights["tensorflow_saved_model_bundle"].source)
+        self.model.set_model(tf_model)
 
-        self._prediction_preprocess = make_preprocessing(_input.preprocessing)
-        self._prediction_postprocess = _noop
+    def forward(self, input_tensor):
+        tf_tensor = tf.convert_to_tensor(input_tensor)
 
-    def forward(self, batch):
-        assert isinstance(batch, np.ndarray)
-        batch = self._prediction_preprocess(batch)
+        res = self.model.predict(tf_tensor)
 
-        with torch.no_grad():
-            batch = torch.from_numpy(batch)
-            batch = self.model.forward(batch)
-            if isinstance(batch, np.ndarray):
-                return batch
-            else:
-                return batch.cpu().numpy()
-
-        batch = self._prediction_postprocess(batch)
-        batch = self._output_batch_dimension_transform(batch)
-        return batch
+        if isinstance(res, np.ndarray):
+            return res
+        else:
+            return tf.make_ndarray(res)
 
     @property
     def max_num_iterations(self) -> int:

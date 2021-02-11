@@ -2,6 +2,7 @@ import grpc
 import numpy as np
 import pytest
 from numpy.testing import assert_array_equal
+from xarray import DataArray
 
 from tiktorch import converters
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
@@ -156,9 +157,9 @@ class TestForwardPass:
     def test_call_predict(self, grpc_stub, pybio_dummy_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(pybio_dummy_model_bytes))
 
-        arr = np.arange(32 * 32).reshape(1, 1, 32, 32)
+        arr = DataArray(np.arange(32 * 32).reshape(1, 32, 32), dims=("c", "x", "y"))
         expected = arr + 1
-        input_tensor = converters.numpy_to_pb_tensor(arr)
+        input_tensor = converters.xarray_to_pb_tensor(arr)
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensor=input_tensor))
 
         grpc_stub.CloseModelSession(model)
