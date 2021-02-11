@@ -1,9 +1,8 @@
 from typing import Callable, List
 
 import numpy as np
-import onnxruntime as rt
+import torch
 from pybio.spec import nodes
-from pybio.spec.utils import get_instance
 
 from ._base import ModelAdapter
 from ._preprocessing import make_preprocessing
@@ -22,18 +21,7 @@ def _add_batch_dim(tensor):
     return tensor.reshape((1,) + tensor.shape)
 
 
-class ONNXModelAdapter(ModelAdapter):
-    class ONNXWrapper:
-        def __init__(self, weights):
-            self._session = rt.InferenceSession(weights)
-            inputs = self._session.get_inputs()
-            if len(inputs) != 1:
-                raise ValueError("Only supports models with 1 input")
-            self._input_name = inputs[0].name
-
-        def forward(self, input):
-            return self._session.run(None, {self._input_name: input})
-
+class TorchscriptModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
@@ -48,6 +36,7 @@ class ONNXModelAdapter(ModelAdapter):
 
         assert len(spec.inputs) == 1
         assert len(spec.outputs) == 1
+        # assert spec.framework == "tensorflow"
 
         _input = spec.inputs[0]
         _output = spec.outputs[0]
@@ -57,7 +46,7 @@ class ONNXModelAdapter(ModelAdapter):
 
         if has_batch_dim(self._internal_input_axes):
             self.input_axes = self._internal_input_axes[1:]
-            self._input_batch_dimension_transform = _noop
+            self._input_batch_dimension_transform = _add_batch_dim
             _input_shape = _input.shape[1:]
         else:
             self.input_axes = self._internal_input_axes
@@ -76,17 +65,27 @@ class ONNXModelAdapter(ModelAdapter):
             self.output_axes = self._internal_output_axes
             self._output_batch_dimension_transform = _noop
 
+        self.halo = list(zip(self.output_axes, _halo))
+
+        self.devices = devices
+        weight_path = str(spec.weights["pytorch_script"].source.resolve())
+        self.model = torch.jit.load(weight_path)
+
         self._prediction_preprocess = make_preprocessing(_input.preprocessing)
         self._prediction_postprocess = _noop
 
-        self.halo = list(zip(self.output_axes, _halo))
-        self.model = self.ONNXWrapper(str(spec.weights["onnx"].source))
-        self.devices = []
-
     def forward(self, batch):
-        batch = self._input_batch_dimension_transform(batch)
+        assert isinstance(batch, np.ndarray)
         batch = self._prediction_preprocess(batch)
-        batch = self.model.forward(batch)
+
+        with torch.no_grad():
+            batch = torch.from_numpy(batch)
+            batch = self.model.forward(batch)
+            if isinstance(batch, np.ndarray):
+                return batch
+            else:
+                return batch.cpu().numpy()
+
         batch = self._prediction_postprocess(batch)
         batch = self._output_batch_dimension_transform(batch)
         return batch
