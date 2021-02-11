@@ -8,6 +8,10 @@ from ._types import Transform
 ADD_BATCH_DIM = Preprocessing(name="__tiktorch_add_batch_dim", kwargs=None)
 
 
+def make_ensure_dtype_preprocessing(dtype):
+    return Preprocessing(name="__ensure_dtype", kwargs={"dtype": dtype})
+
+
 def zero_mean_unit_variance(tensor: xarray.DataArray, axes=None, eps=1.0e-6, mode="per_sample") -> xarray.DataArray:
     if axes:
         axes = tuple(axes)
@@ -21,6 +25,10 @@ def zero_mean_unit_variance(tensor: xarray.DataArray, axes=None, eps=1.0e-6, mod
     return (tensor - mean) / (std + 1.0e-6)
 
 
+def ensure_dtype(tensor: xarray.DataArray, *, dtype):
+    return tensor.astype(dtype)
+
+
 def add_batch_dim(tensor: xarray.DataArray):
     return tensor.expand_dims("b")
 
@@ -28,6 +36,7 @@ def add_batch_dim(tensor: xarray.DataArray):
 KNOWN_PREPROCESSING = {
     "zero_mean_unit_variance": zero_mean_unit_variance,
     "__tiktorch_add_batch_dim": add_batch_dim,
+    "__ensure_dtype": ensure_dtype,
 }
 
 

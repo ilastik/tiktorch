@@ -6,7 +6,7 @@ from pybio.spec import nodes
 
 from ._model_adapters import ModelAdapter, create_model_adapter
 from ._postprocessing import REMOVE_BATCH_DIM, make_postprocessing
-from ._preprocessing import ADD_BATCH_DIM, make_preprocessing
+from ._preprocessing import ADD_BATCH_DIM, make_ensure_dtype_preprocessing, make_preprocessing
 from ._types import Transform
 from ._utils import has_batch_dim
 
@@ -131,6 +131,7 @@ def create_prediction_pipeline(
         input_axes = input_axes[1:]
         input_shape = input_shape[1:]
 
+    preprocessing_spec.insert(0, make_ensure_dtype_preprocessing(input.data_type))
     input_named_shape = list(zip(input_axes, input_shape))
     preprocessing: Transform = make_preprocessing(preprocessing_spec)
 
