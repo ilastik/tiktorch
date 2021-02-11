@@ -74,7 +74,7 @@ def chain(*functions):
     return _chained_function
 
 
-class Exemplum(ModelAdapter):
+class PytorchModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,

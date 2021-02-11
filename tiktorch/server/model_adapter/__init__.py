@@ -11,9 +11,9 @@ def create_model_adapter(*, pybio_model: nodes.Model, devices=List[str]):
     spec = pybio_model
     weights = pybio_model.weights
     if "pytorch_state_dict" in weights:
-        from ._exemplum import Exemplum
+        from ._pytorch_model_adapter import PytorchModelAdapter
 
-        return Exemplum(pybio_model=pybio_model, devices=devices)
+        return PytorchModelAdapter(pybio_model=pybio_model, devices=devices)
     elif "tensorflow_saved_model_bundle" in weights:
         from ._tensorflow_model_adapter import TensorflowModelAdapter
 
