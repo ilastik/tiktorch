@@ -73,7 +73,7 @@ jobs:
             - v7-dependencies-{{ checksum "environment.yml" }}
 
       - run:
-          name: run black
+          name: run flake8
           command: |
             . /opt/conda/etc/profile.d/conda.sh
             conda activate tiktorch-server-env
