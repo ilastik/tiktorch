@@ -1,5 +1,5 @@
 import abc
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import xarray as xr
 from pybio.spec import nodes
@@ -129,7 +129,11 @@ class _PredictionPipelineImpl(PredictionPipeline):
 
 
 def create_prediction_pipeline(
-    *, pybio_model: nodes.Model, devices=List[str], preserve_batch_dim=False
+    *,
+    pybio_model: nodes.Model,
+    devices=List[str],
+    preserve_batch_dim=False,
+    weight_format: Optional[str] = None,
 ) -> PredictionPipeline:
     """
     Creates prediction pipeline which includes:
@@ -140,7 +144,9 @@ def create_prediction_pipeline(
     if len(pybio_model.inputs) != 1 or len(pybio_model.outputs) != 1:
         raise NotImplementedError(f"Only models with single input and output are supported")
 
-    model_adapter: ModelAdapter = create_model_adapter(pybio_model=pybio_model, devices=devices)
+    model_adapter: ModelAdapter = create_model_adapter(
+        pybio_model=pybio_model, devices=devices, weight_format=weight_format
+    )
 
     input = pybio_model.inputs[0]
     input_shape = input.shape
