@@ -4,8 +4,9 @@ import logging
 import queue
 
 import numpy as np
+import xarray as xr
 
-from tiktorch.server.model_adapter import ModelAdapter
+from tiktorch.server.prediction_pipeline import PredictionPipeline
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
 
@@ -13,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class Supervisor:
-    def __init__(self, exemplum: ModelAdapter) -> None:
+    def __init__(self, pipeline: PredictionPipeline) -> None:
         self._state = types.State.Stopped
 
         self._command_queue = commands.CommandPriorityQueue()
-        self._exemplum = exemplum
-        self._exemplum.set_break_callback(self.has_commands)
+        self._pipeline = pipeline
+        self._pipeline.set_break_callback(self.has_commands)
         self._idle_callbacks = []
 
     def send_command(self, cmd: commands.ICommand) -> None:
@@ -36,11 +37,11 @@ class Supervisor:
         return not self._command_queue.empty()
 
     def has_work(self):
-        return self._exemplum.max_num_iterations and self._exemplum.max_num_iterations > self._exemplum.iteration_count
+        return self._pipeline.max_num_iterations and self._pipeline.max_num_iterations > self._pipeline.iteration_count
 
     def forward(self, input_tensor):
-        result = self._exemplum.forward(input_tensor)
-        assert isinstance(result, np.ndarray)
+        result = self._pipeline.forward(input_tensor)
+        assert isinstance(result, xr.DataArray), f"Not a DataArray, but a {type(result)}"
         return result
 
     def transition_to(self, new_state: types.State) -> None:
@@ -49,7 +50,7 @@ class Supervisor:
         self._update_state()
 
     def set_max_num_iterations(self, num: int):
-        self._exemplum.set_max_num_iterations(num)
+        self._pipeline.set_max_num_iterations(num)
         self._update_state()
 
     def on_idle(self, callback):
@@ -111,10 +112,10 @@ class Supervisor:
 
     def _train(self):
         logger.info(
-            "Start session for %d iterations", self._exemplum.max_num_iterations - self._exemplum.iteration_count
+            "Start session for %d iterations", self._pipeline.max_num_iterations - self._pipeline.iteration_count
         )
         try:
-            self._exemplum.train()
+            self._pipeline.train()
         except Exception as e:
             logger.error("Exception during session training. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.

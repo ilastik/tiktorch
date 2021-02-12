@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 from pybio import spec
 
-from tiktorch.server.model_adapter import ModelAdapter, create_model_adapter
+from tiktorch.server.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
 logger = logging.getLogger(__name__)
@@ -21,7 +21,9 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
     return None
 
 
-def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None) -> ModelAdapter:
+def eval_model_zip(
+    model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None, *, preserve_batch_dim=False
+) -> PredictionPipeline:
     temp_path = Path(tempfile.mkdtemp(prefix="tiktorch_"))
     if cache_path is None:
         cache_path = temp_path / "cache"
@@ -35,7 +37,7 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], cache_path: Optio
         )
 
     pybio_model = spec.load_and_resolve_spec(spec_file_str)
-    ret = create_model_adapter(pybio_model=pybio_model, devices=devices)
+    ret = create_prediction_pipeline(pybio_model=pybio_model, devices=devices, preserve_batch_dim=preserve_batch_dim)
 
     def _on_error(function, path, exc_info):
         logger.warning("Failed to delete temp directory %s", path)
