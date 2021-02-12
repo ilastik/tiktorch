@@ -13,36 +13,56 @@ from ._utils import has_batch_dim
 
 class PredictionPipeline(ModelAdapter):
     """
-    Represents model *without* any preprocessing and postprocessing
+    Represents model computation including preprocessing and postprocessing
     """
 
     @abc.abstractmethod
     def forward(self, input_tensor: xr.DataArray) -> xr.DataArray:
+        """
+        Compute predictions
+        """
         ...
 
     @property
     @abc.abstractmethod
-    def name(self):
+    def name(self) -> str:
+        """
+        Name of the pipeline
+        """
         ...
 
     @property
     @abc.abstractmethod
-    def input_axes(self):
+    def input_axes(self) -> str:
+        """
+        Input axes excepted by this pipeline
+        Note: one character axes names
+        """
         ...
 
     @property
     @abc.abstractmethod
-    def input_shape(self):
+    def input_shape(self) -> List[Tuple[str, int]]:
+        """
+        Named input dimensions
+        """
         ...
 
     @property
     @abc.abstractmethod
-    def output_axes(self):
+    def output_axes(self) -> str:
+        """
+        Output axes of this pipeline
+        Note: one character axes names
+        """
         ...
 
     @property
     @abc.abstractmethod
-    def halo(self):
+    def halo(self) -> List[Tuple[str, int]]:
+        """
+        Size of output borders that have unreliable data due to artifacts
+        """
         ...
 
 
