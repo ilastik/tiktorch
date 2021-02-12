@@ -22,7 +22,7 @@ def test():
         for id_ in blocks:
 
             def work(*a, **kw):
-                ex.submit(process_block, *a, **kw)
+                return ex.submit(process_block, *a, **kw)
 
             futures.append(batcher.submit(work, id_))
 
