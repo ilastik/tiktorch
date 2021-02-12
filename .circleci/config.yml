@@ -164,6 +164,9 @@ workflows:
       - black_check:
           requires:
             - install_conda_env
+      - flake8_check:
+          requires:
+            - install_conda_env
       - build_conda_packages:
           requires:
             - install_conda_env
