@@ -1,7 +1,7 @@
 import inspect
 import threading
-from concurrent.futures import CancelledError, Future
-from typing import Callable, Generic, List, Tuple, Type, TypeVar, _GenericAlias
+from concurrent.futures import Future
+from typing import Callable, Generic, Type, TypeVar, _GenericAlias
 
 T = TypeVar("T")
 S = TypeVar("S")

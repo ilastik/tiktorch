@@ -82,7 +82,7 @@ def test_sync(client: ITestApi):
     assert res == "test 3"
 
     with pytest.raises(NotImplementedError):
-        f = client.broken(1, 2)
+        client.broken(1, 2)
 
 
 def test_future(client: ITestApi):
@@ -110,7 +110,7 @@ def test_race_condition(log_queue):
 
     client = create_client(ITestApi, SlowConn(child))
 
-    res = client.fast_compute(2, 2)
+    client.fast_compute(2, 2)
 
     client.shutdown().result()
 
@@ -127,10 +127,10 @@ def test_future_timeout(client: ITestApi, log_queue):
         client.compute(1, 2)
 
     with pytest.raises(TimeoutError):
-        res = client.compute.async_(1, 2).result()
+        client.compute.async_(1, 2).result()
 
     with pytest.raises(TimeoutError):
-        f = client.compute_fut(1, 2).result()
+        client.compute_fut(1, 2).result()
 
     client.compute.async_(1, 2).result(timeout=3)
 

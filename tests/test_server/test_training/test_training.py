@@ -4,7 +4,6 @@ from concurrent.futures import Future
 
 import numpy as np
 import pytest
-import torch
 import xarray as xr
 
 from tiktorch.server.session import State

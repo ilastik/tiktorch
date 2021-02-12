@@ -42,7 +42,7 @@ class _GRPCClientWrapper:
                 client.Ping(inference_pb2.Empty())
 
                 return True
-        except Exception as e:
+        except Exception:
             return False
 
     def shutdown(self):
@@ -220,7 +220,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
 
         try:
             self._ssh_client.connect(**ssh_params)
-        except timeout as e:
+        except timeout:
             raise RuntimeError("Failed to establish SSH connection")
 
         transport = self._ssh_client.get_transport()
@@ -260,7 +260,7 @@ class RemoteSSHServerLauncher(IServerLauncher):
 
             channel.exec_command(cmd)
 
-        except timeout as e:
+        except timeout:
             raise RuntimeError("Failed to start TiktorchServer")
 
         try:

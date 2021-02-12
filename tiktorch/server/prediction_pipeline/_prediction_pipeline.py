@@ -142,7 +142,7 @@ def create_prediction_pipeline(
     * postprocessing
     """
     if len(pybio_model.inputs) != 1 or len(pybio_model.outputs) != 1:
-        raise NotImplementedError(f"Only models with single input and output are supported")
+        raise NotImplementedError("Only models with single input and output are supported")
 
     model_adapter: ModelAdapter = create_model_adapter(
         pybio_model=pybio_model, devices=devices, weight_format=weight_format

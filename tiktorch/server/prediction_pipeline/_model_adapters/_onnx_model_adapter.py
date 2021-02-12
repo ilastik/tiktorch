@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, List
+from typing import List
 
 import onnxruntime as rt
 import xarray as xr
@@ -26,7 +26,7 @@ class ONNXModelAdapter(ModelAdapter):
         assert len(spec.inputs) == 1
         assert len(spec.outputs) == 1
 
-        _input = spec.inputs[0]
+        spec.inputs[0]
         _output = spec.outputs[0]
 
         self._internal_output_axes = _output.axes

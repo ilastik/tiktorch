@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import List
 
 import numpy as np
 import tensorflow as tf
@@ -19,7 +19,7 @@ class TensorflowModelAdapter(ModelAdapter):
         spec = pybio_model
         self.name = spec.name
 
-        _input = spec.inputs[0]
+        spec.inputs[0]
         _output = spec.outputs[0]
         # FIXME: TF probably uses different axis names
         self._internal_output_axes = _output.axes

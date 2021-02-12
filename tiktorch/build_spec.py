@@ -133,7 +133,7 @@ class BuildSpec(object):
         spec: TikTorchSpec
             Specification Object
         """
-        logger = logging.getLogger("BuildSpec.build")
+        logging.getLogger("BuildSpec.build")
 
         output_shape, halo_shape = self._validate_spec(spec)
 

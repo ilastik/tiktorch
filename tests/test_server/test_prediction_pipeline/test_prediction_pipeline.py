@@ -1,7 +1,6 @@
 from zipfile import ZipFile
 
 import numpy as np
-import pytest
 import xarray
 from numpy.testing import assert_array_almost_equal
 

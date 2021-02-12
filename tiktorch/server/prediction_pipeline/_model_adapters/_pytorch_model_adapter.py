@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List, Sequence
+from typing import Sequence
 
 import torch
 import xarray as xr

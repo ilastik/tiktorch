@@ -27,6 +27,7 @@ class TestNumpyToPBTensor:
     def test_should_have_dtype_as_str(self, np_dtype, dtype_str):
         arr = np.arange(9, dtype=np_dtype)
         tensor = _numpy_to_pb_tensor(arr)
+        assert arr.dtype == tensor.dtype
 
     @pytest.mark.parametrize("shape", [(3, 3), (1,), (1, 1), (18, 20, 1)])
     def test_should_have_shape(self, shape):
@@ -49,12 +50,12 @@ class TestPBTensorToNumpy:
             dtype="", shape=[inference_pb2.TensorDim(size=1), inference_pb2.TensorDim(size=2)]
         )
         with pytest.raises(ValueError):
-            result_arr = pb_tensor_to_numpy(tensor)
+            pb_tensor_to_numpy(tensor)
 
     def test_should_raise_on_empty_shape(self):
         tensor = inference_pb2.Tensor(dtype="int64", shape=[])
         with pytest.raises(ValueError):
-            result_arr = pb_tensor_to_numpy(tensor)
+            pb_tensor_to_numpy(tensor)
 
     def test_should_return_ndarray(self):
         arr = np.arange(9)
@@ -141,12 +142,12 @@ class TestPBTensorToXarray:
             dtype="", shape=[inference_pb2.TensorDim(size=1), inference_pb2.TensorDim(size=2)]
         )
         with pytest.raises(ValueError):
-            result_arr = pb_tensor_to_xarray(tensor)
+            pb_tensor_to_xarray(tensor)
 
     def test_should_raise_on_empty_shape(self):
         tensor = inference_pb2.Tensor(dtype="int64", shape=[])
         with pytest.raises(ValueError):
-            result_arr = pb_tensor_to_xarray(tensor)
+            pb_tensor_to_xarray(tensor)
 
     def test_should_return_ndarray(self):
         arr = xr.DataArray(np.arange(9))

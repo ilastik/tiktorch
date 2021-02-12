@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import queue
 
-import numpy as np
 import xarray as xr
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline
@@ -116,7 +115,7 @@ class Supervisor:
         )
         try:
             self._pipeline.train()
-        except Exception as e:
+        except Exception:
             logger.error("Exception during session training. Pausing...", exc_info=True)
             # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
             self.send_command(commands.PauseCmd())

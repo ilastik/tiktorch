@@ -75,7 +75,7 @@ def main():
 
         shutil.rmtree(cache_path, onerror=_on_error)
 
-    print(f"All results match the expected output")
+    print("All results match the expected output")
     return 0
 
 

@@ -2,7 +2,6 @@ import faulthandler
 import io
 import logging.handlers
 import multiprocessing as mp
-import os
 import signal
 import sys
 import threading

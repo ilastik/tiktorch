@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 from inferno.extensions.layers.convolutional import Conv2D, ConvELU2D

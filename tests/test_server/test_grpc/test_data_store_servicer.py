@@ -30,9 +30,9 @@ def grpc_stub_cls(grpc_channel):
 
 class TestUpload:
     def test_calling_upload_without_header_raises(self, grpc_stub):
-        with pytest.raises(grpc.RpcError) as e:
+        with pytest.raises(grpc.RpcError):
             content = [data_store_pb2.UploadRequest(content=b"abc")]
-            res = grpc_stub.Upload(iter(content))
+            grpc_stub.Upload(iter(content))
 
     def test_calling_upload(self, grpc_stub, data_store):
         content = b"aabbbacaaraa"
@@ -53,7 +53,7 @@ class TestUpload:
 
     def test_calling_upload_early_termination(self, grpc_stub, data_store):
         content = b"aabbbacaaraa"
-        sha256_hash = hashlib.sha256(content).hexdigest()
+        hashlib.sha256(content).hexdigest()
 
         def _gen():
             yield data_store_pb2.UploadRequest(info=data_store_pb2.UploadInfo(size=12))
@@ -61,5 +61,5 @@ class TestUpload:
                 yield data_store_pb2.UploadRequest(content=content[i : i + 3])
                 return  # Terminate early
 
-        with pytest.raises(grpc.RpcError) as e:
-            res = grpc_stub.Upload(_gen())
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.Upload(_gen())

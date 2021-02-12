@@ -20,7 +20,10 @@ def test():
         batcher = BatchedExecutor(batch_size=20)
 
         for id_ in blocks:
-            work = lambda *a, **kw: ex.submit(process_block, *a, **kw)
+
+            def work(*a, **kw):
+                ex.submit(process_block, *a, **kw)
+
             futures.append(batcher.submit(work, id_))
 
         count = 0
