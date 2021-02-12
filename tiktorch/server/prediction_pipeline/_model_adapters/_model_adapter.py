@@ -1,7 +1,7 @@
 import abc
 from typing import Callable, List
 
-import xarray
+import xarray as xr
 from pybio.spec import nodes
 
 
@@ -11,26 +11,28 @@ class ModelAdapter(abc.ABC):
     """
 
     @abc.abstractmethod
-    def forward(self, input_tensor: xarray.DataArray) -> xarray.DataArray:
+    def forward(self, input_tensor: xr.DataArray) -> xr.DataArray:
+        """
+        Run forward pass of model to get model predictions
+        Note: model is responsible converting it's data representation to
+        xarray.DataArray
+        """
         ...
 
+    # Training methods
     @property
-    @abc.abstractmethod
     def max_num_iterations(self) -> int:
-        ...
+        return 0
 
     @property
-    @abc.abstractmethod
     def iteration_count(self) -> int:
-        ...
+        return 0
 
-    @abc.abstractmethod
     def set_break_callback(self, thunk: Callable[[], bool]) -> None:
-        ...
+        pass
 
-    @abc.abstractmethod
     def set_max_num_iterations(self, val: int) -> None:
-        ...
+        pass
 
 
 def create_model_adapter(*, pybio_model: nodes.Model, devices=List[str]) -> ModelAdapter:

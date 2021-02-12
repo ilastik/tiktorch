@@ -1,6 +1,6 @@
 from typing import List
 
-import xarray as xa
+import xarray as xr
 from pybio.spec.nodes import Postprocessing
 
 from ._preprocessing import chain
@@ -9,16 +9,16 @@ from ._types import Transform
 REMOVE_BATCH_DIM = Postprocessing(name="__tiktorch_remove_batch_dim", kwargs=None)
 
 
-def remove_batch_dim(tensor: xa.DataArray):
+def remove_batch_dim(tensor: xr.DataArray):
     batch_dim = tensor.sizes.get("b")
     assert batch_dim == 1, "batch dimension should be present and have size 1"
     return tensor.squeeze("b")
 
 
-def sigmoid(tensor: xa.DataArray, **kwargs):
+def sigmoid(tensor: xr.DataArray, **kwargs):
     if kwargs:
         raise NotImplementedError(f"Passed kwargs for sigmoid {kwargs}")
-    return 1 / (1 + xa.ufuncs.exp(-tensor))
+    return 1 / (1 + xr.ufuncs.exp(-tensor))
 
 
 KNOWN_POSTPROCESSING = {

@@ -1,15 +1,11 @@
 import logging
 from typing import Callable, List
 
-import numpy as np
 import onnxruntime as rt
-import xarray
+import xarray as xr
 from pybio.spec import nodes
-from xarray import DataArray
 
 from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
-from tiktorch.server.prediction_pipeline._preprocessing import make_preprocessing
-from tiktorch.server.prediction_pipeline._utils import has_batch_dim
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +37,6 @@ class ONNXModelAdapter(ModelAdapter):
         self._input_name = onnx_inputs[0].name
         self.devices = []
 
-    def forward(self, input: DataArray) -> DataArray:
+    def forward(self, input: xr.DataArray) -> xr.DataArray:
         result = self._session.run(None, {self._input_name: input.data})[0]
-        return xarray.DataArray(result, dims=tuple(self._internal_output_axes))
-
-    @property
-    def max_num_iterations(self) -> int:
-        return 0
-
-    @property
-    def iteration_count(self) -> int:
-        return 0
-
-    def set_break_callback(self, thunk: Callable[[], bool]) -> None:
-        pass
-
-    def set_max_num_iterations(self, val: int) -> None:
-        pass
+        return xr.DataArray(result, dims=tuple(self._internal_output_axes))

@@ -4,7 +4,7 @@ import logging
 import queue
 
 import numpy as np
-import xarray
+import xarray as xr
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline
 from tiktorch.server.session import types
@@ -41,7 +41,7 @@ class Supervisor:
 
     def forward(self, input_tensor):
         result = self._pipeline.forward(input_tensor)
-        assert isinstance(result, xarray.DataArray), f"Not a DataArray, but a {type(result)}"
+        assert isinstance(result, xr.DataArray), f"Not a DataArray, but a {type(result)}"
         return result
 
     def transition_to(self, new_state: types.State) -> None:

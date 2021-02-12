@@ -2,9 +2,9 @@ from typing import Callable, List
 
 import numpy as np
 import tensorflow as tf
+import xarray as xr
 from pybio.spec import nodes
 from pybio.spec.utils import get_instance
-from xarray import DataArray
 
 from ._model_adapter import ModelAdapter
 
@@ -29,7 +29,7 @@ class TensorflowModelAdapter(ModelAdapter):
         tf_model = tf.keras.models.load_model(spec.weights["tensorflow_saved_model_bundle"].source)
         self.model.set_model(tf_model)
 
-    def forward(self, input_tensor):
+    def forward(self, input_tensor: xr.DataArray) -> xr.DataArray:
         tf_tensor = tf.convert_to_tensor(input_tensor.data)
 
         res = self.model.forward(tf_tensor)
@@ -37,18 +37,4 @@ class TensorflowModelAdapter(ModelAdapter):
         if not isinstance(res, np.ndarray):
             res = tf.make_ndarray(res)
 
-        return DataArray(res, dims=tuple(self._internal_output_axes))
-
-    @property
-    def max_num_iterations(self) -> int:
-        return 0
-
-    @property
-    def iteration_count(self) -> int:
-        return 0
-
-    def set_break_callback(self, thunk: Callable[[], bool]) -> None:
-        pass
-
-    def set_max_num_iterations(self, val: int) -> None:
-        pass
+        return xr.DataArray(res, dims=tuple(self._internal_output_axes))

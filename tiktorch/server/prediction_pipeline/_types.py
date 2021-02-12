@@ -1,5 +1,5 @@
 from typing import Callable
 
-import xarray
+import xarray as xr
 
-Transform = Callable[[xarray.DataArray], xarray.DataArray]
+Transform = Callable[[xr.DataArray], xr.DataArray]

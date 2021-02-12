@@ -1,7 +1,7 @@
 import abc
 from typing import Callable, List, Tuple
 
-import xarray
+import xarray as xr
 from pybio.spec import nodes
 
 from ._model_adapters import ModelAdapter, create_model_adapter
@@ -17,7 +17,7 @@ class PredictionPipeline(ModelAdapter):
     """
 
     @abc.abstractmethod
-    def forward(self, input_tensor: xarray.DataArray) -> xarray.DataArray:
+    def forward(self, input_tensor: xr.DataArray) -> xr.DataArray:
         ...
 
     @property
@@ -88,7 +88,7 @@ class _PredictionPipelineImpl(PredictionPipeline):
     def input_shape(self):
         return self._input_shape
 
-    def forward(self, input_tensor: xarray.DataArray) -> xarray.DataArray:
+    def forward(self, input_tensor: xr.DataArray) -> xr.DataArray:
         preprocessed = self._preprocessing(input_tensor)
         prediction = self._model.forward(preprocessed)
         return self._postprocessing(prediction)

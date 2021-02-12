@@ -3,8 +3,7 @@ import sys
 import zipfile
 
 import numpy as np
-import torch
-import xarray as xa
+import xarray as xr
 
 from . import reader
 
@@ -20,7 +19,7 @@ def main():
         model = reader.eval_model_zip(model_zip, devices=["cpu"])
 
     input_tensor = np.load(args.image)
-    tagged_data = xa.DataArray(input_tensor, dims=tuple(model.input_axes))
+    tagged_data = xr.DataArray(input_tensor, dims=tuple(model.input_axes))
     res = model.forward(tagged_data)
     np.save(args.output, res.data)
     return 0

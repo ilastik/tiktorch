@@ -3,9 +3,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pytest
-import xarray
-from numpy.testing import assert_array_almost_equal
-from xarray.testing import assert_equal
+import xarray as xr
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline
 from tiktorch.server.reader import eval_model_zip, guess_model_path
@@ -32,12 +30,12 @@ def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_pat
         pipeline = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
         assert isinstance(pipeline, PredictionPipeline)
 
-        test_input = xarray.DataArray(np.zeros(shape=(1, 128, 128)), dims=("c", "y", "x"))
+        test_input = xr.DataArray(np.zeros(shape=(1, 128, 128)), dims=("c", "y", "x"))
         out_arr = np.ones(shape=(1, 128, 128))
         out_arr.fill(42)
-        test_output = xarray.DataArray(out_arr, dims=("c", "y", "x"))
+        test_output = xr.DataArray(out_arr, dims=("c", "y", "x"))
         result = pipeline.forward(test_input)
-        assert_equal(result, test_output)
+        xr.testing.assert_equal(result, test_output)
 
 
 def test_eval_torchscript_model_zip(pybio_unet2d_torchscript_bytes, cache_path):
