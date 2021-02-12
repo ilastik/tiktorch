@@ -33,7 +33,7 @@ class TestForwardPassCmd:
 
     def test_cmd_accepts_future_as_constructor_arg(self):
         fut = Future()
-        cmd = cmds.ForwardPass(fut, [1])
+        cmds.ForwardPass(fut, [1])
 
     def test_executing_resolves_future(self):
         fut = Future()

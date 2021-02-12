@@ -60,6 +60,25 @@ jobs:
             conda activate tiktorch-server-env
             black --check ./
 
+  flake8_check:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: ~/repo
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v7-dependencies-{{ checksum "environment.yml" }}
+
+      - run:
+          name: run flake8
+          command: |
+            . /opt/conda/etc/profile.d/conda.sh
+            conda activate tiktorch-server-env
+            flake8 .
+
   tests:
     docker:
       - image: continuumio/miniconda3
@@ -143,6 +162,9 @@ workflows:
           requires:
             - install_conda_env
       - black_check:
+          requires:
+            - install_conda_env
+      - flake8_check:
           requires:
             - install_conda_env
       - build_conda_packages:

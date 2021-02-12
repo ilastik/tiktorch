@@ -79,7 +79,7 @@ class SessionManager:
             if session_id not in self.__session_by_id:
                 raise ValueError("Unknown session")
 
-            session = self.__session_by_id.pop(session_id)
+            self.__session_by_id.pop(session_id)
             for handler in self.__close_handlers_by_session_id.pop(session_id, []):
                 try:
                     handler()

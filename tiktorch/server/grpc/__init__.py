@@ -1,5 +1,4 @@
 import json
-import os
 import threading
 from concurrent import futures
 from typing import Optional

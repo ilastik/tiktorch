@@ -140,6 +140,6 @@ class TestDynamicWeightedRandomSampler:
         norm_1 = samples[1] / num_samples
         norm_0 = samples[0] / num_samples
 
-        assert math.isclose(0.7, norm_2, abs_tol=0.01)
-        assert math.isclose(0.2, norm_1, abs_tol=0.01)
-        assert math.isclose(0.1, norm_0, abs_tol=0.01)
+        assert math.isclose(0.7, norm_2, abs_tol=0.02)
+        assert math.isclose(0.2, norm_1, abs_tol=0.02)
+        assert math.isclose(0.1, norm_0, abs_tol=0.02)

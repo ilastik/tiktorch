@@ -2,7 +2,7 @@
 Types defining interop between client and server
 """
 from dataclasses import dataclass
-from typing import List, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import List, NamedTuple, Optional, Tuple, Union
 
 # This file should only contain types built on primitives
 # available both on ilastik and tiktorch side (e.g. numpy, python stdlib)

@@ -5,7 +5,7 @@ import enum
 import threading
 import uuid
 from collections import defaultdict
-from typing import Dict, List
+from typing import List
 
 import torch
 

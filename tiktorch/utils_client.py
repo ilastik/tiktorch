@@ -1,15 +1,7 @@
 import contextlib
-import os
-import pathlib
 import shutil
 import tempfile
-import zipfile
 from collections import namedtuple
-from typing import Optional
-
-import yaml
-
-from .types import Model, ModelState
 
 ZIP_EXT = ".zip"
 

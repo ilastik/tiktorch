@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 import pytest
 from numpy.testing import assert_array_equal
@@ -11,6 +9,14 @@ pytest_plugins = ["pytester"]
 def output_path(tmpdir):
     output = tmpdir / "output.npy"
     return str(output)
+
+
+@pytest.fixture
+def npy_zeros_file(tmpdir):
+    path = str(tmpdir / "zeros.npy")
+    zeros = np.zeros(shape=(1, 64, 64))
+    np.save(path, zeros)
+    return path
 
 
 def test_running_predict_with_valid_arguments(testdir, pybio_dummy_model_filepath, npy_zeros_file, output_path):

@@ -1,9 +1,6 @@
 import logging
-import multiprocessing as mp
 import queue
 import threading
-import types
-import weakref
 from concurrent.futures import Future
 from functools import wraps
 from multiprocessing.connection import Connection
@@ -12,7 +9,7 @@ from typing import Any, Optional, Type, TypeVar
 from uuid import uuid4
 
 from .exceptions import Shutdown
-from .interface import RPCInterface, get_exposed_methods
+from .interface import get_exposed_methods
 from .types import RPCFuture, isfutureret
 
 logger = logging.getLogger(__name__)
@@ -77,7 +74,7 @@ class MPMethodDispatcher:
 
 def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
     client = MPClient(iface_cls.__name__, conn, timeout)
-    exposed = get_exposed_methods(iface_cls)
+    get_exposed_methods(iface_cls)
 
     def _make_method(method):
         class MethodWrapper:
@@ -352,7 +349,7 @@ class MPServer:
 
                 if isinstance(msg, MethodCall):
                     try:
-                        fut = self._call_method(msg)
+                        self._call_method(msg)
                     except Stop:
                         self.logger.debug("[id: %s] Shutdown", msg.id)
                         self._send(Signal(b"shutdown"))
@@ -362,5 +359,5 @@ class MPServer:
                 elif isinstance(msg, Cancellation):
                     self._cancel_request(msg)
 
-            except Exception as e:
+            except Exception:
                 self.logger.error("Error in main loop", exc_info=1)

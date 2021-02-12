@@ -5,7 +5,7 @@ import grpc
 from tiktorch import converters
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
-from tiktorch.server.device_pool import DeviceStatus, IDevicePool, TorchDevicePool
+from tiktorch.server.device_pool import DeviceStatus, IDevicePool
 from tiktorch.server.session.process import start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
 
@@ -98,9 +98,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        arr = converters.pb_tensor_to_numpy(request.tensor)
+        arr = converters.pb_tensor_to_xarray(request.tensor)
         res = session.client.forward(arr)
-        pb_tensor = converters.numpy_to_pb_tensor(res)
+        pb_tensor = converters.xarray_to_pb_tensor(res)
         return inference_pb2.PredictResponse(tensor=pb_tensor)
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:

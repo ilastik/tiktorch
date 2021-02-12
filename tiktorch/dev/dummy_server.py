@@ -1,9 +1,8 @@
 import logging
 import time
-from typing import Generator, Iterable, List, Optional, Tuple, Union
+from typing import List, Tuple
 
-from tiktorch.configkeys import MINIMAL_CONFIG
-from tiktorch.rpc import RPCFuture, TCPConnConf, Timeout
+from tiktorch.rpc import RPCFuture
 from tiktorch.rpc_interface import IFlightControl, INeuralNetworkAPI
 from tiktorch.types import LabeledNDArrayBatch, NDArray, SetDeviceReturnType
 

@@ -1,8 +1,5 @@
 import hashlib
 import logging
-import time
-
-import grpc
 
 from tiktorch.proto import data_store_pb2, data_store_pb2_grpc
 from tiktorch.server.data_store import IDataStore
