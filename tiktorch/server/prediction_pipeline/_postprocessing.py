@@ -21,9 +21,14 @@ def sigmoid(tensor: xr.DataArray, **kwargs):
     return 1 / (1 + xr.ufuncs.exp(-tensor))
 
 
+def clip(tensor: xr.DataArray, *, min: float, max: float) -> xr.DataArray:
+    return tensor.clip(min=min, max=max)
+
+
 KNOWN_POSTPROCESSING = {
     "__tiktorch_remove_batch_dim": remove_batch_dim,
     "sigmoid": sigmoid,
+    "clip": clip,
 }
 
 
