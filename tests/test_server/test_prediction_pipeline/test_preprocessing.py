@@ -42,6 +42,16 @@ def test_zero_mean_unit_across_axes():
     xr.testing.assert_allclose(expected, result[0])
 
 
+def test_binarize():
+    binarize_spec = Preprocessing(name="binarize", kwargs={"threshold": 14})
+    data = xr.DataArray(np.arange(30).reshape(2, 3, 5), dims=("x", "y", "c"))
+    expected = xr.zeros_like(data)
+    expected[{"x": slice(1, None)}] = 1
+    preprocessing = make_preprocessing([binarize_spec])
+    result = preprocessing(data)
+    xr.testing.assert_allclose(expected, result)
+
+
 def test_unknown_preprocessing_should_raise():
     mypreprocessing = Preprocessing(name="mycoolpreprocessing", kwargs={"axes": ("x", "y")})
     with pytest.raises(NotImplementedError):
