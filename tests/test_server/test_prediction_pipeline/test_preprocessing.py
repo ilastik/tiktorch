@@ -6,6 +6,15 @@ from pybio.spec.nodes import Preprocessing
 from tiktorch.server.prediction_pipeline._preprocessing import ADD_BATCH_DIM, make_preprocessing
 
 
+def test_scale_linear():
+    spec = Preprocessing(name="scale_linear", kwargs={"offset": 42, "gain": 2})
+    data = xr.DataArray(np.arange(4).reshape(2, 2), dims=("x", "y"))
+    expected = xr.DataArray(np.array([[42, 44], [46, 48]]), dims=("x", "y"))
+    preprocessing = make_preprocessing([spec])
+    result = preprocessing(data)
+    xr.testing.assert_allclose(expected, result)
+
+
 def test_zero_mean_unit_variance_preprocessing():
     zero_mean_spec = Preprocessing(name="zero_mean_unit_variance", kwargs={})
     data = xr.DataArray(np.arange(9).reshape(3, 3), dims=("x", "y"))
