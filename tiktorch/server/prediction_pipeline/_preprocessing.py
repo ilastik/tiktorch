@@ -12,6 +12,10 @@ def make_ensure_dtype_preprocessing(dtype):
     return Preprocessing(name="__tiktorch_ensure_dtype", kwargs={"dtype": dtype})
 
 
+def scale_linear(tensor: xr.DataArray, *, gain, offset) -> xr.DataArray:
+    return gain * tensor + offset
+
+
 def zero_mean_unit_variance(tensor: xr.DataArray, axes=None, eps=1.0e-6, mode="per_sample") -> xr.DataArray:
     if axes:
         axes = tuple(axes)
@@ -23,6 +27,10 @@ def zero_mean_unit_variance(tensor: xr.DataArray, axes=None, eps=1.0e-6, mode="p
         raise NotImplementedError(f"Unsupported mode for zero_mean_unit_variance: {mode}")
 
     return (tensor - mean) / (std + 1.0e-6)
+
+
+def binarize(tensor: xr.DataArray, *, threshold) -> xr.DataArray:
+    return tensor > threshold
 
 
 def ensure_dtype(tensor: xr.DataArray, *, dtype):
@@ -40,7 +48,9 @@ def add_batch_dim(tensor: xr.DataArray):
 
 
 KNOWN_PREPROCESSING = {
+    "scale_linear": scale_linear,
     "zero_mean_unit_variance": zero_mean_unit_variance,
+    "binarize": binarize,
     "__tiktorch_add_batch_dim": add_batch_dim,
     "__tiktorch_ensure_dtype": ensure_dtype,
 }
