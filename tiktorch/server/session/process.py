@@ -33,12 +33,8 @@ class ModelInfo:
 
 class ModelSessionProcess(IRPCModelSession):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
-        cache_path = os.getenv("PYBIO_CACHE_PATH", None)
-        if cache_path is not None:
-            cache_path = Path(cache_path)
-
         with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
-            self._model = eval_model_zip(model_file, devices, cache_path=cache_path)
+            self._model = eval_model_zip(model_file, devices)
 
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)

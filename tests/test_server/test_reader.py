@@ -21,13 +21,13 @@ def test_guess_model_path_without_model_file(paths):
 
 def test_eval_model_zip(pybio_model_bytes, cache_path):
     with ZipFile(pybio_model_bytes) as zf:
-        exemplum = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        exemplum = eval_model_zip(zf, devices=["cpu"])
         assert isinstance(exemplum, PredictionPipeline)
 
 
 def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_path):
     with ZipFile(pybio_dummy_tensorflow_model_bytes) as zf:
-        pipeline = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        pipeline = eval_model_zip(zf, devices=["cpu"])
         assert isinstance(pipeline, PredictionPipeline)
 
         test_input = xr.DataArray(np.zeros(shape=(1, 128, 128)), dims=("c", "y", "x"))
@@ -40,11 +40,11 @@ def test_eval_tensorflow_model_zip(pybio_dummy_tensorflow_model_bytes, cache_pat
 
 def test_eval_torchscript_model_zip(pybio_unet2d_torchscript_bytes, cache_path):
     with ZipFile(pybio_unet2d_torchscript_bytes) as zf:
-        adapter = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        adapter = eval_model_zip(zf, devices=["cpu"])
         assert isinstance(adapter, PredictionPipeline)
 
 
 def test_eval_onnx_model_zip(pybio_unet2d_onnx_bytes, cache_path):
     with ZipFile(pybio_unet2d_onnx_bytes) as zf:
-        adapter = eval_model_zip(zf, devices=["cpu"], cache_path=cache_path)
+        adapter = eval_model_zip(zf, devices=["cpu"])
         assert isinstance(adapter, PredictionPipeline)

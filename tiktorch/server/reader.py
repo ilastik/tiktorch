@@ -22,11 +22,9 @@ def guess_model_path(file_names: List[str]) -> Optional[str]:
 
 
 def eval_model_zip(
-    model_zip: ZipFile, devices: Sequence[str], cache_path: Optional[Path] = None, *, preserve_batch_dim=False
+    model_zip: ZipFile, devices: Sequence[str], *, preserve_batch_dim=False
 ) -> PredictionPipeline:
     temp_path = Path(tempfile.mkdtemp(prefix="tiktorch_"))
-    if cache_path is None:
-        cache_path = temp_path / "cache"
 
     model_zip.extractall(temp_path)
 
