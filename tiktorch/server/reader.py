@@ -34,7 +34,7 @@ def eval_model_zip(
             "Model config file not found, make sure that .model.yaml file in the root of your model archive"
         )
 
-    pybio_model = spec.load_and_resolve_spec(spec_file_str)
+    pybio_model = spec.load_and_resolve_spec(Path(spec_file_str))
     ret = create_prediction_pipeline(pybio_model=pybio_model, devices=devices, preserve_batch_dim=preserve_batch_dim)
 
     def _on_error(function, path, exc_info):
