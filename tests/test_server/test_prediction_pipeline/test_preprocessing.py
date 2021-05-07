@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import xarray as xr
-from pybio.spec.nodes import Preprocessing
+from bioimageio.spec.nodes import Preprocessing
 
 from tiktorch.server.prediction_pipeline._preprocessing import ADD_BATCH_DIM, make_preprocessing
 

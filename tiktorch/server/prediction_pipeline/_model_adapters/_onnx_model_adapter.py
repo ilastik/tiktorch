@@ -3,7 +3,7 @@ from typing import List
 
 import onnxruntime as rt
 import xarray as xr
-from pybio.spec import nodes
+from bioimageio.spec import nodes
 
 from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
 
@@ -14,10 +14,10 @@ class ONNXModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
-        pybio_model: nodes.Model,
+        bioimageio_model: nodes.Model,
         devices=List[str],
     ):
-        spec = pybio_model
+        spec = bioimageio_model
         self.name = spec.name
 
         if len(spec.inputs) != 1 or len(spec.outputs) != 1:

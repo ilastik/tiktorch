@@ -3,8 +3,8 @@ from typing import Sequence
 
 import torch
 import xarray as xr
-from pybio.spec import nodes
-from pybio.spec.utils import get_instance
+from bioimageio.spec import nodes
+from bioimageio.spec.utils import get_instance
 
 from ._model_adapter import ModelAdapter
 
@@ -15,12 +15,12 @@ class PytorchModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
-        pybio_model: nodes.Model,
+        bioimageio_model: nodes.Model,
         devices=Sequence[str],
     ):
-        self._internal_output_axes = pybio_model.outputs[0].axes
-        spec = pybio_model
-        self.model = get_instance(pybio_model)
+        self._internal_output_axes = bioimageio_model.outputs[0].axes
+        spec = bioimageio_model
+        self.model = get_instance(bioimageio_model)
         self.devices = [torch.device(d) for d in devices]
         self.model.to(self.devices[0])
         assert isinstance(self.model, torch.nn.Module)

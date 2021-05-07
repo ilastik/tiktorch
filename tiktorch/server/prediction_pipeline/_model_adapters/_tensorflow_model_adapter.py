@@ -3,8 +3,8 @@ from typing import List
 import numpy as np
 import tensorflow as tf
 import xarray as xr
-from pybio.spec import nodes
-from pybio.spec.utils import get_instance
+from bioimageio.spec import nodes
+from bioimageio.spec.utils import get_instance
 
 from ._model_adapter import ModelAdapter
 
@@ -13,10 +13,10 @@ class TensorflowModelAdapter(ModelAdapter):
     def __init__(
         self,
         *,
-        pybio_model: nodes.Model,
+        bioimageio_model: nodes.Model,
         devices=List[str],
     ):
-        spec = pybio_model
+        spec = bioimageio_model
         self.name = spec.name
 
         spec.inputs[0]
@@ -24,7 +24,7 @@ class TensorflowModelAdapter(ModelAdapter):
         # FIXME: TF probably uses different axis names
         self._internal_output_axes = _output.axes
 
-        self.model = get_instance(pybio_model)
+        self.model = get_instance(bioimageio_model)
         self.devices = []
         tf_model = tf.keras.models.load_model(spec.weights["tensorflow_saved_model_bundle"].source)
         self.model.set_model(tf_model)

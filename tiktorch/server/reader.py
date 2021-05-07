@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 from zipfile import ZipFile
 
-from pybio import spec
+from bioimageio import spec
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
@@ -34,8 +34,8 @@ def eval_model_zip(
             "Model config file not found, make sure that .model.yaml file in the root of your model archive"
         )
 
-    pybio_model = spec.load_and_resolve_spec(Path(spec_file_str))
-    ret = create_prediction_pipeline(pybio_model=pybio_model, devices=devices, preserve_batch_dim=preserve_batch_dim)
+    bioimageio_model = spec.load_and_resolve_spec(Path(spec_file_str))
+    ret = create_prediction_pipeline(bioimageio_model=bioimageio_model, devices=devices, preserve_batch_dim=preserve_batch_dim)
 
     def _on_error(function, path, exc_info):
         logger.warning("Failed to delete temp directory %s", path)
