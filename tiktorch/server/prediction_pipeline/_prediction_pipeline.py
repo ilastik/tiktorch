@@ -129,11 +129,7 @@ class _PredictionPipelineImpl(PredictionPipeline):
 
 
 def create_prediction_pipeline(
-    *,
-    bioimageio_model: nodes.Model,
-    devices=List[str],
-    preserve_batch_dim=False,
-    weight_format: Optional[str] = None,
+    *, bioimageio_model: nodes.Model, devices=List[str], preserve_batch_dim=False, weight_format: Optional[str] = None
 ) -> PredictionPipeline:
     """
     Creates prediction pipeline which includes:

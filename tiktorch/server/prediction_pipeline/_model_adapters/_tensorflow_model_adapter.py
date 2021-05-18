@@ -10,12 +10,7 @@ from ._model_adapter import ModelAdapter
 
 
 class TensorflowModelAdapter(ModelAdapter):
-    def __init__(
-        self,
-        *,
-        bioimageio_model: nodes.Model,
-        devices=List[str],
-    ):
+    def __init__(self, *, bioimageio_model: nodes.Model, devices=List[str]):
         spec = bioimageio_model
         self.name = spec.name
 

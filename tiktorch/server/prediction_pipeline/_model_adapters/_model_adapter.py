@@ -15,12 +15,7 @@ class ModelAdapter(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __init__(
-        self,
-        *,
-        bioimageio_model: nodes.Model,
-        devices=List[str],
-    ):
+    def __init__(self, *, bioimageio_model: nodes.Model, devices=List[str]):
         ...
 
     @abc.abstractmethod

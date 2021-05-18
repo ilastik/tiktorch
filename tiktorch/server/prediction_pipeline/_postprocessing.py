@@ -21,10 +21,7 @@ def sigmoid(tensor: xr.DataArray, **kwargs):
     return 1 / (1 + xr.ufuncs.exp(-tensor))
 
 
-KNOWN_POSTPROCESSING = {
-    "__tiktorch_remove_batch_dim": remove_batch_dim,
-    "sigmoid": sigmoid,
-}
+KNOWN_POSTPROCESSING = {"__tiktorch_remove_batch_dim": remove_batch_dim, "sigmoid": sigmoid}
 
 
 def make_postprocessing(spec: List[Postprocessing]) -> Transform:

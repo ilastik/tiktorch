@@ -12,12 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class PytorchModelAdapter(ModelAdapter):
-    def __init__(
-        self,
-        *,
-        bioimageio_model: nodes.Model,
-        devices=Sequence[str],
-    ):
+    def __init__(self, *, bioimageio_model: nodes.Model, devices=Sequence[str]):
         self._internal_output_axes = bioimageio_model.outputs[0].axes
         spec = bioimageio_model
         self.model = get_instance(bioimageio_model)

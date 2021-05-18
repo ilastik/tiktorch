@@ -58,7 +58,9 @@ def main():
         bioimageio_model=bioimageio_model, devices=["cpu"], weight_format=args.weight_format, preserve_batch_dim=True
     )
 
-    input_args = [load_data(inp, inp_spec) for inp, inp_spec in zip(bioimageio_model.test_inputs, bioimageio_model.inputs)]
+    input_args = [
+        load_data(inp, inp_spec) for inp, inp_spec in zip(bioimageio_model.test_inputs, bioimageio_model.inputs)
+    ]
     expected_outputs = [
         load_data(out, out_spec) for out, out_spec in zip(bioimageio_model.test_outputs, bioimageio_model.outputs)
     ]
