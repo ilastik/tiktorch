@@ -1,12 +1,10 @@
 import dataclasses
 import io
 import multiprocessing as _mp
-import os
 import uuid
 import zipfile
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy

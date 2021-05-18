@@ -10,8 +10,8 @@ from zipfile import BadZipFile, ZipFile
 
 import numpy as np
 import xarray as xr
-from numpy.testing import assert_array_almost_equal
 from bioimageio import spec
+from numpy.testing import assert_array_almost_equal
 
 from .prediction_pipeline import create_prediction_pipeline, get_weight_formats
 from .reader import guess_model_path
