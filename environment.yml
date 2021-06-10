@@ -38,5 +38,4 @@ dependencies:
       - onnxruntime
       - pytest-grpc==0.7.0
       - python-stdnum
-      - spdx-license-list
       - tensorflow
