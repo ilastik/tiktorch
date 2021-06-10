@@ -32,10 +32,10 @@ dependencies:
   - bump2version
   - pre_commit
   - scikit-learn
+  - python-stdnum
   - pip>=19
   - pip:
       - marshmallow_union
       - onnxruntime
       - pytest-grpc==0.7.0
-      - python-stdnum
       - tensorflow
