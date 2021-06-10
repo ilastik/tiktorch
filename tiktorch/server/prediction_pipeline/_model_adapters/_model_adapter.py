@@ -2,7 +2,7 @@ import abc
 from typing import Callable, List, Optional, Type
 
 import xarray as xr
-from pybio.spec import nodes
+from bioimageio.spec import nodes
 
 #: Known weigh types in order of priority
 #: First match wins
@@ -15,12 +15,7 @@ class ModelAdapter(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __init__(
-        self,
-        *,
-        pybio_model: nodes.Model,
-        devices=List[str],
-    ):
+    def __init__(self, *, bioimageio_model: nodes.Model, devices=List[str]):
         ...
 
     @abc.abstractmethod
@@ -56,15 +51,15 @@ def get_weight_formats() -> List[str]:
 
 
 def create_model_adapter(
-    *, pybio_model: nodes.Model, devices=List[str], weight_format: Optional[str] = None
+    *, bioimageio_model: nodes.Model, devices=List[str], weight_format: Optional[str] = None
 ) -> ModelAdapter:
     """
     Creates model adapter based on the passed spec
     Note: All specific adapters should happen inside this function to prevent different framework
     initializations interfering with each other
     """
-    spec = pybio_model
-    weights = pybio_model.weights
+    spec = bioimageio_model
+    weights = bioimageio_model.weights
     weight_formats = get_weight_formats()
 
     if weight_format is not None:
@@ -75,7 +70,7 @@ def create_model_adapter(
     for weight in weight_formats:
         if weight in weights:
             adapter_cls = _get_model_adapter(weight)
-            return adapter_cls(pybio_model=pybio_model, devices=devices)
+            return adapter_cls(bioimageio_model=bioimageio_model, devices=devices)
 
     raise NotImplementedError(f"No supported weight_formats in {spec.weights.keys()}")
 

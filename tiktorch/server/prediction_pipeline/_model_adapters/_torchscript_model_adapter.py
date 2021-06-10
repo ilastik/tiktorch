@@ -3,19 +3,14 @@ from typing import List
 import numpy as np
 import torch
 import xarray as xr
-from pybio.spec import nodes
+from bioimageio.spec import nodes
 
 from ._model_adapter import ModelAdapter
 
 
 class TorchscriptModelAdapter(ModelAdapter):
-    def __init__(
-        self,
-        *,
-        pybio_model: nodes.Model,
-        devices=List[str],
-    ):
-        spec = pybio_model
+    def __init__(self, *, bioimageio_model: nodes.Model, devices=List[str]):
+        spec = bioimageio_model
         self.name = spec.name
 
         _input = spec.inputs[0]

@@ -27,15 +27,15 @@ requirements:
 
 test:
   imports:
-    - pybio.torch
-    - pybio.torch.training
+    - bioimageio.torch
+    - bioimageio.torch.training
 
 about:
   home: https://github.com/bioimage-io/pytorch-bioimage-io
   license: MIT
   license_family: MIT
   license_file: LICENSE
-  summary: 'Pytorch related components of pybio'
+  summary: 'Pytorch related components of bioimageio'
 
   doc_url: https://github.com/bioimage-io/pytorch-bioimage-io
   dev_url: https://github.com/bioimage-io/pytorch-bioimage-io

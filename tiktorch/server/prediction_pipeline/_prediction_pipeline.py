@@ -2,7 +2,7 @@ import abc
 from typing import Callable, List, Optional, Tuple
 
 import xarray as xr
-from pybio.spec import nodes
+from bioimageio.spec import nodes
 
 from ._model_adapters import ModelAdapter, create_model_adapter
 from ._postprocessing import REMOVE_BATCH_DIM, make_postprocessing
@@ -129,11 +129,7 @@ class _PredictionPipelineImpl(PredictionPipeline):
 
 
 def create_prediction_pipeline(
-    *,
-    pybio_model: nodes.Model,
-    devices=List[str],
-    preserve_batch_dim=False,
-    weight_format: Optional[str] = None,
+    *, bioimageio_model: nodes.Model, devices=List[str], preserve_batch_dim=False, weight_format: Optional[str] = None
 ) -> PredictionPipeline:
     """
     Creates prediction pipeline which includes:
@@ -141,14 +137,14 @@ def create_prediction_pipeline(
     * model prediction
     * postprocessing
     """
-    if len(pybio_model.inputs) != 1 or len(pybio_model.outputs) != 1:
+    if len(bioimageio_model.inputs) != 1 or len(bioimageio_model.outputs) != 1:
         raise NotImplementedError("Only models with single input and output are supported")
 
     model_adapter: ModelAdapter = create_model_adapter(
-        pybio_model=pybio_model, devices=devices, weight_format=weight_format
+        bioimageio_model=bioimageio_model, devices=devices, weight_format=weight_format
     )
 
-    input = pybio_model.inputs[0]
+    input = bioimageio_model.inputs[0]
     input_shape = input.shape
     input_axes = input.axes
     preprocessing_spec = input.preprocessing.copy()
@@ -161,9 +157,9 @@ def create_prediction_pipeline(
     input_named_shape = list(zip(input_axes, input_shape))
     preprocessing: Transform = make_preprocessing(preprocessing_spec)
 
-    output = pybio_model.outputs[0]
+    output = bioimageio_model.outputs[0]
     halo_shape = output.halo or [0 for _ in output.axes]
-    output_axes = pybio_model.outputs[0].axes
+    output_axes = bioimageio_model.outputs[0].axes
     postprocessing_spec = output.postprocessing.copy()
     if has_batch_dim(output_axes) and not preserve_batch_dim:
         postprocessing_spec.append(REMOVE_BATCH_DIM)
@@ -174,7 +170,7 @@ def create_prediction_pipeline(
     postprocessing: Transform = make_postprocessing(postprocessing_spec)
 
     return _PredictionPipelineImpl(
-        name=pybio_model.name,
+        name=bioimageio_model.name,
         input_axes=input_axes,
         input_shape=input_named_shape,
         output_axes=output_axes,

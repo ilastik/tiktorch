@@ -10,8 +10,8 @@ from zipfile import BadZipFile, ZipFile
 
 import numpy as np
 import xarray as xr
+from bioimageio import spec
 from numpy.testing import assert_array_almost_equal
-from pybio import spec
 
 from .prediction_pipeline import create_prediction_pipeline, get_weight_formats
 from .reader import guess_model_path
@@ -47,20 +47,22 @@ def main():
     # try opening model from model.zip
     try:
         with ZipFile(args.model, "r") as model_zip:
-            pybio_model, cache_path = _load_from_zip(model_zip)
+            bioimageio_model, cache_path = _load_from_zip(model_zip)
     # otherwise open from model.yaml
     except BadZipFile:
         spec_path = os.path.abspath(args.model)
-        pybio_model = spec.load_and_resolve_spec(spec_path)
+        bioimageio_model = spec.load_and_resolve_spec(spec_path)
         cache_path = None
 
     model = create_prediction_pipeline(
-        pybio_model=pybio_model, devices=["cpu"], weight_format=args.weight_format, preserve_batch_dim=True
+        bioimageio_model=bioimageio_model, devices=["cpu"], weight_format=args.weight_format, preserve_batch_dim=True
     )
 
-    input_args = [load_data(inp, inp_spec) for inp, inp_spec in zip(pybio_model.test_inputs, pybio_model.inputs)]
+    input_args = [
+        load_data(inp, inp_spec) for inp, inp_spec in zip(bioimageio_model.test_inputs, bioimageio_model.inputs)
+    ]
     expected_outputs = [
-        load_data(out, out_spec) for out, out_spec in zip(pybio_model.test_outputs, pybio_model.outputs)
+        load_data(out, out_spec) for out, out_spec in zip(bioimageio_model.test_outputs, bioimageio_model.outputs)
     ]
 
     results = [model.forward(*input_args)]

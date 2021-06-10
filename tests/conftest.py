@@ -15,11 +15,11 @@ import numpy as np
 import pytest
 
 TEST_DATA = "data"
-TEST_PYBIO_ZIPFOLDER = "unet2d"
-TEST_PYBIO_ONNX = "unet2d_onnx"
-TEST_PYBIO_DUMMY = "dummy"
-TEST_PYBIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
-TEST_PYBIO_TORCHSCRIPT = "unet2d_torchscript"
+TEST_BIOIMAGEIO_ZIPFOLDER = "unet2d"
+TEST_BIOIMAGEIO_ONNX = "unet2d_onnx"
+TEST_BIOIMAGEIO_DUMMY = "dummy"
+TEST_BIOIMAGEIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
+TEST_BIOIMAGEIO_TORCHSCRIPT = "unet2d_torchscript"
 
 NNModel = namedtuple("NNModel", ["model", "state"])
 
@@ -82,8 +82,8 @@ def assert_threads_cleanup():
 
 
 @pytest.fixture
-def pybio_model_bytes(data_path):
-    zip_folder = data_path / TEST_PYBIO_ZIPFOLDER
+def bioimageio_model_bytes(data_path):
+    zip_folder = data_path / TEST_BIOIMAGEIO_ZIPFOLDER
     data = io.BytesIO()
     with ZipFile(data, mode="w") as zip_model:
         for f_path in zip_folder.iterdir():
@@ -97,18 +97,18 @@ def pybio_model_bytes(data_path):
 
 
 @pytest.fixture
-def pybio_model_zipfile(pybio_model_bytes):
-    with ZipFile(pybio_model_bytes, mode="r") as zf:
+def bioimageio_model_zipfile(bioimageio_model_bytes):
+    with ZipFile(bioimageio_model_bytes, mode="r") as zf:
         yield zf
 
 
 @pytest.fixture
-def pybio_dummy_model_filepath(data_path, tmpdir):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_DUMMY
+def bioimageio_dummy_model_filepath(data_path, tmpdir):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY
     path = tmpdir / "dummy_model.zip"
 
     with ZipFile(path, mode="w") as zip_model:
-        for f_path in pybio_net_dir.iterdir():
+        for f_path in bioimageio_net_dir.iterdir():
             if str(f_path.name).startswith("__"):
                 continue
 
@@ -119,11 +119,11 @@ def pybio_dummy_model_filepath(data_path, tmpdir):
 
 
 @pytest.fixture
-def pybio_dummy_model_bytes(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_DUMMY
+def bioimageio_dummy_model_bytes(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY
     data = io.BytesIO()
     with ZipFile(data, mode="w") as zip_model:
-        for f_path in pybio_net_dir.iterdir():
+        for f_path in bioimageio_net_dir.iterdir():
             if str(f_path.name).startswith("__"):
                 continue
 
@@ -156,22 +156,22 @@ def archive(directory):
 
 
 @pytest.fixture
-def pybio_dummy_tensorflow_model_bytes(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_TENSORFLOW_DUMMY
-    return archive(pybio_net_dir)
+def bioimageio_dummy_tensorflow_model_bytes(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TENSORFLOW_DUMMY
+    return archive(bioimageio_net_dir)
 
 
 @pytest.fixture
-def pybio_unet2d_onnx_bytes(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_ONNX
-    return archive(pybio_net_dir)
+def bioimageio_unet2d_onnx_bytes(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_ONNX
+    return archive(bioimageio_net_dir)
 
 
 @pytest.fixture
-def pybio_unet2d_onnx_test_data(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_ONNX
-    test_input = pybio_net_dir / "test_input.npy"
-    test_output = pybio_net_dir / "test_output.npy"
+def bioimageio_unet2d_onnx_test_data(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_ONNX
+    test_input = bioimageio_net_dir / "test_input.npy"
+    test_output = bioimageio_net_dir / "test_output.npy"
     return {"test_input": test_input, "test_output": test_output}
 
 
@@ -184,19 +184,14 @@ def npy_zeros_file(tmpdir):
 
 
 @pytest.fixture
-def pybio_unet2d_torchscript_bytes(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_TORCHSCRIPT
-    return archive(pybio_net_dir)
+def bioimageio_unet2d_torchscript_bytes(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TORCHSCRIPT
+    return archive(bioimageio_net_dir)
 
 
 @pytest.fixture
-def pybio_unet2d_torchscript_test_data(data_path):
-    pybio_net_dir = Path(data_path) / TEST_PYBIO_TORCHSCRIPT
-    test_input = pybio_net_dir / "test_input.npy"
-    test_output = pybio_net_dir / "test_output.npy"
+def bioimageio_unet2d_torchscript_test_data(data_path):
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TORCHSCRIPT
+    test_input = bioimageio_net_dir / "test_input.npy"
+    test_output = bioimageio_net_dir / "test_output.npy"
     return {"test_input": test_input, "test_output": test_output}
-
-
-@pytest.fixture
-def cache_path(tmp_path):
-    return Path(getenv("PYBIO_CACHE_PATH", tmp_path))

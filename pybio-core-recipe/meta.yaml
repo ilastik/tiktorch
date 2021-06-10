@@ -28,14 +28,14 @@ requirements:
 
 test:
   imports:
-    - pybio.spec
+    - bioimageio.spec
 
 about:
   home: https://github.com/bioimage-io/python-bioimage-io
   license: MIT
   license_family: MIT
   license_file: LICENSE
-  summary: 'Tools for parsing pybio model specification'
+  summary: 'Tools for parsing bioimageio model specification'
 
   doc_url: https://github.com/bioimage-io/python-bioimage-io
   dev_url: https://github.com/bioimage-io/python-bioimage-io

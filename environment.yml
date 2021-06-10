@@ -16,7 +16,7 @@ dependencies:
   - inferno=v0.4.*
   - pillow=6.2.1
   - pyyaml=5.3
-  - marshmallow=3.4.0
+  - marshmallow=3.12.*
   - pytest=4.3.0
   - grpcio>=1.31
   - grpcio-tools
@@ -34,6 +34,9 @@ dependencies:
   - scikit-learn
   - pip>=19
   - pip:
-      - tensorflow
+      - marshmallow_union
       - onnxruntime
       - pytest-grpc==0.7.0
+      - python-stdnum
+      - spdx-license-list
+      - tensorflow
