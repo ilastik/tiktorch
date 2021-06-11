@@ -1,4 +1,6 @@
 import json
+import platform
+import signal
 import threading
 from concurrent import futures
 from typing import Optional
@@ -26,6 +28,15 @@ def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeou
     _100_MB = 100 * 1024 * 1024
 
     done_evt = threading.Event()
+
+    if threading.current_thread() is threading.main_thread():
+        # we want to shutdown the server from ilasitk via subprocess.terminate()
+        # on POSIX OS: server shutdown on SIGTERM
+        # win uses TerminateProcess() api function - no graceful shutodwn here.
+        if platform.system().lower() != "windows":
+            signal.signal(signal.SIGTERM, lambda sig, frame: done_evt.set())
+            signal.signal(signal.SIGINT, lambda sig, frame: done_evt.set())
+
     server = grpc.server(
         futures.ThreadPoolExecutor(max_workers=32),
         options=[
