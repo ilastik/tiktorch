@@ -28,6 +28,7 @@ devenv:
 	conda develop "$(ROOT_DIR)" --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)/vendor/python-bioimage-io" --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)/vendor/pytorch-bioimage-io" --name $(TIKTORCH_ENV_NAME)
+	conda develop "$(ROOT_DIR)/vendor/spec-bioimage-io" --name $(TIKTORCH_ENV_NAME)
 
 
 run_server:
