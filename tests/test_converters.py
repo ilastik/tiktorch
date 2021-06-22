@@ -47,7 +47,7 @@ class TestNumpyToPBTensor:
 class TestPBTensorToNumpy:
     def test_should_raise_on_empty_dtype(self):
         tensor = inference_pb2.Tensor(
-            dtype="", shape=[inference_pb2.TensorDim(size=1), inference_pb2.TensorDim(size=2)]
+            dtype="", shape=[inference_pb2.NamedInt(size=1), inference_pb2.NamedInt(size=2)]
         )
         with pytest.raises(ValueError):
             pb_tensor_to_numpy(tensor)
@@ -139,7 +139,7 @@ class TestPBTensorToXarray:
 
     def test_should_raise_on_empty_dtype(self):
         tensor = inference_pb2.Tensor(
-            dtype="", shape=[inference_pb2.TensorDim(size=1), inference_pb2.TensorDim(size=2)]
+            dtype="", shape=[inference_pb2.NamedInt(size=1), inference_pb2.NamedInt(size=2)]
         )
         with pytest.raises(ValueError):
             pb_tensor_to_xarray(tensor)

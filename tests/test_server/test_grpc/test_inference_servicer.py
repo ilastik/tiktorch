@@ -75,6 +75,7 @@ class TestModelManagement:
         assert "model-session-id has not been provided" in e.value.details()
 
 
+
 class TestDeviceManagement:
     def test_list_devices(self, grpc_stub):
         resp = grpc_stub.ListDevices(inference_pb2.Empty())

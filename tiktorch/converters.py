@@ -6,14 +6,14 @@ from tiktorch.proto import inference_pb2
 
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
     if axistags:
-        shape = [inference_pb2.TensorDim(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
+        shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
     else:
-        shape = [inference_pb2.TensorDim(size=dim) for dim in array.shape]
+        shape = [inference_pb2.NamedInt(size=dim) for dim in array.shape]
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array))
 
 
 def xarray_to_pb_tensor(array: xr.DataArray) -> inference_pb2.Tensor:
-    shape = [inference_pb2.TensorDim(size=dim, name=name) for dim, name in zip(array.shape, array.dims)]
+    shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, array.dims)]
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 

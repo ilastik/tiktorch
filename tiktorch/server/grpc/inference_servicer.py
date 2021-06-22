@@ -51,7 +51,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         for shape in model_info.valid_shapes:
             pb_shape = []
             for tag, size in shape:
-                pb_shape.append(inference_pb2.TensorDim(size=size, name=tag))
+                pb_shape.append(inference_pb2.NamedInt(size=size, name=tag))
 
             pb_valid_shapes.append(inference_pb2.Shape(dims=pb_shape))
 
@@ -62,7 +62,9 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             outputAxes=model_info.output_axes,
             validShapes=pb_valid_shapes,
             hasTraining=False,
-            halo=[inference_pb2.TensorDim(size=size, name=tag) for tag, size in model_info.halo],
+            halo=[inference_pb2.NamedInt(size=size, name=tag) for tag, size in model_info.halo],
+            scale=[inference_pb2.NamedFloat(size=size, name=tag) for tag, size in model_info.scale],
+            offset=[inference_pb2.NamedInt(size=size, name=tag) for tag, size in model_info.offset],
         )
 
     def CreateDatasetDescription(

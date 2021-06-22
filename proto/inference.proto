@@ -48,7 +48,7 @@ message CreateModelSessionRequest {
 }
 
 message Shape {
-    repeated TensorDim dims = 1;
+    repeated NamedInt dims = 1;
 }
 
 message ModelSession {
@@ -58,9 +58,9 @@ message ModelSession {
   string outputAxes = 4;
   bool hasTraining = 5;
   repeated Shape validShapes = 6;
-  repeated TensorDim halo = 7;
-  repeated TensorDim scale = 8;
-  repeated TensorDim offset = 9;
+  repeated NamedInt halo = 7;
+  repeated NamedFloat scale = 8;
+  repeated NamedInt offset = 9;
 }
 
 message LogEntry {
@@ -82,15 +82,20 @@ message Devices {
   repeated Device devices = 1;
 }
 
-message TensorDim {
+message NamedInt {
     uint32 size = 1;
+    string name = 2;
+}
+
+message NamedFloat {
+    float size = 1;
     string name = 2;
 }
 
 message Tensor {
   bytes buffer = 1;
   string dtype = 2;
-  repeated TensorDim shape = 3;
+  repeated NamedInt shape = 3;
 }
 
 message PredictRequest {
