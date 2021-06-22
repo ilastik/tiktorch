@@ -66,6 +66,22 @@ class PredictionPipeline(ModelAdapter):
         """
         ...
 
+    @property
+    @abc.abstractmethod
+    def scale(self) -> List[Tuple[str, float]]:
+        """
+        Scale of output tensor relative to input
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def offset(self) -> List[Tuple[str, int]]:
+        """
+        Offset of output tensor relative to input
+        """
+        ...
+
 
 class _PredictionPipelineImpl(PredictionPipeline):
     def __init__(
@@ -76,12 +92,16 @@ class _PredictionPipelineImpl(PredictionPipeline):
         input_shape: List[Tuple[str, int]],
         output_axes: str,
         halo: List[Tuple[str, int]],
+        scale: List[Tuple[str, float]],
+        offset: List[Tuple[str, int]],
         preprocessing: Transform,
         model: ModelAdapter,
         postprocessing: Transform,
     ) -> None:
         self._name = name
         self._halo = halo
+        self._scale = scale
+        self._offset = offset
         self._input_axes = input_axes
         self._output_axes = output_axes
         self._input_shape = input_shape
@@ -96,6 +116,14 @@ class _PredictionPipelineImpl(PredictionPipeline):
     @property
     def halo(self):
         return self._halo
+
+    @property
+    def scale(self):
+        return self._scale
+
+    @property
+    def offset(self):
+        return self._offset
 
     @property
     def input_axes(self):
@@ -168,6 +196,16 @@ def create_prediction_pipeline(
         halo_shape = halo_shape[1:]
 
     halo_named_shape = list(zip(output_axes, halo_shape))
+
+    if isinstance(output.shape, list):
+        raise NotImplementedError("Expected implicit output shape")
+    else:
+        scale = output.shape.scale or [0 for _ in output.axes]
+        offset = output.shape.offset or [0 for _ in output.axes]
+
+    named_scale = list(zip(output_axes, scale))
+    named_offset = list(zip(output_axes, offset))
+
     postprocessing: Transform = make_postprocessing(postprocessing_spec)
 
     return _PredictionPipelineImpl(
@@ -176,6 +214,8 @@ def create_prediction_pipeline(
         input_shape=input_named_shape,
         output_axes=output_axes,
         halo=halo_named_shape,
+        scale=named_scale,
+        offset=named_offset,
         preprocessing=preprocessing,
         model=model_adapter,
         postprocessing=postprocessing,

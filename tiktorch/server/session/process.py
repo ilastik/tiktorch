@@ -27,6 +27,8 @@ class ModelInfo:
     output_axes: str
     valid_shapes: List[List[Tuple[str, int]]]
     halo: List[Tuple[str, int]]
+    offset: List[Tuple[str, int]]
+    scale: List[Tuple[str, float]]
 
 
 class ModelSessionProcess(IRPCModelSession):
@@ -53,6 +55,8 @@ class ModelSessionProcess(IRPCModelSession):
             self._model.output_axes,
             valid_shapes=[self._model.input_shape],
             halo=self._model.halo,
+            scale=self._model.scale,
+            offset=self._model.offset,
         )
 
     def shutdown(self) -> Shutdown:
