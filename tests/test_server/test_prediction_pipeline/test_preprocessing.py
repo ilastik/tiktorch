@@ -7,9 +7,18 @@ from tiktorch.server.prediction_pipeline._preprocessing import ADD_BATCH_DIM, ma
 
 
 def test_scale_linear():
-    spec = Preprocessing(name="scale_linear", kwargs={"offset": 42, "gain": 2})
-    data = xr.DataArray(np.arange(4).reshape(2, 2), dims=("x", "y"))
-    expected = xr.DataArray(np.array([[42, 44], [46, 48]]), dims=("x", "y"))
+    spec = Preprocessing(name="scale_linear", kwargs={"offset": [1, 2, 42], "gain": [1, 2, 3], "axes": "yx"})
+    data = xr.DataArray(np.arange(6).reshape(1, 2, 3), dims=("x", "y", "c"))
+    expected = xr.DataArray(np.array([[[1, 4, 48], [4, 10, 57]]]), dims=("x", "y", "c"))
+    preprocessing = make_preprocessing([spec])
+    result = preprocessing(data)
+    xr.testing.assert_allclose(expected, result)
+
+
+def test_scale_linear_no_channel():
+    spec = Preprocessing(name="scale_linear", kwargs={"offset": 1, "gain": 2, "axes": "yx"})
+    data = xr.DataArray(np.arange(6).reshape(2, 3), dims=("x", "y"))
+    expected = xr.DataArray(np.array([[1, 3, 5], [7, 9, 11]]), dims=("x", "y"))
     preprocessing = make_preprocessing([spec])
     result = preprocessing(data)
     xr.testing.assert_allclose(expected, result)
