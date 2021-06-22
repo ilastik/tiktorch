@@ -21,7 +21,7 @@ dependencies:
   - grpcio>=1.31
   - grpcio-tools
   - xarray>=0.16
-  - protobuf=3.11.4
+  - protobuf
   - cudatoolkit>=10.1,<10.2
   - numpy=1.18.5
   - cudnn
