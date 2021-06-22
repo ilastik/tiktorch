@@ -35,7 +35,7 @@ def _load_from_zip(model_zip: ZipFile):
         raise Exception(
             "Model config file not found, make sure that .model.yaml file in the root of your model archive"
         )
-    return spec.load_and_resolve_spec(spec_file_str), cache_path
+    return spec.load_model(spec_file_str), cache_path
 
 
 def load_data(path_to_npy: Union[Path, str], spec):
@@ -51,7 +51,7 @@ def main():
     # otherwise open from model.yaml
     except BadZipFile:
         spec_path = os.path.abspath(args.model)
-        bioimageio_model = spec.load_and_resolve_spec(spec_path)
+        bioimageio_model = spec.load_model(spec_path)
         cache_path = None
 
     model = create_prediction_pipeline(

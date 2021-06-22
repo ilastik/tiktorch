@@ -32,7 +32,7 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], *, preserve_batch
             "Model config file not found, make sure that .model.yaml file in the root of your model archive"
         )
 
-    bioimageio_model = spec.load_and_resolve_spec(Path(spec_file_str))
+    bioimageio_model = spec.load_model(Path(spec_file_str))
     ret = create_prediction_pipeline(
         bioimageio_model=bioimageio_model, devices=devices, preserve_batch_dim=preserve_batch_dim
     )
