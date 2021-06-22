@@ -1,5 +1,6 @@
 from typing import List
 
+import numpy as np
 import xarray as xr
 from bioimageio.spec.nodes import Preprocessing
 
@@ -12,8 +13,13 @@ def make_ensure_dtype_preprocessing(dtype):
     return Preprocessing(name="__tiktorch_ensure_dtype", kwargs={"dtype": dtype})
 
 
-def scale_linear(tensor: xr.DataArray, *, gain, offset) -> xr.DataArray:
-    return gain * tensor + offset
+def scale_linear(tensor: xr.DataArray, *, gain, offset, axes) -> xr.DataArray:
+    """scale the tensor with a fixed multiplicative and additive factor"""
+    scale_axes = tuple(ax for ax in tensor.dims if (ax not in axes and ax != "b"))
+    if scale_axes:
+        gain = xr.DataArray(np.atleast_1d(gain), dims=scale_axes)
+        offset = xr.DataArray(np.atleast_1d(offset), dims=scale_axes)
+    return tensor * gain + offset
 
 
 def zero_mean_unit_variance(tensor: xr.DataArray, axes=None, eps=1.0e-6, mode="per_sample") -> xr.DataArray:
