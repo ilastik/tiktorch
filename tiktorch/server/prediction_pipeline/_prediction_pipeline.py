@@ -3,6 +3,7 @@ from typing import Callable, List, Optional, Tuple
 
 import xarray as xr
 from bioimageio.spec import nodes
+from marshmallow import missing
 
 from ._model_adapters import ModelAdapter, create_model_adapter
 from ._postprocessing import REMOVE_BATCH_DIM, make_postprocessing
@@ -147,7 +148,7 @@ def create_prediction_pipeline(
     input = bioimageio_model.inputs[0]
     input_shape = input.shape
     input_axes = input.axes
-    preprocessing_spec = input.preprocessing.copy()
+    preprocessing_spec = [] if input.preprocessing is missing else input.preprocessing.copy()
     if has_batch_dim(input_axes) and not preserve_batch_dim:
         preprocessing_spec.insert(0, ADD_BATCH_DIM)
         input_axes = input_axes[1:]
@@ -160,7 +161,7 @@ def create_prediction_pipeline(
     output = bioimageio_model.outputs[0]
     halo_shape = output.halo or [0 for _ in output.axes]
     output_axes = bioimageio_model.outputs[0].axes
-    postprocessing_spec = output.postprocessing.copy()
+    postprocessing_spec = [] if output.postprocessing is missing else output.postprocessing.copy()
     if has_batch_dim(output_axes) and not preserve_batch_dim:
         postprocessing_spec.append(REMOVE_BATCH_DIM)
         output_axes = output_axes[1:]
