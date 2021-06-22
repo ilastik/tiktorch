@@ -59,6 +59,8 @@ message ModelSession {
   bool hasTraining = 5;
   repeated Shape validShapes = 6;
   repeated TensorDim halo = 7;
+  repeated TensorDim scale = 8;
+  repeated TensorDim offset = 9;
 }
 
 message LogEntry {
