@@ -11,12 +11,12 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="20.9.4",
+    version="21.6.24",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ilastik/tiktorch",
-    author="Ilastik Team",
+    author="ilastik Team",
     author_email="team@ilastik.org",
     classifiers=[  # Optional
         "Development Status :: 3 - Alpha",
@@ -25,7 +25,7 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "inferno-pytorch",
+        "inferno",
         "paramiko",
         "numpy",
         "pyyaml",

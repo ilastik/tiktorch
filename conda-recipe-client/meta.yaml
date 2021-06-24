@@ -23,11 +23,10 @@ requirements:
     - python >=3.7
   run:
     - python >=3.7
-    - numpy >=1.14
-    - grpcio >=1.23
-    - protobuf=3.11.4
-    - paramiko
-    - pyyaml
+    {% for dep in setup_py_data['install_requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+    - cpuonly  # no need for cuda on tiktorch client
 
 about:
   home: https://github.com/ilastik/tiktorch
