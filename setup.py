@@ -26,16 +26,23 @@ setup(
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
         "bioimageio.spec",
-        "bioimageio.torch",
         "grpcio-tools",
         "grpcio>=1.31",
-        "inferno",
         "numpy",
         "paramiko",
         "pickle5",
         "protobuf",
         "pyyaml",
+        "xarray",
     ],
+    extras_require={
+        "server": [
+            "git",
+            "bioimageio.torch"
+            "inferno",
+            "scikit-learn",
+        ],
+    },
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional
