@@ -90,4 +90,6 @@ def make_preprocessing(preprocessing_spec: List[Preprocessing]) -> Transform:
 
         preprocessing_functions.append((fn, kwargs))
 
+    preprocessing_functions.append((ensure_dtype, {"dtype": "float32"}))
+
     return chain(*preprocessing_functions)
