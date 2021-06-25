@@ -181,7 +181,7 @@ def enforce_min_shape(min_shape, step, axes):
     if sum(f > 0 for f in factors) == 0:
         return min_shape
 
-    m = max(factors)
+    m = max([min(factors), 1])
     return [s + i * m for s, i in zip(min_shape, step)]
 
 
