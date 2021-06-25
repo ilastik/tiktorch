@@ -38,8 +38,8 @@ setup(
     extras_require={
         "server": [
             "git",
-            "bioimageio.torch"
             "inferno",
+            "pytorch>=1.6",
             "scikit-learn",
         ],
     },
