@@ -1,4 +1,5 @@
 import abc
+import math
 from typing import Callable, List, Optional, Tuple
 
 import xarray as xr
@@ -157,6 +158,33 @@ class _PredictionPipelineImpl(PredictionPipeline):
         self._model.set_max_num_iterations(val)
 
 
+def enforce_min_shape(min_shape, step, axes):
+    """Hack: pick a bigger shape than min shape
+
+    Some models come with super tiny minimal shapes, that make the processing
+    too slow. While dryrun is not implemented, we'll "guess" a sensible shape
+    and hope it will fit into memory.
+
+    """
+    MIN_SIZE_2D = 256
+    MIN_SIZE_3D = 64
+
+    assert len(min_shape) == len(step) == len(axes)
+
+    spacial_increments = sum(i != 0 for i, a in zip(step, axes) if a in "xyz")
+    if spacial_increments > 2:
+        target_size = MIN_SIZE_3D
+    else:
+        target_size = MIN_SIZE_2D
+
+    factors = [math.ceil((target_size - s) / i) for s, i, a in zip(min_shape, step, axes) if a in "xyz"]
+    if sum(f > 0 for f in factors) == 0:
+        return min_shape
+
+    m = max(factors)
+    return [s + i * m for s, i in zip(min_shape, step)]
+
+
 def create_prediction_pipeline(
     *, bioimageio_model: nodes.Model, devices=List[str], preserve_batch_dim=False, weight_format: Optional[str] = None
 ) -> PredictionPipeline:
@@ -174,8 +202,14 @@ def create_prediction_pipeline(
     )
 
     input = bioimageio_model.inputs[0]
-    input_shape = input.shape
     input_axes = input.axes
+    try:
+        input_shape = input.shape.min
+        step = input.shape.step
+        input_shape = enforce_min_shape(input_shape, step, input_axes)
+    except AttributeError:
+        input_shape = input.shape
+
     preprocessing_spec = [] if input.preprocessing is missing else input.preprocessing.copy()
     if has_batch_dim(input_axes) and not preserve_batch_dim:
         preprocessing_spec.insert(0, ADD_BATCH_DIM)
@@ -189,19 +223,20 @@ def create_prediction_pipeline(
     output = bioimageio_model.outputs[0]
     halo_shape = output.halo or [0 for _ in output.axes]
     output_axes = bioimageio_model.outputs[0].axes
+    scale = output.shape.scale
+    offset = output.shape.offset
     postprocessing_spec = [] if output.postprocessing is missing else output.postprocessing.copy()
     if has_batch_dim(output_axes) and not preserve_batch_dim:
         postprocessing_spec.append(REMOVE_BATCH_DIM)
         output_axes = output_axes[1:]
+        scale = scale[1:] or [0 for _ in output.axes]
+        offset = offset[1:] or [0 for _ in output.axes]
         halo_shape = halo_shape[1:]
 
     halo_named_shape = list(zip(output_axes, halo_shape))
 
     if isinstance(output.shape, list):
         raise NotImplementedError("Expected implicit output shape")
-    else:
-        scale = output.shape.scale or [0 for _ in output.axes]
-        offset = output.shape.offset or [0 for _ in output.axes]
 
     named_scale = list(zip(output_axes, scale))
     named_offset = list(zip(output_axes, offset))
