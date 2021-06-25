@@ -9,12 +9,12 @@ from tiktorch.server.prediction_pipeline import PredictionPipeline
 from tiktorch.server.reader import eval_model_zip, guess_model_path
 
 
-@pytest.mark.parametrize("paths", permutations(["mymodel.model.yml", "file3.yml", "file.model", "model.yml"]))
+@pytest.mark.parametrize("paths", permutations(["weights.pt", "input.npy", "file.model", "model.yaml"]))
 def test_guess_model_path_with_model_file(paths):
-    assert "mymodel.model.yml" == guess_model_path(paths)
+    assert "model.yaml" == guess_model_path(paths)
 
 
-@pytest.mark.parametrize("paths", permutations(["file3.yml", "file.model", "model.yml"]))
+@pytest.mark.parametrize("paths", permutations(["file.model.zip", "file.model", "model.zip"]))
 def test_guess_model_path_without_model_file(paths):
     assert guess_model_path(paths) is None
 
