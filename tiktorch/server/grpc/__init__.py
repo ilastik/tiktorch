@@ -1,6 +1,7 @@
 import json
 import threading
 from concurrent import futures
+from pathlib import Path
 from typing import Optional
 
 import grpc
@@ -49,8 +50,10 @@ def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeou
     print(f"Starting server on {host}:{acquired_port}")
     if connection_file_path:
         print(f"Writing connection data to {connection_file_path}")
-        with open(connection_file_path, "w") as conn_file:
-            json.dump({"addr": host, "port": acquired_port}, conn_file)
+        connection_file_path = Path(connection_file_path)
+        connection_file_path_tmp = connection_file_path.with_suffix(".json.tmp")
+        connection_file_path_tmp.write_text(json.dumps({"addr": host, "port": acquired_port}))
+        connection_file_path_tmp.replace(connection_file_path)
 
     server.start()
 
