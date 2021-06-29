@@ -9,11 +9,16 @@ from bioimageio import spec
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
+MODEL_FILENAMES = ("rdf.yaml", "rdf.yml")
 MODEL_EXTENSIONS = (".yaml", ".yml")
 logger = logging.getLogger(__name__)
 
 
 def guess_model_path(file_names: List[str]) -> Optional[str]:
+    for file_name in file_names:
+        if file_name in MODEL_FILENAMES:
+            return file_name
+
     for file_name in file_names:
         if file_name.endswith(MODEL_EXTENSIONS):
             return file_name
