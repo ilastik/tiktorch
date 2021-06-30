@@ -9,7 +9,7 @@ from bioimageio import spec
 
 from tiktorch.server.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
-MODEL_FILENAMES = ("rdf.yaml", "rdf.yml". "model.yaml", "model.yml")
+MODEL_FILENAMES = ("rdf.yaml", "rdf.yml", "model.yaml", "model.yml")
 MODEL_EXTENSIONS = (".yaml", ".yml")
 logger = logging.getLogger(__name__)
 
