@@ -5,7 +5,7 @@ import onnxruntime as rt
 import xarray as xr
 from bioimageio.spec import nodes
 
-from tiktorch.server.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
+from tiktorch.runner.prediction_pipeline._model_adapters._model_adapter import ModelAdapter
 
 logger = logging.getLogger(__name__)
 

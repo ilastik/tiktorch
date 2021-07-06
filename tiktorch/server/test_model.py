@@ -13,8 +13,8 @@ import xarray as xr
 from bioimageio import spec
 from numpy.testing import assert_array_almost_equal
 
-from .prediction_pipeline import create_prediction_pipeline, get_weight_formats
-from .reader import guess_model_path
+from tiktorch.runner.prediction_pipeline import create_prediction_pipeline, get_weight_formats
+from tiktorch.runner.utils import guess_model_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", help="bioimage model.yaml or model.zip", required=True)

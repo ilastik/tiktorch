@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from tiktorch.server.prediction_pipeline import PredictionPipeline
-from tiktorch.server.reader import eval_model_zip, guess_model_path
+from tiktorch.runner.prediction_pipeline import PredictionPipeline
+from tiktorch.runner.utils import eval_model_zip, guess_model_path
 
 
 @pytest.mark.parametrize("paths", permutations(["weights.pt", "input.npy", "file.model", "model.yaml"]))

@@ -13,7 +13,7 @@ from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
-from tiktorch.server.reader import eval_model_zip
+from tiktorch.runner.utils import eval_model_zip
 
 from .backend import base
 from .rpc_interface import IRPCModelSession

@@ -5,7 +5,7 @@ import zipfile
 import numpy as np
 import xarray as xr
 
-from . import reader
+from tiktorch.runner import utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", help="bioimage model zip", required=True)
@@ -16,7 +16,7 @@ parser.add_argument("-o", "--output", nargs="?", help="output image (.npy)", req
 def main():
     args = parser.parse_args()
     with zipfile.ZipFile(args.model, "r") as model_zip:
-        model = reader.eval_model_zip(model_zip, devices=["cpu"])
+        model = utils.eval_model_zip(model_zip, devices=["cpu"])
 
     input_tensor = np.load(args.image)
     tagged_data = xr.DataArray(input_tensor, dims=tuple(model.input_axes))
