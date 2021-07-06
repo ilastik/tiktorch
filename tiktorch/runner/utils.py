@@ -9,14 +9,15 @@ from bioimageio.spec import load_node, nodes
 from marshmallow import missing
 from tiktorch.runner.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
-MODEL_EXTENSIONS = (".yaml", ".yml")
+MODEL_EXTENSIONS = ("rdf.yaml", "model.yaml", ".yaml", ".yml")
 logger = logging.getLogger(__name__)
 
 
 def guess_model_path(file_names: List[str]) -> Optional[str]:
-    for file_name in file_names:
-        if file_name.endswith(MODEL_EXTENSIONS):
-            return file_name
+    for ext in MODEL_EXTENSIONS:
+        for file_name in file_names:
+            if file_name.endswith(ext):
+                return file_name
 
     return None
 
