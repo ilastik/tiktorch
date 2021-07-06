@@ -55,7 +55,8 @@ def get_nn_instance_from_source(
     if not isinstance(node.source, nodes.ImportedSource):  # type: ignore
         raise ValueError(
             f"Encountered unexpected node.source type {type(node.source)}. "  # type: ignore
-            f"`get_nn_instance_from_source` requires _UriNodeTransformer and _SourceNodeTransformer to be applied beforehand."
+            "`get_nn_instance_from_source` requires _UriNodeTransformer and _SourceNodeTransformer to be applied "
+            "beforehand."
         )
 
     joined_kwargs = {} if node.kwargs is missing else dict(node.kwargs)  # type: ignore
