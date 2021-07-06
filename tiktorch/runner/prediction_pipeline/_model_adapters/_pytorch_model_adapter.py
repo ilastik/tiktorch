@@ -6,6 +6,7 @@ import xarray as xr
 from bioimageio.spec import nodes
 
 from tiktorch.runner.utils import get_nn_instance_from_source
+
 from ._model_adapter import ModelAdapter
 
 logger = logging.getLogger(__name__)

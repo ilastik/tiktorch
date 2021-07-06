@@ -7,6 +7,7 @@ from zipfile import ZipFile
 
 from bioimageio.spec import load_node, nodes
 from marshmallow import missing
+
 from tiktorch.runner.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
 MODEL_EXTENSIONS = ("rdf.yaml", "model.yaml", ".yaml", ".yml")

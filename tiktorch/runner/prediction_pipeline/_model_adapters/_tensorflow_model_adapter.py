@@ -4,7 +4,9 @@ import numpy as np
 import tensorflow as tf
 import xarray as xr
 from bioimageio.spec import nodes
+
 from tiktorch.runner.utils import get_nn_instance_from_source
+
 from ._model_adapter import ModelAdapter
 
 
