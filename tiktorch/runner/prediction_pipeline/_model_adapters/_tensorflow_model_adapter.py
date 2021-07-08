@@ -5,7 +5,7 @@ import tensorflow as tf
 import xarray as xr
 from bioimageio.spec import nodes
 
-from tiktorch.runner.utils import get_nn_instance_from_source
+from tiktorch.runner.utils import get_nn_instance
 
 from ._model_adapter import ModelAdapter
 
@@ -20,7 +20,7 @@ class TensorflowModelAdapter(ModelAdapter):
         # FIXME: TF probably uses different axis names
         self._internal_output_axes = _output.axes
 
-        self.model = get_nn_instance_from_source(bioimageio_model)
+        self.model = get_nn_instance(bioimageio_model)
         self.devices = []
         tf_model = tf.keras.models.load_model(spec.weights["tensorflow_saved_model_bundle"].source)
         self.model.set_model(tf_model)

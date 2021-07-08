@@ -45,7 +45,7 @@ def eval_model_zip(model_zip: ZipFile, devices: Sequence[str], *, preserve_batch
     return ret
 
 
-def get_nn_instance_from_source(
+def get_nn_instance(
     node: nodes.Model,  # type: ignore  # Name "nodes.Model" is not defined ???
     **kwargs,
 ):
@@ -55,7 +55,7 @@ def get_nn_instance_from_source(
     if not isinstance(node.source, nodes.ImportedSource):  # type: ignore
         raise ValueError(
             f"Encountered unexpected node.source type {type(node.source)}. "  # type: ignore
-            "`get_nn_instance_from_source` requires _UriNodeTransformer and _SourceNodeTransformer to be applied "
+            "`get_nn_instance` requires _UriNodeTransformer and _SourceNodeTransformer to be applied "
             "beforehand."
         )
 
