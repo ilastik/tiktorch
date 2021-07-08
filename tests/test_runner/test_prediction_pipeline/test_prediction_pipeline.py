@@ -4,7 +4,7 @@ import numpy as np
 import xarray
 from numpy.testing import assert_array_almost_equal
 
-from tiktorch.server.reader import eval_model_zip
+from tiktorch.runner.utils import eval_model_zip
 
 
 def test_eval_onnx_model_zip_predict(bioimageio_unet2d_onnx_bytes, bioimageio_unet2d_onnx_test_data):

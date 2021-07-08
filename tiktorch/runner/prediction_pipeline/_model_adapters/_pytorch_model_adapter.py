@@ -4,7 +4,8 @@ from typing import Sequence
 import torch
 import xarray as xr
 from bioimageio.spec import nodes
-from bioimageio.spec.utils import get_nn_instance
+
+from tiktorch.runner.utils import get_nn_instance
 
 from ._model_adapter import ModelAdapter
 
@@ -14,12 +15,11 @@ logger = logging.getLogger(__name__)
 class PytorchModelAdapter(ModelAdapter):
     def __init__(self, *, bioimageio_model: nodes.Model, devices=Sequence[str]):
         self._internal_output_axes = bioimageio_model.outputs[0].axes
-        spec = bioimageio_model
         self.model = get_nn_instance(bioimageio_model)
         self.devices = [torch.device(d) for d in devices]
         self.model.to(self.devices[0])
         assert isinstance(self.model, torch.nn.Module)
-        weights = spec.weights.get("pytorch_state_dict")
+        weights = bioimageio_model.weights.get("pytorch_state_dict")
         if weights is not None and weights.source:
             state = torch.load(weights.source, map_location=self.devices[0])
             self.model.load_state_dict(state)

@@ -3,7 +3,7 @@ import pytest
 import xarray as xr
 from bioimageio.spec.nodes import Preprocessing
 
-from tiktorch.server.prediction_pipeline._preprocessing import ADD_BATCH_DIM, make_preprocessing
+from tiktorch.runner.prediction_pipeline._preprocessing import ADD_BATCH_DIM, make_preprocessing
 
 
 def test_scale_linear():

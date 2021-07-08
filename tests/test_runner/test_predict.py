@@ -23,7 +23,7 @@ def test_running_predict_with_valid_arguments(testdir, bioimageio_dummy_model_fi
     result = testdir.run(
         "python",
         "-m",
-        "tiktorch.server.predict",
+        "tiktorch.runner.predict",
         "--model",
         bioimageio_dummy_model_filepath,
         npy_zeros_file,

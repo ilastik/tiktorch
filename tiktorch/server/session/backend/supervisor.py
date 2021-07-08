@@ -5,7 +5,7 @@ import queue
 
 import xarray as xr
 
-from tiktorch.server.prediction_pipeline import PredictionPipeline
+from tiktorch.runner.prediction_pipeline import PredictionPipeline
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
 
