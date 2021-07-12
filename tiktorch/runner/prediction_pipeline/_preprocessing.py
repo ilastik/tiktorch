@@ -39,6 +39,10 @@ def binarize(tensor: xr.DataArray, *, threshold) -> xr.DataArray:
     return tensor > threshold
 
 
+def clip(tensor: xr.DataArray, *, min: float, max: float) -> xr.DataArray:
+    return tensor.clip(min=min, max=max)
+
+
 def ensure_dtype(tensor: xr.DataArray, *, dtype):
     """
     Convert array to a given datatype
@@ -57,6 +61,7 @@ KNOWN_PREPROCESSING = {
     "scale_linear": scale_linear,
     "zero_mean_unit_variance": zero_mean_unit_variance,
     "binarize": binarize,
+    "clip": clip,
     "__tiktorch_add_batch_dim": add_batch_dim,
     "__tiktorch_ensure_dtype": ensure_dtype,
 }
