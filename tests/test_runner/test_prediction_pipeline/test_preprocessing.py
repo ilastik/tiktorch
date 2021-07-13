@@ -70,6 +70,24 @@ def test_binarize():
     xr.testing.assert_allclose(expected, result)
 
 
+def test_clip_preprocessing():
+    clip_spec = Preprocessing(name="clip", kwargs={"min": 3, "max": 5})
+    data = xr.DataArray(np.arange(9).reshape(3, 3), dims=("x", "y"))
+    expected = xr.DataArray(
+        np.array(
+            [
+                [3, 3, 3],
+                [3, 4, 5],
+                [5, 5, 5],
+            ]
+        ),
+        dims=("x", "y"),
+    )
+    preprocessing = make_preprocessing([clip_spec])
+    result = preprocessing(data)
+    xr.testing.assert_equal(expected, result)
+
+
 def test_unknown_preprocessing_should_raise():
     mypreprocessing = Preprocessing(name="mycoolpreprocessing", kwargs={"axes": ("x", "y")})
     with pytest.raises(NotImplementedError):
