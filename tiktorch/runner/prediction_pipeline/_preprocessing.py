@@ -36,7 +36,7 @@ def zero_mean_unit_variance(tensor: xr.DataArray, axes=None, eps=1.0e-6, mode="p
 
     # monkey patch: maks sure we don't change dtype
     # todo: allow preprocessing to change dtype?
-    return ret.astype(tensor.dtype)
+    return ret.astype("float32")
 
 
 def binarize(tensor: xr.DataArray, *, threshold) -> xr.DataArray:
