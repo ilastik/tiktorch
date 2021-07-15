@@ -133,12 +133,8 @@ jobs:
           name: build packages
           command: |
             . /opt/conda/etc/profile.d/conda.sh
-            conda activate tiktorch-server-env
             ./scripts/conda_build.sh conda-recipe-client
-            ./scripts/conda_build.sh bioimageio-core-recipe
-            ./scripts/conda_build.sh bioimageio-torch-recipe
             ./scripts/conda_build.sh conda-recipe
-            ./scripts/conda_build.sh conda-recipe-cpu
 
 
 workflows:
