@@ -11,12 +11,12 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="20.9.4",
+    version="21.7.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ilastik/tiktorch",
-    author="Ilastik Team",
+    author="ilastik Team",
     author_email="team@ilastik.org",
     classifiers=[  # Optional
         "Development Status :: 3 - Alpha",
@@ -25,14 +25,24 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "inferno-pytorch",
-        "paramiko",
+        "bioimageio.spec",
+        "grpcio-tools",
+        "grpcio>=1.31",
         "numpy",
+        "paramiko",
+        "pickle5",
+        "protobuf",
         "pyyaml",
-        "torch",
-        "bioimageio.core @ git+ssh://git@github.com/bioimage-io/python-bioimage-io#egg=bioimageio.core",
-        "bioimageio.torch @ git+ssh://git@github.com/bioimage-io/pytorch-bioimage-io#egg=bioimageio.torch",
+        "xarray",
     ],
+    extras_require={
+        "server": [
+            "git",
+            "inferno",
+            "pytorch>=1.6",
+            "scikit-learn",
+        ],
+    },
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional

@@ -1,4 +1,7 @@
-pytorch_version:
-  - 1.0
-inferno_version:
-  - v0.4
+cpuonly:
+    - none
+    - cpuonly
+
+inferno:
+    - v0.4
+
