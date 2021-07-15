@@ -32,7 +32,11 @@ def zero_mean_unit_variance(tensor: xr.DataArray, axes=None, eps=1.0e-6, mode="p
     if mode != "per_sample":
         raise NotImplementedError(f"Unsupported mode for zero_mean_unit_variance: {mode}")
 
-    return (tensor - mean) / (std + 1.0e-6)
+    ret = (tensor - mean) / (std + 1.0e-6)
+
+    # monkey patch: maks sure we don't change dtype
+    # todo: allow preprocessing to change dtype?
+    return ret.astype(tensor.dtype)
 
 
 def binarize(tensor: xr.DataArray, *, threshold) -> xr.DataArray:
