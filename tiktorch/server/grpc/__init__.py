@@ -7,12 +7,18 @@ import grpc
 
 from tiktorch.proto import data_store_pb2_grpc, inference_pb2_grpc
 from tiktorch.server.data_store import DataStore
-from tiktorch.server.device_pool import TorchDevicePool
+from tiktorch.server.device_pool import IDevicePool, TorchDevicePool
 from tiktorch.server.session_manager import SessionManager
 
 from .data_store_servicer import DataStoreServicer
 from .flight_control_servicer import FlightControlServicer
 from .inference_servicer import InferenceServicer
+
+
+def _print_available_devices(device_pool: IDevicePool) -> None:
+    print("Available devices:")
+    for device in device_pool.list_devices():
+        print(f"  * {device.id}")
 
 
 def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeout: Optional[float] = None):
@@ -37,7 +43,8 @@ def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeou
 
     data_store = DataStore()
 
-    inference_svc = InferenceServicer(TorchDevicePool(), SessionManager(), data_store)
+    device_pool = TorchDevicePool()
+    inference_svc = InferenceServicer(device_pool, SessionManager(), data_store)
     fligh_svc = FlightControlServicer(done_evt=done_evt, kill_timeout=kill_timeout)
     data_svc = DataStoreServicer(data_store)
 
@@ -52,6 +59,7 @@ def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeou
         with open(connection_file_path, "w") as conn_file:
             json.dump({"addr": host, "port": acquired_port}, conn_file)
 
+    _print_available_devices(device_pool)
     server.start()
 
     done_evt.wait()
