@@ -26,8 +26,14 @@ To install tiktorch and start server run:
 conda create -n tiktorch-server-env -c ilastik-forge -c conda-forge -c pytorch tiktorch
 
 conda activate tiktorch-server-env
-
+```
+To run server locally use
+```
 tiktorch-server
+```
+To be able to connect to remote machine use (this will bind to all available addresses)
+```
+tiktorch-server --addr 0.0.0.0
 ```
 
 ## Development environment
