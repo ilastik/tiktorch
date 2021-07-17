@@ -5,7 +5,7 @@ import enum
 import threading
 import uuid
 from collections import defaultdict
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -60,6 +60,14 @@ class ILease(abc.ABC):
 
 
 class IDevicePool(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def cuda_version(self) -> Optional[str]:
+        """
+        Returns CUDA version if available
+        """
+        ...
+
     @abc.abstractmethod
     def list_devices(self) -> List[IDevice]:
         """
@@ -111,6 +119,13 @@ class TorchDevicePool(IDevicePool):
         self.__lease_id_by_device_id = {}
         self.__device_ids_by_lease_id = defaultdict(list)
         self.__lock = threading.Lock()
+
+    @property
+    def cuda_version(self) -> Optional[str]:
+        if torch.cuda.is_available():
+            return torch.version.cuda  # type: ignore
+        else:
+            return None
 
     def list_devices(self) -> List[IDevice]:
         with self.__lock:
