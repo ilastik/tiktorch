@@ -13,7 +13,7 @@ from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
-from tiktorch.runner.utils import eval_model_zip
+from bioimageio.core import load_resource_description
 
 from .backend import base
 from .rpc_interface import IRPCModelSession
@@ -34,7 +34,7 @@ class ModelInfo:
 class ModelSessionProcess(IRPCModelSession):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
         with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
-            self._model = eval_model_zip(model_file, devices)
+            self._model = load_resource_description(model_file, devices)
 
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)

@@ -6,7 +6,7 @@ import typing
 from concurrent.futures import Future
 
 from tiktorch.configkeys import TRAINING, VALIDATION
-from tiktorch.runner.prediction_pipeline import PredictionPipeline
+from bioimageio.core.prediction_pipeline import PredictionPipeline
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands, supervisor
 from tiktorch.tiktypes import TikTensorBatch
