@@ -39,8 +39,8 @@ class ModelSessionProcess(IRPCModelSession):
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)
 
-    def forward(self, input_tensor: numpy.ndarray) -> Future:
-        res = self._worker.forward(input_tensor)
+    def forward(self, input_tensors: numpy.ndarray) -> Future:
+        res = self._worker.forward(input_tensors)
         return res
 
     def create_dataset(self, mean, stddev):

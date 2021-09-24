@@ -100,10 +100,10 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        arr = converters.pb_tensor_to_xarray(request.tensor)
-        res = session.client.forward(arr)
-        pb_tensor = converters.xarray_to_pb_tensor(res)
-        return inference_pb2.PredictResponse(tensor=pb_tensor)
+        arrs = [converters.pb_tensor_to_xarray(tensor) for tensor in request.tensors]
+        res = session.client.forward(arrs)
+        pb_tensors = [converters.xarray_to_pb_tensor(res_tensor) for res_tensor in res]
+        return inference_pb2.PredictResponse(tensors=pb_tensors)
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:

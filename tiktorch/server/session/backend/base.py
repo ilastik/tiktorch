@@ -28,9 +28,9 @@ class SessionBackend:
     def set_max_num_iterations(self, num: int) -> None:
         self._supervisor.send_command(commands.SetMaxNumIterations(num))
 
-    def forward(self, input_tensor):
+    def forward(self, input_tensors):
         res = Future()
-        self._supervisor.send_command(commands.ForwardPass(res, input_tensor))
+        self._supervisor.send_command(commands.ForwardPass(res, input_tensors))
         return res
 
     def shutdown(self) -> None:
