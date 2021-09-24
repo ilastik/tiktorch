@@ -51,16 +51,20 @@ message Shape {
     repeated NamedInt dims = 1;
 }
 
+message Scale {
+   repeated NamedFloat scales = 1;
+}
+
 message ModelSession {
   string id = 1;
   string name = 2;
-  string inputAxes = 3;
-  string outputAxes = 4;
+  repeated string inputAxes = 3;
+  repeated string outputAxes = 4;
   bool hasTraining = 5;
   repeated Shape validShapes = 6;
-  repeated NamedInt halo = 7;
-  repeated NamedFloat scale = 8;
-  repeated NamedInt offset = 9;
+  repeated Shape halos = 7;
+  repeated Scale scales = 8;
+  repeated Shape offsets = 9;
 }
 
 message LogEntry {
@@ -100,12 +104,12 @@ message Tensor {
 
 message PredictRequest {
   string modelSessionId = 1;
-  Tensor tensor = 2;
-  string datasetId = 3;
+  string datasetId = 2;
+  repeated Tensor tensors = 3;
 }
 
 message PredictResponse {
-  Tensor tensor = 1;
+  repeated Tensor tensors = 1;
 }
 
 message Empty {}

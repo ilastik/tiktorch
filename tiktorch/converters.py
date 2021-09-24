@@ -17,6 +17,16 @@ def xarray_to_pb_tensor(array: xr.DataArray) -> inference_pb2.Tensor:
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 
+def name_int_tuples_to_pb_shape(name_int_tuples) -> inference_pb2.Shape:
+    return inference_pb2.Shape(dims=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples])
+
+
+def name_float_tuples_to_pb_scale(name_float_tuples) -> inference_pb2.Shape:
+    return inference_pb2.Scale(
+        scales=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
+    )
+
+
 def pb_tensor_to_xarray(tensor: inference_pb2.Tensor) -> inference_pb2.Tensor:
     if not tensor.dtype:
         raise ValueError("Tensor dtype is not specified")

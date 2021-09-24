@@ -5,8 +5,9 @@ import threading
 import typing
 from concurrent.futures import Future
 
+from bioimageio.core.prediction_pipeline import PredictionPipeline
+
 from tiktorch.configkeys import TRAINING, VALIDATION
-from tiktorch.runner.prediction_pipeline import PredictionPipeline
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands, supervisor
 from tiktorch.tiktypes import TikTensorBatch
@@ -28,9 +29,9 @@ class SessionBackend:
     def set_max_num_iterations(self, num: int) -> None:
         self._supervisor.send_command(commands.SetMaxNumIterations(num))
 
-    def forward(self, input_tensor):
+    def forward(self, input_tensors):
         res = Future()
-        self._supervisor.send_command(commands.ForwardPass(res, input_tensor))
+        self._supervisor.send_command(commands.ForwardPass(res, input_tensors))
         return res
 
     def shutdown(self) -> None:

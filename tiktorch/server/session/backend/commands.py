@@ -106,13 +106,13 @@ class SetMaxNumIterations(ICommand):
 
 
 class ForwardPass(ICommand):
-    def __init__(self, future, input_tensor):
-        self._input_tensor = input_tensor
+    def __init__(self, future, input_tensors):
+        self._input_tensors = input_tensors
         self._future = future
 
     def execute(self, ctx: Context) -> None:
         try:
-            self._future.set_result(ctx.session.forward(self._input_tensor))
+            self._future.set_result(ctx.session.forward(self._input_tensors))
         except Exception as e:
             self._future.set_exception(e)
 

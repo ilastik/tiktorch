@@ -43,7 +43,7 @@ class IRPCModelSession(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, input_tensor):
+    def forward(self, input_tensors):
         raise NotImplementedError
 
     @exposed

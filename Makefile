@@ -26,7 +26,7 @@ devenv:
 	. $$(conda info --base)/etc/profile.d/conda.sh
 	conda env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)" --name $(TIKTORCH_ENV_NAME)
-	conda develop "$(ROOT_DIR)/vendor/pytorch-bioimage-io" --name $(TIKTORCH_ENV_NAME)
+	conda develop "$(ROOT_DIR)/vendor/core-bioimage-io-python" --name $(TIKTORCH_ENV_NAME)
 	conda develop "$(ROOT_DIR)/vendor/spec-bioimage-io" --name $(TIKTORCH_ENV_NAME)
 
 
