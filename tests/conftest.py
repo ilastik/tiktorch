@@ -84,9 +84,9 @@ def assert_threads_cleanup():
 
 @pytest.fixture
 def bioimageio_model_bytes(data_path):
-    zip_folder = data_path / TEST_BIOIMAGEIO_ZIPFOLDER / "UNet2DNucleiBroad.model.yaml"
+    rdf_source = data_path / TEST_BIOIMAGEIO_ZIPFOLDER / "UNet2DNucleiBroad.model.yaml"
     data = io.BytesIO()
-    export_resource_package(zip_folder, output_path=data)
+    export_resource_package(rdf_source, output_path=data)
     return data
 
 
@@ -114,9 +114,9 @@ def bioimageio_dummy_model_filepath(data_path, tmpdir):
 
 @pytest.fixture
 def bioimageio_dummy_model_bytes(data_path):
-    zip_folder = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
+    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
     data = io.BytesIO()
-    export_resource_package(zip_folder, output_path=data)
+    export_resource_package(rdf_source, output_path=data)
     return data
 
 
