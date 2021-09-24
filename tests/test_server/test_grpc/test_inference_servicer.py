@@ -47,8 +47,8 @@ class TestModelManagement:
     def test_model_session_creation(self, grpc_stub, bioimageio_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes))
         assert model.id
-        assert hasattr(model, "scale")
-        assert hasattr(model, "offset")
+        assert hasattr(model, "scales")
+        assert hasattr(model, "offsets")
         grpc_stub.CloseModelSession(model)
 
     def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, bioimageio_dummy_model_bytes):

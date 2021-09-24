@@ -18,7 +18,7 @@ class Supervisor:
 
         self._command_queue = commands.CommandPriorityQueue()
         self._pipeline = pipeline
-        self._pipeline.set_break_callback(self.has_commands)
+        # self._pipeline.set_break_callback(self.has_commands)
         self._idle_callbacks = []
 
     def send_command(self, cmd: commands.ICommand) -> None:

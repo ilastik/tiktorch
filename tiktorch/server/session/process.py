@@ -1,41 +1,89 @@
 import dataclasses
-import io
 import multiprocessing as _mp
+import os
+import pathlib
+import tempfile
 import uuid
-import zipfile
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
 from typing import List, Optional, Tuple
 
 import numpy
+from bioimageio.core import load_resource_description
+from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
+from bioimageio.spec.shared.raw_nodes import ImplicitOutputShape, ParametrizedInputShape
 
 from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
-from bioimageio.core import load_resource_description
 
 from .backend import base
 from .rpc_interface import IRPCModelSession
+
+# pairs of axis-shape for a single tensor
+NamedInt = Tuple[str, int]
+NamedFloat = Tuple[str, float]
+NamedShape = List[NamedInt]
+NamedVec = List[NamedFloat]
 
 
 @dataclasses.dataclass
 class ModelInfo:
     # TODO: Test for model info
     name: str
-    input_axes: str
-    output_axes: str
-    valid_shapes: List[List[Tuple[str, int]]]
-    halo: List[Tuple[str, int]]
-    offset: List[Tuple[str, int]]
-    scale: List[Tuple[str, float]]
+    input_axes: List[str]  # one per input
+    output_axes: List[str]  # one per output
+    valid_shapes: List[NamedShape]  # per input multiple shapes
+    halos: List[NamedShape]  # one per output
+    offsets: List[NamedShape]  # one per output
+    scales: List[NamedVec]  # one per output
+
+    @classmethod
+    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline):
+        if not all(
+            isinstance(output_spec.shape, ImplicitOutputShape) for output_spec in prediction_pipeline.output_specs
+        ):
+            raise NotImplementedError("Currently only implicit output shapes are supported v0v")
+        if any(isinstance(input_spec.shape, ParametrizedInputShape) for input_spec in prediction_pipeline.input_specs):
+            raise NotImplementedError("Currently only explicit input shapes are supported v0v")
+
+        valid_shapes = [
+            list(map(tuple, zip(input_spec.axes, input_spec.shape))) for input_spec in prediction_pipeline.input_specs
+        ]
+
+        halos = [
+            list(map(tuple, zip(output_spec.axes, output_spec.halo)))
+            for output_spec in prediction_pipeline.output_specs
+        ]
+
+        scales = [
+            list(map(tuple, zip(output_spec.axes, output_spec.shape.scale)))
+            for output_spec in prediction_pipeline.output_specs
+        ]
+        offsets = [
+            list(map(tuple, zip(output_spec.axes, output_spec.shape.offset)))
+            for output_spec in prediction_pipeline.output_specs
+        ]
+        return cls(
+            name=prediction_pipeline.name,
+            input_axes=["".join(input_spec.axes) for input_spec in prediction_pipeline.input_specs],
+            output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
+            valid_shapes=valid_shapes,
+            halos=halos,
+            scales=scales,
+            offsets=offsets,
+        )
 
 
 class ModelSessionProcess(IRPCModelSession):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
-        with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
-            self._model = load_resource_description(model_file, devices)
-
+        _tmp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+        _tmp_file.write(model_zip)
+        _tmp_file.close()
+        model = load_resource_description(pathlib.Path(_tmp_file.name))
+        os.unlink(_tmp_file.name)
+        self._model: PredictionPipeline = create_prediction_pipeline(bioimageio_model=model, devices=devices)
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)
 
@@ -49,15 +97,7 @@ class ModelSessionProcess(IRPCModelSession):
         return id_
 
     def get_model_info(self) -> ModelInfo:
-        return ModelInfo(
-            self._model.name,
-            self._model.input_axes,
-            self._model.output_axes,
-            valid_shapes=[self._model.input_shape],
-            halo=self._model.halo,
-            scale=self._model.scale,
-            offset=self._model.offset,
-        )
+        return ModelInfo.from_prediction_pipeline(self._model)
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()
