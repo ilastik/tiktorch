@@ -100,12 +100,12 @@ message Tensor {
 
 message PredictRequest {
   string modelSessionId = 1;
-  Tensor tensor = 2;
-  string datasetId = 3;
+  string datasetId = 2;
+  repeated Tensor tensors = 3;
 }
 
 message PredictResponse {
-  Tensor tensor = 1;
+  repeated Tensor tensors = 1;
 }
 
 message Empty {}
