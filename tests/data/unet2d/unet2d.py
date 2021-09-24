@@ -13,7 +13,7 @@ class Upsample(nn.Module):
 
 
 class UNet2d(nn.Module):
-    def __init__(self, input_channels, output_channels):
+    def __init__(self, input_channels, output_channels, training=False):
         super().__init__()
         self.input_channels = input_channels
         self.output_channels = output_channels
@@ -30,6 +30,7 @@ class UNet2d(nn.Module):
         self.upsamplers = nn.ModuleList([self.upsampler(128, 64), self.upsampler(64, 32), self.upsampler(32, 16)])
 
         self.output = nn.Conv2d(16, self.output_channels, 1)
+        self.training = training
 
     def conv_layer(self, in_channels, out_channels):
         kernel_size = 3
@@ -63,4 +64,10 @@ class UNet2d(nn.Module):
             x = decoder(x)
 
         x = self.output(x)
+
+        # apply a sigmoid directly if we are in inference mode
+        if not self.training:
+            # postprocessing
+            x = torch.sigmoid(x)
+
         return x
