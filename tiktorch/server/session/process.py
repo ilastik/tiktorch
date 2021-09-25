@@ -6,7 +6,7 @@ import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy
 from bioimageio.core import load_resource_description
@@ -29,12 +29,25 @@ NamedVec = List[NamedFloat]
 
 
 @dataclasses.dataclass
+class NamedParametrizedShape:
+    min_shape: NamedShape
+    step_shape: NamedShape
+
+
+@dataclasses.dataclass
 class ModelInfo:
+    """Intermediate representation of bioimageio neural network model
+
+    TODO (k-dominik): ModelInfo only used in inference_servicer to convert to
+    protobuf modelinfo.
+
+    """
+
     # TODO: Test for model info
     name: str
     input_axes: List[str]  # one per input
     output_axes: List[str]  # one per output
-    valid_shapes: List[NamedShape]  # per input multiple shapes
+    input_shapes: List[Union[NamedShape, NamedParametrizedShape]]  # per input multiple shapes
     halos: List[NamedShape]  # one per output
     offsets: List[NamedShape]  # one per output
     scales: List[NamedVec]  # one per output
@@ -45,12 +58,18 @@ class ModelInfo:
             isinstance(output_spec.shape, ImplicitOutputShape) for output_spec in prediction_pipeline.output_specs
         ):
             raise NotImplementedError("Currently only implicit output shapes are supported v0v")
-        if any(isinstance(input_spec.shape, ParametrizedInputShape) for input_spec in prediction_pipeline.input_specs):
-            raise NotImplementedError("Currently only explicit input shapes are supported v0v")
 
-        valid_shapes = [
-            list(map(tuple, zip(input_spec.axes, input_spec.shape))) for input_spec in prediction_pipeline.input_specs
-        ]
+        input_shapes = []
+        for input_spec in prediction_pipeline.input_specs:
+            if isinstance(input_spec.shape, ParametrizedInputShape):
+                input_shapes.append(
+                    NamedParametrizedShape(
+                        min_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.min))),
+                        step_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.step))),
+                    )
+                )
+            else:
+                input_shapes.append(list(map(tuple, zip(input_spec.axes, input_spec.shape))))
 
         halos = [
             list(map(tuple, zip(output_spec.axes, output_spec.halo)))
@@ -69,7 +88,7 @@ class ModelInfo:
             name=prediction_pipeline.name,
             input_axes=["".join(input_spec.axes) for input_spec in prediction_pipeline.input_specs],
             output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
-            valid_shapes=valid_shapes,
+            input_shapes=input_shapes,
             halos=halos,
             scales=scales,
             offsets=offsets,

@@ -1,7 +1,10 @@
+from typing import Union
+
 import numpy as np
 import xarray as xr
 
 from tiktorch.proto import inference_pb2
+from tiktorch.server.session.process import NamedParametrizedShape, NamedShape
 
 
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
@@ -25,6 +28,21 @@ def name_float_tuples_to_pb_scale(name_float_tuples) -> inference_pb2.Shape:
     return inference_pb2.Scale(
         scales=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
     )
+
+
+def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametrizedShape]) -> inference_pb2.InputShape:
+
+    if isinstance(input_shape, NamedParametrizedShape):
+        return inference_pb2.InputShape(
+            shapeType=1,
+            shape=name_int_tuples_to_pb_shape(input_shape.min_shape),
+            stepShape=name_int_tuples_to_pb_shape(input_shape.step_shape),
+        )
+    else:
+        return inference_pb2.InputShape(
+            shapeType=0,
+            shape=name_int_tuples_to_pb_shape(input_shape),
+        )
 
 
 def pb_tensor_to_xarray(tensor: inference_pb2.Tensor) -> inference_pb2.Tensor:
