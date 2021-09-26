@@ -48,9 +48,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             raise
 
         pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
-        pb_halos = [converters.name_int_tuples_to_pb_shape(halo) for halo in model_info.halos]
-        pb_offsets = [converters.name_int_tuples_to_pb_shape(offset) for offset in model_info.offsets]
-        pb_valid_scales = [converters.name_float_tuples_to_pb_scale(scale) for scale in model_info.scales]
+        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
 
         return inference_pb2.ModelSession(
             id=session.id,
@@ -59,9 +57,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             outputAxes=model_info.output_axes,
             inputShapes=pb_input_shapes,
             hasTraining=False,
-            halos=pb_halos,
-            scales=pb_valid_scales,
-            offsets=pb_offsets,
+            outputShapes=pb_output_shapes,
         )
 
     def CreateDatasetDescription(

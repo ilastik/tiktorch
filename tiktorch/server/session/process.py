@@ -35,6 +35,20 @@ class NamedParametrizedShape:
 
 
 @dataclasses.dataclass
+class NamedExplicitOutputShape:
+    shape: NamedShape
+    halo: NamedShape
+
+
+@dataclasses.dataclass
+class NamedImplicitOutputShape:
+    reference_tensor: str
+    offset: NamedShape
+    scale: NamedVec
+    halo: NamedShape
+
+
+@dataclasses.dataclass
 class ModelInfo:
     """Intermediate representation of bioimageio neural network model
 
@@ -48,17 +62,10 @@ class ModelInfo:
     input_axes: List[str]  # one per input
     output_axes: List[str]  # one per output
     input_shapes: List[Union[NamedShape, NamedParametrizedShape]]  # per input multiple shapes
-    halos: List[NamedShape]  # one per output
-    offsets: List[NamedShape]  # one per output
-    scales: List[NamedVec]  # one per output
+    output_shapes: List[Union[NamedExplicitOutputShape, NamedImplicitOutputShape]]
 
     @classmethod
     def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline):
-        if not all(
-            isinstance(output_spec.shape, ImplicitOutputShape) for output_spec in prediction_pipeline.output_specs
-        ):
-            raise NotImplementedError("Currently only implicit output shapes are supported v0v")
-
         input_shapes = []
         for input_spec in prediction_pipeline.input_specs:
             if isinstance(input_spec.shape, ParametrizedInputShape):
@@ -71,27 +78,31 @@ class ModelInfo:
             else:
                 input_shapes.append(list(map(tuple, zip(input_spec.axes, input_spec.shape))))
 
-        halos = [
-            list(map(tuple, zip(output_spec.axes, output_spec.halo)))
-            for output_spec in prediction_pipeline.output_specs
-        ]
+        output_shapes = []
+        for output_spec in prediction_pipeline.output_specs:
+            if isinstance(output_spec.shape, ImplicitOutputShape):
+                output_shapes.append(
+                    NamedImplicitOutputShape(
+                        reference_tensor=output_spec.shape.reference_tensor,
+                        scale=list(map(tuple, zip(output_spec.axes, output_spec.shape.scale))),
+                        offset=list(map(tuple, zip(output_spec.axes, output_spec.shape.offset))),
+                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                    )
+                )
+            else:
+                output_shapes.append(
+                    NamedExplicitOutputShape(
+                        shape=list(map(tuple, zip(output_spec.axes, output_spec.shape))),
+                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                    )
+                )
 
-        scales = [
-            list(map(tuple, zip(output_spec.axes, output_spec.shape.scale)))
-            for output_spec in prediction_pipeline.output_specs
-        ]
-        offsets = [
-            list(map(tuple, zip(output_spec.axes, output_spec.shape.offset)))
-            for output_spec in prediction_pipeline.output_specs
-        ]
         return cls(
             name=prediction_pipeline.name,
             input_axes=["".join(input_spec.axes) for input_spec in prediction_pipeline.input_specs],
             output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
             input_shapes=input_shapes,
-            halos=halos,
-            scales=scales,
-            offsets=offsets,
+            output_shapes=output_shapes,
         )
 
 

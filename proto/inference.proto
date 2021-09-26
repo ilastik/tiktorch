@@ -66,8 +66,22 @@ message InputShape {
   }
 
   ShapeType shapeType = 1;
+  // shape is min, when PARAMETRIZED
   Shape shape = 2;
   Shape stepShape = 4;
+}
+
+message OutputShape {
+  enum ShapeType {
+    EXPLICIT = 0;
+    IMPLICIT = 1;
+  }
+  ShapeType shapeType = 1;
+  Shape shape = 2;
+  Shape halo = 3;
+  string referenceTensor = 4;
+  Scale scale = 5;
+  Shape offset = 6;
 }
 
 message ModelSession {
@@ -77,9 +91,7 @@ message ModelSession {
   repeated string outputAxes = 4;
   bool hasTraining = 5;
   repeated InputShape inputShapes = 6;
-  repeated Shape halos = 7;
-  repeated Scale scales = 8;
-  repeated Shape offsets = 9;
+  repeated OutputShape outputShapes = 7;
 }
 
 message LogEntry {
