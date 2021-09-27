@@ -63,7 +63,7 @@ def output_shape_to_pb_output_shape(
             offset=name_int_tuples_to_pb_shape(output_shape.offset),
         )
     elif isinstance(output_shape, NamedExplicitOutputShape):
-        return inference_pb2.InputShape(
+        return inference_pb2.OutputShape(
             shapeType=0,
             shape=name_int_tuples_to_pb_shape(output_shape.shape),
             halo=name_int_tuples_to_pb_shape(output_shape.halo),
