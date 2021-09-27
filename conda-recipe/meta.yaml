@@ -1,15 +1,11 @@
+# changed the recipe to be client, server at the same time
+# add pytorch (or other NN libraries, see bioimageio.core) to enable server
+# capabilities.
+# Add git, inferno, pytorch!
 {% set setup_py_data = load_setup_py_data() %}
-{% if not cpuonly is defined %}
-  {% set cpuonly = 'none' %}
-  {% set cudatoolkit = 'none' %}
-{% endif %}
 
 package:
-  {% if cpuonly.startswith('none') %}
   name: tiktorch
-  {% else %}
-  name: tiktorch-cpu
-  {% endif %}
 
   version: {{ setup_py_data['version'] }}
 
@@ -24,25 +20,19 @@ build:
     - tiktorch-server = tiktorch.server.base:main
 
 requirements:
-
   host:
     - pip
     - python >=3.7
-
   run:
     - python >=3.7
-    {% if not cpuonly.startswith('none') %}
-    - {{ cpuonly }}
-    {% else %}
-    - cudatoolkit >=10.2
-    {% endif %}
     {% for dep in setup_py_data['install_requires'] %}
     - {{ dep.lower() }}
     {% endfor %}
+  run_constrained:
+    - cudatoolkit >=10.2
     {% for dep in setup_py_data['extras_require']['server'] %}
     - {{ dep.lower() }}
     {% endfor %}
-
 
 about:
   home: https://github.com/ilastik/tiktorch
@@ -54,6 +44,19 @@ about:
   dev_url: https://github.com/ilastik/tiktorch
 
 test:
+  requires:
+    {% for dep in setup_py_data['extras_require']['server'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
   imports:
+    # client
+    - tiktorch
+    - tiktorch.proto.inference_pb2
+    - tiktorch.proto.inference_pb2_grpc
+    - tiktorch.proto.data_store_pb2
+    - tiktorch.proto.data_store_pb2_grpc
+    - tiktorch.types
+    - tiktorch.converters
+    # server
     - tiktorch.server.base
     - tiktorch.server.session
