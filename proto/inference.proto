@@ -51,16 +51,47 @@ message Shape {
     repeated NamedInt dims = 1;
 }
 
+message Scale {
+   repeated NamedFloat scales = 1;
+}
+
+
+/* InputShape will always be expected to have `shape` set.
+ * For `ShapeType` PARAMETRIZED, also a `stepShape` has to be given.
+ * ref: https://github.com/bioimage-io/spec-bioimage-io/blob/gh-pages/model_spec_latest.md */
+message InputShape {
+  enum ShapeType {
+    EXPLICIT = 0;
+    PARAMETRIZED = 1;
+  }
+
+  ShapeType shapeType = 1;
+  // shape is min, when PARAMETRIZED
+  Shape shape = 2;
+  Shape stepShape = 4;
+}
+
+message OutputShape {
+  enum ShapeType {
+    EXPLICIT = 0;
+    IMPLICIT = 1;
+  }
+  ShapeType shapeType = 1;
+  Shape shape = 2;
+  Shape halo = 3;
+  string referenceTensor = 4;
+  Scale scale = 5;
+  Shape offset = 6;
+}
+
 message ModelSession {
   string id = 1;
   string name = 2;
-  string inputAxes = 3;
-  string outputAxes = 4;
+  repeated string inputAxes = 3;
+  repeated string outputAxes = 4;
   bool hasTraining = 5;
-  repeated Shape validShapes = 6;
-  repeated NamedInt halo = 7;
-  repeated NamedFloat scale = 8;
-  repeated NamedInt offset = 9;
+  repeated InputShape inputShapes = 6;
+  repeated OutputShape outputShapes = 7;
 }
 
 message LogEntry {
@@ -100,12 +131,12 @@ message Tensor {
 
 message PredictRequest {
   string modelSessionId = 1;
-  Tensor tensor = 2;
-  string datasetId = 3;
+  string datasetId = 2;
+  repeated Tensor tensors = 3;
 }
 
 message PredictResponse {
-  Tensor tensor = 1;
+  repeated Tensor tensors = 1;
 }
 
 message Empty {}

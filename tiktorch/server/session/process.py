@@ -1,46 +1,124 @@
 import dataclasses
-import io
 import multiprocessing as _mp
+import os
+import pathlib
+import tempfile
 import uuid
-import zipfile
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy
+from bioimageio.core import load_resource_description
+from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
+from bioimageio.spec.shared.raw_nodes import ImplicitOutputShape, ParametrizedInputShape
 
 from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
-from tiktorch.runner.utils import eval_model_zip
 
 from .backend import base
 from .rpc_interface import IRPCModelSession
 
+# pairs of axis-shape for a single tensor
+NamedInt = Tuple[str, int]
+NamedFloat = Tuple[str, float]
+NamedShape = List[NamedInt]
+NamedVec = List[NamedFloat]
+
+
+@dataclasses.dataclass
+class NamedParametrizedShape:
+    min_shape: NamedShape
+    step_shape: NamedShape
+
+
+@dataclasses.dataclass
+class NamedExplicitOutputShape:
+    shape: NamedShape
+    halo: NamedShape
+
+
+@dataclasses.dataclass
+class NamedImplicitOutputShape:
+    reference_tensor: str
+    offset: NamedShape
+    scale: NamedVec
+    halo: NamedShape
+
 
 @dataclasses.dataclass
 class ModelInfo:
+    """Intermediate representation of bioimageio neural network model
+
+    TODO (k-dominik): ModelInfo only used in inference_servicer to convert to
+    protobuf modelinfo.
+
+    """
+
     # TODO: Test for model info
     name: str
-    input_axes: str
-    output_axes: str
-    valid_shapes: List[List[Tuple[str, int]]]
-    halo: List[Tuple[str, int]]
-    offset: List[Tuple[str, int]]
-    scale: List[Tuple[str, float]]
+    input_axes: List[str]  # one per input
+    output_axes: List[str]  # one per output
+    input_shapes: List[Union[NamedShape, NamedParametrizedShape]]  # per input multiple shapes
+    output_shapes: List[Union[NamedExplicitOutputShape, NamedImplicitOutputShape]]
+
+    @classmethod
+    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline):
+        input_shapes = []
+        for input_spec in prediction_pipeline.input_specs:
+            if isinstance(input_spec.shape, ParametrizedInputShape):
+                input_shapes.append(
+                    NamedParametrizedShape(
+                        min_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.min))),
+                        step_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.step))),
+                    )
+                )
+            else:
+                input_shapes.append(list(map(tuple, zip(input_spec.axes, input_spec.shape))))
+
+        output_shapes = []
+        for output_spec in prediction_pipeline.output_specs:
+            if isinstance(output_spec.shape, ImplicitOutputShape):
+                output_shapes.append(
+                    NamedImplicitOutputShape(
+                        reference_tensor=output_spec.shape.reference_tensor,
+                        scale=list(map(tuple, zip(output_spec.axes, output_spec.shape.scale))),
+                        offset=list(map(tuple, zip(output_spec.axes, output_spec.shape.offset))),
+                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                    )
+                )
+            else:
+                output_shapes.append(
+                    NamedExplicitOutputShape(
+                        shape=list(map(tuple, zip(output_spec.axes, output_spec.shape))),
+                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                    )
+                )
+
+        return cls(
+            name=prediction_pipeline.name,
+            input_axes=["".join(input_spec.axes) for input_spec in prediction_pipeline.input_specs],
+            output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
+            input_shapes=input_shapes,
+            output_shapes=output_shapes,
+        )
 
 
 class ModelSessionProcess(IRPCModelSession):
     def __init__(self, model_zip: bytes, devices: List[str]) -> None:
-        with zipfile.ZipFile(io.BytesIO(model_zip)) as model_file:
-            self._model = eval_model_zip(model_file, devices)
-
+        _tmp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+        _tmp_file.write(model_zip)
+        _tmp_file.close()
+        model = load_resource_description(pathlib.Path(_tmp_file.name))
+        os.unlink(_tmp_file.name)
+        self._model: PredictionPipeline = create_prediction_pipeline(bioimageio_model=model, devices=devices)
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)
 
-    def forward(self, input_tensor: numpy.ndarray) -> Future:
-        res = self._worker.forward(input_tensor)
+    def forward(self, input_tensors: numpy.ndarray) -> Future:
+        res = self._worker.forward(input_tensors)
         return res
 
     def create_dataset(self, mean, stddev):
@@ -49,15 +127,7 @@ class ModelSessionProcess(IRPCModelSession):
         return id_
 
     def get_model_info(self) -> ModelInfo:
-        return ModelInfo(
-            self._model.name,
-            self._model.input_axes,
-            self._model.output_axes,
-            valid_shapes=[self._model.input_shape],
-            halo=self._model.halo,
-            scale=self._model.scale,
-            offset=self._model.offset,
-        )
+        return ModelInfo.from_prediction_pipeline(self._model)
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()

@@ -27,8 +27,8 @@ class TestExemplumSupervisor:
         def set_break_callback(self, cb):
             self._break_cb = cb
 
-        def forward(self, input_tensor):
-            return xr.DataArray(np.array([42]), dims=("x",))
+        def forward(self, input_tensors):
+            return [xr.DataArray(np.array([42]), dims=("x",))]
 
         def set_max_num_iterations(self, val):
             self.max_num_iterations = val
@@ -121,6 +121,6 @@ class TestExemplumSupervisor:
 
     def test_forward(self, supervisor, worker_thread, exemplum):
         fut = Future()
-        forward_cmd = commands.ForwardPass(fut, xr.DataArray(np.array([1]), dims=("x",)))
+        forward_cmd = commands.ForwardPass(fut, [xr.DataArray(np.array([1]), dims=("x",))])
         supervisor.send_command(forward_cmd)
-        assert 42 == fut.result(timeout=0.5)
+        assert [42] == fut.result(timeout=0.5)

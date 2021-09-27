@@ -13,7 +13,7 @@ documentation: dummy.md
 tags: [pytorch, nucleus-segmentation]
 license: MIT
 git_repo: https://github.com/ilastik/tiktorch
-
+covers: []
 
 source: dummy.py::Dummy
 dependencies: conda:./environment.yaml
@@ -43,5 +43,6 @@ outputs:
         reference_input: input   # FIXME(m-novikov) ignoring for now
         scale: [1, 1, 1, 1]
         offset: [0, 0, 0, 0]
-        #halo: [0, 0, 32, 32]   # Should be moved to outputs
+    halo: [0, 0, 32, 32]  # Should be moved to outputs
 
+type: model

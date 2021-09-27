@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pytest
+from bioimageio.core.resource_io import export_resource_package
 
 TEST_DATA = "data"
 TEST_BIOIMAGEIO_ZIPFOLDER = "unet2d"
@@ -83,16 +84,9 @@ def assert_threads_cleanup():
 
 @pytest.fixture
 def bioimageio_model_bytes(data_path):
-    zip_folder = data_path / TEST_BIOIMAGEIO_ZIPFOLDER
+    rdf_source = data_path / TEST_BIOIMAGEIO_ZIPFOLDER / "UNet2DNucleiBroad.model.yaml"
     data = io.BytesIO()
-    with ZipFile(data, mode="w") as zip_model:
-        for f_path in zip_folder.iterdir():
-            if str(f_path.name).startswith("__"):
-                continue
-
-            with f_path.open(mode="rb") as f:
-                zip_model.writestr(f_path.name, f.read())
-
+    export_resource_package(rdf_source, output_path=data)
     return data
 
 
@@ -120,16 +114,9 @@ def bioimageio_dummy_model_filepath(data_path, tmpdir):
 
 @pytest.fixture
 def bioimageio_dummy_model_bytes(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY
+    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
     data = io.BytesIO()
-    with ZipFile(data, mode="w") as zip_model:
-        for f_path in bioimageio_net_dir.iterdir():
-            if str(f_path.name).startswith("__"):
-                continue
-
-            with f_path.open(mode="rb") as f:
-                zip_model.writestr(f_path.name, f.read())
-
+    export_resource_package(rdf_source, output_path=data)
     return data
 
 

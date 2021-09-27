@@ -47,24 +47,17 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             lease.terminate()
             raise
 
-        pb_valid_shapes = []
-        for shape in model_info.valid_shapes:
-            pb_shape = []
-            for tag, size in shape:
-                pb_shape.append(inference_pb2.NamedInt(size=size, name=tag))
-
-            pb_valid_shapes.append(inference_pb2.Shape(dims=pb_shape))
+        pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
+        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
 
         return inference_pb2.ModelSession(
             id=session.id,
             name=model_info.name,
             inputAxes=model_info.input_axes,
             outputAxes=model_info.output_axes,
-            validShapes=pb_valid_shapes,
+            inputShapes=pb_input_shapes,
             hasTraining=False,
-            halo=[inference_pb2.NamedInt(size=size, name=tag) for tag, size in model_info.halo],
-            scale=[inference_pb2.NamedFloat(size=size, name=tag) for tag, size in model_info.scale],
-            offset=[inference_pb2.NamedInt(size=size, name=tag) for tag, size in model_info.offset],
+            outputShapes=pb_output_shapes,
         )
 
     def CreateDatasetDescription(
@@ -100,10 +93,10 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        arr = converters.pb_tensor_to_xarray(request.tensor)
-        res = session.client.forward(arr)
-        pb_tensor = converters.xarray_to_pb_tensor(res)
-        return inference_pb2.PredictResponse(tensor=pb_tensor)
+        arrs = [converters.pb_tensor_to_xarray(tensor) for tensor in request.tensors]
+        res = session.client.forward(arrs)
+        pb_tensors = [converters.xarray_to_pb_tensor(res_tensor) for res_tensor in res]
+        return inference_pb2.PredictResponse(tensors=pb_tensors)
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:

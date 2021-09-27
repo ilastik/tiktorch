@@ -47,8 +47,8 @@ class TestModelManagement:
     def test_model_session_creation(self, grpc_stub, bioimageio_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes))
         assert model.id
-        assert hasattr(model, "scale")
-        assert hasattr(model, "offset")
+        assert hasattr(model, "outputShapes")
+        assert hasattr(model, "inputShapes")
         grpc_stub.CloseModelSession(model)
 
     def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, bioimageio_dummy_model_bytes):
@@ -158,12 +158,12 @@ class TestForwardPass:
 
     def test_call_predict(self, grpc_stub, bioimageio_dummy_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_model_bytes))
-
-        arr = xr.DataArray(np.arange(32 * 32).reshape(1, 32, 32), dims=("c", "x", "y"))
+        arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
         expected = arr + 1
-        input_tensor = converters.xarray_to_pb_tensor(arr)
-        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensor=input_tensor))
+        input_tensors = [converters.xarray_to_pb_tensor(arr)]
+        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
 
         grpc_stub.CloseModelSession(model)
 
-        assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensor))
+        assert len(res.tensors) == 1
+        assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
