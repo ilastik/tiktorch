@@ -23,7 +23,7 @@ git submodule update
 ## Installation
 To install tiktorch and start server run:
 ```
-conda create -n tiktorch-server-env -c ilastik-forge -c conda-forge -c pytorch tiktorch
+conda create --strict-channel-priority --name tiktorch-server-env -c pytorch -c ilastik-forge -c conda-forge tiktorch
 
 conda activate tiktorch-server-env
 ```
