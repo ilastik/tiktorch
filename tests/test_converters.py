@@ -4,15 +4,17 @@ import xarray as xr
 from numpy.testing import assert_array_equal
 
 from tiktorch.converters import (
+    NamedExplicitOutputShape,
+    NamedImplicitOutputShape,
+    NamedParametrizedShape,
+    input_shape_to_pb_input_shape,
     numpy_to_pb_tensor,
+    output_shape_to_pb_output_shape,
     pb_tensor_to_numpy,
     pb_tensor_to_xarray,
     xarray_to_pb_tensor,
-    output_shape_to_pb_output_shape,
-    input_shape_to_pb_input_shape,
 )
 from tiktorch.proto import inference_pb2
-from tiktorch.server.session.process import NamedImplicitOutputShape, NamedParametrizedShape, NamedExplicitOutputShape
 
 
 def _numpy_to_pb_tensor(arr):

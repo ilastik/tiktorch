@@ -14,38 +14,13 @@ from bioimageio.core.prediction_pipeline import PredictionPipeline, create_predi
 from bioimageio.spec.shared.raw_nodes import ImplicitOutputShape, ParametrizedInputShape
 
 from tiktorch import log
+from tiktorch.converters import NamedExplicitOutputShape, NamedImplicitOutputShape, NamedParametrizedShape, NamedShape
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
 
 from .backend import base
 from .rpc_interface import IRPCModelSession
-
-# pairs of axis-shape for a single tensor
-NamedInt = Tuple[str, int]
-NamedFloat = Tuple[str, float]
-NamedShape = List[NamedInt]
-NamedVec = List[NamedFloat]
-
-
-@dataclasses.dataclass
-class NamedParametrizedShape:
-    min_shape: NamedShape
-    step_shape: NamedShape
-
-
-@dataclasses.dataclass
-class NamedExplicitOutputShape:
-    shape: NamedShape
-    halo: NamedShape
-
-
-@dataclasses.dataclass
-class NamedImplicitOutputShape:
-    reference_tensor: str
-    offset: NamedShape
-    scale: NamedVec
-    halo: NamedShape
 
 
 @dataclasses.dataclass
