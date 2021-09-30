@@ -1,15 +1,36 @@
-from typing import Union
+import dataclasses
+from typing import List, Tuple, Union
 
 import numpy as np
 import xarray as xr
 
 from tiktorch.proto import inference_pb2
-from tiktorch.server.session.process import (
-    NamedExplicitOutputShape,
-    NamedImplicitOutputShape,
-    NamedParametrizedShape,
-    NamedShape,
-)
+
+# pairs of axis-shape for a single tensor
+NamedInt = Tuple[str, int]
+NamedFloat = Tuple[str, float]
+NamedShape = List[NamedInt]
+NamedVec = List[NamedFloat]
+
+
+@dataclasses.dataclass
+class NamedParametrizedShape:
+    min_shape: NamedShape
+    step_shape: NamedShape
+
+
+@dataclasses.dataclass
+class NamedExplicitOutputShape:
+    shape: NamedShape
+    halo: NamedShape
+
+
+@dataclasses.dataclass
+class NamedImplicitOutputShape:
+    reference_tensor: str
+    offset: NamedShape
+    scale: NamedVec
+    halo: NamedShape
 
 
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
