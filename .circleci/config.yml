@@ -133,7 +133,6 @@ jobs:
           name: build packages
           command: |
             . /opt/conda/etc/profile.d/conda.sh
-            ./scripts/conda_build.sh conda-recipe-client
             ./scripts/conda_build.sh conda-recipe
 
 
