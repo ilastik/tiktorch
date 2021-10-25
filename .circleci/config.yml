@@ -125,10 +125,9 @@ jobs:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          keys:
-            - v9-dependencies-{{ checksum "environment.yml" }}
 
+      - run: conda config --set channel_priority strict
+      - run: conda install -c conda-forge conda-build
       - run:
           name: build packages
           command: |
