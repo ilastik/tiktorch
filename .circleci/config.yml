@@ -26,20 +26,20 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run: conda config --set channel_priority strict
+      - run: conda install -c conda-forge conda-build make
       - run: |
           if [ ! -d ${TIKTORCH_ENV_PREFIX} ]; then
               echo "Creating new environment ${TIKTORCH_ENV_NAME}"
-              conda install -c conda-forge conda-build make
               make devenv
           fi
 
       - save_cache:
           paths:
             - /opt/conda/envs
-          key: v8-dependencies-{{ checksum "environment.yml" }}
+          key: v9-dependencies-{{ checksum "environment.yml" }}
 
   black_check:
     docker:
@@ -51,7 +51,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run black
@@ -70,7 +70,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run flake8
@@ -89,7 +89,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run tests
@@ -108,7 +108,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run isort
@@ -127,7 +127,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v8-dependencies-{{ checksum "environment.yml" }}
+            - v9-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: build packages
