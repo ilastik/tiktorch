@@ -1,7 +1,3 @@
-cpuonly:
-    - none
-    - cpuonly
-
 inferno:
     - v0.4
 

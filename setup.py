@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="21.7.0",
+    version="21.10.3",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -25,7 +25,8 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "bioimageio.spec",
+        "bioimageio.spec==0.3.3.post6",
+        "bioimageio.core==0.4.3",
         "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
@@ -37,7 +38,6 @@ setup(
     ],
     extras_require={
         "server": [
-            "git",
             "inferno",
             "pytorch>=1.6",
             "scikit-learn",
