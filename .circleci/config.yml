@@ -127,7 +127,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
 
       - run: conda config --set channel_priority strict
-      - run: conda install -c conda-forge conda-build
+      - run: conda install -c conda-forge conda-build anaconda-client
       - run:
           name: build packages
           command: |
