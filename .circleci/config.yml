@@ -162,8 +162,6 @@ workflows:
           requires:
             - install_conda_env
       - build_conda_packages:
-          requires:
-            - install_conda_env
           context: conda-upload
           filters:
             tags:
