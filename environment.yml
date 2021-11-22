@@ -41,6 +41,8 @@ dependencies:
   - six<=1.15
   - pip>=19
   - grpcio>=1.31,<=1.40.0
+  - pytorch
+  - cpuonly
 
   - pip:
   #     - onnxruntime
