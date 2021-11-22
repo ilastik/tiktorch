@@ -30,8 +30,6 @@ setup(
         "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
-        "paramiko",
-        "pickle5",
         "protobuf",
         "pyyaml",
         "xarray",
