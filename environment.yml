@@ -9,7 +9,7 @@ dependencies:
   - lapack
   - mypy
   - flake8
-  - python=3.8.*
+  - python=3.9.*
   - scipy
   - ruamel.yaml
   - inferno=v0.4.*
