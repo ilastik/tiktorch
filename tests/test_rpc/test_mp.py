@@ -156,9 +156,6 @@ class ICancelable(RPCInterface):
         return Shutdown()
 
 
-cancelled = object()
-
-
 class CancelledExecutor:
     def __init__(self):
         self._q = queue.Queue()
@@ -192,7 +189,6 @@ class CancelledExecutor:
 
             try:
                 if fut.cancelled():
-                    fut.set_result(cancelled)
                     self.cancelled_count += 1
                 else:
                     res = task()
@@ -231,7 +227,8 @@ def test_canceled_executor():
     executor.process_queued()
 
     assert f.result(timeout=1) == 42
-    assert f2.result(timeout=1) is cancelled
+    with pytest.raises(CancelledError):
+        assert f2.result(timeout=1)
     assert executor.cancelled_count == 1
 
     executor.stop()

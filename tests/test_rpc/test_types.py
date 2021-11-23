@@ -70,7 +70,6 @@ def test_propagates_only_once_1():
 
     rpc_fut.attach(fut)
     rpc_fut.cancel()
-    rpc_fut.set_result(42)
 
     with pytest.raises(CancelledError):
         assert fut.result(timeout=1)
