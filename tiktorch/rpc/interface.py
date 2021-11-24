@@ -19,6 +19,7 @@ class RPCInterface(metaclass=RPCInterfaceMeta):
 
 
 def exposed(method: Callable[..., Any]) -> Callable[..., Any]:
+    """decorator to mark method as exposed in the public API of the class"""
     method.__exposed__ = True
     return method
 

@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="21.11.1",
+    version="21.11.2",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -30,8 +30,6 @@ setup(
         "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
-        "paramiko",
-        "pickle5",
         "protobuf",
         "pyyaml",
         "xarray",
