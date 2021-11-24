@@ -49,6 +49,7 @@ test:
     {% for dep in setup_py_data['extras_require']['server'] %}
     - {{ dep.lower() }}
     {% endfor %}
+    - cpuonly
   imports:
     # client
     - tiktorch
