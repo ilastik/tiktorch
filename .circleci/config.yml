@@ -96,7 +96,8 @@ jobs:
           command: |
             . /opt/conda/etc/profile.d/conda.sh
             conda activate tiktorch-server-env
-            python -m pytest
+            conda list
+            python -m pytest -v
 
   isort:
     docker:

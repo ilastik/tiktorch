@@ -1,4 +1,5 @@
 import math
+import os
 from collections import Counter
 
 import numpy as np
@@ -128,6 +129,9 @@ class TestDynamicWeightedRandomSampler:
         sample_idx = next(iter(sampler))
         assert sample_idx == 2
 
+    @pytest.mark.skipif(
+        os.environ.get("CIRCLECI", "") == "true", reason="For some unknown reason this test hangs on circleci"
+    )
     def test_distribution(self):
         ds = self.DatasetStub(torch.Tensor([0.1, 0.2, 0.7]))
         num_samples = 10_000
