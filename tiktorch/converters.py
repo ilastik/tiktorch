@@ -46,13 +46,15 @@ def xarray_to_pb_tensor(array: xr.DataArray) -> inference_pb2.Tensor:
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 
-def name_int_tuples_to_pb_shape(name_int_tuples) -> inference_pb2.Shape:
-    return inference_pb2.Shape(dims=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples])
+def name_int_tuples_to_pb_NamedInts(name_int_tuples) -> inference_pb2.NamedInts:
+    return inference_pb2.NamedInts(
+        namedInts=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples]
+    )
 
 
-def name_float_tuples_to_pb_scale(name_float_tuples) -> inference_pb2.Shape:
-    return inference_pb2.Scale(
-        scales=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
+def name_float_tuples_to_pb_NamedFloats(name_float_tuples) -> inference_pb2.NamedFloats:
+    return inference_pb2.NamedFloats(
+        namedFloats=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
     )
 
 
@@ -61,13 +63,13 @@ def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametriz
     if isinstance(input_shape, NamedParametrizedShape):
         return inference_pb2.InputShape(
             shapeType=1,
-            shape=name_int_tuples_to_pb_shape(input_shape.min_shape),
-            stepShape=name_int_tuples_to_pb_shape(input_shape.step_shape),
+            shape=name_int_tuples_to_pb_NamedInts(input_shape.min_shape),
+            stepShape=name_int_tuples_to_pb_NamedInts(input_shape.step_shape),
         )
     else:
         return inference_pb2.InputShape(
             shapeType=0,
-            shape=name_int_tuples_to_pb_shape(input_shape),
+            shape=name_int_tuples_to_pb_NamedInts(input_shape),
         )
 
 
@@ -78,16 +80,16 @@ def output_shape_to_pb_output_shape(
     if isinstance(output_shape, NamedImplicitOutputShape):
         return inference_pb2.OutputShape(
             shapeType=1,
-            halo=name_int_tuples_to_pb_shape(output_shape.halo),
+            halo=name_int_tuples_to_pb_NamedInts(output_shape.halo),
             referenceTensor=output_shape.reference_tensor,
-            scale=name_float_tuples_to_pb_scale(output_shape.scale),
-            offset=name_int_tuples_to_pb_shape(output_shape.offset),
+            scale=name_float_tuples_to_pb_NamedFloats(output_shape.scale),
+            offset=name_float_tuples_to_pb_NamedFloats(output_shape.offset),
         )
     elif isinstance(output_shape, NamedExplicitOutputShape):
         return inference_pb2.OutputShape(
             shapeType=0,
-            shape=name_int_tuples_to_pb_shape(output_shape.shape),
-            halo=name_int_tuples_to_pb_shape(output_shape.halo),
+            shape=name_int_tuples_to_pb_NamedInts(output_shape.shape),
+            halo=name_int_tuples_to_pb_NamedInts(output_shape.halo),
         )
     else:
         raise TypeError(f"Conversion not supported for type {type(output_shape)}")
