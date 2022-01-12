@@ -47,12 +47,12 @@ message CreateModelSessionRequest {
   repeated string deviceIds = 5;
 }
 
-message Shape {
-    repeated NamedInt dims = 1;
+message NamedInts {
+    repeated NamedInt namedInts = 1;
 }
 
-message Scale {
-   repeated NamedFloat scales = 1;
+message NamedFloats {
+   repeated NamedFloat namedFloats = 1;
 }
 
 
@@ -67,8 +67,8 @@ message InputShape {
 
   ShapeType shapeType = 1;
   // shape is min, when PARAMETRIZED
-  Shape shape = 2;
-  Shape stepShape = 4;
+  NamedInts shape = 2;
+  NamedInts stepShape = 4;
 }
 
 message OutputShape {
@@ -77,11 +77,11 @@ message OutputShape {
     IMPLICIT = 1;
   }
   ShapeType shapeType = 1;
-  Shape shape = 2;
-  Shape halo = 3;
+  NamedInts shape = 2;
+  NamedInts halo = 3;
   string referenceTensor = 4;
-  Scale scale = 5;
-  Shape offset = 6;
+  NamedFloats scale = 5;
+  NamedFloats offset = 6;
 }
 
 message ModelSession {
