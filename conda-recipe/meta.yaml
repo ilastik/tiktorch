@@ -31,7 +31,10 @@ requirements:
     {% endfor %}
   run_constrained:
     - cudatoolkit >=10.2
-    {% for dep in setup_py_data['extras_require']['server'] %}
+    {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+    {% for dep in setup_py_data['extras_require']['server-tensorflow'] %}
     - {{ dep.lower() }}
     {% endfor %}
 
@@ -46,9 +49,14 @@ about:
 
 test:
   requires:
-    {% for dep in setup_py_data['extras_require']['server'] %}
+    {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
     - {{ dep.lower() }}
     {% endfor %}
+    {% for dep in setup_py_data['extras_require']['server-tensorflow'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+    # this is still necessary, torchvision doesn't work properly with cpuonly mutex
+    - torchvision=*=*cpu
     - cpuonly
   imports:
     # client

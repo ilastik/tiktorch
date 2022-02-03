@@ -35,9 +35,13 @@ setup(
         "xarray",
     ],
     extras_require={
-        "server": [
+        "server-pytorch": [
             "inferno",
             "pytorch>=1.6",
+            "scikit-learn",
+        ],
+        "server-tensorflow": [
+            "tensorflow==1.14",
             "scikit-learn",
         ],
     },
