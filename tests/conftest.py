@@ -144,8 +144,10 @@ def archive(directory):
 
 @pytest.fixture
 def bioimageio_dummy_tensorflow_model_bytes(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TENSORFLOW_DUMMY
-    return archive(bioimageio_net_dir)
+    rdf_source = data_path / TEST_BIOIMAGEIO_TENSORFLOW_DUMMY / "rdf.yaml"
+    data = io.BytesIO()
+    export_resource_package(rdf_source, output_path=data)
+    return data
 
 
 @pytest.fixture
