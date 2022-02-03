@@ -1,42 +1,53 @@
 name: tiktorch-server-env
 channels:
-  - ilastik-forge/label/freepy
+  - ilastik-forge
   - pytorch
   - conda-forge
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
-  - lapack
-  - mypy
-  - flake8
-  - python=3.9.*
-  - scipy
-  - ruamel.yaml
-  - inferno=v0.4.*
-  - pyyaml=5.3
-  - marshmallow=3.12.*
-  - pytest
-  - grpcio-tools
-  - xarray>=0.16
-  - pytorch>=1.6
-  - protobuf
-  - cudatoolkit>=10.1,<11.2
+  - python=3.7.*=*_cpython
   - numpy=1.19.*
-  - cudnn
-  - black
-  - isort
-  - conda-build
-  - anaconda-client
-  - bump2version
-  - pre_commit
-  - scikit-learn
-  - marshmallow-union
-  - typing-extensions
-  # pinned dependencies to avoid unistallations by pip:
-  - h5py<=3.1.0
-  - six<=1.15
-  - pip>=19
+  - grpcio-tools
   - grpcio>=1.31,<=1.40.0
-  - pytorch
-  - cpuonly
+  - marshmallow-union
+  - marshmallow=3.12.*
+  - protobuf
+  - pytest
   - pytest-grpc
+  - pyyaml=5.3.*
+  - requests
+  - ruamel.yaml
+  - scikit-learn
+  - scipy
+  - typing-extensions
+  - xarray
+
+  # pytorch
+  # remove cpuonly, add cudatoolkit and cudnn for gpu support
+  - pytorch=1.10.*
+  - inferno=v0.4.*
+  # currently it's necessary to force the cpu version, remove
+  # torchvision pin when going for gpu
+  - torchvision=*=*cpu
+  - cpuonly
+  # - cudatoolkit >=10.2
+  # - cudnn
+  # - tochvision
+
+  # tensorflow (1.14 is the latest 1.x version on cf)
+  # so far we don't have any 2.x models in the model zoo
+  - tensorflow=1.14.*
+
+  # convenient to use bioiamgeio.core tools
+  - imageio
+  - tqdm
+  - typer
+
+  # dev stuff
+  - black
+  - bump2version
+  - flake8
+  - isort
+  - mypy
+  - pre_commit

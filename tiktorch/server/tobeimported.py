@@ -37,4 +37,4 @@ class Segmentation2Membranes(Transform, DtypeMapping):
     def _apply_numpy_tensor(self, image):
         gx = convolve(numpy.float32(image), numpy.array([-1.0, 0.0, 1.0]).reshape(1, 3))
         gy = convolve(numpy.float32(image), numpy.array([-1.0, 0.0, 1.0]).reshape(3, 1))
-        return getattr(numpy, self.dtype)((gx ** 2 + gy ** 2) > 0)
+        return getattr(numpy, self.dtype)((gx**2 + gy**2) > 0)

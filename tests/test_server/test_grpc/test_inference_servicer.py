@@ -167,3 +167,15 @@ class TestForwardPass:
 
         assert len(res.tensors) == 1
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
+
+    def test_call_predict_tf(self, grpc_stub, bioimageio_dummy_tensorflow_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_tensorflow_model_bytes))
+        arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
+        expected = arr * -1
+        input_tensors = [converters.xarray_to_pb_tensor(arr)]
+        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+
+        grpc_stub.CloseModelSession(model)
+
+        assert len(res.tensors) == 1
+        assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))

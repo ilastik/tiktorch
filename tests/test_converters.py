@@ -215,11 +215,11 @@ class TestShapeConversions:
 
         assert pb_shape.shapeType == 0
         assert pb_shape.referenceTensor == ""
-        assert len(pb_shape.scale.scales) == 0
-        assert len(pb_shape.offset.dims) == 0
+        assert len(pb_shape.scale.namedFloats) == 0
+        assert len(pb_shape.offset.namedFloats) == 0
 
-        assert [(d.name, d.size) for d in pb_shape.halo.dims] == [(name, size) for name, size in zip(axes, halo)]
-        assert [(d.name, d.size) for d in pb_shape.shape.dims] == [(name, size) for name, size in zip(axes, shape)]
+        assert [(d.name, d.size) for d in pb_shape.halo.namedInts] == [(name, size) for name, size in zip(axes, halo)]
+        assert [(d.name, d.size) for d in pb_shape.shape.namedInts] == [(name, size) for name, size in zip(axes, shape)]
 
     @pytest.mark.parametrize(
         "axes,halo,offset,scales,reference_tensor",
@@ -231,11 +231,15 @@ class TestShapeConversions:
 
         assert pb_shape.shapeType == 1
         assert pb_shape.referenceTensor == reference_tensor
-        assert [(d.name, d.size) for d in pb_shape.scale.scales] == [(name, size) for name, size in zip(axes, scales)]
-        assert [(d.name, d.size) for d in pb_shape.offset.dims] == [(name, size) for name, size in zip(axes, offset)]
+        assert [(d.name, d.size) for d in pb_shape.scale.namedFloats] == [
+            (name, size) for name, size in zip(axes, scales)
+        ]
+        assert [(d.name, d.size) for d in pb_shape.offset.namedFloats] == [
+            (name, size) for name, size in zip(axes, offset)
+        ]
 
-        assert [(d.name, d.size) for d in pb_shape.halo.dims] == [(name, size) for name, size in zip(axes, halo)]
-        assert len(pb_shape.shape.dims) == 0
+        assert [(d.name, d.size) for d in pb_shape.halo.namedInts] == [(name, size) for name, size in zip(axes, halo)]
+        assert len(pb_shape.shape.namedInts) == 0
 
     def test_output_shape_raises(self):
         shape = [("a", 1)]
@@ -251,7 +255,7 @@ class TestShapeConversions:
         pb_shape = input_shape_to_pb_input_shape(named_shape)
 
         assert pb_shape.shapeType == 0
-        assert [(d.name, d.size) for d in pb_shape.shape.dims] == [(name, size) for name, size in zip(axes, shape)]
+        assert [(d.name, d.size) for d in pb_shape.shape.namedInts] == [(name, size) for name, size in zip(axes, shape)]
 
     @pytest.mark.parametrize(
         "min_shape,axes,step",
@@ -266,5 +270,9 @@ class TestShapeConversions:
         pb_shape = input_shape_to_pb_input_shape(named_shape)
 
         assert pb_shape.shapeType == 1
-        assert [(d.name, d.size) for d in pb_shape.shape.dims] == [(name, size) for name, size in zip(axes, min_shape)]
-        assert [(d.name, d.size) for d in pb_shape.stepShape.dims] == [(name, size) for name, size in zip(axes, step)]
+        assert [(d.name, d.size) for d in pb_shape.shape.namedInts] == [
+            (name, size) for name, size in zip(axes, min_shape)
+        ]
+        assert [(d.name, d.size) for d in pb_shape.stepShape.namedInts] == [
+            (name, size) for name, size in zip(axes, step)
+        ]

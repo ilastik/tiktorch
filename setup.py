@@ -25,8 +25,8 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "bioimageio.spec==0.3.4.post0",
-        "bioimageio.core==0.4.4",
+        "bioimageio.spec==0.4.3*",
+        "bioimageio.core==0.4.10*",
         "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
@@ -35,9 +35,13 @@ setup(
         "xarray",
     ],
     extras_require={
-        "server": [
+        "server-pytorch": [
             "inferno",
             "pytorch>=1.6",
+            "scikit-learn",
+        ],
+        "server-tensorflow": [
+            "tensorflow==1.14",
             "scikit-learn",
         ],
     },

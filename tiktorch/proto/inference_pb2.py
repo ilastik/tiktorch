@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\" \n\x05Shape\x12\x17\n\x04\x64ims\x18\x01 \x03(\x0b\x32\t.NamedInt\"$\n\x05Scale\x12\x1b\n\x06scales\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x95\x01\n\nInputShape\x12(\n\tshapeType\x18\x01 \x01(\x0e\x32\x15.InputShape.ShapeType\x12\x15\n\x05shape\x18\x02 \x01(\x0b\x32\x06.Shape\x12\x19\n\tstepShape\x18\x04 \x01(\x0b\x32\x06.Shape\"+\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x10\n\x0cPARAMETRIZED\x10\x01\"\xd6\x01\n\x0bOutputShape\x12)\n\tshapeType\x18\x01 \x01(\x0e\x32\x16.OutputShape.ShapeType\x12\x15\n\x05shape\x18\x02 \x01(\x0b\x32\x06.Shape\x12\x14\n\x04halo\x18\x03 \x01(\x0b\x32\x06.Shape\x12\x17\n\x0freferenceTensor\x18\x04 \x01(\t\x12\x15\n\x05scale\x18\x05 \x01(\x0b\x32\x06.Scale\x12\x16\n\x06offset\x18\x06 \x01(\x0b\x32\x06.Shape\"\'\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x0c\n\x08IMPLICIT\x10\x01\"\xaa\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x03(\t\x12\x12\n\noutputAxes\x18\x04 \x03(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12 \n\x0binputShapes\x18\x06 \x03(\x0b\x32\x0b.InputShape\x12\"\n\x0coutputShapes\x18\x07 \x03(\x0b\x32\x0c.OutputShape\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"A\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x18\n\x05shape\x18\x03 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x9d\x01\n\nInputShape\x12(\n\tshapeType\x18\x01 \x01(\x0e\x32\x15.InputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x1d\n\tstepShape\x18\x04 \x01(\x0b\x32\n.NamedInts\"+\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x10\n\x0cPARAMETRIZED\x10\x01\"\xea\x01\n\x0bOutputShape\x12)\n\tshapeType\x18\x01 \x01(\x0e\x32\x16.OutputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x18\n\x04halo\x18\x03 \x01(\x0b\x32\n.NamedInts\x12\x17\n\x0freferenceTensor\x18\x04 \x01(\t\x12\x1b\n\x05scale\x18\x05 \x01(\x0b\x32\x0c.NamedFloats\x12\x1c\n\x06offset\x18\x06 \x01(\x0b\x32\x0c.NamedFloats\"\'\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x0c\n\x08IMPLICIT\x10\x01\"\xaa\x01\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x11\n\tinputAxes\x18\x03 \x03(\t\x12\x12\n\noutputAxes\x18\x04 \x03(\t\x12\x13\n\x0bhasTraining\x18\x05 \x01(\x08\x12 \n\x0binputShapes\x18\x06 \x03(\x0b\x32\x0b.InputShape\x12\"\n\x0coutputShapes\x18\x07 \x03(\x0b\x32\x0c.OutputShape\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"A\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x18\n\x05shape\x18\x03 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
 )
 
 
@@ -69,8 +69,8 @@ _INPUTSHAPE_SHAPETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=560,
-  serialized_end=603,
+  serialized_start=588,
+  serialized_end=631,
 )
 _sym_db.RegisterEnumDescriptor(_INPUTSHAPE_SHAPETYPE)
 
@@ -94,8 +94,8 @@ _OUTPUTSHAPE_SHAPETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=781,
-  serialized_end=820,
+  serialized_start=829,
+  serialized_end=868,
 )
 _sym_db.RegisterEnumDescriptor(_OUTPUTSHAPE_SHAPETYPE)
 
@@ -139,8 +139,8 @@ _LOGENTRY_LEVEL = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1076,
-  serialized_end=1154,
+  serialized_start=1124,
+  serialized_end=1202,
 )
 _sym_db.RegisterEnumDescriptor(_LOGENTRY_LEVEL)
 
@@ -353,16 +353,16 @@ _CREATEMODELSESSIONREQUEST = _descriptor.Descriptor(
 )
 
 
-_SHAPE = _descriptor.Descriptor(
-  name='Shape',
-  full_name='Shape',
+_NAMEDINTS = _descriptor.Descriptor(
+  name='NamedInts',
+  full_name='NamedInts',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='dims', full_name='Shape.dims', index=0,
+      name='namedInts', full_name='NamedInts.namedInts', index=0,
       number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -381,20 +381,20 @@ _SHAPE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=381,
-  serialized_end=413,
+  serialized_end=422,
 )
 
 
-_SCALE = _descriptor.Descriptor(
-  name='Scale',
-  full_name='Scale',
+_NAMEDFLOATS = _descriptor.Descriptor(
+  name='NamedFloats',
+  full_name='NamedFloats',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='scales', full_name='Scale.scales', index=0,
+      name='namedFloats', full_name='NamedFloats.namedFloats', index=0,
       number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -412,8 +412,8 @@ _SCALE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=415,
-  serialized_end=451,
+  serialized_start=424,
+  serialized_end=471,
 )
 
 
@@ -459,8 +459,8 @@ _INPUTSHAPE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=454,
-  serialized_end=603,
+  serialized_start=474,
+  serialized_end=631,
 )
 
 
@@ -527,8 +527,8 @@ _OUTPUTSHAPE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=606,
-  serialized_end=820,
+  serialized_start=634,
+  serialized_end=868,
 )
 
 
@@ -601,8 +601,8 @@ _MODELSESSION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=823,
-  serialized_end=993,
+  serialized_start=871,
+  serialized_end=1041,
 )
 
 
@@ -648,8 +648,8 @@ _LOGENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=996,
-  serialized_end=1154,
+  serialized_start=1044,
+  serialized_end=1202,
 )
 
 
@@ -680,8 +680,8 @@ _DEVICES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1156,
-  serialized_end=1191,
+  serialized_start=1204,
+  serialized_end=1239,
 )
 
 
@@ -719,8 +719,8 @@ _NAMEDINT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1193,
-  serialized_end=1231,
+  serialized_start=1241,
+  serialized_end=1279,
 )
 
 
@@ -758,8 +758,8 @@ _NAMEDFLOAT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1233,
-  serialized_end=1273,
+  serialized_start=1281,
+  serialized_end=1321,
 )
 
 
@@ -804,8 +804,8 @@ _TENSOR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1275,
-  serialized_end=1340,
+  serialized_start=1323,
+  serialized_end=1388,
 )
 
 
@@ -850,8 +850,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1342,
-  serialized_end=1427,
+  serialized_start=1390,
+  serialized_end=1475,
 )
 
 
@@ -882,8 +882,8 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1429,
-  serialized_end=1472,
+  serialized_start=1477,
+  serialized_end=1520,
 )
 
 
@@ -907,8 +907,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1474,
-  serialized_end=1481,
+  serialized_start=1522,
+  serialized_end=1529,
 )
 
 
@@ -939,8 +939,8 @@ _MODELINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1483,
-  serialized_end=1513,
+  serialized_start=1531,
+  serialized_end=1561,
 )
 
 
@@ -983,8 +983,8 @@ _CREATEMODELSESSIONCHUNKEDREQUEST = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1515,
-  serialized_end=1609,
+  serialized_start=1563,
+  serialized_end=1657,
 )
 
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
@@ -996,17 +996,17 @@ _CREATEMODELSESSIONREQUEST.fields_by_name['model_uri'].containing_oneof = _CREAT
 _CREATEMODELSESSIONREQUEST.oneofs_by_name['model'].fields.append(
   _CREATEMODELSESSIONREQUEST.fields_by_name['model_blob'])
 _CREATEMODELSESSIONREQUEST.fields_by_name['model_blob'].containing_oneof = _CREATEMODELSESSIONREQUEST.oneofs_by_name['model']
-_SHAPE.fields_by_name['dims'].message_type = _NAMEDINT
-_SCALE.fields_by_name['scales'].message_type = _NAMEDFLOAT
+_NAMEDINTS.fields_by_name['namedInts'].message_type = _NAMEDINT
+_NAMEDFLOATS.fields_by_name['namedFloats'].message_type = _NAMEDFLOAT
 _INPUTSHAPE.fields_by_name['shapeType'].enum_type = _INPUTSHAPE_SHAPETYPE
-_INPUTSHAPE.fields_by_name['shape'].message_type = _SHAPE
-_INPUTSHAPE.fields_by_name['stepShape'].message_type = _SHAPE
+_INPUTSHAPE.fields_by_name['shape'].message_type = _NAMEDINTS
+_INPUTSHAPE.fields_by_name['stepShape'].message_type = _NAMEDINTS
 _INPUTSHAPE_SHAPETYPE.containing_type = _INPUTSHAPE
 _OUTPUTSHAPE.fields_by_name['shapeType'].enum_type = _OUTPUTSHAPE_SHAPETYPE
-_OUTPUTSHAPE.fields_by_name['shape'].message_type = _SHAPE
-_OUTPUTSHAPE.fields_by_name['halo'].message_type = _SHAPE
-_OUTPUTSHAPE.fields_by_name['scale'].message_type = _SCALE
-_OUTPUTSHAPE.fields_by_name['offset'].message_type = _SHAPE
+_OUTPUTSHAPE.fields_by_name['shape'].message_type = _NAMEDINTS
+_OUTPUTSHAPE.fields_by_name['halo'].message_type = _NAMEDINTS
+_OUTPUTSHAPE.fields_by_name['scale'].message_type = _NAMEDFLOATS
+_OUTPUTSHAPE.fields_by_name['offset'].message_type = _NAMEDFLOATS
 _OUTPUTSHAPE_SHAPETYPE.containing_type = _OUTPUTSHAPE
 _MODELSESSION.fields_by_name['inputShapes'].message_type = _INPUTSHAPE
 _MODELSESSION.fields_by_name['outputShapes'].message_type = _OUTPUTSHAPE
@@ -1029,8 +1029,8 @@ DESCRIPTOR.message_types_by_name['CreateDatasetDescriptionRequest'] = _CREATEDAT
 DESCRIPTOR.message_types_by_name['DatasetDescription'] = _DATASETDESCRIPTION
 DESCRIPTOR.message_types_by_name['Blob'] = _BLOB
 DESCRIPTOR.message_types_by_name['CreateModelSessionRequest'] = _CREATEMODELSESSIONREQUEST
-DESCRIPTOR.message_types_by_name['Shape'] = _SHAPE
-DESCRIPTOR.message_types_by_name['Scale'] = _SCALE
+DESCRIPTOR.message_types_by_name['NamedInts'] = _NAMEDINTS
+DESCRIPTOR.message_types_by_name['NamedFloats'] = _NAMEDFLOATS
 DESCRIPTOR.message_types_by_name['InputShape'] = _INPUTSHAPE
 DESCRIPTOR.message_types_by_name['OutputShape'] = _OUTPUTSHAPE
 DESCRIPTOR.message_types_by_name['ModelSession'] = _MODELSESSION
@@ -1081,19 +1081,19 @@ CreateModelSessionRequest = _reflection.GeneratedProtocolMessageType('CreateMode
   })
 _sym_db.RegisterMessage(CreateModelSessionRequest)
 
-Shape = _reflection.GeneratedProtocolMessageType('Shape', (_message.Message,), {
-  'DESCRIPTOR' : _SHAPE,
+NamedInts = _reflection.GeneratedProtocolMessageType('NamedInts', (_message.Message,), {
+  'DESCRIPTOR' : _NAMEDINTS,
   '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:Shape)
+  # @@protoc_insertion_point(class_scope:NamedInts)
   })
-_sym_db.RegisterMessage(Shape)
+_sym_db.RegisterMessage(NamedInts)
 
-Scale = _reflection.GeneratedProtocolMessageType('Scale', (_message.Message,), {
-  'DESCRIPTOR' : _SCALE,
+NamedFloats = _reflection.GeneratedProtocolMessageType('NamedFloats', (_message.Message,), {
+  'DESCRIPTOR' : _NAMEDFLOATS,
   '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:Scale)
+  # @@protoc_insertion_point(class_scope:NamedFloats)
   })
-_sym_db.RegisterMessage(Scale)
+_sym_db.RegisterMessage(NamedFloats)
 
 InputShape = _reflection.GeneratedProtocolMessageType('InputShape', (_message.Message,), {
   'DESCRIPTOR' : _INPUTSHAPE,
@@ -1195,8 +1195,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1612,
-  serialized_end=1938,
+  serialized_start=1660,
+  serialized_end=1986,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateModelSession',
@@ -1271,8 +1271,8 @@ _FLIGHTCONTROL = _descriptor.ServiceDescriptor(
   index=1,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1940,
-  serialized_end=2011,
+  serialized_start=1988,
+  serialized_end=2059,
   methods=[
   _descriptor.MethodDescriptor(
     name='Ping',
