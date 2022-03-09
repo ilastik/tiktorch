@@ -12,6 +12,7 @@ import numpy
 from bioimageio.core import load_resource_description
 from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 from bioimageio.spec.shared.raw_nodes import ImplicitOutputShape, ParametrizedInputShape
+from marshmallow import missing
 
 from tiktorch import log
 from tiktorch.converters import NamedExplicitOutputShape, NamedImplicitOutputShape, NamedParametrizedShape, NamedShape
@@ -32,7 +33,6 @@ class ModelInfo:
 
     """
 
-    # TODO: Test for model info
     name: str
     input_axes: List[str]  # one per input
     output_axes: List[str]  # one per output
@@ -55,20 +55,23 @@ class ModelInfo:
 
         output_shapes = []
         for output_spec in prediction_pipeline.output_specs:
+            # halo is not required by spec. We could alternatively make it optional in the
+            # respective grpc message types and handle missing values in ilastik
+            halo = [0 for _ in output_spec.axes] if output_spec.halo == missing else output_spec.halo
             if isinstance(output_spec.shape, ImplicitOutputShape):
                 output_shapes.append(
                     NamedImplicitOutputShape(
                         reference_tensor=output_spec.shape.reference_tensor,
                         scale=list(map(tuple, zip(output_spec.axes, output_spec.shape.scale))),
                         offset=list(map(tuple, zip(output_spec.axes, output_spec.shape.offset))),
-                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                        halo=list(map(tuple, zip(output_spec.axes, halo))),
                     )
                 )
-            else:
+            else:  # isinstance(output_spec.shape, ExplicitShape):
                 output_shapes.append(
                     NamedExplicitOutputShape(
                         shape=list(map(tuple, zip(output_spec.axes, output_spec.shape))),
-                        halo=list(map(tuple, zip(output_spec.axes, output_spec.halo))),
+                        halo=list(map(tuple, zip(output_spec.axes, halo))),
                     )
                 )
 
