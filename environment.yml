@@ -1,14 +1,14 @@
 name: tiktorch-server-env
 channels:
   - ilastik-forge
-  - pytorch
+  # - pytorch
   - conda-forge
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
-  - python=3.7.*=*_cpython
-  - numpy=1.19.*
-  - grpcio-tools
+  - python
+  - numpy
+ # - grpcio-tools
   - grpcio>=1.31,<=1.40.0
   - marshmallow-union
   - marshmallow=3.12.*
@@ -30,14 +30,14 @@ dependencies:
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
   - torchvision=*=*cpu
-  - cpuonly
+  #- cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
   # - tochvision
 
   # tensorflow (1.14 is the latest 1.x version on cf)
   # so far we don't have any 2.x models in the model zoo
-  - tensorflow=1.14.*
+  #- tensorflow=1.14.*
 
   # convenient to use bioiamgeio.core tools
   - imageio
