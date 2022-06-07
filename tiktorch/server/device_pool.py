@@ -133,6 +133,8 @@ class TorchDevicePool(IDevicePool):
 
             if torch.cuda.is_available():
                 ids += [f"cuda:{idx}" for idx in range(torch.cuda.device_count())]
+            if torch.backends.mps.is_available:
+                ids += ["mps"]
 
             devices: List[IDevice] = []
             for id_ in ids:

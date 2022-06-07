@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-TIKTORCH_ENV_NAME ?= tiktorch-server-env
+TIKTORCH_ENV_NAME ?= tiktorch-server-env-mtl
 
 sample_model:
 	cd tests/data/dummy && zip -r $(ROOT_DIR)/dummy.tmodel ./*

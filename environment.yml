@@ -1,7 +1,8 @@
 name: tiktorch-server-env
 channels:
+  - pytorch-nightly
+  - pytorch
   - ilastik-forge
-  # - pytorch
   - conda-forge
 dependencies:
   # - bioimage.spec via submodule
@@ -25,11 +26,11 @@ dependencies:
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support
-  - pytorch=1.10.*
+  - pytorch=1.13.*
   - inferno=v0.4.*
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
-  - torchvision=*=*cpu
+  # - torchvision
   #- cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
