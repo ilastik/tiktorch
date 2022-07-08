@@ -359,5 +359,8 @@ class MPServer:
                 elif isinstance(msg, Cancellation):
                     self._cancel_request(msg)
 
+            except EOFError:
+                self.logger.error("Broken Pipe")
+                break
             except Exception:
                 self.logger.error("Error in main loop", exc_info=1)
