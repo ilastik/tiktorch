@@ -22,16 +22,18 @@ If you are interested in running Model Zoo networks from Python directly, have a
 
 ## Installation
 
+For installation of the required packages we rely on conda/mamba, which has to be available on the machine you want to install the tiktorch server on.
 The tiktorch package let's you add the network dependencies you need.
 E.g. in order to install the `tiktorch` server to run `pytorch` networks via
 ilastik, you'd add `pytorch` (and optionally also specify `cuda` version):
 
 ```
-conda create --strict-channel-priority --name tiktorch-server-env -c pytorch -c ilastik-forge -c conda-forge tiktorch pytorch cudatoolkit>=11.2
+mamba create --strict-channel-priority --name tiktorch-server-env -c pytorch -c ilastik-forge -c conda-forge tiktorch pytorch cudatoolkit>=11.2
 
-conda activate tiktorch-server-env
+mamba activate tiktorch-server-env
 ```
-To run server locally use
+
+To run server use
 ```
 tiktorch-server
 ```
