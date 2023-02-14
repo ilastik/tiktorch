@@ -25,8 +25,8 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "bioimageio.spec==0.4.8",
-        "bioimageio.core==0.5.7",
+        "bioimageio.spec==0.4.9",
+        "bioimageio.core==0.5.8",
         "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
