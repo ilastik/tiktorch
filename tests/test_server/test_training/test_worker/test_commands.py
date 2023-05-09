@@ -45,7 +45,6 @@ class TestForwardPassCmd:
         assert fut.result(timeout=0)
 
     def test_executing_resolves_future_if_raised(self):
-
         fut = Future()
         cmd = cmds.ForwardPass(fut, [1])
         supervisor = mock.Mock()

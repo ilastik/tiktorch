@@ -44,7 +44,6 @@ def explicit_output_spec():
 
 
 def test_model_info_explicit_shapes(explicit_input_spec, explicit_output_spec):
-
     prediction_pipeline = mock.Mock(input_specs=[explicit_input_spec], output_specs=[explicit_output_spec], name="bleh")
 
     model_info = ModelInfo.from_prediction_pipeline(prediction_pipeline)
@@ -65,7 +64,6 @@ def test_model_info_explicit_shapes(explicit_input_spec, explicit_output_spec):
 
 
 def test_model_info_explicit_shapes_missing_halo(explicit_input_spec, explicit_output_spec):
-
     explicit_output_spec.halo = missing
 
     prediction_pipeline = mock.Mock(input_specs=[explicit_input_spec], output_specs=[explicit_output_spec], name="bleh")

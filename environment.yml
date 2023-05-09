@@ -6,7 +6,7 @@ channels:
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
-  - python
+  - python 3.9.*
   - numpy
   - grpcio=1.41
   - marshmallow-union
