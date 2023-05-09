@@ -42,7 +42,7 @@ setup(
             "scikit-learn",
         ],
         "server-tensorflow": [
-            "tensorflow",
+            "tensorflow>=2.9",
             "scikit-learn",
         ],
     },

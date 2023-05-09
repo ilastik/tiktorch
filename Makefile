@@ -25,10 +25,7 @@ version:
 devenv:
 	. $$(conda info --base)/etc/profile.d/conda.sh
 	mamba env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
-	conda develop "$(ROOT_DIR)" --name $(TIKTORCH_ENV_NAME)
-	conda develop "$(ROOT_DIR)/vendor/core-bioimage-io-python" --name $(TIKTORCH_ENV_NAME)
-	conda develop "$(ROOT_DIR)/vendor/spec-bioimage-io" --name $(TIKTORCH_ENV_NAME)
-
+	conda run -n $(TIKTORCH_ENV_NAME) pip install . ./vendor/core-bioimage-io-python ./vendor/spec-bioimage-io
 
 run_server:
 	. $$(conda info --base)/etc/profile.d/conda.sh; conda activate $(TIKTORCH_ENV_NAME); python -m tiktorch.server

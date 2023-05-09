@@ -11,6 +11,7 @@ dependencies:
   - grpcio=1.41
   - marshmallow-union
   - marshmallow=3.12.*
+  - marshmallow-jsonschema
   - protobuf
   - pytest
   - pytest-grpc
@@ -36,7 +37,8 @@ dependencies:
 
   # tensorflow (1.14 is the latest 1.x version on cf)
   # so far we don't have any 2.x models in the model zoo
-  - tensorflow >=2.9,<3.0
+  # tensorflow skipped for now, as it conflicts with grpcio version 1.41
+  # - tensorflow >=2.9,<3.0
 
   # convenient to use bioiamgeio.core tools
   - imageio
@@ -50,3 +52,5 @@ dependencies:
   - isort
   - mypy
   - pre_commit
+
+  - pip
