@@ -6,10 +6,9 @@ channels:
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
-  - python=3.7.*=*_cpython
-  - numpy=1.19.*
-  - grpcio-tools
-  - grpcio>=1.31,<=1.40.0
+  - python
+  - numpy
+  - grpcio=1.41
   - marshmallow-union
   - marshmallow=3.12.*
   - protobuf
@@ -25,19 +24,19 @@ dependencies:
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support
-  - pytorch=1.10.*
+  - pytorch=1.13.*
   - inferno=v0.4.*
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
-  - torchvision=*=*cpu
-  - cpuonly
+  # - torchvision
+  #- cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
   # - tochvision
 
   # tensorflow (1.14 is the latest 1.x version on cf)
   # so far we don't have any 2.x models in the model zoo
-  - tensorflow=1.14.*
+  - tensorflow >=2.9,<3.0
 
   # convenient to use bioiamgeio.core tools
   - imageio

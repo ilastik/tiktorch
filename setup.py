@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="23.2.0",
+    version="23.5.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -22,12 +22,13 @@ setup(
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
         "bioimageio.spec==0.4.9",
         "bioimageio.core==0.5.8",
-        "grpcio-tools",
         "grpcio>=1.31",
         "numpy",
         "protobuf",
@@ -41,7 +42,7 @@ setup(
             "scikit-learn",
         ],
         "server-tensorflow": [
-            "tensorflow==1.14",
+            "tensorflow",
             "scikit-learn",
         ],
     },
