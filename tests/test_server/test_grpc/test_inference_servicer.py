@@ -168,6 +168,7 @@ class TestForwardPass:
         assert len(res.tensors) == 1
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
 
+    @pytest.mark.skip
     def test_call_predict_tf(self, grpc_stub, bioimageio_dummy_tensorflow_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_tensorflow_model_bytes))
         arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))

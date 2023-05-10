@@ -59,7 +59,6 @@ def name_float_tuples_to_pb_NamedFloats(name_float_tuples) -> inference_pb2.Name
 
 
 def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametrizedShape]) -> inference_pb2.InputShape:
-
     if isinstance(input_shape, NamedParametrizedShape):
         return inference_pb2.InputShape(
             shapeType=1,
@@ -76,7 +75,6 @@ def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametriz
 def output_shape_to_pb_output_shape(
     output_shape: Union[NamedExplicitOutputShape, NamedImplicitOutputShape]
 ) -> inference_pb2.InputShape:
-
     if isinstance(output_shape, NamedImplicitOutputShape):
         return inference_pb2.OutputShape(
             shapeType=1,

@@ -130,7 +130,6 @@ class MPClient:
         def _poller():
             while True:
                 if self._conn.poll(timeout=0.3):
-                    res: Result
                     try:
                         msg = self._conn.recv()
                     except Exception as exc:
