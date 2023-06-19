@@ -29,7 +29,8 @@ jobs:
             - v10-dependencies-{{ checksum "environment.yml" }}
 
       - run: conda config --set channel_priority strict
-      - run: conda install -c conda-forge conda-build make mamba
+      - run: conda update -n base -c conda-forge --update-all
+      - run: conda install -c conda-forge conda-build make mamba boa
       - run: |
           if [ ! -d ${TIKTORCH_ENV_PREFIX} ]; then
               echo "Creating new environment ${TIKTORCH_ENV_NAME}"
