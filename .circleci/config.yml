@@ -2,7 +2,7 @@ version: 2
 jobs:
   checkout_code:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - checkout
@@ -18,7 +18,7 @@ jobs:
       TIKTORCH_ENV_NAME: tiktorch-server-env
       TIKTORCH_ENV_PREFIX: /opt/conda/envs/tiktorch-server-env
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
@@ -29,8 +29,8 @@ jobs:
             - v10-dependencies-{{ checksum "environment.yml" }}
 
       - run: conda config --set channel_priority strict
-      - run: conda update -n base -c conda-forge --update-all
-      - run: conda install -c conda-forge conda-build make mamba boa
+      - run: mamba update -n base -c conda-forge --update-all
+      - run: mamba install -c conda-forge conda-build make boa
       - run: |
           if [ ! -d ${TIKTORCH_ENV_PREFIX} ]; then
               echo "Creating new environment ${TIKTORCH_ENV_NAME}"
@@ -44,7 +44,7 @@ jobs:
 
   black_check:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
@@ -63,7 +63,7 @@ jobs:
 
   flake8_check:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
@@ -82,7 +82,7 @@ jobs:
 
   tests:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
@@ -102,7 +102,7 @@ jobs:
 
   isort:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
@@ -121,15 +121,15 @@ jobs:
 
   build_conda_packages:
     docker:
-      - image: continuumio/miniconda3
+      - image: condaforge/mambaforge
     working_directory: ~/repo
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
 
-      - run: conda config --set channel_priority strict
-      - run: conda install -c conda-forge mamba conda-build anaconda-client boa
+      - run: mamba config --set channel_priority strict
+      - run: mamba install -c conda-forge conda-build anaconda-client boa
       - run:
           name: build packages
           command: |
