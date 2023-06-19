@@ -92,6 +92,8 @@ message ModelSession {
   bool hasTraining = 5;
   repeated InputShape inputShapes = 6;
   repeated OutputShape outputShapes = 7;
+  repeated string inputNames = 8;
+  repeated string outputNames = 9;
 }
 
 message LogEntry {
