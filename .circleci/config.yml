@@ -26,7 +26,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v10-dependencies-{{ checksum "environment.yml" }}
+            - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run: conda config --set channel_priority strict
       - run: mamba update -n base -c conda-forge --update-all
@@ -40,7 +40,7 @@ jobs:
       - save_cache:
           paths:
             - /opt/conda/envs
-          key: v10-dependencies-{{ checksum "environment.yml" }}
+          key: v11-dependencies-{{ checksum "environment.yml" }}
 
   black_check:
     docker:
@@ -52,7 +52,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v10-dependencies-{{ checksum "environment.yml" }}
+            - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run black
@@ -71,7 +71,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v10-dependencies-{{ checksum "environment.yml" }}
+            - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run flake8
@@ -90,7 +90,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v10-dependencies-{{ checksum "environment.yml" }}
+            - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run tests
@@ -110,7 +110,7 @@ jobs:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
       - restore_cache:
           keys:
-            - v10-dependencies-{{ checksum "environment.yml" }}
+            - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run:
           name: run isort
