@@ -42,7 +42,7 @@ class ModelInfo:
     output_names: List[str]  # one per output
 
     @classmethod
-    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline):
+    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline) -> "ModelInfo":
         input_shapes = []
         for input_spec in prediction_pipeline.input_specs:
             if isinstance(input_spec.shape, ParametrizedInputShape):
