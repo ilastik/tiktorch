@@ -38,9 +38,11 @@ class ModelInfo:
     output_axes: List[str]  # one per output
     input_shapes: List[Union[NamedShape, NamedParametrizedShape]]  # per input multiple shapes
     output_shapes: List[Union[NamedExplicitOutputShape, NamedImplicitOutputShape]]
+    input_names: List[str]  # one per input
+    output_names: List[str]  # one per output
 
     @classmethod
-    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline):
+    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline) -> "ModelInfo":
         input_shapes = []
         for input_spec in prediction_pipeline.input_specs:
             if isinstance(input_spec.shape, ParametrizedInputShape):
@@ -81,6 +83,8 @@ class ModelInfo:
             output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
             input_shapes=input_shapes,
             output_shapes=output_shapes,
+            input_names=[input_spec.name for input_spec in prediction_pipeline.input_specs],
+            output_names=[output_spec.name for output_spec in prediction_pipeline.output_specs],
         )
 
 

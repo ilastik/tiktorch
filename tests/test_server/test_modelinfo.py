@@ -17,7 +17,9 @@ def implicit_output_spec():
         scale=[1.0] + [float(random.randint(0, 2**32)) for _ in range(4)],
         offset=[0.0] + [float(random.randint(0, 2**32)) for _ in range(4)],
     )
-    return mock.Mock(axes=("x", "y"), shape=shape, halo=[5, 12])
+    output_spec = mock.Mock(axes=("x", "y"), shape=shape, halo=[5, 12])
+    output_spec.name = "implicit_out"
+    return output_spec
 
 
 @pytest.fixture
@@ -25,13 +27,16 @@ def parametrized_input_spec():
     shape = ParametrizedInputShape(
         min=[random.randint(0, 2**32) for _ in range(5)], step=[float(random.randint(0, 2**32)) for _ in range(5)]
     )
-    return mock.Mock(axes=("b", "x", "y", "z", "c"), shape=shape)
+    input_spec = mock.Mock(axes=("b", "x", "y", "z", "c"), shape=shape)
+    input_spec.name = "param_in"
+    return input_spec
 
 
 @pytest.fixture
 def explicit_input_spec():
     input_shape = [random.randint(0, 2**32) for _ in range(3)]
     input_spec = mock.Mock(axes=("b", "x", "y"), shape=input_shape)
+    input_spec.name = "explicit_in"
     return input_spec
 
 
@@ -40,6 +45,7 @@ def explicit_output_spec():
     output_shape = [random.randint(0, 2**32) for _ in range(3)]
     halo = [0] + [random.randint(0, 2**32) for _ in range(2)]
     output_spec = mock.Mock(axes=("b", "x", "y"), shape=output_shape, halo=halo)
+    output_spec.name = "explicit_out"
     return output_spec
 
 
@@ -61,6 +67,8 @@ def test_model_info_explicit_shapes(explicit_input_spec, explicit_output_spec):
     assert model_info.output_shapes[0].halo == [
         (ax, s) for ax, s in zip(explicit_output_spec.axes, explicit_output_spec.halo)
     ]
+    assert model_info.input_names == ["explicit_in"]
+    assert model_info.output_names == ["explicit_out"]
 
 
 def test_model_info_explicit_shapes_missing_halo(explicit_input_spec, explicit_output_spec):
@@ -111,6 +119,9 @@ def test_model_info_implicit_shapes(parametrized_input_spec, implicit_output_spe
         (ax, s) for ax, s in zip(implicit_output_spec.axes, implicit_output_spec.halo)
     ]
     assert model_info.output_shapes[0].reference_tensor == implicit_output_spec.shape.reference_tensor
+
+    assert model_info.input_names == ["param_in"]
+    assert model_info.output_names == ["implicit_out"]
 
 
 def test_model_info_implicit_shapes_missing_halo(parametrized_input_spec, implicit_output_spec):

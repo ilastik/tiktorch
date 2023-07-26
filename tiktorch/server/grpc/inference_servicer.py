@@ -58,6 +58,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             inputShapes=pb_input_shapes,
             hasTraining=False,
             outputShapes=pb_output_shapes,
+            inputNames=model_info.input_names,
+            outputNames=model_info.output_names,
         )
 
     def CreateDatasetDescription(
