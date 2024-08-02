@@ -19,6 +19,7 @@ TEST_DATA = "data"
 TEST_BIOIMAGEIO_ZIPFOLDER = "unet2d"
 TEST_BIOIMAGEIO_ONNX = "unet2d_onnx"
 TEST_BIOIMAGEIO_DUMMY = "dummy"
+TEST_BIOIMAGEIO_DUMMY_CUDA_OUT_OF_MEMORY = "dummy_cuda_out_of_memory"
 TEST_BIOIMAGEIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
 TEST_BIOIMAGEIO_TORCHSCRIPT = "unet2d_torchscript"
 
@@ -115,6 +116,14 @@ def bioimageio_dummy_model_filepath(data_path, tmpdir):
 @pytest.fixture
 def bioimageio_dummy_model_bytes(data_path):
     rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
+    data = io.BytesIO()
+    export_resource_package(rdf_source, output_path=data)
+    return data
+
+
+@pytest.fixture
+def bioimageio_dummy_cuda_out_of_memory_model_bytes(data_path):
+    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY_CUDA_OUT_OF_MEMORY / "rdf.yaml"
     data = io.BytesIO()
     export_resource_package(rdf_source, output_path=data)
     return data

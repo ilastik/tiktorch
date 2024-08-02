@@ -52,5 +52,6 @@ dependencies:
   - isort
   - mypy
   - pre_commit
+  - grpcio-tools
 
   - pip
