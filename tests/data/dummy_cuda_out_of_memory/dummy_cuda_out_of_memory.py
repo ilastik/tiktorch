@@ -1,5 +1,5 @@
-from torch import nn, Tensor
 import numpy as np
+from torch import Tensor, nn
 
 MAX_SHAPE = (10, 10, 10, 10)
 

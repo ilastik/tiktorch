@@ -10,7 +10,7 @@ from tiktorch import converters
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
-from tiktorch.server.grpc import inference_servicer, InferenceServicer
+from tiktorch.server.grpc import InferenceServicer, inference_servicer
 from tiktorch.server.session_manager import SessionManager
 
 

@@ -1,6 +1,6 @@
 import gc
 import time
-from typing import Tuple, List, Optional, Sequence
+from typing import List, Optional, Tuple
 
 import grpc
 import numpy as np
@@ -8,7 +8,6 @@ import torch.cuda
 import xarray
 
 from tiktorch import converters
-from tiktorch.converters import NamedParametrizedShape, NamedShape
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
