@@ -46,10 +46,7 @@ dependencies:
   - typer
 
   # dev stuff
-  - black
   - bump2version
-  - flake8
-  - isort
   - mypy
   - pre_commit
 
