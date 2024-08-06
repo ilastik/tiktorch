@@ -8,6 +8,7 @@ import torch.cuda
 import xarray
 
 from tiktorch import converters
+from tiktorch.converters import info2session
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
@@ -52,20 +53,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             lease.terminate()
             raise
 
-        pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
-        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
-
-        return inference_pb2.ModelSession(
-            id=session.id,
-            name=model_info.name,
-            inputAxes=model_info.input_axes,
-            outputAxes=model_info.output_axes,
-            inputShapes=pb_input_shapes,
-            hasTraining=False,
-            outputShapes=pb_output_shapes,
-            inputNames=model_info.input_names,
-            outputNames=model_info.output_names,
-        )
+        return info2session(session.id, model_info)
 
     def CreateDatasetDescription(
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context
