@@ -42,7 +42,7 @@ jobs:
             - /opt/conda/envs
           key: v11-dependencies-{{ checksum "environment.yml" }}
 
-  black_check:
+  pre_commit_check:
     docker:
       - image: condaforge/mambaforge
     working_directory: ~/repo
@@ -55,30 +55,11 @@ jobs:
             - v11-dependencies-{{ checksum "environment.yml" }}
 
       - run:
-          name: run black
+          name: run pre-commit
           command: |
             . /opt/conda/etc/profile.d/conda.sh
             conda activate tiktorch-server-env
-            black --check ./
-
-  flake8_check:
-    docker:
-      - image: condaforge/mambaforge
-    working_directory: ~/repo
-    steps:
-      - restore_cache:
-          keys:
-            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          keys:
-            - v11-dependencies-{{ checksum "environment.yml" }}
-
-      - run:
-          name: run flake8
-          command: |
-            . /opt/conda/etc/profile.d/conda.sh
-            conda activate tiktorch-server-env
-            flake8 .
+            pre-commit run --from-ref origin/${CIRCLE_BRANCH} --to-ref ${CIRCLE_BRANCH}
 
   tests:
     docker:
@@ -99,25 +80,6 @@ jobs:
             conda activate tiktorch-server-env
             conda list
             python -m pytest -v
-
-  isort:
-    docker:
-      - image: condaforge/mambaforge
-    working_directory: ~/repo
-    steps:
-      - restore_cache:
-          keys:
-            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
-      - restore_cache:
-          keys:
-            - v11-dependencies-{{ checksum "environment.yml" }}
-
-      - run:
-          name: run isort
-          command: |
-            . /opt/conda/etc/profile.d/conda.sh
-            conda activate tiktorch-server-env
-            isort --check --conda-env /opt/conda/envs/tiktorch-server-env ./
 
   build_conda_packages:
     docker:
@@ -154,13 +116,7 @@ workflows:
       - tests:
           requires:
             - install_conda_env
-      - isort:
-          requires:
-            - install_conda_env
-      - black_check:
-          requires:
-            - install_conda_env
-      - flake8_check:
+      - pre_commit_check:
           requires:
             - install_conda_env
       - build_conda_packages:

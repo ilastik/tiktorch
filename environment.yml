@@ -46,11 +46,10 @@ dependencies:
   - typer
 
   # dev stuff
-  - black
   - bump2version
-  - flake8
-  - isort
   - mypy
   - pre_commit
 
   - pip
+
+  - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
