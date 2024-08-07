@@ -1,10 +1,19 @@
 import dataclasses
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import numpy as np
 import xarray as xr
 
 from tiktorch.proto import inference_pb2
+from tiktorch.server.session.process import (
+    AxisWithValue,
+    InputShapes,
+    ModelInfo,
+    OutputShapes,
+    ParameterizedShape,
+    ShapeWithHalo,
+    ShapeWithReference,
+)
 
 # pairs of axis-shape for a single tensor
 NamedInt = Tuple[str, int]
@@ -33,6 +42,28 @@ class NamedImplicitOutputShape:
     halo: NamedShape
 
 
+def info2session(session_id: str, model_info: ModelInfo) -> inference_pb2.ModelSession:
+    inputAxes = "".join(input_shape.axes for input_shape in model_info.input_shapes.values())
+    outputAxes = "".join(output_shape.axes for output_shape in model_info.output_shapes.values())
+    pb_input_shapes = [input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes.values()]
+    pb_output_shapes = [output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes.values()]
+    return inference_pb2.ModelSession(
+        id=session_id,
+        name=model_info.name,
+        inputAxes=inputAxes,
+        outputAxes=outputAxes,
+        inputShapes=pb_input_shapes,
+        outputShapes=pb_output_shapes,
+        hasTraining=False,
+        inputNames=list(model_info.input_shapes.keys()),
+        outputNames=list(model_info.output_shapes.keys()),
+    )
+
+
+def session2info(model_session: inference_pb2.ModelSession) -> ModelInfo:
+    pass
+
+
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
     if axistags:
         shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
@@ -46,36 +77,36 @@ def xarray_to_pb_tensor(array: xr.DataArray) -> inference_pb2.Tensor:
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 
-def name_int_tuples_to_pb_NamedInts(name_int_tuples) -> inference_pb2.NamedInts:
+def name_int_tuples_to_pb_NamedInts(name_int_tuples: AxisWithValue[int]) -> inference_pb2.NamedInts:
     return inference_pb2.NamedInts(
         namedInts=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples]
     )
 
 
-def name_float_tuples_to_pb_NamedFloats(name_float_tuples) -> inference_pb2.NamedFloats:
+def name_float_tuples_to_pb_NamedFloats(name_float_tuples: AxisWithValue[float]) -> inference_pb2.NamedFloats:
     return inference_pb2.NamedFloats(
         namedFloats=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
     )
 
 
-def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametrizedShape]) -> inference_pb2.InputShape:
-    if isinstance(input_shape, NamedParametrizedShape):
+def input_shape_to_pb_input_shape(input_shape: InputShapes) -> inference_pb2.InputShape:
+    if isinstance(input_shape, ParameterizedShape):
         return inference_pb2.InputShape(
             shapeType=1,
             shape=name_int_tuples_to_pb_NamedInts(input_shape.min_shape),
-            stepShape=name_int_tuples_to_pb_NamedInts(input_shape.step_shape),
+            stepShape=name_int_tuples_to_pb_NamedInts(input_shape.steps),
         )
-    else:
+    elif isinstance(input_shape, AxisWithValue):
         return inference_pb2.InputShape(
             shapeType=0,
             shape=name_int_tuples_to_pb_NamedInts(input_shape),
         )
+    else:
+        raise ValueError(f"Unexpected shape {input_shape}")
 
 
-def output_shape_to_pb_output_shape(
-    output_shape: Union[NamedExplicitOutputShape, NamedImplicitOutputShape]
-) -> inference_pb2.InputShape:
-    if isinstance(output_shape, NamedImplicitOutputShape):
+def output_shape_to_pb_output_shape(output_shape: OutputShapes) -> inference_pb2.InputShape:
+    if isinstance(output_shape, ShapeWithReference):
         return inference_pb2.OutputShape(
             shapeType=1,
             halo=name_int_tuples_to_pb_NamedInts(output_shape.halo),
@@ -83,7 +114,7 @@ def output_shape_to_pb_output_shape(
             scale=name_float_tuples_to_pb_NamedFloats(output_shape.scale),
             offset=name_float_tuples_to_pb_NamedFloats(output_shape.offset),
         )
-    elif isinstance(output_shape, NamedExplicitOutputShape):
+    elif isinstance(output_shape, ShapeWithHalo):
         return inference_pb2.OutputShape(
             shapeType=0,
             shape=name_int_tuples_to_pb_NamedInts(output_shape.shape),

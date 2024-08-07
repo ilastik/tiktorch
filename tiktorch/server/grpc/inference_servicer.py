@@ -1,8 +1,14 @@
+import gc
 import time
+from typing import List, Optional, Tuple
 
 import grpc
+import numpy as np
+import torch.cuda
+import xarray
 
 from tiktorch import converters
+from tiktorch.converters import info2session
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
@@ -47,20 +53,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             lease.terminate()
             raise
 
-        pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
-        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
-
-        return inference_pb2.ModelSession(
-            id=session.id,
-            name=model_info.name,
-            inputAxes=model_info.input_axes,
-            outputAxes=model_info.output_axes,
-            inputShapes=pb_input_shapes,
-            hasTraining=False,
-            outputShapes=pb_output_shapes,
-            inputNames=model_info.input_names,
-            outputNames=model_info.output_names,
-        )
+        return info2session(session.id, model_info)
 
     def CreateDatasetDescription(
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context
@@ -99,6 +92,67 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         res = session.client.forward(arrs)
         pb_tensors = [converters.xarray_to_pb_tensor(res_tensor) for res_tensor in res]
         return inference_pb2.PredictResponse(tensors=pb_tensors)
+
+    def MaxCudaMemoryShape(
+        self, request: inference_pb2.MaxCudaMemoryShapeRequest, context
+    ) -> inference_pb2.MaxCudaMemoryShapeResponse:
+        session = self._getModelSession(context, request.modelSessionId)
+        max_shape = self._get_max_shape(session, request)
+        if max_shape is None:
+            context.abort(grpc.StatusCode.NOT_FOUND, "no valid shape")
+        return inference_pb2.MaxCudaMemoryShapeResponse(maxShape=max_shape)
+
+    def IsCudaOutOfMemory(
+        self, request: inference_pb2.IsCudaOutOfMemoryRequest, context
+    ) -> inference_pb2.IsCudaOutOfMemoryResponse:
+        session = self._getModelSession(context, request.modelSessionId)
+        return inference_pb2.IsCudaOutOfMemoryResponse(
+            isCudaOutOfMemory=self._is_cuda_out_of_memory(session, request.shapeReference)
+        )
+
+    def _get_max_shape(
+        self, session: ISession, request: inference_pb2.MaxCudaMemoryShapeRequest
+    ) -> Optional[List[int]]:
+        max_shape_reference = np.array(request.maxShapeReference)
+        min_shape_reference = np.array(request.minShapeReference)
+        step = np.array(request.step)
+        diff_reference = max_shape_reference - min_shape_reference
+        num_increments = list(set(diff_reference / step))
+
+        assert len(num_increments) == 1 and self._is_natural_num(num_increments[0])
+        num_increments = int(num_increments[0])
+        assert np.array_equal(min_shape_reference + num_increments * step, max_shape_reference)
+
+        max_shape = max_shape_reference
+        for increment in range(num_increments):
+            max_shape = max_shape - increment * step
+            if not self._is_cuda_out_of_memory(session, max_shape):
+                return max_shape
+        return None
+
+    def _is_natural_num(self, num) -> bool:
+        return np.floor(num) == np.ceil(num) and num >= 0
+
+    def _is_cuda_out_of_memory(self, session: ISession, shape: Tuple[int, ...]) -> bool:
+        if not self._is_gpu():
+            return False
+        is_out_of_memory = False
+        dummy_tensor = xarray.DataArray(np.random.rand(*shape))
+        try:
+            session.client.forward([dummy_tensor])
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                is_out_of_memory = True
+                print(f"Using shape {shape} will cause out of memory.")
+            else:
+                raise
+        finally:
+            gc.collect()  # attempt to explicitly deallocate memory
+            torch.cuda.empty_cache()
+        return is_out_of_memory
+
+    def _is_gpu(self) -> bool:
+        return torch.cuda.is_available()
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:

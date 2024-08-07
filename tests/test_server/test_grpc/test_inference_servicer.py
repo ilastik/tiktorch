@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import grpc
 import numpy as np
 import pytest
@@ -8,7 +10,7 @@ from tiktorch import converters
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
-from tiktorch.server.grpc import inference_servicer
+from tiktorch.server.grpc import InferenceServicer, inference_servicer
 from tiktorch.server.session_manager import SessionManager
 
 
@@ -30,6 +32,12 @@ def grpc_servicer(data_store):
 @pytest.fixture(scope="module")
 def grpc_stub_cls(grpc_channel):
     return inference_pb2_grpc.InferenceStub
+
+
+@pytest.fixture
+def inference_servicer_gpu():
+    with patch.object(InferenceServicer, "_is_gpu", lambda x: True):
+        yield
 
 
 def valid_model_request(model_bytes, device_ids=None):
@@ -180,3 +188,64 @@ class TestForwardPass:
 
         assert len(res.tensors) == 1
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
+
+
+class TestCudaMemory:
+    MAX_SHAPE = [10, 10, 10, 10]
+
+    @pytest.mark.parametrize(
+        "min_shape, max_shape, step_shape, expected",
+        [
+            ((5, 5, 5, 5), (11, 11, 11, 11), (1, 1, 1, 1), MAX_SHAPE),
+            ((5, 5, 5, 5), (11, 11, 11, 11), (1, 1, 1, 1), MAX_SHAPE),
+            ((5, 5, 5, 5), (6, 6, 6, 6), (1, 1, 1, 1), [6, 6, 6, 6]),
+        ],
+    )
+    def test_max_cuda_memory(
+        self,
+        inference_servicer_gpu,
+        min_shape,
+        max_shape,
+        step_shape,
+        expected,
+        grpc_stub,
+        bioimageio_dummy_cuda_out_of_memory_model_bytes,
+    ):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        res = grpc_stub.MaxCudaMemoryShape(
+            inference_pb2.MaxCudaMemoryShapeRequest(
+                modelSessionId=model.id, minShapeReference=min_shape, maxShapeReference=max_shape, step=step_shape
+            )
+        )
+        grpc_stub.CloseModelSession(model)
+        assert res.maxShape == expected
+
+    def test_max_cuda_memory_not_found(
+        self, inference_servicer_gpu, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+    ):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        min_shape = (11, 11, 11, 11)
+        max_shape = (12, 12, 12, 12)
+        step = (1, 1, 1, 1)
+        with pytest.raises(grpc.RpcError) as error:
+            grpc_stub.MaxCudaMemoryShape(
+                inference_pb2.MaxCudaMemoryShapeRequest(
+                    modelSessionId=model.id, minShapeReference=min_shape, maxShapeReference=max_shape, step=step
+                )
+            )
+        assert error.value.code() == grpc.StatusCode.NOT_FOUND
+        assert error.value.details() == "no valid shape"
+        grpc_stub.CloseModelSession(model)
+
+    @pytest.mark.parametrize(
+        "shape, expected", [((10, 10, 10, 10), False), ((11, 11, 11, 11), True), ((10, 5, 5, 100), True)]
+    )
+    def test_is_out_of_memory(
+        self, inference_servicer_gpu, shape, expected, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+    ):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        res = grpc_stub.IsCudaOutOfMemory(
+            inference_pb2.IsCudaOutOfMemoryRequest(modelSessionId=model.id, shapeReference=shape)
+        )
+        grpc_stub.CloseModelSession(model)
+        assert res.isCudaOutOfMemory is expected
