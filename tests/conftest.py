@@ -115,6 +115,16 @@ def bioimageio_dummy_model_filepath(data_path, tmpdir):
 @pytest.fixture
 def bioimageio_dummy_model_bytes(data_path):
     rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
+    return _bioimageio_package(rdf_source)
+
+
+@pytest.fixture
+def bioimageio_dummy_param_model_bytes(data_path):
+    rdf_source = data_path / "dummy_param" / "Dummy.model_param.yaml"
+    return _bioimageio_package(rdf_source)
+
+
+def _bioimageio_package(rdf_source):
     data = io.BytesIO()
     export_resource_package(rdf_source, output_path=data)
     return data

@@ -1,11 +1,22 @@
-from typing import List
+from typing import Generic, List, Set, TypeVar
 
+from tiktorch.converters import Tensor
 from tiktorch.rpc import RPCInterface, Shutdown, exposed
 from tiktorch.tiktypes import TikTensorBatch
 from tiktorch.types import ModelState
 
+ModelType = TypeVar("ModelType")
 
-class IRPCModelSession(RPCInterface):
+
+class IRPCModelSession(RPCInterface, Generic[ModelType]):
+    def __init__(self, model: ModelType):
+        super().__init__()
+        self._model = model
+
+    @property
+    def model(self):
+        return self._model
+
     @exposed
     def shutdown(self) -> Shutdown:
         raise NotImplementedError
@@ -43,5 +54,5 @@ class IRPCModelSession(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, input_tensors):
+    def forward(self, input_tensors: Set[Tensor]):
         raise NotImplementedError

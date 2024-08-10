@@ -6,7 +6,7 @@ from tiktorch import converters
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
-from tiktorch.server.session.process import start_model_session_process
+from tiktorch.server.session.process import ShapeValidator, start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
 
 
@@ -36,7 +36,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             lease.terminate()
             raise
 
-        session = self.__session_manager.create_session()
+        session = self.__session_manager.create_session(client)
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
 
@@ -76,6 +76,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
         tensors = set([converters.pb_tensor_to_tensor(tensor) for tensor in request.tensors])
+        shape_validator = ShapeValidator(session.client.model)
+        shape_validator.check_tensors(tensors)
         res = session.client.forward(tensors)
         output_spec_ids = [spec.name for spec in session.client.model.output_specs]
         assert len(output_spec_ids) == len(res)

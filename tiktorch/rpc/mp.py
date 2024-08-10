@@ -5,7 +5,7 @@ from concurrent.futures import Future
 from functools import wraps
 from multiprocessing.connection import Connection
 from threading import Event, Thread
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Dict, Optional, Type, TypeVar
 from uuid import uuid4
 
 from .exceptions import Shutdown
@@ -72,9 +72,8 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
+def create_client(iface_cls: Type[T], conn: Connection, api_kwargs: Optional[Dict[str, any]] = None, timeout=None) -> T:
     client = MPClient(iface_cls.__name__, conn, timeout)
-    get_exposed_methods(iface_cls)
 
     def _make_method(method):
         class MethodWrapper:
@@ -98,12 +97,15 @@ def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
         return MethodWrapper()
 
     class _Client(iface_cls):
-        pass
+        def __init__(self, kwargs: Optional[Dict]):
+            kwargs = kwargs or {}
+            super().__init__(**kwargs)
 
-    for method_name, method in get_exposed_methods(iface_cls).items():
+    exposed_methods = get_exposed_methods(iface_cls)
+    for method_name, method in exposed_methods.items():
         setattr(_Client, method_name, _make_method(method))
 
-    return _Client()
+    return _Client(api_kwargs)
 
 
 class MPClient:
@@ -190,7 +192,7 @@ class MPClient:
 
 class Message:
     def __init__(self, id_):
-        self.id = id
+        self.id = id_
 
 
 class Signal:
@@ -200,20 +202,19 @@ class Signal:
 
 class MethodCall(Message):
     def __init__(self, id_, method_name, args, kwargs):
-        self.id = id_
+        super().__init__(id_)
         self.method_name = method_name
         self.args = args
         self.kwargs = kwargs
 
 
 class Cancellation(Message):
-    def __init__(self, id_):
-        self.id = id_
+    pass
 
 
 class MethodReturn(Message):
     def __init__(self, id_, result: Result):
-        self.id = id_
+        super().__init__(id_)
         self.result = result
 
 

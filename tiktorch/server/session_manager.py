@@ -7,6 +7,8 @@ from logging import getLogger
 from typing import Callable, Dict, List, Optional
 from uuid import uuid4
 
+from tiktorch.server.session import IRPCModelSession
+
 logger = getLogger(__name__)
 
 
@@ -24,6 +26,11 @@ class ISession(abc.ABC):
         """
         ...
 
+    @property
+    @abc.abstractmethod
+    def client(self) -> IRPCModelSession:
+        ...
+
     @abc.abstractmethod
     def on_close(self, handler: CloseCallback) -> None:
         """
@@ -36,9 +43,14 @@ CloseCallback = Callable[[], None]
 
 
 class _Session(ISession):
-    def __init__(self, id_: str, manager: SessionManager) -> None:
+    def __init__(self, id_: str, client: IRPCModelSession, manager: SessionManager) -> None:
         self.__id = id_
         self.__manager = manager
+        self.__client = client
+
+    @property
+    def client(self) -> IRPCModelSession:
+        return self.__client
 
     @property
     def id(self) -> str:
@@ -53,13 +65,13 @@ class SessionManager:
     Manages session lifecycle (create/close)
     """
 
-    def create_session(self) -> ISession:
+    def create_session(self, client: IRPCModelSession) -> ISession:
         """
         Creates new session with unique id
         """
         with self.__lock:
             session_id = uuid4().hex
-            session = _Session(session_id, manager=self)
+            session = _Session(session_id, client=client, manager=self)
             self.__session_by_id[session_id] = session
             logger.info("Created session %s", session.id)
             return session
