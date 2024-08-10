@@ -39,28 +39,8 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         session = self.__session_manager.create_session()
         session.on_close(lease.terminate)
         session.on_close(client.shutdown)
-        session.client = client
 
-        try:
-            model_info = session.client.get_model_info()
-        except Exception:
-            lease.terminate()
-            raise
-
-        pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
-        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
-
-        return inference_pb2.ModelSession(
-            id=session.id,
-            name=model_info.name,
-            inputAxes=model_info.input_axes,
-            outputAxes=model_info.output_axes,
-            inputShapes=pb_input_shapes,
-            hasTraining=False,
-            outputShapes=pb_output_shapes,
-            inputNames=model_info.input_names,
-            outputNames=model_info.output_names,
-        )
+        return inference_pb2.ModelSession(id=session.id)
 
     def CreateDatasetDescription(
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context

@@ -1,4 +1,3 @@
-import dataclasses
 import multiprocessing as _mp
 import os
 import pathlib
@@ -6,86 +5,19 @@ import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy
 from bioimageio.core import load_resource_description
 from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
-from bioimageio.spec.shared.raw_nodes import ImplicitOutputShape, ParametrizedInputShape
-from marshmallow import missing
 
 from tiktorch import log
-from tiktorch.converters import NamedExplicitOutputShape, NamedImplicitOutputShape, NamedParametrizedShape, NamedShape
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
 
 from .backend import base
 from .rpc_interface import IRPCModelSession
-
-
-@dataclasses.dataclass
-class ModelInfo:
-    """Intermediate representation of bioimageio neural network model
-
-    TODO (k-dominik): ModelInfo only used in inference_servicer to convert to
-    protobuf modelinfo.
-
-    """
-
-    name: str
-    input_axes: List[str]  # one per input
-    output_axes: List[str]  # one per output
-    input_shapes: List[Union[NamedShape, NamedParametrizedShape]]  # per input multiple shapes
-    output_shapes: List[Union[NamedExplicitOutputShape, NamedImplicitOutputShape]]
-    input_names: List[str]  # one per input
-    output_names: List[str]  # one per output
-
-    @classmethod
-    def from_prediction_pipeline(cls, prediction_pipeline: PredictionPipeline) -> "ModelInfo":
-        input_shapes = []
-        for input_spec in prediction_pipeline.input_specs:
-            if isinstance(input_spec.shape, ParametrizedInputShape):
-                input_shapes.append(
-                    NamedParametrizedShape(
-                        min_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.min))),
-                        step_shape=list(map(tuple, zip(input_spec.axes, input_spec.shape.step))),
-                    )
-                )
-            else:
-                input_shapes.append(list(map(tuple, zip(input_spec.axes, input_spec.shape))))
-
-        output_shapes = []
-        for output_spec in prediction_pipeline.output_specs:
-            # halo is not required by spec. We could alternatively make it optional in the
-            # respective grpc message types and handle missing values in ilastik
-            halo = [0 for _ in output_spec.axes] if output_spec.halo == missing else output_spec.halo
-            if isinstance(output_spec.shape, ImplicitOutputShape):
-                output_shapes.append(
-                    NamedImplicitOutputShape(
-                        reference_tensor=output_spec.shape.reference_tensor,
-                        scale=list(map(tuple, zip(output_spec.axes, output_spec.shape.scale))),
-                        offset=list(map(tuple, zip(output_spec.axes, output_spec.shape.offset))),
-                        halo=list(map(tuple, zip(output_spec.axes, halo))),
-                    )
-                )
-            else:  # isinstance(output_spec.shape, ExplicitShape):
-                output_shapes.append(
-                    NamedExplicitOutputShape(
-                        shape=list(map(tuple, zip(output_spec.axes, output_spec.shape))),
-                        halo=list(map(tuple, zip(output_spec.axes, halo))),
-                    )
-                )
-
-        return cls(
-            name=prediction_pipeline.name,
-            input_axes=["".join(input_spec.axes) for input_spec in prediction_pipeline.input_specs],
-            output_axes=["".join(output_spec.axes) for output_spec in prediction_pipeline.output_specs],
-            input_shapes=input_shapes,
-            output_shapes=output_shapes,
-            input_names=[input_spec.name for input_spec in prediction_pipeline.input_specs],
-            output_names=[output_spec.name for output_spec in prediction_pipeline.output_specs],
-        )
 
 
 class ModelSessionProcess(IRPCModelSession):
@@ -107,9 +39,6 @@ class ModelSessionProcess(IRPCModelSession):
         id_ = uuid.uuid4().hex
         self._datasets[id_] = {"mean": mean, "stddev": stddev}
         return id_
-
-    def get_model_info(self) -> ModelInfo:
-        return ModelInfo.from_prediction_pipeline(self._model)
 
     def shutdown(self) -> Shutdown:
         self._worker.shutdown()
