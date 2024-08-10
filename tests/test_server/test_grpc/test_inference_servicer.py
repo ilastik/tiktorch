@@ -158,7 +158,7 @@ class TestForwardPass:
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_model_bytes))
         arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
         expected = arr + 1
-        input_tensors = [converters.xarray_to_pb_tensor(arr)]
+        input_tensors = [converters.xarray_to_pb_tensor("input", arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
 
         grpc_stub.CloseModelSession(model)

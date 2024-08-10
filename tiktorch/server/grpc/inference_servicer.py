@@ -75,9 +75,13 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        arrs = [converters.pb_tensor_to_xarray(tensor) for tensor in request.tensors]
-        res = session.client.forward(arrs)
-        pb_tensors = [converters.xarray_to_pb_tensor(res_tensor) for res_tensor in res]
+        tensors = set([converters.pb_tensor_to_tensor(tensor) for tensor in request.tensors])
+        res = session.client.forward(tensors)
+        output_spec_ids = [spec.name for spec in session.client.model.output_specs]
+        assert len(output_spec_ids) == len(res)
+        pb_tensors = [
+            converters.xarray_to_pb_tensor(spec_id, res_tensor) for spec_id, res_tensor in zip(output_spec_ids, res)
+        ]
         return inference_pb2.PredictResponse(tensors=pb_tensors)
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
