@@ -2,11 +2,11 @@ import time
 
 import grpc
 
-from tiktorch import converters
+from tiktorch.converters import Sample
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
-from tiktorch.server.session.process import ShapeValidator, start_model_session_process
+from tiktorch.server.session.process import InputTensorValidator, start_model_session_process
 from tiktorch.server.session_manager import ISession, SessionManager
 
 
@@ -75,16 +75,13 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        tensors = set([converters.pb_tensor_to_tensor(tensor) for tensor in request.tensors])
-        shape_validator = ShapeValidator(session.client.model)
-        shape_validator.check_tensors(tensors)
-        res = session.client.forward(tensors)
-        output_spec_ids = [spec.name for spec in session.client.model.output_specs]
-        assert len(output_spec_ids) == len(res)
-        pb_tensors = [
-            converters.xarray_to_pb_tensor(spec_id, res_tensor) for spec_id, res_tensor in zip(output_spec_ids, res)
-        ]
-        return inference_pb2.PredictResponse(tensors=pb_tensors)
+        input_sample = Sample.from_pb_tensors(request.tensors)
+        tensor_validator = InputTensorValidator(session.client.model)
+        tensor_validator.check_tensors(input_sample)
+        res = session.client.forward(input_sample)
+        output_tensor_ids = [tensor.name for tensor in session.client.model.output_specs]
+        output_sample = Sample.from_raw_data(output_tensor_ids, res)
+        return inference_pb2.PredictResponse(tensors=output_sample.to_pb_tensors())
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
         if not modelSessionId:

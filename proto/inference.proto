@@ -120,7 +120,7 @@ message NamedFloat {
 message Tensor {
   bytes buffer = 1;
   string dtype = 2;
-  string specId = 3;
+  string tensorId = 3;
   repeated NamedInt shape = 4;
 }
 

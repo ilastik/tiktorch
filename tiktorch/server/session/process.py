@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from bioimageio.core import load_resource_description
@@ -17,22 +17,25 @@ from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import MPServer
 
-from ...converters import Tensor
+from ...converters import Sample
 from .backend import base
 from .rpc_interface import IRPCModelSession
 
 
-class ShapeValidator:
+class InputTensorValidator:
     def __init__(self, model: PredictionPipeline):
         self._model = model
 
-    def check_tensors(self, tensors: Set[Tensor]):
-        for tensor in tensors:
-            self.check_shape(tensor.spec_id, tensor.data.dims, tensor.data.shape)
+    def check_tensors(self, sample: Sample):
+        for tensor_id, tensor in sample.tensors.items():
+            self.check_shape(tensor_id, tensor.dims, tensor.shape)
 
-    def check_shape(self, spec_id: str, axes: Tuple[str, ...], shape: Tuple[int, ...]):
+    def _get_input_tensors_with_names(self) -> Dict[str, nodes.InputTensor]:
+        return {tensor.name: tensor for tensor in self._model.input_specs}
+
+    def check_shape(self, tensor_id: str, axes: Tuple[str, ...], shape: Tuple[int, ...]):
         shape = self._get_axes_with_size(axes, shape)
-        spec = self._get_input_spec(spec_id)
+        spec = self._get_input_spec(tensor_id)
         if isinstance(spec.shape, list):
             self._check_shape_explicit(spec, shape)
         elif isinstance(spec.shape, ParametrizedInputShape):
@@ -40,20 +43,21 @@ class ShapeValidator:
         else:
             raise ValueError(f"Unexpected shape {spec.shape}")
 
-    def _get_input_spec(self, spec_id: str) -> nodes.InputTensor:
-        self._check_spec_exists(spec_id)
-        specs = [spec for spec in self._model.input_specs if spec.name == spec_id]
+    def _get_input_spec(self, tensor_id: str) -> nodes.InputTensor:
+        self._check_spec_exists(tensor_id)
+        specs = [spec for spec in self._model.input_specs if spec.name == tensor_id]
         assert len(specs) == 1, "ids of tensor specs should be unique"
         return specs[0]
 
-    def _check_spec_exists(self, spec_id: str):
+    def _check_spec_exists(self, tensor_id: str):
         spec_names = [spec.name for spec in self._model.input_specs]
-        if spec_id not in spec_names:
-            raise ValueError(f"Spec {spec_id} doesn't exist for specs {spec_names}")
+        if tensor_id not in spec_names:
+            raise ValueError(f"Spec {tensor_id} doesn't exist for specs {spec_names}")
 
     def _check_shape_explicit(self, spec: nodes.InputTensor, tensor_shape: Dict[str, int]):
         assert self._is_shape_explicit(spec)
         reference_shape = {name: size for name, size in zip(spec.axes, spec.shape)}
+        self._check_same_axes(reference_shape, tensor_shape)
         if reference_shape != tensor_shape:
             raise ValueError(f"Incompatible shapes found {tensor_shape}, expected {reference_shape}")
 
@@ -64,9 +68,7 @@ class ShapeValidator:
 
         min_shape = self._get_axes_with_size(spec.axes, tuple(spec.shape.min))
         step = self._get_axes_with_size(spec.axes, tuple(spec.shape.step))
-        assert min_shape.keys() == step.keys()
-        if tensor_shape.keys() != min_shape.keys():
-            raise ValueError(f"Incompatible axes for tensor {tensor_shape} and spec {spec}")
+        self._check_same_axes(tensor_shape, min_shape)
 
         tensor_shapes_arr = np.array(list(tensor_shape.values()))
         min_shape_arr = np.array(list(min_shape.values()))
@@ -82,8 +84,12 @@ class ShapeValidator:
             return
         raise ValueError(f"Tensor shape {tensor_shape} not valid for spec {spec}")
 
+    def _check_same_axes(self, source: Dict[str, int], target: Dict[str, int]):
+        if source.keys() != target.keys():
+            raise ValueError(f"Incompatible axes for tensor {target} and reference {source}")
+
     def _is_natural_number(self, n) -> bool:
-        return np.floor(n) == np.ceil(n) and n >= 0
+        return n % 1 == 0.0 and n >= 0
 
     def _is_shape(self, shape: Iterator[int]) -> bool:
         return all(self._is_natural_number(dim) for dim in shape)
@@ -101,11 +107,10 @@ class ModelSessionProcess(IRPCModelSession[PredictionPipeline]):
         super().__init__(model)
         self._datasets = {}
         self._worker = base.SessionBackend(self._model)
-        self._shape_validator = ShapeValidator(self._model)
+        self._shape_validator = InputTensorValidator(self._model)
 
-    def forward(self, input_tensors: Set[Tensor]) -> Future:
-        self._shape_validator.check_tensors(input_tensors)
-        tensors_data = [tensor.data for tensor in input_tensors]
+    def forward(self, sample: Sample) -> Future:
+        tensors_data = [sample.tensors[tensor.name] for tensor in self.model.input_specs]
         res = self._worker.forward(tensors_data)
         return res
 

@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x9d\x01\n\nInputShape\x12(\n\tshapeType\x18\x01 \x01(\x0e\x32\x15.InputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x1d\n\tstepShape\x18\x04 \x01(\x0b\x32\n.NamedInts\"+\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x10\n\x0cPARAMETRIZED\x10\x01\"\xea\x01\n\x0bOutputShape\x12)\n\tshapeType\x18\x01 \x01(\x0e\x32\x16.OutputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x18\n\x04halo\x18\x03 \x01(\x0b\x32\n.NamedInts\x12\x17\n\x0freferenceTensor\x18\x04 \x01(\t\x12\x1b\n\x05scale\x18\x05 \x01(\x0b\x32\x0c.NamedFloats\x12\x1c\n\x06offset\x18\x06 \x01(\x0b\x32\x0c.NamedFloats\"\'\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x0c\n\x08IMPLICIT\x10\x01\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"Q\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x0e\n\x06specId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x9d\x01\n\nInputShape\x12(\n\tshapeType\x18\x01 \x01(\x0e\x32\x15.InputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x1d\n\tstepShape\x18\x04 \x01(\x0b\x32\n.NamedInts\"+\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x10\n\x0cPARAMETRIZED\x10\x01\"\xea\x01\n\x0bOutputShape\x12)\n\tshapeType\x18\x01 \x01(\x0e\x32\x16.OutputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x18\n\x04halo\x18\x03 \x01(\x0b\x32\n.NamedInts\x12\x17\n\x0freferenceTensor\x18\x04 \x01(\t\x12\x1b\n\x05scale\x18\x05 \x01(\x0b\x32\x0c.NamedFloats\x12\x1c\n\x06offset\x18\x06 \x01(\x0b\x32\x0c.NamedFloats\"\'\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x0c\n\x08IMPLICIT\x10\x01\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
 )
 
 
@@ -745,7 +745,7 @@ _TENSOR = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='specId', full_name='Tensor.specId', index=2,
+      name='tensorId', full_name='Tensor.tensorId', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -771,7 +771,7 @@ _TENSOR = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=1178,
-  serialized_end=1259,
+  serialized_end=1261,
 )
 
 
@@ -816,8 +816,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1261,
-  serialized_end=1346,
+  serialized_start=1263,
+  serialized_end=1348,
 )
 
 
@@ -848,8 +848,8 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1348,
-  serialized_end=1391,
+  serialized_start=1350,
+  serialized_end=1393,
 )
 
 
@@ -873,8 +873,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1393,
-  serialized_end=1400,
+  serialized_start=1395,
+  serialized_end=1402,
 )
 
 
@@ -905,8 +905,8 @@ _MODELINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1402,
-  serialized_end=1432,
+  serialized_start=1404,
+  serialized_end=1434,
 )
 
 
@@ -949,8 +949,8 @@ _CREATEMODELSESSIONCHUNKEDREQUEST = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1434,
-  serialized_end=1528,
+  serialized_start=1436,
+  serialized_end=1530,
 )
 
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
@@ -1159,8 +1159,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1531,
-  serialized_end=1857,
+  serialized_start=1533,
+  serialized_end=1859,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateModelSession',
@@ -1235,8 +1235,8 @@ _FLIGHTCONTROL = _descriptor.ServiceDescriptor(
   index=1,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1859,
-  serialized_end=1930,
+  serialized_start=1861,
+  serialized_end=1932,
   methods=[
   _descriptor.MethodDescriptor(
     name='Ping',
