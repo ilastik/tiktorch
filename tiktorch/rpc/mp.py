@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import queue
 import threading
@@ -5,8 +6,10 @@ from concurrent.futures import Future
 from functools import wraps
 from multiprocessing.connection import Connection
 from threading import Event, Thread
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Generic, List, Optional, Type, TypeVar
 from uuid import uuid4
+
+from bioimageio.core.resource_io import nodes
 
 from .exceptions import Shutdown
 from .interface import get_exposed_methods
@@ -72,7 +75,7 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-def create_client(iface_cls: Type[T], conn: Connection, api_kwargs: Optional[Dict[str, any]] = None, timeout=None) -> T:
+def create_client_api(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
     client = MPClient(iface_cls.__name__, conn, timeout)
 
     def _make_method(method):
@@ -96,16 +99,21 @@ def create_client(iface_cls: Type[T], conn: Connection, api_kwargs: Optional[Dic
 
         return MethodWrapper()
 
-    class _Client(iface_cls):
-        def __init__(self, kwargs: Optional[Dict]):
-            kwargs = kwargs or {}
-            super().__init__(**kwargs)
+    class _Api:
+        pass
 
     exposed_methods = get_exposed_methods(iface_cls)
     for method_name, method in exposed_methods.items():
-        setattr(_Client, method_name, _make_method(method))
+        setattr(_Api, method_name, _make_method(method))
 
-    return _Client(api_kwargs)
+    return _Api()
+
+
+@dataclasses.dataclass(frozen=True)
+class Client(Generic[T]):
+    api: T
+    input_specs: List[nodes.InputTensor]
+    output_specs: List[nodes.OutputTensor]
 
 
 class MPClient:

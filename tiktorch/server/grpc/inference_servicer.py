@@ -38,7 +38,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
         session = self.__session_manager.create_session(client)
         session.on_close(lease.terminate)
-        session.on_close(client.shutdown)
+        session.on_close(client.api.shutdown)
 
         return inference_pb2.ModelSession(id=session.id)
 
@@ -46,7 +46,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context
     ) -> inference_pb2.DatasetDescription:
         session = self._getModelSession(context, request.modelSessionId)
-        id = session.client.create_dataset_description(mean=request.mean, stddev=request.stddev)
+        id = session.client.api.create_dataset_description(mean=request.mean, stddev=request.stddev)
         return inference_pb2.DatasetDescription(id=id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
@@ -76,10 +76,10 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
         input_sample = Sample.from_pb_tensors(request.tensors)
-        tensor_validator = InputTensorValidator(session.client.model)
+        tensor_validator = InputTensorValidator(session.client.input_specs)
         tensor_validator.check_tensors(input_sample)
-        res = session.client.forward(input_sample)
-        output_tensor_ids = [tensor.name for tensor in session.client.model.output_specs]
+        res = session.client.api.forward(input_sample)
+        output_tensor_ids = [tensor.name for tensor in session.client.output_specs]
         output_sample = Sample.from_raw_data(output_tensor_ids, res)
         return inference_pb2.PredictResponse(tensors=output_sample.to_pb_tensors())
 
