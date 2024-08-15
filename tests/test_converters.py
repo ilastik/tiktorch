@@ -299,7 +299,7 @@ class TestSample:
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
         tensor_2 = xr.DataArray(arr_2, dims=["x", "y"])
         tensors_ids = ["input1", "input2"]
-        actual_sample = Sample.from_raw_data(tensors_ids, [tensor_1, tensor_2])
+        actual_sample = Sample.from_xr_tensors(tensors_ids, [tensor_1, tensor_2])
 
         expected_dict = {tensors_ids[0]: tensor_1, tensors_ids[1]: tensor_2}
         expected_sample = Sample(expected_dict)
@@ -311,7 +311,7 @@ class TestSample:
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
         tensor_2 = xr.DataArray(arr_2, dims=["x", "y"])
         tensors_ids = ["input1", "input2"]
-        sample = Sample.from_raw_data(tensors_ids, [tensor_1, tensor_2])
+        sample = Sample.from_xr_tensors(tensors_ids, [tensor_1, tensor_2])
 
         pb_tensor_1 = inference_pb2.Tensor(
             dtype="int64",

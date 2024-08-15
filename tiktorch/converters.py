@@ -44,7 +44,7 @@ class Sample:
         return Sample({tensor.tensorId: pb_tensor_to_xarray(tensor) for tensor in pb_tensors})
 
     @classmethod
-    def from_raw_data(cls, tensor_ids: List[str], tensors_data: List[xr.DataArray]):
+    def from_xr_tensors(cls, tensor_ids: List[str], tensors_data: List[xr.DataArray]):
         assert len(tensor_ids) == len(tensors_data)
         return Sample({tensor_id: tensor_data for tensor_id, tensor_data in zip(tensor_ids, tensors_data)})
 

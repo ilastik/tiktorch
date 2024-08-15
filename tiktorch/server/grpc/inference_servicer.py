@@ -80,7 +80,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         tensor_validator.check_tensors(input_sample)
         res = session.client.api.forward(input_sample)
         output_tensor_ids = [tensor.name for tensor in session.client.output_specs]
-        output_sample = Sample.from_raw_data(output_tensor_ids, res)
+        output_sample = Sample.from_xr_tensors(output_tensor_ids, res)
         return inference_pb2.PredictResponse(tensors=output_sample.to_pb_tensors())
 
     def _getModelSession(self, context, modelSessionId: str) -> ISession:
