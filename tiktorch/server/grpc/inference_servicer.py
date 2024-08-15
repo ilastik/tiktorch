@@ -7,7 +7,7 @@ from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
 from tiktorch.server.session.process import InputTensorValidator, start_model_session_process
-from tiktorch.server.session_manager import ISession, SessionManager
+from tiktorch.server.session_manager import Session, SessionManager
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
@@ -46,7 +46,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context
     ) -> inference_pb2.DatasetDescription:
         session = self._getModelSession(context, request.modelSessionId)
-        id = session.client.api.create_dataset_description(mean=request.mean, stddev=request.stddev)
+        id = session.bio_model_client.api.create_dataset_description(mean=request.mean, stddev=request.stddev)
         return inference_pb2.DatasetDescription(id=id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
@@ -76,14 +76,14 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
         input_sample = Sample.from_pb_tensors(request.tensors)
-        tensor_validator = InputTensorValidator(session.client.input_specs)
+        tensor_validator = InputTensorValidator(session.bio_model_client.input_specs)
         tensor_validator.check_tensors(input_sample)
-        res = session.client.api.forward(input_sample)
-        output_tensor_ids = [tensor.name for tensor in session.client.output_specs]
+        res = session.bio_model_client.api.forward(input_sample)
+        output_tensor_ids = [tensor.name for tensor in session.bio_model_client.output_specs]
         output_sample = Sample.from_xr_tensors(output_tensor_ids, res)
         return inference_pb2.PredictResponse(tensors=output_sample.to_pb_tensors())
 
-    def _getModelSession(self, context, modelSessionId: str) -> ISession:
+    def _getModelSession(self, context, modelSessionId: str) -> Session:
         if not modelSessionId:
             context.abort(grpc.StatusCode.FAILED_PRECONDITION, "model-session-id has not been provided by client")
 

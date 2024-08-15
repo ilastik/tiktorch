@@ -6,11 +6,12 @@ from concurrent.futures import Future
 from functools import wraps
 from multiprocessing.connection import Connection
 from threading import Event, Thread
-from typing import Any, Generic, List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 from uuid import uuid4
 
 from bioimageio.core.resource_io import nodes
 
+from ..server.session import IRPCModelSession
 from .exceptions import Shutdown
 from .interface import get_exposed_methods
 from .types import RPCFuture, isfutureret
@@ -110,8 +111,8 @@ def create_client_api(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
 
 
 @dataclasses.dataclass(frozen=True)
-class Client(Generic[T]):
-    api: T
+class BioModelClient:
+    api: IRPCModelSession
     input_specs: List[nodes.InputTensor]
     output_specs: List[nodes.OutputTensor]
 

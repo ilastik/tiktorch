@@ -15,7 +15,7 @@ from bioimageio.core.resource_io.nodes import ParametrizedInputShape
 from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
-from tiktorch.rpc.mp import Client, MPServer
+from tiktorch.rpc.mp import BioModelClient, MPServer
 
 from ...converters import Sample
 from .backend import base
@@ -150,7 +150,7 @@ def _run_model_session_process(
 
 def start_model_session_process(
     model_zip: bytes, devices: List[str], log_queue: Optional[_mp.Queue] = None
-) -> Tuple[_mp.Process, Client[IRPCModelSession]]:
+) -> Tuple[_mp.Process, BioModelClient]:
     client_conn, server_conn = _mp.Pipe()
     prediction_pipeline = _get_prediction_pipeline_from_model_bytes(model_zip, devices)
     proc = _mp.Process(
@@ -164,7 +164,7 @@ def start_model_session_process(
     )
     proc.start()
     api = _mp_rpc.create_client_api(iface_cls=IRPCModelSession, conn=client_conn)
-    return proc, Client(
+    return proc, BioModelClient(
         input_specs=prediction_pipeline.input_specs, output_specs=prediction_pipeline.output_specs, api=api
     )
 
