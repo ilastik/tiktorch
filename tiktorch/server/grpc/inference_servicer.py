@@ -2,12 +2,12 @@ import time
 
 import grpc
 
-from tiktorch import converters
+from tiktorch.converters import Sample
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
-from tiktorch.server.session.process import start_model_session_process
-from tiktorch.server.session_manager import ISession, SessionManager
+from tiktorch.server.session.process import InputTensorValidator, start_model_session_process
+from tiktorch.server.session_manager import Session, SessionManager
 
 
 class InferenceServicer(inference_pb2_grpc.InferenceServicer):
@@ -36,37 +36,17 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
             lease.terminate()
             raise
 
-        session = self.__session_manager.create_session()
+        session = self.__session_manager.create_session(client)
         session.on_close(lease.terminate)
-        session.on_close(client.shutdown)
-        session.client = client
+        session.on_close(client.api.shutdown)
 
-        try:
-            model_info = session.client.get_model_info()
-        except Exception:
-            lease.terminate()
-            raise
-
-        pb_input_shapes = [converters.input_shape_to_pb_input_shape(shape) for shape in model_info.input_shapes]
-        pb_output_shapes = [converters.output_shape_to_pb_output_shape(shape) for shape in model_info.output_shapes]
-
-        return inference_pb2.ModelSession(
-            id=session.id,
-            name=model_info.name,
-            inputAxes=model_info.input_axes,
-            outputAxes=model_info.output_axes,
-            inputShapes=pb_input_shapes,
-            hasTraining=False,
-            outputShapes=pb_output_shapes,
-            inputNames=model_info.input_names,
-            outputNames=model_info.output_names,
-        )
+        return inference_pb2.ModelSession(id=session.id)
 
     def CreateDatasetDescription(
         self, request: inference_pb2.CreateDatasetDescriptionRequest, context
     ) -> inference_pb2.DatasetDescription:
         session = self._getModelSession(context, request.modelSessionId)
-        id = session.client.create_dataset_description(mean=request.mean, stddev=request.stddev)
+        id = session.bio_model_client.api.create_dataset_description(mean=request.mean, stddev=request.stddev)
         return inference_pb2.DatasetDescription(id=id)
 
     def CloseModelSession(self, request: inference_pb2.ModelSession, context) -> inference_pb2.Empty:
@@ -95,12 +75,15 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
 
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
-        arrs = [converters.pb_tensor_to_xarray(tensor) for tensor in request.tensors]
-        res = session.client.forward(arrs)
-        pb_tensors = [converters.xarray_to_pb_tensor(res_tensor) for res_tensor in res]
-        return inference_pb2.PredictResponse(tensors=pb_tensors)
+        input_sample = Sample.from_pb_tensors(request.tensors)
+        tensor_validator = InputTensorValidator(session.bio_model_client.input_specs)
+        tensor_validator.check_tensors(input_sample)
+        res = session.bio_model_client.api.forward(input_sample)
+        output_tensor_ids = [tensor.name for tensor in session.bio_model_client.output_specs]
+        output_sample = Sample.from_xr_tensors(output_tensor_ids, res)
+        return inference_pb2.PredictResponse(tensors=output_sample.to_pb_tensors())
 
-    def _getModelSession(self, context, modelSessionId: str) -> ISession:
+    def _getModelSession(self, context, modelSessionId: str) -> Session:
         if not modelSessionId:
             context.abort(grpc.StatusCode.FAILED_PRECONDITION, "model-session-id has not been provided by client")
 

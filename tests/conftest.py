@@ -18,7 +18,9 @@ from bioimageio.core.resource_io import export_resource_package
 TEST_DATA = "data"
 TEST_BIOIMAGEIO_ZIPFOLDER = "unet2d"
 TEST_BIOIMAGEIO_ONNX = "unet2d_onnx"
-TEST_BIOIMAGEIO_DUMMY = "dummy"
+TEST_BIOIMAGEIO_DUMMY_EXPLICIT = "dummy"
+TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF = f"{TEST_BIOIMAGEIO_DUMMY_EXPLICIT}/Dummy.model.yaml"
+TEST_BIOIMAGEIO_DUMMY_PARAM_RDF = "dummy_param/Dummy.model_param.yaml"
 TEST_BIOIMAGEIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
 TEST_BIOIMAGEIO_TORCHSCRIPT = "unet2d_torchscript"
 
@@ -98,7 +100,7 @@ def bioimageio_model_zipfile(bioimageio_model_bytes):
 
 @pytest.fixture
 def bioimageio_dummy_model_filepath(data_path, tmpdir):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY
+    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY_EXPLICIT
     path = tmpdir / "dummy_model.zip"
 
     with ZipFile(path, mode="w") as zip_model:
@@ -113,8 +115,24 @@ def bioimageio_dummy_model_filepath(data_path, tmpdir):
 
 
 @pytest.fixture
-def bioimageio_dummy_model_bytes(data_path):
-    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY / "Dummy.model.yaml"
+def bioimageio_dummy_explicit_model_bytes(data_path):
+    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF
+    return _bioimageio_package(rdf_source)
+
+
+@pytest.fixture
+def bioimageio_dummy_param_model_bytes(data_path):
+    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY_PARAM_RDF
+    return _bioimageio_package(rdf_source)
+
+
+@pytest.fixture(params=[(TEST_BIOIMAGEIO_DUMMY_PARAM_RDF, "param"), (TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF, "input")])
+def bioimageio_dummy_model(request, data_path):
+    path, tensor_id = request.param
+    yield _bioimageio_package(data_path / path), tensor_id
+
+
+def _bioimageio_package(rdf_source):
     data = io.BytesIO()
     export_resource_package(rdf_source, output_path=data)
     return data

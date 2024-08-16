@@ -8,7 +8,7 @@ import pytest
 
 from tiktorch import log
 from tiktorch.rpc import RPCFuture, RPCInterface, Shutdown, exposed
-from tiktorch.rpc.mp import FutureStore, MPServer, create_client
+from tiktorch.rpc.mp import FutureStore, MPServer, create_client_api
 
 
 class ITestApi(RPCInterface):
@@ -64,7 +64,7 @@ def client(log_queue):
     p = mp.Process(target=_srv, args=(parent, log_queue))
     p.start()
 
-    client = create_client(ITestApi, child, timeout=10)
+    client = create_client_api(iface_cls=ITestApi, conn=child, timeout=10)
 
     yield client
 
@@ -108,7 +108,7 @@ def test_race_condition(log_queue):
     p = mp.Process(target=_srv, args=(parent, log_queue))
     p.start()
 
-    client = create_client(ITestApi, SlowConn(child))
+    client = create_client_api(iface_cls=ITestApi, conn=SlowConn(child))
 
     client.fast_compute(2, 2)
 
@@ -121,7 +121,7 @@ def test_future_timeout(client: ITestApi, log_queue):
     p = mp.Process(target=_srv, args=(parent, log_queue))
     p.start()
 
-    client = create_client(ITestApi, child, timeout=0.001)
+    client = create_client_api(iface_cls=ITestApi, conn=child, timeout=0.001)
 
     with pytest.raises(TimeoutError):
         client.compute(1, 2)
@@ -256,7 +256,7 @@ def spawn(log_queue):
         p = mp.Process(target=_run_srv, args=(srv_cls, parent, log_queue))
         p.start()
 
-        data["client"] = client = create_client(iface_cls, child)
+        data["client"] = client = create_client_api(iface_cls=iface_cls, conn=child)
         data["process"] = p
         return client
 

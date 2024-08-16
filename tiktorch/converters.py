@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import dataclasses
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import xarray as xr
@@ -33,6 +35,23 @@ class NamedImplicitOutputShape:
     halo: NamedShape
 
 
+@dataclasses.dataclass(frozen=True)
+class Sample:
+    tensors: Dict[str, xr.DataArray]
+
+    @classmethod
+    def from_pb_tensors(cls, pb_tensors: List[inference_pb2.Tensor]) -> Sample:
+        return Sample({tensor.tensorId: pb_tensor_to_xarray(tensor) for tensor in pb_tensors})
+
+    @classmethod
+    def from_xr_tensors(cls, tensor_ids: List[str], tensors_data: List[xr.DataArray]) -> Sample:
+        assert len(tensor_ids) == len(tensors_data)
+        return Sample({tensor_id: tensor_data for tensor_id, tensor_data in zip(tensor_ids, tensors_data)})
+
+    def to_pb_tensors(self) -> List[inference_pb2.Tensor]:
+        return [xarray_to_pb_tensor(tensor_id, res_tensor) for tensor_id, res_tensor in self.tensors.items()]
+
+
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
     if axistags:
         shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
@@ -41,9 +60,9 @@ def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor
     return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array))
 
 
-def xarray_to_pb_tensor(array: xr.DataArray) -> inference_pb2.Tensor:
+def xarray_to_pb_tensor(tensor_id: str, array: xr.DataArray) -> inference_pb2.Tensor:
     shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, array.dims)]
-    return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
+    return inference_pb2.Tensor(tensorId=tensor_id, dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 
 def name_int_tuples_to_pb_NamedInts(name_int_tuples) -> inference_pb2.NamedInts:

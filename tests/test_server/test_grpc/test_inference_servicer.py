@@ -47,12 +47,10 @@ class TestModelManagement:
     def test_model_session_creation(self, grpc_stub, bioimageio_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes))
         assert model.id
-        assert hasattr(model, "outputShapes")
-        assert hasattr(model, "inputShapes")
         grpc_stub.CloseModelSession(model)
 
-    def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, bioimageio_dummy_model_bytes):
-        id_ = data_store.put(bioimageio_dummy_model_bytes.getvalue())
+    def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, bioimageio_dummy_explicit_model_bytes):
+        id_ = data_store.put(bioimageio_dummy_explicit_model_bytes.getvalue())
 
         rq = inference_pb2.CreateModelSessionRequest(model_uri=f"upload://{id_}", deviceIds=["cpu"])
         model = grpc_stub.CreateModelSession(rq)
@@ -156,27 +154,81 @@ class TestForwardPass:
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
         assert "model-session with id myid1 doesn't exist" in e.value.details()
 
-    def test_call_predict(self, grpc_stub, bioimageio_dummy_model_bytes):
-        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_model_bytes))
-        arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
+    def test_call_predict_valid_explicit(self, grpc_stub, bioimageio_dummy_explicit_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_explicit_model_bytes))
+        arr = xr.DataArray(np.arange(128 * 128).reshape(1, 1, 128, 128), dims=("b", "c", "x", "y"))
         expected = arr + 1
-        input_tensors = [converters.xarray_to_pb_tensor(arr)]
+        input_tensor_id = "input"
+        output_tensor_id = "output"
+        input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
 
         grpc_stub.CloseModelSession(model)
 
         assert len(res.tensors) == 1
+        assert res.tensors[0].tensorId == output_tensor_id
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
+
+    def test_call_predict_invalid_shape_explicit(self, grpc_stub, bioimageio_dummy_explicit_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_explicit_model_bytes))
+        arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
+        input_tensors = [converters.xarray_to_pb_tensor("input", arr)]
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        grpc_stub.CloseModelSession(model)
+
+    @pytest.mark.parametrize(
+        "shape",
+        [(1, 1, 64, 32), (1, 1, 32, 64), (1, 1, 64, 32), (0, 1, 64, 64), (1, 0, 64, 64)],
+    )
+    def test_call_predict_invalid_shape_parameterized(self, grpc_stub, shape, bioimageio_dummy_param_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_param_model_bytes))
+        arr = xr.DataArray(np.arange(np.prod(shape)).reshape(*shape), dims=("b", "c", "x", "y"))
+        input_tensors = [converters.xarray_to_pb_tensor("param", arr)]
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        grpc_stub.CloseModelSession(model)
+
+    def test_call_predict_invalid_tensor_ids(self, grpc_stub, bioimageio_dummy_model):
+        model_bytes, _ = bioimageio_dummy_model
+        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        arr = xr.DataArray(np.arange(32 * 32).reshape(32, 32), dims=("x", "y"))
+        input_tensors = [converters.xarray_to_pb_tensor("invalidTensorName", arr)]
+        with pytest.raises(grpc.RpcError) as error:
+            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        assert error.value.details().startswith("Exception calling application: Spec invalidTensorName doesn't exist")
+        grpc_stub.CloseModelSession(model)
+
+    def test_call_predict_invalid_axes(self, grpc_stub, bioimageio_dummy_model):
+        model_bytes, tensor_id = bioimageio_dummy_model
+        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        arr = xr.DataArray(np.arange(32 * 32).reshape(32, 32), dims=("invalidAxis", "y"))
+        input_tensors = [converters.xarray_to_pb_tensor(tensor_id, arr)]
+        with pytest.raises(grpc.RpcError) as error:
+            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        assert error.value.details().startswith("Exception calling application: Incompatible axes")
+        grpc_stub.CloseModelSession(model)
+
+    @pytest.mark.parametrize("shape", [(1, 1, 64, 64), (1, 1, 66, 65), (1, 1, 68, 66), (1, 1, 70, 67)])
+    def test_call_predict_valid_shape_parameterized(self, grpc_stub, shape, bioimageio_dummy_param_model_bytes):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_param_model_bytes))
+        arr = xr.DataArray(np.arange(np.prod(shape)).reshape(*shape), dims=("b", "c", "x", "y"))
+        input_tensors = [converters.xarray_to_pb_tensor("param", arr)]
+        grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        grpc_stub.CloseModelSession(model)
 
     @pytest.mark.skip
     def test_call_predict_tf(self, grpc_stub, bioimageio_dummy_tensorflow_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_tensorflow_model_bytes))
         arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("b", "c", "x", "y"))
         expected = arr * -1
-        input_tensors = [converters.xarray_to_pb_tensor(arr)]
+        input_tensor_id = "input"
+        output_tensor_id = "output"
+        input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
 
         grpc_stub.CloseModelSession(model)
 
         assert len(res.tensors) == 1
+        assert res.tensors[0].tensorId == output_tensor_id
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))

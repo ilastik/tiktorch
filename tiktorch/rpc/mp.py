@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import queue
 import threading
@@ -5,9 +6,12 @@ from concurrent.futures import Future
 from functools import wraps
 from multiprocessing.connection import Connection
 from threading import Event, Thread
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 from uuid import uuid4
 
+from bioimageio.core.resource_io import nodes
+
+from ..server.session import IRPCModelSession
 from .exceptions import Shutdown
 from .interface import get_exposed_methods
 from .types import RPCFuture, isfutureret
@@ -72,9 +76,8 @@ class MPMethodDispatcher:
         return self._client._invoke(self._method_name, *args, **kwargs)
 
 
-def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
+def create_client_api(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
     client = MPClient(iface_cls.__name__, conn, timeout)
-    get_exposed_methods(iface_cls)
 
     def _make_method(method):
         class MethodWrapper:
@@ -97,13 +100,21 @@ def create_client(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
 
         return MethodWrapper()
 
-    class _Client(iface_cls):
+    class _Api:
         pass
 
-    for method_name, method in get_exposed_methods(iface_cls).items():
-        setattr(_Client, method_name, _make_method(method))
+    exposed_methods = get_exposed_methods(iface_cls)
+    for method_name, method in exposed_methods.items():
+        setattr(_Api, method_name, _make_method(method))
 
-    return _Client()
+    return _Api()
+
+
+@dataclasses.dataclass(frozen=True)
+class BioModelClient:
+    api: IRPCModelSession
+    input_specs: List[nodes.InputTensor]
+    output_specs: List[nodes.OutputTensor]
 
 
 class MPClient:
@@ -190,7 +201,7 @@ class MPClient:
 
 class Message:
     def __init__(self, id_):
-        self.id = id
+        self.id = id_
 
 
 class Signal:
@@ -200,20 +211,19 @@ class Signal:
 
 class MethodCall(Message):
     def __init__(self, id_, method_name, args, kwargs):
-        self.id = id_
+        super().__init__(id_)
         self.method_name = method_name
         self.args = args
         self.kwargs = kwargs
 
 
 class Cancellation(Message):
-    def __init__(self, id_):
-        self.id = id_
+    pass
 
 
 class MethodReturn(Message):
     def __init__(self, id_, result: Result):
-        self.id = id_
+        super().__init__(id_)
         self.result = result
 
 
