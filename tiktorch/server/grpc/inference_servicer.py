@@ -98,6 +98,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self, request: inference_pb2.MaxCudaMemoryShapeRequest, context
     ) -> inference_pb2.MaxCudaMemoryShapeResponse:
         session = self._getModelSession(context, request.modelSessionId)
+        self._check_gpu_exists(session.bio_model_client, request.deviceId)
         min_shape = pb_NamedInts_to_named_shape(request.minShape)
         step_shape = pb_NamedInts_to_named_shape(request.stepShape)
         max_shape = pb_NamedInts_to_named_shape(request.maxShape)
@@ -115,6 +116,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self, request: inference_pb2.IsCudaOutOfMemoryRequest, context
     ) -> inference_pb2.IsCudaOutOfMemoryResponse:
         session = self._getModelSession(context, request.modelSessionId)
+        self._check_gpu_exists(session.bio_model_client, request.deviceId)
         return inference_pb2.IsCudaOutOfMemoryResponse(
             isCudaOutOfMemory=self._is_cuda_out_of_memory(
                 session.bio_model_client, request.tensorId, pb_NamedInts_to_named_shape(request.shape)
@@ -145,8 +147,6 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         return None
 
     def _is_cuda_out_of_memory(self, client: BioModelClient, tensor_id: str, shape: NamedShape) -> bool:
-        if not self._is_gpu():
-            return False
         is_out_of_memory = False
         dummy_tensor = xarray.DataArray(np.random.rand(*shape.values()), dims=shape.keys())
         sample = Sample.from_xr_tensors(tensor_ids=[tensor_id], tensors_data=[dummy_tensor])
@@ -168,8 +168,12 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         validator.check_tensors(sample)
         return client.api.forward(sample)
 
-    def _is_gpu(self) -> bool:
-        return torch.cuda.is_available()
+    def _check_gpu_exists(self, client: BioModelClient, device_id: str):
+        gpu_device_ids = [device.id for device in self.__device_pool.list_devices() if device.id.startswith("cuda")]
+        if len(gpu_device_ids) == 0:
+            raise ValueError("Not available gpus found")
+        if device_id not in client.devices:
+            raise ValueError(f"{device_id} not found for model {client.name}")
 
     def _getModelSession(self, context, modelSessionId: str) -> Session:
         if not modelSessionId:

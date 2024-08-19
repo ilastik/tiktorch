@@ -36,9 +36,9 @@ def grpc_stub_cls(grpc_channel):
     return inference_pb2_grpc.InferenceStub
 
 
-@pytest.fixture
-def inference_servicer_gpu():
-    with patch.object(InferenceServicer, "_is_gpu", lambda x: True):
+@pytest.fixture()
+def gpu_exists():
+    with patch.object(InferenceServicer, "_check_gpu_exists", lambda *args: None):
         yield
 
 
@@ -260,7 +260,7 @@ class TestCudaMemory:
     )
     def test_max_cuda_memory(
         self,
-        inference_servicer_gpu,
+        gpu_exists,
         min_shape,
         max_shape,
         step_shape,
@@ -275,15 +275,54 @@ class TestCudaMemory:
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
         res = grpc_stub.MaxCudaMemoryShape(
             inference_pb2.MaxCudaMemoryShapeRequest(
-                modelSessionId=model.id, tensorId="input", minShape=min_shape, maxShape=max_shape, stepShape=step_shape
+                modelSessionId=model.id,
+                tensorId="input",
+                deviceId="cuda:0",
+                minShape=min_shape,
+                maxShape=max_shape,
+                stepShape=step_shape,
             )
         )
         grpc_stub.CloseModelSession(model)
         assert res.maxShape == self.to_pb_namedInts(expected)
 
-    def test_max_cuda_memory_not_found(
-        self, inference_servicer_gpu, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+    @pytest.mark.parametrize(
+        "min_shape, max_shape, step_shape, description",
+        [
+            ((1, 1, 6, 6), (1, 1, 5, 5), (0, 0, 1, 1), "Max shape [1 1 5 5] smaller than min shape [1 1 6 6]"),
+            ((1, 1, 5, 5), (1, 1, 6, 6), (0, 0, 2, 1), "Invalid parameterized shape"),
+        ],
+    )
+    def test_max_cuda_memory_invalid_request(
+        self,
+        description,
+        gpu_exists,
+        min_shape,
+        max_shape,
+        step_shape,
+        grpc_stub,
+        bioimageio_dummy_cuda_out_of_memory_model_bytes,
     ):
+        min_shape = self.to_pb_namedInts(min_shape)
+        max_shape = self.to_pb_namedInts(max_shape)
+        step_shape = self.to_pb_namedInts(step_shape)
+
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        with pytest.raises(grpc.RpcError) as error:
+            grpc_stub.MaxCudaMemoryShape(
+                inference_pb2.MaxCudaMemoryShapeRequest(
+                    modelSessionId=model.id,
+                    tensorId="input",
+                    deviceId="cuda:0",
+                    minShape=min_shape,
+                    maxShape=max_shape,
+                    stepShape=step_shape,
+                )
+            )
+        assert error.value.details().startswith(f"Exception calling application: {description}")
+        grpc_stub.CloseModelSession(model)
+
+    def test_max_cuda_memory_not_found(self, gpu_exists, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
         min_shape = self.to_pb_namedInts((1, 1, 11, 11))
         max_shape = self.to_pb_namedInts((1, 1, 12, 12))
@@ -291,7 +330,12 @@ class TestCudaMemory:
         with pytest.raises(grpc.RpcError) as error:
             grpc_stub.MaxCudaMemoryShape(
                 inference_pb2.MaxCudaMemoryShapeRequest(
-                    modelSessionId=model.id, tensorId="input", minShape=min_shape, maxShape=max_shape, stepShape=step
+                    modelSessionId=model.id,
+                    tensorId="input",
+                    deviceId="cuda:0",
+                    minShape=min_shape,
+                    maxShape=max_shape,
+                    stepShape=step,
                 )
             )
         assert error.value.code() == grpc.StatusCode.NOT_FOUND
@@ -303,12 +347,14 @@ class TestCudaMemory:
         [((1, 1, 10, 10), False), ((1, 1, 99, 99), True)],
     )
     def test_is_out_of_memory(
-        self, inference_servicer_gpu, shape, expected, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+        self, gpu_exists, shape, expected, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
     ):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
         shape = self.to_pb_namedInts(shape)
         res = grpc_stub.IsCudaOutOfMemory(
-            inference_pb2.IsCudaOutOfMemoryRequest(modelSessionId=model.id, tensorId="input", shape=shape)
+            inference_pb2.IsCudaOutOfMemoryRequest(
+                modelSessionId=model.id, tensorId="input", deviceId="cuda:0", shape=shape
+            )
         )
         grpc_stub.CloseModelSession(model)
         assert res.isCudaOutOfMemory is expected

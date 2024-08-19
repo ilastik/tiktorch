@@ -112,9 +112,11 @@ def create_client_api(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
 
 @dataclasses.dataclass(frozen=True)
 class BioModelClient:
+    name: str
     api: IRPCModelSession
     input_specs: List[nodes.InputTensor]
     output_specs: List[nodes.OutputTensor]
+    devices: List[str]
 
 
 class MPClient:

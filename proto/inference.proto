@@ -102,8 +102,9 @@ message Tensor {
 
 message IsCudaOutOfMemoryRequest {
   string modelSessionId = 1;
-  string tensorId = 3;
-  NamedInts shape = 2;
+  string tensorId = 2;
+  NamedInts shape = 3;
+  string deviceId = 4;
 }
 
 message IsCudaOutOfMemoryResponse {
@@ -116,6 +117,7 @@ message MaxCudaMemoryShapeRequest {
   NamedInts stepShape = 3;
   NamedInts minShape = 4;
   NamedInts maxShape = 5;
+  string deviceId = 6;
 }
 
 message MaxCudaMemoryShapeResponse {

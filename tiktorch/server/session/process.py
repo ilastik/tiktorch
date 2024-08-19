@@ -76,7 +76,11 @@ def start_model_session_process(
     proc.start()
     api = _mp_rpc.create_client_api(iface_cls=IRPCModelSession, conn=client_conn)
     return proc, BioModelClient(
-        input_specs=prediction_pipeline.input_specs, output_specs=prediction_pipeline.output_specs, api=api
+        name=prediction_pipeline.name,
+        devices=devices,
+        input_specs=prediction_pipeline.input_specs,
+        output_specs=prediction_pipeline.output_specs,
+        api=api,
     )
 
 
