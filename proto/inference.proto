@@ -2,6 +2,7 @@ syntax = "proto3";
 
 service Inference {
   rpc CreateModelSession(CreateModelSessionRequest) returns (ModelSession) {}
+
   rpc CloseModelSession(ModelSession) returns (Empty) {}
 
   rpc CreateDatasetDescription(CreateDatasetDescriptionRequest) returns (DatasetDescription) {}
@@ -55,34 +56,6 @@ message NamedFloats {
    repeated NamedFloat namedFloats = 1;
 }
 
-
-/* InputShape will always be expected to have `shape` set.
- * For `ShapeType` PARAMETRIZED, also a `stepShape` has to be given.
- * ref: https://github.com/bioimage-io/spec-bioimage-io/blob/gh-pages/model_spec_latest.md */
-message InputShape {
-  enum ShapeType {
-    EXPLICIT = 0;
-    PARAMETRIZED = 1;
-  }
-
-  ShapeType shapeType = 1;
-  // shape is min, when PARAMETRIZED
-  NamedInts shape = 2;
-  NamedInts stepShape = 4;
-}
-
-message OutputShape {
-  enum ShapeType {
-    EXPLICIT = 0;
-    IMPLICIT = 1;
-  }
-  ShapeType shapeType = 1;
-  NamedInts shape = 2;
-  NamedInts halo = 3;
-  string referenceTensor = 4;
-  NamedFloats scale = 5;
-  NamedFloats offset = 6;
-}
 
 message ModelSession {
   string id = 1;
@@ -142,13 +115,3 @@ service FlightControl {
   rpc Shutdown(Empty) returns (Empty) {}
 }
 
-message ModelInfo {
-    repeated string deviceIds = 1;
-}
-
-message CreateModelSessionChunkedRequest {
-  oneof data {
-    ModelInfo info = 1;
-    Blob chunk = 2;
-  }
-}
