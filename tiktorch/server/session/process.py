@@ -4,13 +4,10 @@ import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import numpy as np
 from bioimageio.core import load_resource_description
 from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
-from bioimageio.core.resource_io import nodes
-from bioimageio.core.resource_io.nodes import ParametrizedInputShape
 
 from tiktorch import log
 from tiktorch.rpc import Shutdown
@@ -20,91 +17,6 @@ from tiktorch.rpc.mp import BioModelClient, MPServer
 from ...converters import Sample
 from .backend import base
 from .rpc_interface import IRPCModelSession
-
-
-class InputTensorValidator:
-    def __init__(self, input_specs: List[nodes.InputTensor]):
-        self._input_specs = input_specs
-
-    def check_tensors(self, sample: Sample):
-        for tensor_id, tensor in sample.tensors.items():
-            self.check_shape(tensor_id, tensor.dims, tensor.shape)
-
-    def _get_input_tensors_with_names(self) -> Dict[str, nodes.InputTensor]:
-        return {tensor.name: tensor for tensor in self._input_specs}
-
-    def check_shape(self, tensor_id: str, axes: Tuple[str, ...], shape: Tuple[int, ...]):
-        shape = self.get_axes_with_size(axes, shape)
-        spec = self._get_input_spec(tensor_id)
-        if isinstance(spec.shape, list):
-            self._check_shape_explicit(spec, shape)
-        elif isinstance(spec.shape, ParametrizedInputShape):
-            self._check_shape_parameterized(spec, shape)
-        else:
-            raise ValueError(f"Unexpected shape {spec.shape}")
-
-    def _get_input_spec(self, tensor_id: str) -> nodes.InputTensor:
-        self._check_spec_exists(tensor_id)
-        specs = [spec for spec in self._input_specs if spec.name == tensor_id]
-        assert len(specs) == 1, "ids of tensor specs should be unique"
-        return specs[0]
-
-    def _check_spec_exists(self, tensor_id: str):
-        spec_names = [spec.name for spec in self._input_specs]
-        if tensor_id not in spec_names:
-            raise ValueError(f"Spec {tensor_id} doesn't exist for specs {spec_names}")
-
-    def _check_shape_explicit(self, spec: nodes.InputTensor, tensor_shape: Dict[str, int]):
-        assert self.is_shape_explicit(spec)
-        reference_shape = {name: size for name, size in zip(spec.axes, spec.shape)}
-        self.check_same_axes(reference_shape, tensor_shape)
-        if reference_shape != tensor_shape:
-            raise ValueError(f"Incompatible shapes found {tensor_shape}, expected {reference_shape}")
-
-    def _check_shape_parameterized(self, spec: nodes.InputTensor, tensor_shape: Dict[str, int]):
-        assert isinstance(spec.shape, ParametrizedInputShape)
-        if not self.is_shape(tensor_shape.values()):
-            raise ValueError(f"Invalid shape's sizes {tensor_shape}")
-
-        min_shape = self.get_axes_with_size(spec.axes, tuple(spec.shape.min))
-        step = self.get_axes_with_size(spec.axes, tuple(spec.shape.step))
-        self.check_same_axes(tensor_shape, min_shape)
-
-        tensor_shapes_arr = np.array(list(tensor_shape.values()))
-        min_shape_arr = np.array(list(min_shape.values()))
-        step_arr = np.array(list(step.values()))
-        diff = tensor_shapes_arr - min_shape_arr
-        if any(size < 0 for size in diff):
-            raise ValueError(f"Tensor shape {tensor_shape} smaller than min shape {min_shape}")
-
-        non_zero_idx = np.nonzero(step_arr)
-        multipliers = diff[non_zero_idx] / step_arr[non_zero_idx]
-        multiplier = np.unique(multipliers)
-        if len(multiplier) == 1 and self.is_natural_number(multiplier[0]):
-            return
-        raise ValueError(f"Tensor shape {tensor_shape} not valid for spec {spec}")
-
-    @staticmethod
-    def check_same_axes(source: Dict[str, int], target: Dict[str, int]):
-        if source.keys() != target.keys():
-            raise ValueError(f"Incompatible axes for tensor {target} and reference {source}")
-
-    @staticmethod
-    def is_natural_number(n) -> bool:
-        return n % 1 == 0.0 and n >= 0
-
-    @staticmethod
-    def is_shape(shape: Iterator[int]) -> bool:
-        return all(InputTensorValidator.is_natural_number(dim) for dim in shape)
-
-    @staticmethod
-    def get_axes_with_size(axes: Tuple[str, ...], shape: Tuple[int, ...]) -> Dict[str, int]:
-        assert len(axes) == len(shape)
-        return {name: size for name, size in zip(axes, shape)}
-
-    @staticmethod
-    def is_shape_explicit(spec: nodes.InputTensor) -> bool:
-        return isinstance(spec.shape, list)
 
 
 class ModelSessionProcess(IRPCModelSession[PredictionPipeline]):
