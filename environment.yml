@@ -49,6 +49,7 @@ dependencies:
   - bump2version
   - mypy
   - pre_commit
+  - grpcio-tools
 
   - pip
 

@@ -44,6 +44,16 @@ class InferenceStub(object):
                 request_serializer=inference__pb2.PredictRequest.SerializeToString,
                 response_deserializer=inference__pb2.PredictResponse.FromString,
                 )
+        self.IsCudaOutOfMemory = channel.unary_unary(
+                '/Inference/IsCudaOutOfMemory',
+                request_serializer=inference__pb2.IsCudaOutOfMemoryRequest.SerializeToString,
+                response_deserializer=inference__pb2.IsCudaOutOfMemoryResponse.FromString,
+                )
+        self.MaxCudaMemoryShape = channel.unary_unary(
+                '/Inference/MaxCudaMemoryShape',
+                request_serializer=inference__pb2.MaxCudaMemoryShapeRequest.SerializeToString,
+                response_deserializer=inference__pb2.MaxCudaMemoryShapeResponse.FromString,
+                )
 
 
 class InferenceServicer(object):
@@ -85,6 +95,18 @@ class InferenceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def IsCudaOutOfMemory(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MaxCudaMemoryShape(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_InferenceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -117,6 +139,16 @@ def add_InferenceServicer_to_server(servicer, server):
                     servicer.Predict,
                     request_deserializer=inference__pb2.PredictRequest.FromString,
                     response_serializer=inference__pb2.PredictResponse.SerializeToString,
+            ),
+            'IsCudaOutOfMemory': grpc.unary_unary_rpc_method_handler(
+                    servicer.IsCudaOutOfMemory,
+                    request_deserializer=inference__pb2.IsCudaOutOfMemoryRequest.FromString,
+                    response_serializer=inference__pb2.IsCudaOutOfMemoryResponse.SerializeToString,
+            ),
+            'MaxCudaMemoryShape': grpc.unary_unary_rpc_method_handler(
+                    servicer.MaxCudaMemoryShape,
+                    request_deserializer=inference__pb2.MaxCudaMemoryShapeRequest.FromString,
+                    response_serializer=inference__pb2.MaxCudaMemoryShapeResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -227,6 +259,40 @@ class Inference(object):
         return grpc.experimental.unary_unary(request, target, '/Inference/Predict',
             inference__pb2.PredictRequest.SerializeToString,
             inference__pb2.PredictResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def IsCudaOutOfMemory(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Inference/IsCudaOutOfMemory',
+            inference__pb2.IsCudaOutOfMemoryRequest.SerializeToString,
+            inference__pb2.IsCudaOutOfMemoryResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def MaxCudaMemoryShape(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Inference/MaxCudaMemoryShape',
+            inference__pb2.MaxCudaMemoryShapeRequest.SerializeToString,
+            inference__pb2.MaxCudaMemoryShapeResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

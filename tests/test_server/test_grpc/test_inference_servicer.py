@@ -1,3 +1,6 @@
+from typing import Tuple
+from unittest.mock import patch
+
 import grpc
 import numpy as np
 import pytest
@@ -5,10 +8,11 @@ import xarray as xr
 from numpy.testing import assert_array_equal
 
 from tiktorch import converters
+from tiktorch.converters import get_axes_with_size, named_shape_to_pb_NamedInts
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
-from tiktorch.server.grpc import inference_servicer
+from tiktorch.server.grpc import InferenceServicer, inference_servicer
 from tiktorch.server.session_manager import SessionManager
 
 
@@ -30,6 +34,12 @@ def grpc_servicer(data_store):
 @pytest.fixture(scope="module")
 def grpc_stub_cls(grpc_channel):
     return inference_pb2_grpc.InferenceStub
+
+
+@pytest.fixture
+def inference_servicer_gpu():
+    with patch.object(InferenceServicer, "_is_gpu", lambda x: True):
+        yield
 
 
 def valid_model_request(model_bytes, device_ids=None):
@@ -232,3 +242,73 @@ class TestForwardPass:
         assert len(res.tensors) == 1
         assert res.tensors[0].tensorId == output_tensor_id
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
+
+
+class TestCudaMemory:
+    MAX_SHAPE = (1, 1, 10, 10)
+    AXES = ("b", "c", "y", "x")
+
+    def to_pb_namedInts(self, shape: Tuple[int, ...]) -> inference_pb2.NamedInts:
+        return named_shape_to_pb_NamedInts(get_axes_with_size(self.AXES, shape))
+
+    @pytest.mark.parametrize(
+        "min_shape, max_shape, step_shape, expected",
+        [
+            ((1, 1, 5, 5), (1, 1, 11, 11), (0, 0, 1, 1), MAX_SHAPE),
+            ((1, 1, 5, 5), (1, 1, 6, 6), (0, 0, 1, 1), [1, 1, 6, 6]),
+        ],
+    )
+    def test_max_cuda_memory(
+        self,
+        inference_servicer_gpu,
+        min_shape,
+        max_shape,
+        step_shape,
+        expected,
+        grpc_stub,
+        bioimageio_dummy_cuda_out_of_memory_model_bytes,
+    ):
+        min_shape = self.to_pb_namedInts(min_shape)
+        max_shape = self.to_pb_namedInts(max_shape)
+        step_shape = self.to_pb_namedInts(step_shape)
+
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        res = grpc_stub.MaxCudaMemoryShape(
+            inference_pb2.MaxCudaMemoryShapeRequest(
+                modelSessionId=model.id, tensorId="input", minShape=min_shape, maxShape=max_shape, stepShape=step_shape
+            )
+        )
+        grpc_stub.CloseModelSession(model)
+        assert res.maxShape == self.to_pb_namedInts(expected)
+
+    def test_max_cuda_memory_not_found(
+        self, inference_servicer_gpu, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+    ):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        min_shape = self.to_pb_namedInts((1, 1, 11, 11))
+        max_shape = self.to_pb_namedInts((1, 1, 12, 12))
+        step = self.to_pb_namedInts((0, 0, 1, 1))
+        with pytest.raises(grpc.RpcError) as error:
+            grpc_stub.MaxCudaMemoryShape(
+                inference_pb2.MaxCudaMemoryShapeRequest(
+                    modelSessionId=model.id, tensorId="input", minShape=min_shape, maxShape=max_shape, stepShape=step
+                )
+            )
+        assert error.value.code() == grpc.StatusCode.NOT_FOUND
+        assert error.value.details() == "no valid shape"
+        grpc_stub.CloseModelSession(model)
+
+    @pytest.mark.parametrize(
+        "shape, expected",
+        [((1, 1, 10, 10), False), ((1, 1, 99, 99), True)],
+    )
+    def test_is_out_of_memory(
+        self, inference_servicer_gpu, shape, expected, grpc_stub, bioimageio_dummy_cuda_out_of_memory_model_bytes
+    ):
+        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_dummy_cuda_out_of_memory_model_bytes))
+        shape = self.to_pb_namedInts(shape)
+        res = grpc_stub.IsCudaOutOfMemory(
+            inference_pb2.IsCudaOutOfMemoryRequest(modelSessionId=model.id, tensorId="input", shape=shape)
+        )
+        grpc_stub.CloseModelSession(model)
+        assert res.isCudaOutOfMemory is expected

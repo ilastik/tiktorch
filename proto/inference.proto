@@ -12,6 +12,10 @@ service Inference {
   rpc ListDevices(Empty) returns (Devices) {}
 
   rpc Predict(PredictRequest) returns (PredictResponse) {}
+
+  rpc IsCudaOutOfMemory(IsCudaOutOfMemoryRequest) returns (IsCudaOutOfMemoryResponse) {}
+
+  rpc MaxCudaMemoryShape(MaxCudaMemoryShapeRequest) returns (MaxCudaMemoryShapeResponse) {}
 }
 
 message Device {
@@ -56,7 +60,6 @@ message NamedFloats {
    repeated NamedFloat namedFloats = 1;
 }
 
-
 message ModelSession {
   string id = 1;
 }
@@ -95,6 +98,28 @@ message Tensor {
   string dtype = 2;
   string tensorId = 3;
   repeated NamedInt shape = 4;
+}
+
+message IsCudaOutOfMemoryRequest {
+  string modelSessionId = 1;
+  string tensorId = 3;
+  NamedInts shape = 2;
+}
+
+message IsCudaOutOfMemoryResponse {
+  bool isCudaOutOfMemory = 1;
+}
+
+message MaxCudaMemoryShapeRequest {
+  string modelSessionId = 1;
+  string tensorId = 2;
+  NamedInts stepShape = 3;
+  NamedInts minShape = 4;
+  NamedInts maxShape = 5;
+}
+
+message MaxCudaMemoryShapeResponse {
+  NamedInts maxShape = 1;
 }
 
 message PredictRequest {

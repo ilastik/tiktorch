@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"_\n\x18IsCudaOutOfMemoryRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\"6\n\x19IsCudaOutOfMemoryResponse\x12\x19\n\x11isCudaOutOfMemory\x18\x01 \x01(\x08\"\xa0\x01\n\x19MaxCudaMemoryShapeRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x10\n\x08tensorId\x18\x02 \x01(\t\x12\x1d\n\tstepShape\x18\x03 \x01(\x0b\x32\n.NamedInts\x12\x1c\n\x08minShape\x18\x04 \x01(\x0b\x32\n.NamedInts\x12\x1c\n\x08maxShape\x18\x05 \x01(\x0b\x32\n.NamedInts\":\n\x1aMaxCudaMemoryShapeResponse\x12\x1c\n\x08maxShape\x18\x01 \x01(\x0b\x32\n.NamedInts\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xe5\x03\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x12L\n\x11IsCudaOutOfMemory\x12\x19.IsCudaOutOfMemoryRequest\x1a\x1a.IsCudaOutOfMemoryResponse\"\x00\x12O\n\x12MaxCudaMemoryShape\x12\x1a.MaxCudaMemoryShapeRequest\x1a\x1b.MaxCudaMemoryShapeResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3'
 )
 
 
@@ -610,6 +610,176 @@ _TENSOR = _descriptor.Descriptor(
 )
 
 
+_ISCUDAOUTOFMEMORYREQUEST = _descriptor.Descriptor(
+  name='IsCudaOutOfMemoryRequest',
+  full_name='IsCudaOutOfMemoryRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='modelSessionId', full_name='IsCudaOutOfMemoryRequest.modelSessionId', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='tensorId', full_name='IsCudaOutOfMemoryRequest.tensorId', index=1,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='shape', full_name='IsCudaOutOfMemoryRequest.shape', index=2,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=866,
+  serialized_end=961,
+)
+
+
+_ISCUDAOUTOFMEMORYRESPONSE = _descriptor.Descriptor(
+  name='IsCudaOutOfMemoryResponse',
+  full_name='IsCudaOutOfMemoryResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='isCudaOutOfMemory', full_name='IsCudaOutOfMemoryResponse.isCudaOutOfMemory', index=0,
+      number=1, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=963,
+  serialized_end=1017,
+)
+
+
+_MAXCUDAMEMORYSHAPEREQUEST = _descriptor.Descriptor(
+  name='MaxCudaMemoryShapeRequest',
+  full_name='MaxCudaMemoryShapeRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='modelSessionId', full_name='MaxCudaMemoryShapeRequest.modelSessionId', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='tensorId', full_name='MaxCudaMemoryShapeRequest.tensorId', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='stepShape', full_name='MaxCudaMemoryShapeRequest.stepShape', index=2,
+      number=3, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='minShape', full_name='MaxCudaMemoryShapeRequest.minShape', index=3,
+      number=4, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='maxShape', full_name='MaxCudaMemoryShapeRequest.maxShape', index=4,
+      number=5, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1020,
+  serialized_end=1180,
+)
+
+
+_MAXCUDAMEMORYSHAPERESPONSE = _descriptor.Descriptor(
+  name='MaxCudaMemoryShapeResponse',
+  full_name='MaxCudaMemoryShapeResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='maxShape', full_name='MaxCudaMemoryShapeResponse.maxShape', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1182,
+  serialized_end=1240,
+)
+
+
 _PREDICTREQUEST = _descriptor.Descriptor(
   name='PredictRequest',
   full_name='PredictRequest',
@@ -651,8 +821,8 @@ _PREDICTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=866,
-  serialized_end=951,
+  serialized_start=1242,
+  serialized_end=1327,
 )
 
 
@@ -683,8 +853,8 @@ _PREDICTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=953,
-  serialized_end=996,
+  serialized_start=1329,
+  serialized_end=1372,
 )
 
 
@@ -708,8 +878,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=998,
-  serialized_end=1005,
+  serialized_start=1374,
+  serialized_end=1381,
 )
 
 _DEVICE.fields_by_name['status'].enum_type = _DEVICE_STATUS
@@ -727,6 +897,11 @@ _LOGENTRY.fields_by_name['level'].enum_type = _LOGENTRY_LEVEL
 _LOGENTRY_LEVEL.containing_type = _LOGENTRY
 _DEVICES.fields_by_name['devices'].message_type = _DEVICE
 _TENSOR.fields_by_name['shape'].message_type = _NAMEDINT
+_ISCUDAOUTOFMEMORYREQUEST.fields_by_name['shape'].message_type = _NAMEDINTS
+_MAXCUDAMEMORYSHAPEREQUEST.fields_by_name['stepShape'].message_type = _NAMEDINTS
+_MAXCUDAMEMORYSHAPEREQUEST.fields_by_name['minShape'].message_type = _NAMEDINTS
+_MAXCUDAMEMORYSHAPEREQUEST.fields_by_name['maxShape'].message_type = _NAMEDINTS
+_MAXCUDAMEMORYSHAPERESPONSE.fields_by_name['maxShape'].message_type = _NAMEDINTS
 _PREDICTREQUEST.fields_by_name['tensors'].message_type = _TENSOR
 _PREDICTRESPONSE.fields_by_name['tensors'].message_type = _TENSOR
 DESCRIPTOR.message_types_by_name['Device'] = _DEVICE
@@ -742,6 +917,10 @@ DESCRIPTOR.message_types_by_name['Devices'] = _DEVICES
 DESCRIPTOR.message_types_by_name['NamedInt'] = _NAMEDINT
 DESCRIPTOR.message_types_by_name['NamedFloat'] = _NAMEDFLOAT
 DESCRIPTOR.message_types_by_name['Tensor'] = _TENSOR
+DESCRIPTOR.message_types_by_name['IsCudaOutOfMemoryRequest'] = _ISCUDAOUTOFMEMORYREQUEST
+DESCRIPTOR.message_types_by_name['IsCudaOutOfMemoryResponse'] = _ISCUDAOUTOFMEMORYRESPONSE
+DESCRIPTOR.message_types_by_name['MaxCudaMemoryShapeRequest'] = _MAXCUDAMEMORYSHAPEREQUEST
+DESCRIPTOR.message_types_by_name['MaxCudaMemoryShapeResponse'] = _MAXCUDAMEMORYSHAPERESPONSE
 DESCRIPTOR.message_types_by_name['PredictRequest'] = _PREDICTREQUEST
 DESCRIPTOR.message_types_by_name['PredictResponse'] = _PREDICTRESPONSE
 DESCRIPTOR.message_types_by_name['Empty'] = _EMPTY
@@ -838,6 +1017,34 @@ Tensor = _reflection.GeneratedProtocolMessageType('Tensor', (_message.Message,),
   })
 _sym_db.RegisterMessage(Tensor)
 
+IsCudaOutOfMemoryRequest = _reflection.GeneratedProtocolMessageType('IsCudaOutOfMemoryRequest', (_message.Message,), {
+  'DESCRIPTOR' : _ISCUDAOUTOFMEMORYREQUEST,
+  '__module__' : 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:IsCudaOutOfMemoryRequest)
+  })
+_sym_db.RegisterMessage(IsCudaOutOfMemoryRequest)
+
+IsCudaOutOfMemoryResponse = _reflection.GeneratedProtocolMessageType('IsCudaOutOfMemoryResponse', (_message.Message,), {
+  'DESCRIPTOR' : _ISCUDAOUTOFMEMORYRESPONSE,
+  '__module__' : 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:IsCudaOutOfMemoryResponse)
+  })
+_sym_db.RegisterMessage(IsCudaOutOfMemoryResponse)
+
+MaxCudaMemoryShapeRequest = _reflection.GeneratedProtocolMessageType('MaxCudaMemoryShapeRequest', (_message.Message,), {
+  'DESCRIPTOR' : _MAXCUDAMEMORYSHAPEREQUEST,
+  '__module__' : 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:MaxCudaMemoryShapeRequest)
+  })
+_sym_db.RegisterMessage(MaxCudaMemoryShapeRequest)
+
+MaxCudaMemoryShapeResponse = _reflection.GeneratedProtocolMessageType('MaxCudaMemoryShapeResponse', (_message.Message,), {
+  'DESCRIPTOR' : _MAXCUDAMEMORYSHAPERESPONSE,
+  '__module__' : 'inference_pb2'
+  # @@protoc_insertion_point(class_scope:MaxCudaMemoryShapeResponse)
+  })
+_sym_db.RegisterMessage(MaxCudaMemoryShapeResponse)
+
 PredictRequest = _reflection.GeneratedProtocolMessageType('PredictRequest', (_message.Message,), {
   'DESCRIPTOR' : _PREDICTREQUEST,
   '__module__' : 'inference_pb2'
@@ -868,8 +1075,8 @@ _INFERENCE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1008,
-  serialized_end=1334,
+  serialized_start=1384,
+  serialized_end=1869,
   methods=[
   _descriptor.MethodDescriptor(
     name='CreateModelSession',
@@ -931,6 +1138,26 @@ _INFERENCE = _descriptor.ServiceDescriptor(
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),
+  _descriptor.MethodDescriptor(
+    name='IsCudaOutOfMemory',
+    full_name='Inference.IsCudaOutOfMemory',
+    index=6,
+    containing_service=None,
+    input_type=_ISCUDAOUTOFMEMORYREQUEST,
+    output_type=_ISCUDAOUTOFMEMORYRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='MaxCudaMemoryShape',
+    full_name='Inference.MaxCudaMemoryShape',
+    index=7,
+    containing_service=None,
+    input_type=_MAXCUDAMEMORYSHAPEREQUEST,
+    output_type=_MAXCUDAMEMORYSHAPERESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
 ])
 _sym_db.RegisterServiceDescriptor(_INFERENCE)
 
@@ -944,8 +1171,8 @@ _FLIGHTCONTROL = _descriptor.ServiceDescriptor(
   index=1,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1336,
-  serialized_end=1407,
+  serialized_start=1871,
+  serialized_end=1942,
   methods=[
   _descriptor.MethodDescriptor(
     name='Ping',

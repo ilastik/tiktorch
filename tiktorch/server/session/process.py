@@ -10,13 +10,12 @@ from bioimageio.core import load_resource_description
 from bioimageio.core.prediction_pipeline import PredictionPipeline, create_prediction_pipeline
 
 from tiktorch import log
+from tiktorch.converters import Sample
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
 from tiktorch.rpc.mp import BioModelClient, MPServer
-
-from ...converters import Sample
-from .backend import base
-from .rpc_interface import IRPCModelSession
+from tiktorch.server.session import IRPCModelSession
+from tiktorch.server.session.backend import base
 
 
 class ModelSessionProcess(IRPCModelSession[PredictionPipeline]):

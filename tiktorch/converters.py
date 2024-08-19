@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Dict, Iterator, List, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import xarray as xr
@@ -11,10 +11,15 @@ from bioimageio.core.resource_io.nodes import ParametrizedInputShape
 from tiktorch.proto import inference_pb2
 
 # pairs of axis-shape for a single tensor
-NamedInt = Tuple[str, int]
-NamedFloat = Tuple[str, float]
-NamedShape = List[NamedInt]
-NamedVec = List[NamedFloat]
+NamedShape = Dict[str, int]
+NamedVec = Dict[str, float]
+
+
+def get_axes_with_size(axes: Tuple[str, ...], shape: Tuple[int, ...]) -> NamedShape:
+    if len(axes) != len(shape):
+        raise ValueError(f"{axes} and {shape} incompatible length. It should be equal")
+    InputTensorValidator.is_shape(shape)
+    return {name: size for name, size in zip(axes, shape)}
 
 
 class InputTensorValidator:
@@ -29,7 +34,7 @@ class InputTensorValidator:
         return {tensor.name: tensor for tensor in self._input_specs}
 
     def check_shape(self, tensor_id: str, axes: Tuple[str, ...], shape: Tuple[int, ...]):
-        shape = self.get_axes_with_size(axes, shape)
+        shape = get_axes_with_size(axes, shape)
         spec = self._get_input_spec(tensor_id)
         if isinstance(spec.shape, list):
             self._check_shape_explicit(spec, shape)
@@ -49,38 +54,49 @@ class InputTensorValidator:
         if tensor_id not in spec_names:
             raise ValueError(f"Spec {tensor_id} doesn't exist for specs {spec_names}")
 
-    def _check_shape_explicit(self, spec: nodes.InputTensor, tensor_shape: Dict[str, int]):
+    def _check_shape_explicit(self, spec: nodes.InputTensor, tensor_shape: NamedShape):
         assert self.is_shape_explicit(spec)
         reference_shape = {name: size for name, size in zip(spec.axes, spec.shape)}
         self.check_same_axes(reference_shape, tensor_shape)
         if reference_shape != tensor_shape:
             raise ValueError(f"Incompatible shapes found {tensor_shape}, expected {reference_shape}")
 
-    def _check_shape_parameterized(self, spec: nodes.InputTensor, tensor_shape: Dict[str, int]):
+    def _check_shape_parameterized(self, spec: nodes.InputTensor, tensor_shape: NamedShape):
         assert isinstance(spec.shape, ParametrizedInputShape)
         if not self.is_shape(tensor_shape.values()):
             raise ValueError(f"Invalid shape's sizes {tensor_shape}")
 
-        min_shape = self.get_axes_with_size(spec.axes, tuple(spec.shape.min))
-        step = self.get_axes_with_size(spec.axes, tuple(spec.shape.step))
-        self.check_same_axes(tensor_shape, min_shape)
-
-        tensor_shapes_arr = np.array(list(tensor_shape.values()))
-        min_shape_arr = np.array(list(min_shape.values()))
-        step_arr = np.array(list(step.values()))
-        diff = tensor_shapes_arr - min_shape_arr
-        if any(size < 0 for size in diff):
-            raise ValueError(f"Tensor shape {tensor_shape} smaller than min shape {min_shape}")
-
-        non_zero_idx = np.nonzero(step_arr)
-        multipliers = diff[non_zero_idx] / step_arr[non_zero_idx]
-        multiplier = np.unique(multipliers)
-        if len(multiplier) == 1 and self.is_natural_number(multiplier[0]):
-            return
-        raise ValueError(f"Tensor shape {tensor_shape} not valid for spec {spec}")
+        min_shape = get_axes_with_size(spec.axes, tuple(spec.shape.min))
+        step_shape = get_axes_with_size(spec.axes, tuple(spec.shape.step))
+        multiplier = self.get_num_increments_from_param_shape(
+            NamedParametrizedShape(min_shape, step_shape), tensor_shape
+        )
+        if multiplier is None:
+            raise ValueError(f"Tensor shape {tensor_shape} not valid for spec {spec}")
 
     @staticmethod
-    def check_same_axes(source: Dict[str, int], target: Dict[str, int]):
+    def get_num_increments_from_param_shape(
+        param_shape: NamedParametrizedShape, max_shape: NamedShape
+    ) -> Optional[int]:
+        InputTensorValidator.check_same_axes(param_shape.min_shape, max_shape)
+        max_shape_arr = np.array(list(max_shape.values()))
+        min_shape_arr = np.array(list(param_shape.min_shape.values()))
+        step_arr = np.array(list(param_shape.step_shape.values()))
+        diff = max_shape_arr - min_shape_arr
+        if any(size < 0 for size in diff):
+            raise ValueError(f"Max shape {max_shape_arr} smaller than min shape {min_shape_arr}")
+
+        non_zero_idx = np.nonzero(step_arr)
+        num_increments = diff[non_zero_idx] / step_arr[non_zero_idx]
+        num_increments = np.unique(num_increments)
+        if len(num_increments) == 1 and InputTensorValidator.is_natural_number(num_increments[0]):
+            num_increment = num_increments[0]
+            assert np.array_equal(min_shape_arr + num_increment * step_arr, max_shape_arr)
+            return int(num_increment)
+        return None
+
+    @staticmethod
+    def check_same_axes(source: NamedShape, target: NamedShape):
         if source.keys() != target.keys():
             raise ValueError(f"Incompatible axes for tensor {target} and reference {source}")
 
@@ -89,17 +105,25 @@ class InputTensorValidator:
         return n % 1 == 0.0 and n >= 0
 
     @staticmethod
-    def is_shape(shape: Iterator[int]) -> bool:
+    def is_shape(shape: Sequence[int]) -> bool:
         return all(InputTensorValidator.is_natural_number(dim) for dim in shape)
-
-    @staticmethod
-    def get_axes_with_size(axes: Tuple[str, ...], shape: Tuple[int, ...]) -> Dict[str, int]:
-        assert len(axes) == len(shape)
-        return {name: size for name, size in zip(axes, shape)}
 
     @staticmethod
     def is_shape_explicit(spec: nodes.InputTensor) -> bool:
         return isinstance(spec.shape, list)
+
+
+@dataclasses.dataclass(frozen=True)
+class NamedParametrizedShape:
+    min_shape: NamedShape
+    step_shape: NamedShape
+
+    def __post_init__(self):
+        InputTensorValidator.check_same_axes(self.min_shape, self.step_shape)
+
+    @property
+    def axes(self) -> Tuple[str, ...]:
+        return tuple(self.min_shape.keys())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -132,15 +156,19 @@ def xarray_to_pb_tensor(tensor_id: str, array: xr.DataArray) -> inference_pb2.Te
     return inference_pb2.Tensor(tensorId=tensor_id, dtype=str(array.dtype), shape=shape, buffer=bytes(array.data))
 
 
-def name_int_tuples_to_pb_NamedInts(name_int_tuples) -> inference_pb2.NamedInts:
+def named_shape_to_pb_NamedInts(name_int_tuples: NamedShape) -> inference_pb2.NamedInts:
     return inference_pb2.NamedInts(
-        namedInts=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples]
+        namedInts=[inference_pb2.NamedInt(size=dim, name=name) for name, dim in name_int_tuples.items()]
     )
 
 
-def name_float_tuples_to_pb_NamedFloats(name_float_tuples) -> inference_pb2.NamedFloats:
+def pb_NamedInts_to_named_shape(pb_named_ints: inference_pb2.NamedInt) -> NamedShape:
+    return {dim.name: dim.size for dim in pb_named_ints.namedInts}
+
+
+def name_float_tuples_to_pb_NamedFloats(name_float_tuples: NamedVec) -> inference_pb2.NamedFloats:
     return inference_pb2.NamedFloats(
-        namedFloats=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
+        namedFloats=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples.items()]
     )
 
 

@@ -189,7 +189,7 @@ class TestSample:
         assert sample.tensors["input1"].equals(xr.DataArray(arr_1, dims=["x", "y"]))
         assert sample.tensors["input2"].equals(xr.DataArray(arr_2, dims=["x", "y"]))
 
-    def test_create_sample_from_raw_data(self):
+    def test_create_sample_from_xr_tensors(self):
         arr_1 = np.arange(32 * 32, dtype=np.int64).reshape(32, 32)
         tensor_1 = xr.DataArray(arr_1, dims=["x", "y"])
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
