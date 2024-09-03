@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  pre_commit_check:
+    name: Pre-Commit Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          activate-environment: ""
+          channel-priority: strict
+          miniforge-variant: Mambaforge
+          use-mamba: true
+      - name: Install dependencies
+        run: |
+          mamba env create -n tiktorch-env --file environment.yml
+          mamba activate tiktorch-env
+      - name: Run Pre-Commit
+        run: |
+          pre-commit run --from-ref origin/${{ github.ref_name }} --to-ref ${{ github.ref_name }}
+
+  conda-noarch-build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          activate-environment: ""
+          channel-priority: strict
+          miniforge-variant: Mambaforge
+          use-mamba: true
+      - name: install common conda dependencies
+        run: mamba install -n base -c conda-forge mamba boa setuptools_scm -y
+      - name: Cache Conda Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            pkgs/noarch
+            pkgs/channeldata.json
+          key: ${{ runner.os }}-packages-${{ hashFiles('conda-recipe/meta.yaml') }}
+      - id: version
+        shell: bash -l {0}
+        run: |
+          vers=$( python setup.py --version )
+          echo "version=${vers}" >> $GITHUB_OUTPUT
+      - name: Linux Conda Build Test
+        shell: bash -l {0}
+        run: |
+          mkdir -p ./pkgs/noarch
+          conda mambabuild -c conda-forge conda-recipe --no-test --output-folder ./pkgs
+
+  test-conda-packages:
+    needs: [conda-noarch-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      TIKTORCH_PACKAGE_NAME: ${{ needs.conda-noarch-build.outputs.version }}.tar.bz2
+    steps:
+      # Use GNU tar instead of BSD tar on Windows
+      - name: "Use GNU tar instead of BSD tar"
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: echo C:\Program Files\Git\usr\bin>>"%GITHUB_PATH%"
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          activate-environment: ""
+          channel-priority: strict
+          miniforge-variant: Mambaforge
+          use-mamba: true
+      - name: install common conda dependencies
+        run: mamba install -n base -c conda-forge boa setuptools_scm -y
+      - name: Cache Conda Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            pkgs/noarch
+            pkgs/channeldata.json
+          key: ${{ runner.os }}-packages-${{ hashFiles('conda-recipe/meta.yaml') }}
+          enableCrossOsArchive: true
+      - name: Linux Test
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash -l {0}
+        run: |
+          conda mambabuild --test --override-channels \
+            -c ./pkgs -c pytorch -c ilastik-forge -c conda-forge \
+            ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
+      - name: macOS Test
+        if: matrix.os == 'macos-latest'
+        shell: bash -l {0}
+        run: |
+          conda mambabuild --test --override-channels \
+            -c ./pkgs -c pytorch -c ilastik-forge -c conda-forge \
+            ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
+      - name: Windows Test
+        if: matrix.os == 'windows-latest'
+        shell: cmd /C CALL {0}
+        run: |
+          conda mambabuild --test --override-channels ^
+            -c .\pkgs -c pytorch -c ilastik-forge -c conda-forge ^
+            .\pkgs\noarch\%TIKTORCH_PACKAGE_NAME%
