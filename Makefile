@@ -1,18 +1,7 @@
 SHELL=/bin/bash
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TIKTORCH_ENV_NAME ?= tiktorch-server-env
-
-sample_model:
-	cd tests/data/dummy && zip -r $(ROOT_DIR)/dummy.tmodel ./*
-
-unet2d:
-	cd tests/data/unet2d && zip -r $(ROOT_DIR)/unet2d.tmodel ./*
-
-unet2d_onnx:
-	cd tests/data/unet2d_onnx && zip -r $(ROOT_DIR)/onnx.tmodel ./*
-
-dummy_tf:
-	cd tests/data/dummy_tensorflow && zip -r $(ROOT_DIR)/dummy_tf.tmodel ./*
+SUBMODULES = ./vendor/core-bioimage-io-python ./vendor/spec-bioimage-io
 
 protos:
 	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/proto/ --grpc_python_out=tiktorch/proto/ ./proto/*.proto
@@ -21,18 +10,23 @@ protos:
 version:
 	python -c "import sys; print(sys.version)"
 
-
 devenv:
 	. $$(conda info --base)/etc/profile.d/conda.sh
 	mamba env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
-	conda run -n $(TIKTORCH_ENV_NAME) pip install . ./vendor/core-bioimage-io-python ./vendor/spec-bioimage-io
+	make install_submodules
 
 run_server:
 	. $$(conda info --base)/etc/profile.d/conda.sh; conda activate $(TIKTORCH_ENV_NAME); python -m tiktorch.server
 
+install_submodules:
+	@echo "Installing submodules $(SUBMODULES)"
+	@for package in $(SUBMODULES) ; do \
+		echo $$package ; \
+		conda run -n $(TIKTORCH_ENV_NAME) pip install -e $$package ; \
+	done
 
 remove_devenv:
 	conda env remove --yes --name $(TIKTORCH_ENV_NAME)
 
 
-.PHONY: protos version sample_model devenv remove_devenv dummy_tf
+.PHONY: *
