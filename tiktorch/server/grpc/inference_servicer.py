@@ -53,6 +53,15 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         self.__session_manager.close_session(request.id)
         return inference_pb2.Empty()
 
+    def close_all_sessions(self):
+        """
+        Not exposed by the API
+
+        Close all sessions ensuring that all devices are not leased
+        """
+        self.__session_manager.close_all_sessions()
+        assert len(self.__device_pool.list_reserved_devices()) == 0
+
     def GetLogs(self, request: inference_pb2.Empty, context):
         yield inference_pb2.LogEntry(
             timestamp=int(time.time()), level=inference_pb2.LogEntry.Level.INFO, content="Sending model logs"
