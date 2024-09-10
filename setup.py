@@ -37,14 +37,9 @@ setup(
     ],
     extras_require={
         "server-pytorch": [
-            "inferno",
             "pytorch>=1.6",
             "scikit-learn",
-        ],
-        "server-tensorflow": [
-            "tensorflow>=2.9",
-            "scikit-learn",
-        ],
+        ]
     },
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
