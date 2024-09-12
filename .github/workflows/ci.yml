@@ -54,6 +54,7 @@ jobs:
           miniforge-variant: Miniforge3
       - name: conda diagnostics
         run: |
+          conda list
           conda info
       - name: install submodules
         run: |
@@ -90,7 +91,7 @@ jobs:
           channel-priority: flexible
           miniforge-variant: Miniforge3
       - name: install common conda dependencies
-        run: mamba install -n base -c conda-forge conda-build setuptools_scm -y
+        run: conda install -n base -c conda-forge conda-build setuptools_scm -y
       - name: Cache Conda Packages
         uses: actions/cache@v4
         with:
@@ -102,10 +103,11 @@ jobs:
         run: |
           vers=$( python setup.py --version )
           echo "version=${vers}" >> $GITHUB_OUTPUT
-      - name: Linux Conda Build Test
+      - name: Linux Conda Build
         run: |
           mkdir -p ./pkgs/noarch
-          conda build -c conda-forge conda-recipe --no-test --output-folder ./pkgs
+          conda build -c ilastik-forge -c pytorch -c conda-forge \
+          conda-recipe --no-test --output-folder ./pkgs
 
   test-build-conda-packages:
     needs: [conda-noarch-build]
@@ -133,7 +135,7 @@ jobs:
           channel-priority: flexible
           miniforge-variant: Miniforge3
       - name: install common conda dependencies
-        run: mamba install -n base -c conda-forge conda-build setuptools_scm -y
+        run: conda install -n base -c conda-forge conda-build setuptools_scm -y
       - name: Cache Conda Packages
         uses: actions/cache@v4
         with:
@@ -147,14 +149,14 @@ jobs:
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c pytorch -c ilastik-forge -c conda-forge \
+            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: macOS Test
         if: matrix.os == 'macos-latest'
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c pytorch -c ilastik-forge -c conda-forge \
+            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: Windows Test
         if: matrix.os == 'windows-latest'
@@ -166,5 +168,5 @@ jobs:
         shell: cmd /C CALL {0}
         run: |
           conda build --test --override-channels ^
-            -c %CD%\pkgs -c pytorch -c ilastik-forge -c conda-forge ^
+            -c %CD%\pkgs -c ilastik-forge -c pytorch -c conda-forge ^
             .\pkgs\noarch\%TIKTORCH_PACKAGE_NAME%
