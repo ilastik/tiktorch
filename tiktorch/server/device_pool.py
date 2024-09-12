@@ -71,9 +71,21 @@ class IDevicePool(abc.ABC):
     @abc.abstractmethod
     def list_devices(self) -> List[IDevice]:
         """
-        List devices available on server
+        List devices on server
         """
         ...
+
+    def list_available_devices(self) -> List[IDevice]:
+        """
+        List available devices on server
+        """
+        return [device for device in self.list_devices() if device.status == DeviceStatus.AVAILABLE]
+
+    def list_reserved_devices(self) -> List[IDevice]:
+        """
+        List reserved devices on server
+        """
+        return [device for device in self.list_devices() if device.status == DeviceStatus.IN_USE]
 
     @abc.abstractmethod
     def lease(self, device_ids: List[str]) -> ILease:
@@ -116,8 +128,8 @@ class _Lease(ILease):
 
 class TorchDevicePool(IDevicePool):
     def __init__(self):
-        self.__lease_id_by_device_id = {}
-        self.__device_ids_by_lease_id = defaultdict(list)
+        self.__device_id_to_lease_id = {}
+        self.__lease_id_to_device_ids = defaultdict(list)
         self.__lock = threading.Lock()
 
     @property
@@ -142,7 +154,7 @@ class TorchDevicePool(IDevicePool):
             devices: List[IDevice] = []
             for id_ in ids:
                 status = DeviceStatus.AVAILABLE
-                if id_ in self.__lease_id_by_device_id:
+                if id_ in self.__device_id_to_lease_id:
                     status = DeviceStatus.IN_USE
 
                 devices.append(_Device(id_=id_, status=status))
@@ -156,21 +168,21 @@ class TorchDevicePool(IDevicePool):
         with self.__lock:
             lease_id = uuid.uuid4().hex
             for dev_id in device_ids:
-                if dev_id in self.__lease_id_by_device_id:
+                if dev_id in self.__device_id_to_lease_id:
                     raise Exception(f"Device {dev_id} is already in use")
 
             for dev_id in device_ids:
-                self.__lease_id_by_device_id[dev_id] = lease_id
-                self.__device_ids_by_lease_id[lease_id].append(dev_id)
+                self.__device_id_to_lease_id[dev_id] = lease_id
+                self.__lease_id_to_device_ids[lease_id].append(dev_id)
 
             return _Lease(self, id_=lease_id)
 
     def _get_lease_devices(self, lease_id: str) -> List[IDevice]:
-        return [_Device(id_=dev_id, status=DeviceStatus.IN_USE) for dev_id in self.__device_ids_by_lease_id[lease_id]]
+        return [_Device(id_=dev_id, status=DeviceStatus.IN_USE) for dev_id in self.__lease_id_to_device_ids[lease_id]]
 
     def _release_devices(self, lease_id: str) -> None:
         with self.__lock:
-            dev_ids = self.__device_ids_by_lease_id.pop(lease_id, [])
+            dev_ids = self.__lease_id_to_device_ids.pop(lease_id, [])
 
             for id_ in dev_ids:
-                del self.__lease_id_by_device_id[id_]
+                del self.__device_id_to_lease_id[id_]

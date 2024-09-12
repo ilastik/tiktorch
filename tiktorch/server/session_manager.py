@@ -82,6 +82,11 @@ class SessionManager:
 
             logger.debug("Closed session %s", session_id)
 
+    def close_all_sessions(self):
+        all_ids = tuple(self.__session_by_id.keys())
+        for session_id in all_ids:
+            self.close_session(session_id)
+
     def __init__(self) -> None:
         self.__lock = threading.Lock()
         self.__session_by_id: Dict[str, Session] = {}

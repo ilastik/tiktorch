@@ -27,6 +27,12 @@ def grpc_servicer(data_store):
     return inference_servicer.InferenceServicer(TorchDevicePool(), SessionManager(), data_store)
 
 
+@pytest.fixture(autouse=True)
+def clean(grpc_servicer):
+    yield
+    grpc_servicer.close_all_sessions()
+
+
 @pytest.fixture(scope="module")
 def grpc_stub_cls(grpc_channel):
     return inference_pb2_grpc.InferenceStub
@@ -47,7 +53,6 @@ class TestModelManagement:
     def test_model_session_creation(self, grpc_stub, bioimageio_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes))
         assert model.id
-        grpc_stub.CloseModelSession(model)
 
     def test_model_session_creation_using_upload_id(self, grpc_stub, data_store, bioimageio_dummy_explicit_model_bytes):
         id_ = data_store.put(bioimageio_dummy_explicit_model_bytes.getvalue())
@@ -55,7 +60,6 @@ class TestModelManagement:
         rq = inference_pb2.CreateModelSessionRequest(model_uri=f"upload://{id_}", deviceIds=["cpu"])
         model = grpc_stub.CreateModelSession(rq)
         assert model.id
-        grpc_stub.CloseModelSession(model)
 
     def test_model_session_creation_using_random_uri(self, grpc_stub):
         rq = inference_pb2.CreateModelSessionRequest(model_uri="randomSchema://", deviceIds=["cpu"])
@@ -92,36 +96,28 @@ class TestDeviceManagement:
             model_blob=inference_pb2.Blob(content=b""), deviceIds=["cpu"]
         )
 
-        model = None
         with pytest.raises(Exception):
-            model = grpc_stub.CreateModelSession(model_req)
+            grpc_stub.CreateModelSession(model_req)
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
         assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
-
-        if model:
-            grpc_stub.CloseModelSession(model)
 
     def test_use_device(self, grpc_stub, bioimageio_model_bytes):
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
         assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
 
-        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
+        grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
         assert inference_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
 
-        grpc_stub.CloseModelSession(model)
-
     def test_using_same_device_fails(self, grpc_stub, bioimageio_model_bytes):
-        model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
+        grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
         with pytest.raises(grpc.RpcError):
-            model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
-
-        grpc_stub.CloseModelSession(model)
+            grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
 
     def test_closing_session_releases_devices(self, grpc_stub, bioimageio_model_bytes):
         model = grpc_stub.CreateModelSession(valid_model_request(bioimageio_model_bytes, device_ids=["cpu"]))
@@ -163,8 +159,6 @@ class TestForwardPass:
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
 
-        grpc_stub.CloseModelSession(model)
-
         assert len(res.tensors) == 1
         assert res.tensors[0].tensorId == output_tensor_id
         assert_array_equal(expected, converters.pb_tensor_to_numpy(res.tensors[0]))
@@ -175,7 +169,6 @@ class TestForwardPass:
         input_tensors = [converters.xarray_to_pb_tensor("input", arr)]
         with pytest.raises(grpc.RpcError):
             grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-        grpc_stub.CloseModelSession(model)
 
     @pytest.mark.parametrize(
         "shape",
@@ -187,7 +180,6 @@ class TestForwardPass:
         input_tensors = [converters.xarray_to_pb_tensor("param", arr)]
         with pytest.raises(grpc.RpcError):
             grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-        grpc_stub.CloseModelSession(model)
 
     def test_call_predict_invalid_tensor_ids(self, grpc_stub, bioimageio_dummy_model):
         model_bytes, _ = bioimageio_dummy_model
@@ -197,7 +189,6 @@ class TestForwardPass:
         with pytest.raises(grpc.RpcError) as error:
             grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Spec invalidTensorName doesn't exist")
-        grpc_stub.CloseModelSession(model)
 
     def test_call_predict_invalid_axes(self, grpc_stub, bioimageio_dummy_model):
         model_bytes, tensor_id = bioimageio_dummy_model
@@ -207,7 +198,6 @@ class TestForwardPass:
         with pytest.raises(grpc.RpcError) as error:
             grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Incompatible axes")
-        grpc_stub.CloseModelSession(model)
 
     @pytest.mark.parametrize("shape", [(1, 1, 64, 64), (1, 1, 66, 65), (1, 1, 68, 66), (1, 1, 70, 67)])
     def test_call_predict_valid_shape_parameterized(self, grpc_stub, shape, bioimageio_dummy_param_model_bytes):
@@ -215,7 +205,6 @@ class TestForwardPass:
         arr = xr.DataArray(np.arange(np.prod(shape)).reshape(*shape), dims=("b", "c", "x", "y"))
         input_tensors = [converters.xarray_to_pb_tensor("param", arr)]
         grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-        grpc_stub.CloseModelSession(model)
 
     @pytest.mark.skip
     def test_call_predict_tf(self, grpc_stub, bioimageio_dummy_tensorflow_model_bytes):
@@ -226,8 +215,6 @@ class TestForwardPass:
         output_tensor_id = "output"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-
-        grpc_stub.CloseModelSession(model)
 
         assert len(res.tensors) == 1
         assert res.tensors[0].tensorId == output_tensor_id
