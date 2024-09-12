@@ -107,13 +107,10 @@ class RPCFuture(Future, Generic[T]):
 
 
 def _checkgenericfut(type_: Type) -> bool:
-    # XXX: py3.7 regression isclass returns False on parametrized generics
-    if not isinstance(type_, (type, _GenericAlias)):
-        return False
-
-    origin = getattr(type_, "__origin__", None)
-
-    return origin and issubclass(origin, RPCFuture)
+    if isinstance(type_, _GenericAlias):
+        origin = getattr(type_, "__origin__", None)
+        return origin and issubclass(origin, Future)
+    return False
 
 
 def isfutureret(func: Callable):
