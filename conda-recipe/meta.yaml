@@ -15,26 +15,24 @@ source:
 build:
   noarch: python
   number: 0
-  script: python -m pip install --no-deps --ignore-installed .
+  script:
+    - python -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv
   entry_points:
     - tiktorch-server = tiktorch.server.base:main
 
 requirements:
   host:
     - pip
-    - python >=3.7
+    - python >=3.8
   run:
-    - python >=3.7
-    - pickle5  # [py37]
+    - python >=3.8
     {% for dep in setup_py_data['install_requires'] %}
     - {{ dep.lower() }}
     {% endfor %}
   run_constrained:
+    - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
     - cudatoolkit >=10.2
     {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
-    - {{ dep.lower() }}
-    {% endfor %}
-    {% for dep in setup_py_data['extras_require']['server-tensorflow'] %}
     - {{ dep.lower() }}
     {% endfor %}
 
@@ -52,12 +50,11 @@ test:
     {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
     - {{ dep.lower() }}
     {% endfor %}
-    {% for dep in setup_py_data['extras_require']['server-tensorflow'] %}
-    - {{ dep.lower() }}
-    {% endfor %}
-    # this is still necessary, torchvision doesn't work properly with cpuonly mutex
-    - torchvision=*=*cpu
+    - python 3.9.*
+    - pytest
+    - pytest-grpc
     - cpuonly
+    - ilastik-pytorch-version-helper-cpu
   imports:
     # client
     - tiktorch
@@ -70,3 +67,12 @@ test:
     # server
     - tiktorch.server.base
     - tiktorch.server.session
+
+  source_files:
+    - tests
+    - tiktorch
+    - pytest.ini
+
+  commands:
+    - pytest
+

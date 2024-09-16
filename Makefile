@@ -28,5 +28,4 @@ install_submodules:
 remove_devenv:
 	conda env remove --yes --name $(TIKTORCH_ENV_NAME)
 
-
 .PHONY: *

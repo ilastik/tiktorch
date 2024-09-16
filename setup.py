@@ -30,22 +30,12 @@ setup(
         "bioimageio.spec==0.4.9.post5",
         "bioimageio.core==0.5.11",
         "grpcio>=1.31",
-        "numpy",
+        "numpy<2",  # pytorch 2.2.2-py3.9_0 for macos is compiled with numpy 1.*
         "protobuf",
         "pyyaml",
         "xarray",
     ],
-    extras_require={
-        "server-pytorch": [
-            "inferno",
-            "pytorch>=1.6",
-            "scikit-learn",
-        ],
-        "server-tensorflow": [
-            "tensorflow>=2.9",
-            "scikit-learn",
-        ],
-    },
+    extras_require={"server-pytorch": ["pytorch>=2", "scikit-learn", "torchvision"]},
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional

@@ -23,7 +23,7 @@ def test_shutdown_event_is_not_set_while_pings_keep_coming():
     def _pinger():
         while not stop_pinger.is_set():
             servicer.Ping(None, None)
-            time.sleep(0.05)
+            time.sleep(0.01)
 
     pinger_thread = threading.Thread(target=_pinger, name="Pinger", daemon=True)
     pinger_thread.start()

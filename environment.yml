@@ -13,8 +13,6 @@ dependencies:
   - marshmallow=3.12.*
   - marshmallow-jsonschema
   - protobuf
-  - pytest
-  - pytest-grpc
   - pyyaml=5.3.*
   - requests
   - ruamel.yaml
@@ -22,15 +20,16 @@ dependencies:
   - scipy
   - typing-extensions
   - xarray
+  - setuptools
+  - pip
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support
-  - pytorch=1.13.*
-  - inferno=v0.4.*
+  - pytorch=2.3.*
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
   # - torchvision
-  #- cpuonly
+  - cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
   # - tochvision
@@ -46,10 +45,14 @@ dependencies:
   - typer
 
   # dev stuff
+  - pytest
+  - pytest-cov
+  - pytest-grpc
   - bump2version
   - mypy
   - pre_commit
 
-  - pip
-
   - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
+
+
+

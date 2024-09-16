@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  pre_commit_check:
+    name: Pre-Commit Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: false
+          activate-environment: tiktorch-server-env
+          environment-file: environment.yml
+          channel-priority: flexible
+          miniforge-variant: Miniforge3
+      - name: Run Pre-Commit
+        run: |
+          echo $BRANCH_NAME
+          echo ${{ github.event.pull_request.base.ref }}
+          echo ${{ github.event.pull_request.head.sha }}
+          git fetch origin
+          pre-commit run --from-ref origin/${{ github.event.pull_request.base.ref }} --to-ref ${{ github.event.pull_request.head.sha }}
+
+  test-dev:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: false
+          activate-environment: tiktorch-server-env
+          environment-file: environment.yml
+          channel-priority: flexible
+          miniforge-variant: Miniforge3
+      - name: conda diagnostics
+        run: |
+          conda list
+          conda info
+      - name: install submodules
+        run: |
+          git submodule init
+          git submodule update
+          make install_submodules
+      - name: Run tests
+        run: |
+          pytest -v -s --cov=tiktorch --cov-report=xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+
+  conda-noarch-build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          channel-priority: flexible
+          miniforge-variant: Miniforge3
+      - name: install common conda dependencies
+        run: conda install -n base -c conda-forge conda-build setuptools_scm -y
+      - name: Cache Conda Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            pkgs/noarch
+            pkgs/channeldata.json
+          key: ${{ github.sha }}-packages
+      - id: version
+        run: |
+          vers=$( python setup.py --version )
+          echo "version=${vers}" >> $GITHUB_OUTPUT
+      - name: Linux Conda Build
+        run: |
+          mkdir -p ./pkgs/noarch
+          conda build -c ilastik-forge -c pytorch -c conda-forge \
+          conda-recipe --no-test --output-folder ./pkgs
+
+  test-build-conda-packages:
+    needs: [conda-noarch-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      TIKTORCH_PACKAGE_NAME: tiktorch-${{ needs.conda-noarch-build.outputs.version }}-py_0.tar.bz2
+    steps:
+      # Use GNU tar instead of BSD tar on Windows
+      - name: "Use GNU tar instead of BSD tar"
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: echo C:\Program Files\Git\usr\bin>>"%GITHUB_PATH%"
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          channel-priority: flexible
+          miniforge-variant: Miniforge3
+      - name: install common conda dependencies
+        run: conda install -n base -c conda-forge conda-build setuptools_scm -y
+      - name: Cache Conda Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            pkgs/noarch
+            pkgs/channeldata.json
+          key: ${{ github.sha }}-packages
+          enableCrossOsArchive: true
+      - name: Linux Test
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash -l {0}
+        run: |
+          conda build --test --override-channels \
+            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
+            ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
+      - name: macOS Test
+        if: matrix.os == 'macos-latest'
+        shell: bash -l {0}
+        run: |
+          conda build --test --override-channels \
+            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
+            ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
+      - name: Windows Test
+        if: matrix.os == 'windows-latest'
+        # HACK: due to a bug in conda-build need to point to
+        # libarchive explicitly.
+        # https://github.com/conda/conda/issues/12563#issuecomment-1494264704
+        env:
+          LIBARCHIVE: C:\Miniconda\Library\bin\archive.dll
+        shell: cmd /C CALL {0}
+        run: |
+          conda build --test --override-channels ^
+            -c %CD%\pkgs -c ilastik-forge -c pytorch -c conda-forge ^
+            .\pkgs\noarch\%TIKTORCH_PACKAGE_NAME%

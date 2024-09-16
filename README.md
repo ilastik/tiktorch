@@ -2,6 +2,7 @@
 [![CircleCI](https://circleci.com/gh/ilastik/tiktorch.svg?style=shield)](https://circleci.com/gh/ilastik/tiktorch)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Conda](https://anaconda.org/ilastik-forge/tiktorch/badges/version.svg)](https://anaconda.org/ilastik-forge/tiktorch)
+[![codecov](https://codecov.io/gh/ilastik/tiktorch/branch/main/graph/badge.svg)](https://codecov.io/gh/ilastik/tiktorch)
 
 `tiktorch` is the neural network prediction server for [`ilastik`](https://ilastik.org).
 The server is used in the [Neural Network Workflow](https://www.ilastik.org/documentation/nn/nn).
