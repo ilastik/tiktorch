@@ -35,12 +35,7 @@ setup(
         "pyyaml",
         "xarray",
     ],
-    extras_require={
-        "server-pytorch": [
-            "pytorch>=1.6",
-            "scikit-learn",
-        ]
-    },
+    extras_require={"server-pytorch": ["pytorch>=2", "scikit-learn", "torchvision"]},
     entry_points={"console_scripts": ["tiktorch=tiktorch.server.base:main"]},
     # extras_require={"test": ["pytest"]},
     project_urls={  # Optional

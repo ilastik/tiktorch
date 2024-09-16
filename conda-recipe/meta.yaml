@@ -26,7 +26,6 @@ requirements:
     - python >=3.8
   run:
     - python >=3.8
-    - pickle5  # [py37]
     {% for dep in setup_py_data['install_requires'] %}
     - {{ dep.lower() }}
     {% endfor %}
@@ -51,11 +50,11 @@ test:
     {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
     - {{ dep.lower() }}
     {% endfor %}
-    # this is still necessary, torchvision doesn't work properly with cpuonly mutex
     - python 3.9.*
-    - torchvision=*=*cpu
     - pytest
     - pytest-grpc
+    - cpuonly
+    - ilastik-pytorch-version-helper-cpu
   imports:
     # client
     - tiktorch

@@ -25,7 +25,7 @@ dependencies:
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support
-  - pytorch=2.4.*
+  - pytorch=2.3.*
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
   # - torchvision
