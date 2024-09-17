@@ -5,7 +5,7 @@ import threading
 import typing
 from concurrent.futures import Future
 
-from bioimageio.core.prediction_pipeline import PredictionPipeline
+from bioimageio.core import PredictionPipeline
 
 from tiktorch.configkeys import TRAINING, VALIDATION
 from tiktorch.server.session import types

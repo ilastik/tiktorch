@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 import queue
 
-import xarray as xr
-from bioimageio.core.prediction_pipeline import PredictionPipeline
+from bioimageio.core import PredictionPipeline
 
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
@@ -39,9 +38,7 @@ class Supervisor:
         return self._pipeline.max_num_iterations and self._pipeline.max_num_iterations > self._pipeline.iteration_count
 
     def forward(self, input_tensors):
-        results = self._pipeline.forward(*input_tensors)
-        for tensor in results:
-            isinstance(tensor, xr.DataArray), f"Not a DataArray, but a {type(tensor)}"
+        results = self._pipeline.predict_sample_without_blocking(input_tensors)
         return results
 
     def transition_to(self, new_state: types.State) -> None:

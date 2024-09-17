@@ -1,9 +1,18 @@
 import numpy as np
 import pytest
 import xarray as xr
+from bioimageio.spec.model.v0_5 import TensorId
 from numpy.testing import assert_array_equal
 
-from tiktorch.converters import Sample, numpy_to_pb_tensor, pb_tensor_to_numpy, pb_tensor_to_xarray, xarray_to_pb_tensor
+from tiktorch.converters import (
+    numpy_to_pb_tensor,
+    pb_tensor_to_numpy,
+    pb_tensor_to_xarray,
+    pb_tensors_to_sample,
+    sample_to_pb_tensors,
+    xarray_to_pb_tensor,
+    xr_tensors_to_sample,
+)
 from tiktorch.proto import inference_pb2
 
 
@@ -167,7 +176,7 @@ class TestPBTensorToXarray:
 
 
 class TestSample:
-    def test_create_sample_from_pb_tensors(self):
+    def test_pb_tensors_to_sample(self):
         arr_1 = np.arange(32 * 32, dtype=np.int64).reshape(32, 32)
         tensor_1 = inference_pb2.Tensor(
             dtype="int64",
@@ -184,22 +193,22 @@ class TestSample:
             shape=[inference_pb2.NamedInt(name="x", size=64), inference_pb2.NamedInt(name="y", size=64)],
         )
 
-        sample = Sample.from_pb_tensors([tensor_1, tensor_2])
-        assert len(sample.tensors) == 2
-        assert sample.tensors["input1"].equals(xr.DataArray(arr_1, dims=["x", "y"]))
-        assert sample.tensors["input2"].equals(xr.DataArray(arr_2, dims=["x", "y"]))
+        sample = pb_tensors_to_sample([tensor_1, tensor_2])
+        assert len(sample.members) == 2
+        assert sample.members[TensorId("input1")].data.equals(xr.DataArray(arr_1, dims=["x", "y"]))
+        assert sample.members[TensorId("input2")].data.equals(xr.DataArray(arr_2, dims=["x", "y"]))
 
-    def test_create_sample_from_raw_data(self):
+    def test_xr_tensors_to_sample(self):
         arr_1 = np.arange(32 * 32, dtype=np.int64).reshape(32, 32)
         tensor_1 = xr.DataArray(arr_1, dims=["x", "y"])
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
         tensor_2 = xr.DataArray(arr_2, dims=["x", "y"])
         tensors_ids = ["input1", "input2"]
-        actual_sample = Sample.from_xr_tensors(tensors_ids, [tensor_1, tensor_2])
 
-        expected_dict = {tensors_ids[0]: tensor_1, tensors_ids[1]: tensor_2}
-        expected_sample = Sample(expected_dict)
-        assert actual_sample == expected_sample
+        actual_sample = xr_tensors_to_sample(tensors_ids, [tensor_1, tensor_2])
+        assert len(actual_sample.members) == 2
+        assert actual_sample.members[TensorId("input1")].data.equals(tensor_1)
+        assert actual_sample.members[TensorId("input2")].data.equals(tensor_2)
 
     def test_sample_to_pb_tensors(self):
         arr_1 = np.arange(32 * 32, dtype=np.int64).reshape(32, 32)
@@ -207,7 +216,7 @@ class TestSample:
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
         tensor_2 = xr.DataArray(arr_2, dims=["x", "y"])
         tensors_ids = ["input1", "input2"]
-        sample = Sample.from_xr_tensors(tensors_ids, [tensor_1, tensor_2])
+        sample = xr_tensors_to_sample(tensors_ids, [tensor_1, tensor_2])
 
         pb_tensor_1 = inference_pb2.Tensor(
             dtype="int64",
@@ -223,5 +232,5 @@ class TestSample:
         )
         expected_tensors = [pb_tensor_1, pb_tensor_2]
 
-        actual_tensors = sample.to_pb_tensors()
+        actual_tensors = sample_to_pb_tensors(sample)
         assert expected_tensors == actual_tensors

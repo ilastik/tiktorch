@@ -1,41 +1,22 @@
 import faulthandler
-import io
 import logging.handlers
 import multiprocessing as mp
 import signal
 import sys
 import threading
-from collections import namedtuple
 from os import getenv
-from pathlib import Path
 from random import randint
-from zipfile import ZipFile
+from typing import Generator, List, Tuple
+from unittest.mock import create_autospec, patch
 
 import numpy as np
 import pytest
-from bioimageio.core.resource_io import export_resource_package
+import xarray as xr
+from bioimageio.core import AxisId, PredictionPipeline, Sample, Tensor
+from bioimageio.spec.model import v0_5
+from bioimageio.spec.model.v0_5 import TensorId
 
-TEST_DATA = "data"
-TEST_BIOIMAGEIO_ZIPFOLDER = "unet2d"
-TEST_BIOIMAGEIO_ONNX = "unet2d_onnx"
-TEST_BIOIMAGEIO_DUMMY_EXPLICIT = "dummy"
-TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF = f"{TEST_BIOIMAGEIO_DUMMY_EXPLICIT}/Dummy.model.yaml"
-TEST_BIOIMAGEIO_DUMMY_PARAM_RDF = "dummy_param/Dummy.model_param.yaml"
-TEST_BIOIMAGEIO_TENSORFLOW_DUMMY = "dummy_tensorflow"
-TEST_BIOIMAGEIO_TORCHSCRIPT = "unet2d_torchscript"
-
-NNModel = namedtuple("NNModel", ["model", "state"])
-
-
-@pytest.fixture
-def data_path():
-    conf_path = Path(__file__).parent
-    return conf_path / TEST_DATA
-
-
-def read_bytes(filename):
-    with open(filename, "rb") as file:
-        return file.read()
+from tiktorch.server.session import process
 
 
 @pytest.fixture
@@ -84,121 +65,115 @@ def assert_threads_cleanup():
         pytest.fail("Threads still running:\n\t%s" % "\n\t".join(running_threads))
 
 
-@pytest.fixture
-def bioimageio_model_bytes(data_path):
-    rdf_source = data_path / TEST_BIOIMAGEIO_ZIPFOLDER / "UNet2DNucleiBroad.model.yaml"
-    data = io.BytesIO()
-    export_resource_package(rdf_source, output_path=data)
-    return data
+MockedPredictionPipeline = Generator[Tuple[PredictionPipeline, Sample], None, None]
+
+
+def patched_prediction_pipeline(mocked_prediction_pipeline: PredictionPipeline):
+    return patch.object(process, "_get_prediction_pipeline_from_model_bytes", lambda *args: mocked_prediction_pipeline)
 
 
 @pytest.fixture
-def bioimageio_model_zipfile(bioimageio_model_bytes):
-    with ZipFile(bioimageio_model_bytes, mode="r") as zf:
-        yield zf
+def bioimage_model_explicit_siso() -> MockedPredictionPipeline:
+    mocked_prediction_pipeline, mocked_output_sample = _bioimage_model_siso(
+        [
+            v0_5.BatchAxis(),
+            v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+            v0_5.SpaceInputAxis(id="x", size=10),
+            v0_5.SpaceInputAxis(id="y", size=10),
+        ]
+    )
+    with patched_prediction_pipeline(mocked_prediction_pipeline):
+        yield mocked_prediction_pipeline, mocked_output_sample
 
 
 @pytest.fixture
-def bioimageio_dummy_model_filepath(data_path, tmpdir):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_DUMMY_EXPLICIT
-    path = tmpdir / "dummy_model.zip"
-
-    with ZipFile(path, mode="w") as zip_model:
-        for f_path in bioimageio_net_dir.iterdir():
-            if str(f_path.name).startswith("__"):
-                continue
-
-            with f_path.open(mode="rb") as f:
-                zip_model.writestr(f_path.name, f.read())
-
-    return path
+def bioimage_model_param_siso() -> MockedPredictionPipeline:
+    mocked_prediction_pipeline, mocked_output_sample = _bioimage_model_siso(
+        [
+            v0_5.BatchAxis(),
+            v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+            v0_5.SpaceInputAxis(id="x", size=v0_5.ParameterizedSize(min=10, step=2)),
+            v0_5.SpaceInputAxis(id="y", size=v0_5.ParameterizedSize(min=20, step=3)),
+        ]
+    )
+    with patched_prediction_pipeline(mocked_prediction_pipeline):
+        yield mocked_prediction_pipeline, mocked_output_sample
 
 
-@pytest.fixture
-def bioimageio_dummy_explicit_model_bytes(data_path):
-    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF
-    return _bioimageio_package(rdf_source)
+def _bioimage_model_siso(input_axes: List[v0_5.InputAxis]) -> Tuple[PredictionPipeline, Sample]:
+    """
+    Mocked bioimageio prediction pipeline with single input single output
+    """
 
-
-@pytest.fixture
-def bioimageio_dummy_param_model_bytes(data_path):
-    rdf_source = data_path / TEST_BIOIMAGEIO_DUMMY_PARAM_RDF
-    return _bioimageio_package(rdf_source)
-
-
-@pytest.fixture(params=[(TEST_BIOIMAGEIO_DUMMY_PARAM_RDF, "param"), (TEST_BIOIMAGEIO_DUMMY_EXPLICIT_RDF, "input")])
-def bioimageio_dummy_model(request, data_path):
-    path, tensor_id = request.param
-    yield _bioimageio_package(data_path / path), tensor_id
-
-
-def _bioimageio_package(rdf_source):
-    data = io.BytesIO()
-    export_resource_package(rdf_source, output_path=data)
-    return data
-
-
-def archive(directory):
-    result = io.BytesIO()
-
-    with ZipFile(result, mode="w") as zip_model:
-
-        def _archive(path_to_archive):
-            for path in path_to_archive.iterdir():
-                if str(path.name).startswith("__"):
-                    continue
-
-                if path.is_dir():
-                    _archive(path)
-
-                else:
-                    with path.open(mode="rb") as f:
-                        zip_model.writestr(str(path).replace(str(directory), ""), f.read())
-
-        _archive(directory)
-
-    return result
+    mocked_input = create_autospec(v0_5.InputTensorDescr)
+    mocked_input.id = "input"
+    mocked_input.axes = input_axes
+    return _bioimage_model([mocked_input])
 
 
 @pytest.fixture
-def bioimageio_dummy_tensorflow_model_bytes(data_path):
-    rdf_source = data_path / TEST_BIOIMAGEIO_TENSORFLOW_DUMMY / "rdf.yaml"
-    data = io.BytesIO()
-    export_resource_package(rdf_source, output_path=data)
-    return data
+def bioimage_model_miso() -> MockedPredictionPipeline:
+    """
+    Mocked bioimageio prediction pipeline with three inputs single output
+    """
+
+    mocked_input1 = create_autospec(v0_5.InputTensorDescr)
+    mocked_input1.id = "input1"
+    mocked_input1.axes = [
+        v0_5.BatchAxis(),
+        v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+        v0_5.SpaceInputAxis(id=AxisId("x"), size=10),
+        v0_5.SpaceInputAxis(id=AxisId("y"), size=v0_5.SizeReference(tensor_id="input3", axis_id="x")),
+    ]
+
+    mocked_input2 = create_autospec(v0_5.InputTensorDescr)
+    mocked_input2.id = "input2"
+    mocked_input2.axes = [
+        v0_5.BatchAxis(),
+        v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+        v0_5.SpaceInputAxis(id=AxisId("x"), size=v0_5.ParameterizedSize(min=10, step=2)),
+        v0_5.SpaceInputAxis(id=AxisId("y"), size=v0_5.ParameterizedSize(min=10, step=5)),
+    ]
+
+    mocked_input3 = create_autospec(v0_5.InputTensorDescr)
+    mocked_input3.id = "input3"
+    mocked_input3.axes = [
+        v0_5.BatchAxis(),
+        v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+        v0_5.SpaceInputAxis(id="x", size=v0_5.SizeReference(tensor_id="input2", axis_id="x")),
+        v0_5.SpaceInputAxis(id="y", size=10),
+    ]
+
+    mocked_prediction_pipeline, mocked_output_sample = _bioimage_model([mocked_input1, mocked_input2, mocked_input3])
+    with patched_prediction_pipeline(mocked_prediction_pipeline):
+        yield mocked_prediction_pipeline, mocked_output_sample
 
 
-@pytest.fixture
-def bioimageio_unet2d_onnx_bytes(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_ONNX
-    return archive(bioimageio_net_dir)
+def _bioimage_model(inputs: List[v0_5.InputTensorDescr]) -> Tuple[PredictionPipeline, Sample]:
+    mocked_descr = create_autospec(v0_5.ModelDescr)
 
+    mocked_output = create_autospec(v0_5.OutputTensorDescr)
+    mocked_output.id = "output"
+    mocked_output.axes = [
+        v0_5.BatchAxis(),
+        v0_5.ChannelAxis(channel_names=["channel1", "channel2"]),
+        v0_5.SpaceInputAxis(id=AxisId("x"), size=20),
+        v0_5.SpaceInputAxis(id=AxisId("y"), size=20),
+    ]
+    mocked_descr.inputs = inputs
+    mocked_descr.outputs = [mocked_output]
 
-@pytest.fixture
-def bioimageio_unet2d_onnx_test_data(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_ONNX
-    test_input = bioimageio_net_dir / "test_input.npy"
-    test_output = bioimageio_net_dir / "test_output.npy"
-    return {"test_input": test_input, "test_output": test_output}
+    mocked_output_sample = Sample(
+        members={
+            TensorId("output"): Tensor.from_xarray(
+                xr.DataArray(np.arange(2 * 20 * 20).reshape((1, 2, 20, 20)), dims=["batch", "channel", "x", "y"])
+            )
+        },
+        id=None,
+        stat={},
+    )
 
-
-@pytest.fixture
-def npy_zeros_file(tmpdir):
-    path = str(tmpdir / "zeros.npy")
-    zeros = np.zeros(shape=(64, 64))
-    np.save(path, zeros)
-    return path
-
-
-@pytest.fixture
-def bioimageio_unet2d_torchscript_bytes(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TORCHSCRIPT
-    return archive(bioimageio_net_dir)
-
-
-@pytest.fixture
-def bioimageio_unet2d_torchscript_test_data(data_path):
-    bioimageio_net_dir = Path(data_path) / TEST_BIOIMAGEIO_TORCHSCRIPT
-    test_input = bioimageio_net_dir / "test_input.npy"
-    test_output = bioimageio_net_dir / "test_output.npy"
-    return {"test_input": test_input, "test_output": test_output}
+    mocked_prediction_pipeline = create_autospec(PredictionPipeline)
+    mocked_prediction_pipeline.model_description = mocked_descr
+    mocked_prediction_pipeline.predict_sample_without_blocking.return_value = mocked_output_sample
+    return mocked_prediction_pipeline, mocked_output_sample

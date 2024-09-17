@@ -9,3 +9,4 @@ tiktorch/__pycache/
 /.#wrapper.py#
 .py~
 unet_sample.zip
+build
