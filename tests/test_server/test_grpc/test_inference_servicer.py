@@ -166,6 +166,18 @@ class TestForwardPass:
         assert pb_tensor.tensorId == "output"
         assert_array_equal(pb_tensor_to_xarray(res.tensors[0]), expected_output)
 
+    def test_call_predict_valid_explicit_v4(self, grpc_stub, bioimage_model_v4):
+        model_bytes, expected_output = bioimage_model_v4
+        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        arr = xr.DataArray(np.arange(2 * 10 * 10).reshape(1, 2, 10, 10), dims=("batch", "channel", "x", "y"))
+        input_tensor_id = "input"
+        input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
+        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        assert len(res.tensors) == 1
+        pb_tensor = res.tensors[0]
+        assert pb_tensor.tensorId == "output"
+        assert_array_equal(pb_tensor_to_xarray(res.tensors[0]), expected_output)
+
     def test_call_predict_invalid_shape_explicit(self, grpc_stub, bioimage_model_explicit_siso):
         model_bytes, expected_output = bioimage_model_explicit_siso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
@@ -231,7 +243,7 @@ class TestForwardPass:
         input_tensors = [converters.xarray_to_pb_tensor("invalidTensorName", arr)]
         with pytest.raises(grpc.RpcError) as error:
             grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-        assert error.value.details().startswith("Exception calling application: Spec invalidTensorName doesn't exist")
+        assert error.value.details().startswith("Exception calling application: Spec 'invalidTensorName' doesn't exist")
 
     @pytest.mark.parametrize(
         "axes",

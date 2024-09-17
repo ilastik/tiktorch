@@ -7,7 +7,7 @@ from multiprocessing.connection import Connection
 from typing import List, Optional, Tuple, Union
 
 from bioimageio.core import PredictionPipeline, Tensor, create_prediction_pipeline
-from bioimageio.spec import load_description
+from bioimageio.spec import InvalidDescr, load_description
 from bioimageio.spec.model import v0_5
 from bioimageio.spec.model.v0_5 import BatchAxis
 
@@ -75,7 +75,9 @@ class InputSampleValidator:
     def _get_spec(self, tensor_id: str) -> v0_5.InputTensorDescr:
         specs = [spec for spec in self._specs if tensor_id == spec.id]
         if len(specs) == 0:
-            raise ValueError(f"Spec {tensor_id} doesn't exist for specs {[spec.id for spec in self._specs]}")
+            raise ValueError(
+                f"Spec '{tensor_id}' doesn't exist for specs {','.join([spec.id for spec in self._specs])}"
+            )
         assert len(specs) == 1, "ids of tensor specs should be unique"
         return specs[0]
 
@@ -148,4 +150,7 @@ def _get_model_descr_from_model_bytes(model_bytes: bytes) -> v0_5.ModelDescr:
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as _tmp_file:
         _tmp_file.write(model_bytes)
         temp_file_path = pathlib.Path(_tmp_file.name)
-    return load_description(temp_file_path)
+    model_descr = load_description(temp_file_path, format_version="latest")
+    if isinstance(model_descr, InvalidDescr):
+        raise ValueError(f"Failed to load valid model descriptor {model_descr.validation_summary}")
+    return model_descr
