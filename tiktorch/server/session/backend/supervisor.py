@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import queue
 
-from bioimageio.core import PredictionPipeline
+from bioimageio.core import PredictionPipeline, Sample
 
 from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
@@ -37,8 +37,8 @@ class Supervisor:
     def has_work(self):
         return self._pipeline.max_num_iterations and self._pipeline.max_num_iterations > self._pipeline.iteration_count
 
-    def forward(self, input_tensors):
-        results = self._pipeline.predict_sample_without_blocking(input_tensors)
+    def forward(self, sample: Sample):
+        results = self._pipeline.predict_sample_without_blocking(sample)
         return results
 
     def transition_to(self, new_state: types.State) -> None:

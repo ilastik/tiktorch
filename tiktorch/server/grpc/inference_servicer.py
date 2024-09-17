@@ -6,7 +6,7 @@ from tiktorch.converters import pb_tensors_to_sample, sample_to_pb_tensors
 from tiktorch.proto import inference_pb2, inference_pb2_grpc
 from tiktorch.server.data_store import IDataStore
 from tiktorch.server.device_pool import DeviceStatus, IDevicePool
-from tiktorch.server.session.process import SampleValidator, start_model_session_process
+from tiktorch.server.session.process import InputSampleValidator, start_model_session_process
 from tiktorch.server.session_manager import Session, SessionManager
 
 
@@ -31,7 +31,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         lease = self.__device_pool.lease(request.deviceIds)
 
         try:
-            _, client = start_model_session_process(model_zip=content, devices=[d.id for d in lease.devices])
+            _, client = start_model_session_process(model_bytes=content, devices=[d.id for d in lease.devices])
         except Exception:
             lease.terminate()
             raise
@@ -85,7 +85,7 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
     def Predict(self, request: inference_pb2.PredictRequest, context) -> inference_pb2.PredictResponse:
         session = self._getModelSession(context, request.modelSessionId)
         input_sample = pb_tensors_to_sample(request.tensors)
-        tensor_validator = SampleValidator(session.bio_model_client.input_specs)
+        tensor_validator = InputSampleValidator(session.bio_model_client.input_specs)
         tensor_validator.check_tensors(input_sample)
         res = session.bio_model_client.api.forward(input_sample)
         return inference_pb2.PredictResponse(tensors=sample_to_pb_tensors(res))
