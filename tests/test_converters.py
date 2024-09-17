@@ -185,7 +185,7 @@ class TestSample:
             shape=[inference_pb2.NamedInt(name="x", size=32), inference_pb2.NamedInt(name="y", size=32)],
         )
 
-        arr_2 = np.arange(64 * 64, dtype=int).reshape(64, 64)
+        arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
         tensor_2 = inference_pb2.Tensor(
             dtype="int64",
             tensorId="input2",
