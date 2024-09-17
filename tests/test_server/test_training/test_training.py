@@ -27,7 +27,7 @@ class TestExemplumSupervisor:
         def set_break_callback(self, cb):
             self._break_cb = cb
 
-        def forward(self, input_tensors):
+        def predict_sample_without_blocking(self, input_tensors):
             return [xr.DataArray(np.array([42]), dims=("x",))]
 
         def set_max_num_iterations(self, val):

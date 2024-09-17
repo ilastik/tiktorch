@@ -1,29 +1,37 @@
 from __future__ import annotations
 
-import dataclasses
-from typing import Dict, List
+from typing import List
 
 import numpy as np
 import xarray as xr
+from bioimageio.core import Sample, Tensor
+from bioimageio.spec.model.v0_5 import TensorId
 
 from tiktorch.proto import inference_pb2
 
 
-@dataclasses.dataclass(frozen=True)
-class Sample:
-    tensors: Dict[str, xr.DataArray]
+def pb_tensors_to_sample(pb_tensors: List[inference_pb2.Tensor]) -> Sample:
+    return Sample(
+        members={TensorId(tensor.tensorId): Tensor.from_xarray(pb_tensor_to_xarray(tensor)) for tensor in pb_tensors},
+        id=None,
+        stat={},
+    )
 
-    @classmethod
-    def from_pb_tensors(cls, pb_tensors: List[inference_pb2.Tensor]) -> Sample:
-        return Sample({tensor.tensorId: pb_tensor_to_xarray(tensor) for tensor in pb_tensors})
 
-    @classmethod
-    def from_xr_tensors(cls, tensor_ids: List[str], tensors_data: List[xr.DataArray]) -> Sample:
-        assert len(tensor_ids) == len(tensors_data)
-        return Sample({tensor_id: tensor_data for tensor_id, tensor_data in zip(tensor_ids, tensors_data)})
+def xr_tensors_to_sample(tensor_ids: List[str], tensors_data: List[xr.DataArray]) -> Sample:
+    assert len(tensor_ids) == len(tensors_data)
+    return Sample(
+        members={
+            TensorId(tensor_id): Tensor.from_xarray(tensor_data)
+            for tensor_id, tensor_data in zip(tensor_ids, tensors_data)
+        },
+        id=None,
+        stat={},
+    )
 
-    def to_pb_tensors(self) -> List[inference_pb2.Tensor]:
-        return [xarray_to_pb_tensor(tensor_id, res_tensor) for tensor_id, res_tensor in self.tensors.items()]
+
+def sample_to_pb_tensors(sample: Sample) -> List[inference_pb2.Tensor]:
+    return [xarray_to_pb_tensor(tensor_id, res_tensor.data) for tensor_id, res_tensor in sample.members.items()]
 
 
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:

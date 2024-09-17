@@ -18,7 +18,7 @@ Reasons to install the server component:
 
 We have a how-to for the set up of a tiktorch prediction server (powerful machine with nvidia GPU) to connect to from your client (e.g. ilastik on a laptop): [Installation](#installation).
 
-If you are interested in running Model Zoo networks from Python directly, have a look at [`bioimageio.core`](https://github.com/bioimage-io/core-bioimage-io-python), where we have an [example notebook](https://github.com/bioimage-io/core-bioimage-io-python/blob/main/example/bioimageio-core-usage.ipynb) to get you started.
+If you are interested in running Model Zoo networks from Python directly, have a look at [`bioimageio.core`](https://github.com/bioimage-io/core-bioimage-io-python), where we have an [example notebook](https://github.com/bioimage-io/core-bioimage-io-python/blob/main/example/model_usage.ipynb) to get you started.
 
 
 ## Installation
