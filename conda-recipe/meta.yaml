@@ -55,6 +55,7 @@ test:
     - python 3.9.*
     - pytest
     - pytest-grpc
+    - pytest-timeout
     - cpuonly
     - ilastik-pytorch-version-helper-cpu
   imports:

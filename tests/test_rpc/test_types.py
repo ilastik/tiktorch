@@ -50,7 +50,7 @@ def test_rpcfuture_attach():
 
     fut.set_result(42)
 
-    assert rpc_fut.result(timeout=1) == 42
+    assert rpc_fut.result() == 42
 
 
 def test_rpcfuture_cancellation():
@@ -83,7 +83,7 @@ def test_propagates_only_once_2():
     fut.set_result(42)
     fut.cancel()
 
-    assert rpc_fut.result(timeout=1) == 42
+    assert rpc_fut.result() == 42
 
 
 def case_object() -> object():

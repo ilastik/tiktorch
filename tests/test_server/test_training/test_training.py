@@ -123,4 +123,4 @@ class TestExemplumSupervisor:
         fut = Future()
         forward_cmd = commands.ForwardPass(fut, [xr.DataArray(np.array([1]), dims=("x",))])
         supervisor.send_command(forward_cmd)
-        assert [42] == fut.result(timeout=0.5)
+        assert [42] == fut.result()
