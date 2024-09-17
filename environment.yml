@@ -48,6 +48,7 @@ dependencies:
   - pytest
   - pytest-cov
   - pytest-grpc
+  - pytest-timeout
   - bump2version
   - mypy
   - pre_commit

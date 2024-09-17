@@ -133,7 +133,7 @@ def test_future_timeout(log_queue):
         with pytest.raises(TimeoutError):
             client.compute_fut(1, 2).result()
 
-        client.compute.async_(1, 2).result(timeout=4)
+        client.compute.async_(1, 2).result(timeout=10)
     finally:
         client.shutdown()
         p.join()

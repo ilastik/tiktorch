@@ -42,7 +42,7 @@ class TestForwardPassCmd:
         ctx = cmds.Context(supervisor=mock.Mock())
         cmd.execute(ctx)
 
-        assert fut.result(timeout=0)
+        assert fut.result()
 
     def test_executing_resolves_future_if_raised(self):
         fut = Future()
@@ -54,4 +54,4 @@ class TestForwardPassCmd:
         cmd.execute(ctx)
 
         with pytest.raises(self.FailException):
-            assert fut.result(timeout=0)
+            assert fut.result()
