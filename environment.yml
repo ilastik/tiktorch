@@ -12,7 +12,7 @@ dependencies:
   - marshmallow-union
   - marshmallow=3.12.*
   - marshmallow-jsonschema
-  - protobuf
+  - protobuf<=4.25.3
   - pytest
   - pytest-grpc
   - pyyaml=5.3.*
@@ -22,6 +22,9 @@ dependencies:
   - scipy
   - typing-extensions
   - xarray
+
+  # must be commented out on arm-64 native (no mkl!)
+  - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support

@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="23.11.0",
+    version="24.9.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -31,7 +31,7 @@ setup(
         "bioimageio.core==0.5.9",
         "grpcio>=1.31",
         "numpy",
-        "protobuf",
+        "protobuf<=4.25.3",
         "pyyaml",
         "xarray",
     ],
