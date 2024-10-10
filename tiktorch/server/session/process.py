@@ -41,27 +41,20 @@ class InputSampleValidator:
                 ValueError(f"{axis.id} not found in {tensor.sizes}")
             if isinstance(axis, BatchAxis) and axis.size is None:
                 continue
-            if not self._is_size_valid(source_axis_size, target_axis_size):
-                raise ValueError(
-                    f"Incompatible axis for axis {axis.id} with {source_axis_size}. Got {target_axis_size}"
-                )
+            try:
+                self._validate_size(source_axis_size, target_axis_size)
+            except ValueError as e:
+                raise ValueError(f"Incompatible axis for axis {axis.id}. Reason: {e} ")
 
-    def _is_size_valid(self, source_size: Union[int, v0_5.ParameterizedSize, v0_5.SizeReference], target_size: int):
+    def _validate_size(self, source_size: Union[int, v0_5.ParameterizedSize, v0_5.SizeReference], target_size: int):
         if isinstance(source_size, v0_5.SizeReference):
             source_size = self._realize_size_reference(source_size)
 
         if isinstance(source_size, int):
-            return source_size == target_size
+            if source_size != target_size:
+                raise ValueError(f"{source_size} != {target_size}")
         elif isinstance(source_size, v0_5.ParameterizedSize):
-            min_size = source_size.min
-            step_size = source_size.step
-            if target_size < min_size:
-                return False
-            if step_size == 0:
-                return min_size == target_size
-            diff = target_size - min_size
-            num_increments = diff / step_size
-            return num_increments % 1 == 0
+            source_size.validate_size(target_size)
         else:
             raise ValueError(f"Unexpected size {source_size}")
 
