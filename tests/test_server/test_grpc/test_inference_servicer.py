@@ -3,6 +3,7 @@ import io
 import grpc
 import numpy as np
 import pytest
+import torch
 import xarray as xr
 from numpy.testing import assert_array_equal
 
@@ -155,7 +156,7 @@ class TestForwardPass:
         assert "model-session with id myid1 doesn't exist" in e.value.details()
 
     def test_call_predict_valid_explicit(self, grpc_stub, bioimage_model_explicit_siso):
-        model_bytes, expected_output = bioimage_model_explicit_siso
+        model_bytes, network = bioimage_model_explicit_siso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
@@ -164,10 +165,11 @@ class TestForwardPass:
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
+        expected_output = xr.DataArray(network(torch.from_numpy(arr.values)).numpy(), dims=arr.dims)
         assert_array_equal(pb_tensor_to_xarray(res.tensors[0]), expected_output)
 
     def test_call_predict_valid_explicit_v4(self, grpc_stub, bioimage_model_v4):
-        model_bytes, expected_output = bioimage_model_v4
+        model_bytes, network = bioimage_model_v4
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
@@ -176,6 +178,7 @@ class TestForwardPass:
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
+        expected_output = xr.DataArray(network(torch.from_numpy(arr.values)).numpy(), dims=arr.dims)
         assert_array_equal(pb_tensor_to_xarray(res.tensors[0]), expected_output)
 
     def test_call_predict_invalid_shape_explicit(self, grpc_stub, bioimage_model_explicit_siso):
@@ -188,7 +191,7 @@ class TestForwardPass:
         assert error.value.details().startswith("Exception calling application: Incompatible axis")
 
     def test_call_predict_multiple_inputs_with_reference(self, grpc_stub, bioimage_model_miso):
-        model_bytes, expected_output = bioimage_model_miso
+        model_bytes, network = bioimage_model_miso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
 
         arr1 = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
@@ -211,6 +214,7 @@ class TestForwardPass:
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
+        expected_output = xr.DataArray(network(torch.from_numpy(arr1.values)).numpy(), dims=arr1.dims)
         assert_array_equal(pb_tensor_to_xarray(res.tensors[0]), expected_output)
 
     @pytest.mark.parametrize("shape", [(1, 2, 10, 20), (1, 2, 12, 20), (1, 2, 10, 23), (1, 2, 12, 23)])
