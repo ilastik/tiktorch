@@ -157,7 +157,7 @@ class TestForwardPass:
     def test_call_predict_valid_explicit(self, grpc_stub, bioimage_model_explicit_siso):
         model_bytes, expected_output = bioimage_model_explicit_siso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
-        arr = xr.DataArray(np.arange(2 * 10 * 10).reshape(1, 2, 10, 10), dims=("batch", "channel", "x", "y"))
+        arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
@@ -169,7 +169,7 @@ class TestForwardPass:
     def test_call_predict_valid_explicit_v4(self, grpc_stub, bioimage_model_v4):
         model_bytes, expected_output = bioimage_model_v4
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
-        arr = xr.DataArray(np.arange(2 * 10 * 10).reshape(1, 2, 10, 10), dims=("batch", "channel", "x", "y"))
+        arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
@@ -191,13 +191,13 @@ class TestForwardPass:
         model_bytes, expected_output = bioimage_model_miso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
 
-        arr1 = xr.DataArray(np.arange(2 * 10 * 10).reshape(1, 2, 10, 10), dims=("batch", "channel", "x", "y"))
+        arr1 = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id1 = "input1"
 
-        arr2 = xr.DataArray(np.arange(2 * 10 * 15).reshape(1, 2, 10, 15), dims=("batch", "channel", "x", "y"))
+        arr2 = xr.DataArray(np.arange(2 * 12 * 21).reshape(1, 2, 12, 21), dims=("batch", "channel", "x", "y"))
         input_tensor_id2 = "input2"
 
-        arr3 = xr.DataArray(np.arange(2 * 10 * 12).reshape(1, 2, 12, 10), dims=("batch", "channel", "x", "y"))
+        arr3 = xr.DataArray(np.arange(2 * 14 * 20).reshape(1, 2, 14, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id3 = "input3"
 
         input_tensor_ids = [input_tensor_id1, input_tensor_id2, input_tensor_id3]
@@ -257,7 +257,7 @@ class TestForwardPass:
     def test_call_predict_invalid_axes(self, grpc_stub, axes, bioimage_model_explicit_siso):
         model_bytes, _ = bioimage_model_explicit_siso
         model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
-        arr = xr.DataArray(np.arange(2 * 10 * 10).reshape(1, 2, 10, 10), dims=axes)
+        arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=axes)
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         with pytest.raises(grpc.RpcError) as error:
