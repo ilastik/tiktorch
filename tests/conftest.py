@@ -141,9 +141,9 @@ def bioimage_model_miso() -> Tuple[io.BytesIO, xr.DataArray]:
     """
     Mocked bioimageio prediction pipeline with three inputs single output
     """
-    test_tensor1 = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
-    test_tensor2 = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
-    test_tensor3 = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
+    test_tensor1 = np.arange(1 * 2 * 10 * 20, dtype="float32").reshape(1, 2, 10, 20)
+    test_tensor2 = np.arange(1 * 2 * 12 * 21, dtype="float32").reshape(1, 2, 12, 21)
+    test_tensor3 = np.arange(1 * 2 * 12 * 20, dtype="float32").reshape(1, 2, 12, 20)
 
     with tempfile.NamedTemporaryFile(suffix=".npy", delete=False) as test_tensor1_file:
         np.save(test_tensor1_file.name, test_tensor1)
@@ -170,10 +170,10 @@ def bioimage_model_miso() -> Tuple[io.BytesIO, xr.DataArray]:
             BatchAxis(),
             ChannelAxis(channel_names=[Identifier("channel1"), Identifier("channel2")]),
             SpaceInputAxis(id=AxisId("x"), size=ParameterizedSize(min=10, step=2)),
-            SpaceInputAxis(id=AxisId("y"), size=ParameterizedSize(min=10, step=5)),
+            SpaceInputAxis(id=AxisId("y"), size=ParameterizedSize(min=21, step=5)),
         ],
         description="",
-        test_tensor=FileDescr(source=Path(test_tensor1_file.name)),
+        test_tensor=FileDescr(source=Path(test_tensor2_file.name)),
     )
 
     input3 = InputTensorDescr(
@@ -182,10 +182,10 @@ def bioimage_model_miso() -> Tuple[io.BytesIO, xr.DataArray]:
             BatchAxis(),
             ChannelAxis(channel_names=[Identifier("channel1"), Identifier("channel2")]),
             SpaceInputAxis(id=AxisId("x"), size=SizeReference(tensor_id=TensorId("input2"), axis_id=AxisId("x"))),
-            SpaceInputAxis(id=AxisId("y"), size=10),
+            SpaceInputAxis(id=AxisId("y"), size=20),
         ],
         description="",
-        test_tensor=FileDescr(source=Path(test_tensor1_file.name)),
+        test_tensor=FileDescr(source=Path(test_tensor3_file.name)),
     )
 
     dummy_model = _DummyNetwork()
@@ -203,12 +203,12 @@ def bioimage_model_miso() -> Tuple[io.BytesIO, xr.DataArray]:
         )
     )
 
-    output_test_tensor = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
+    output_test_tensor = np.arange(1 * 2 * 10 * 20, dtype="float32").reshape(1, 2, 10, 20)
     output_axes = [
         BatchAxis(),
         ChannelAxis(channel_names=[Identifier("channel1"), Identifier("channel2")]),
         SpaceOutputAxis(id=AxisId("x"), size=10),
-        SpaceOutputAxis(id=AxisId("y"), size=10),
+        SpaceOutputAxis(id=AxisId("y"), size=20),
     ]
 
     with tempfile.NamedTemporaryFile(suffix=".npy", delete=False) as output_test_tensor_file:
@@ -237,12 +237,12 @@ def _bioimage_model_dummy_v5_siso_torchscript(
         torchscript=TorchscriptWeightsDescr(source=Path(model_file.name), pytorch_version=Version("1.1.1"))
     )
 
-    output_test_tensor = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
+    output_test_tensor = np.arange(1 * 2 * 10 * 20, dtype="float32").reshape(1, 2, 10, 20)
     output_axes = [
         BatchAxis(),
         ChannelAxis(channel_names=[Identifier("channel1"), Identifier("channel2")]),
         SpaceOutputAxis(id=AxisId("x"), size=10),
-        SpaceOutputAxis(id=AxisId("y"), size=10),
+        SpaceOutputAxis(id=AxisId("y"), size=20),
     ]
 
     return (
@@ -275,12 +275,12 @@ def _bioimage_model_dummy_v5_siso_pytorch(
         )
     )
 
-    output_test_tensor = np.arange(1 * 2 * 10 * 10, dtype="float32").reshape(1, 2, 10, 10)
+    output_test_tensor = np.arange(1 * 2 * 10 * 20, dtype="float32").reshape(1, 2, 10, 20)
     output_axes = [
         BatchAxis(),
         ChannelAxis(channel_names=[Identifier("channel1"), Identifier("channel2")]),
         SpaceOutputAxis(id=AxisId("x"), size=10),
-        SpaceOutputAxis(id=AxisId("y"), size=10),
+        SpaceOutputAxis(id=AxisId("y"), size=20),
     ]
 
     return (
