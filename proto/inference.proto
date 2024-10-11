@@ -114,9 +114,3 @@ service FlightControl {
   rpc Shutdown(Empty) returns (Empty) {}
 }
 
-message CreateModelSessionChunkedRequest {
-  oneof data {
-    ModelInfo info = 1;
-    Blob chunk = 2;
-  }
-}

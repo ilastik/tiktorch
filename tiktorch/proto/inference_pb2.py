@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x9d\x01\n\nInputShape\x12(\n\tshapeType\x18\x01 \x01(\x0e\x32\x15.InputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x1d\n\tstepShape\x18\x04 \x01(\x0b\x32\n.NamedInts\"+\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x10\n\x0cPARAMETRIZED\x10\x01\"\xea\x01\n\x0bOutputShape\x12)\n\tshapeType\x18\x01 \x01(\x0e\x32\x16.OutputShape.ShapeType\x12\x19\n\x05shape\x18\x02 \x01(\x0b\x32\n.NamedInts\x12\x18\n\x04halo\x18\x03 \x01(\x0b\x32\n.NamedInts\x12\x17\n\x0freferenceTensor\x18\x04 \x01(\t\x12\x1b\n\x05scale\x18\x05 \x01(\x0b\x32\x0c.NamedFloats\x12\x1c\n\x06offset\x18\x06 \x01(\x0b\x32\x0c.NamedFloats\"\'\n\tShapeType\x12\x0c\n\x08\x45XPLICIT\x10\x00\x12\x0c\n\x08IMPLICIT\x10\x01\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty\"\x1e\n\tModelInfo\x12\x11\n\tdeviceIds\x18\x01 \x03(\t\"^\n CreateModelSessionChunkedRequest\x12\x1a\n\x04info\x18\x01 \x01(\x0b\x32\n.ModelInfoH\x00\x12\x16\n\x05\x63hunk\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x42\x06\n\x04\x64\x61ta2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"W\n\x1f\x43reateDatasetDescriptionRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x0c\n\x04mean\x18\x03 \x01(\x01\x12\x0e\n\x06stddev\x18\x04 \x01(\x01\" \n\x12\x44\x61tasetDescription\x12\n\n\x02id\x18\x01 \x01(\t\"\'\n\x04\x42lob\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"i\n\x19\x43reateModelSessionRequest\x12\x13\n\tmodel_uri\x18\x01 \x01(\tH\x00\x12\x1b\n\nmodel_blob\x18\x02 \x01(\x0b\x32\x05.BlobH\x00\x12\x11\n\tdeviceIds\x18\x05 \x03(\tB\x07\n\x05model\")\n\tNamedInts\x12\x1c\n\tnamedInts\x18\x01 \x03(\x0b\x32\t.NamedInt\"/\n\x0bNamedFloats\x12 \n\x0bnamedFloats\x18\x01 \x03(\x0b\x32\x0b.NamedFloat\"\x1a\n\x0cModelSession\x12\n\n\x02id\x18\x01 \x01(\t\"\x9e\x01\n\x08LogEntry\x12\x11\n\ttimestamp\x18\x01 \x01(\r\x12\x1e\n\x05level\x18\x02 \x01(\x0e\x32\x0f.LogEntry.Level\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"N\n\x05Level\x12\n\n\x06NOTSET\x10\x00\x12\t\n\x05\x44\x45\x42UG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x0b\n\x07WARNING\x10\x03\x12\t\n\x05\x45RROR\x10\x04\x12\x0c\n\x08\x43RITICAL\x10\x05\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Device\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"U\n\x0ePredictRequest\x12\x16\n\x0emodelSessionId\x18\x01 \x01(\t\x12\x11\n\tdatasetId\x18\x02 \x01(\t\x12\x18\n\x07tensors\x18\x03 \x03(\x0b\x32\x07.Tensor\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"\x07\n\x05\x45mpty2\xc6\x02\n\tInference\x12\x41\n\x12\x43reateModelSession\x12\x1a.CreateModelSessionRequest\x1a\r.ModelSession\"\x00\x12,\n\x11\x43loseModelSession\x12\r.ModelSession\x1a\x06.Empty\"\x00\x12S\n\x18\x43reateDatasetDescription\x12 .CreateDatasetDescriptionRequest\x1a\x13.DatasetDescription\"\x00\x12 \n\x07GetLogs\x12\x06.Empty\x1a\t.LogEntry\"\x00\x30\x01\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12.\n\x07Predict\x12\x0f.PredictRequest\x1a\x10.PredictResponse\"\x00\x32G\n\rFlightControl\x12\x18\n\x04Ping\x12\x06.Empty\x1a\x06.Empty\"\x00\x12\x1c\n\x08Shutdown\x12\x06.Empty\x1a\x06.Empty\"\x00\x62\x06proto3')
 
 
 
@@ -25,8 +25,6 @@ _BLOB = DESCRIPTOR.message_types_by_name['Blob']
 _CREATEMODELSESSIONREQUEST = DESCRIPTOR.message_types_by_name['CreateModelSessionRequest']
 _NAMEDINTS = DESCRIPTOR.message_types_by_name['NamedInts']
 _NAMEDFLOATS = DESCRIPTOR.message_types_by_name['NamedFloats']
-_INPUTSHAPE = DESCRIPTOR.message_types_by_name['InputShape']
-_OUTPUTSHAPE = DESCRIPTOR.message_types_by_name['OutputShape']
 _MODELSESSION = DESCRIPTOR.message_types_by_name['ModelSession']
 _LOGENTRY = DESCRIPTOR.message_types_by_name['LogEntry']
 _DEVICES = DESCRIPTOR.message_types_by_name['Devices']
@@ -36,11 +34,7 @@ _TENSOR = DESCRIPTOR.message_types_by_name['Tensor']
 _PREDICTREQUEST = DESCRIPTOR.message_types_by_name['PredictRequest']
 _PREDICTRESPONSE = DESCRIPTOR.message_types_by_name['PredictResponse']
 _EMPTY = DESCRIPTOR.message_types_by_name['Empty']
-_MODELINFO = DESCRIPTOR.message_types_by_name['ModelInfo']
-_CREATEMODELSESSIONCHUNKEDREQUEST = DESCRIPTOR.message_types_by_name['CreateModelSessionChunkedRequest']
 _DEVICE_STATUS = _DEVICE.enum_types_by_name['Status']
-_INPUTSHAPE_SHAPETYPE = _INPUTSHAPE.enum_types_by_name['ShapeType']
-_OUTPUTSHAPE_SHAPETYPE = _OUTPUTSHAPE.enum_types_by_name['ShapeType']
 _LOGENTRY_LEVEL = _LOGENTRY.enum_types_by_name['Level']
 Device = _reflection.GeneratedProtocolMessageType('Device', (_message.Message,), {
   'DESCRIPTOR' : _DEVICE,
@@ -90,20 +84,6 @@ NamedFloats = _reflection.GeneratedProtocolMessageType('NamedFloats', (_message.
   # @@protoc_insertion_point(class_scope:NamedFloats)
   })
 _sym_db.RegisterMessage(NamedFloats)
-
-InputShape = _reflection.GeneratedProtocolMessageType('InputShape', (_message.Message,), {
-  'DESCRIPTOR' : _INPUTSHAPE,
-  '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:InputShape)
-  })
-_sym_db.RegisterMessage(InputShape)
-
-OutputShape = _reflection.GeneratedProtocolMessageType('OutputShape', (_message.Message,), {
-  'DESCRIPTOR' : _OUTPUTSHAPE,
-  '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:OutputShape)
-  })
-_sym_db.RegisterMessage(OutputShape)
 
 ModelSession = _reflection.GeneratedProtocolMessageType('ModelSession', (_message.Message,), {
   'DESCRIPTOR' : _MODELSESSION,
@@ -168,20 +148,6 @@ Empty = _reflection.GeneratedProtocolMessageType('Empty', (_message.Message,), {
   })
 _sym_db.RegisterMessage(Empty)
 
-ModelInfo = _reflection.GeneratedProtocolMessageType('ModelInfo', (_message.Message,), {
-  'DESCRIPTOR' : _MODELINFO,
-  '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:ModelInfo)
-  })
-_sym_db.RegisterMessage(ModelInfo)
-
-CreateModelSessionChunkedRequest = _reflection.GeneratedProtocolMessageType('CreateModelSessionChunkedRequest', (_message.Message,), {
-  'DESCRIPTOR' : _CREATEMODELSESSIONCHUNKEDREQUEST,
-  '__module__' : 'inference_pb2'
-  # @@protoc_insertion_point(class_scope:CreateModelSessionChunkedRequest)
-  })
-_sym_db.RegisterMessage(CreateModelSessionChunkedRequest)
-
 _INFERENCE = DESCRIPTOR.services_by_name['Inference']
 _FLIGHTCONTROL = DESCRIPTOR.services_by_name['FlightControl']
 if _descriptor._USE_C_DESCRIPTORS == False:
@@ -203,40 +169,28 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _NAMEDINTS._serialized_end=422
   _NAMEDFLOATS._serialized_start=424
   _NAMEDFLOATS._serialized_end=471
-  _INPUTSHAPE._serialized_start=474
-  _INPUTSHAPE._serialized_end=631
-  _INPUTSHAPE_SHAPETYPE._serialized_start=588
-  _INPUTSHAPE_SHAPETYPE._serialized_end=631
-  _OUTPUTSHAPE._serialized_start=634
-  _OUTPUTSHAPE._serialized_end=868
-  _OUTPUTSHAPE_SHAPETYPE._serialized_start=829
-  _OUTPUTSHAPE_SHAPETYPE._serialized_end=868
-  _MODELSESSION._serialized_start=870
-  _MODELSESSION._serialized_end=896
-  _LOGENTRY._serialized_start=899
-  _LOGENTRY._serialized_end=1057
-  _LOGENTRY_LEVEL._serialized_start=979
-  _LOGENTRY_LEVEL._serialized_end=1057
-  _DEVICES._serialized_start=1059
-  _DEVICES._serialized_end=1094
-  _NAMEDINT._serialized_start=1096
-  _NAMEDINT._serialized_end=1134
-  _NAMEDFLOAT._serialized_start=1136
-  _NAMEDFLOAT._serialized_end=1176
-  _TENSOR._serialized_start=1178
-  _TENSOR._serialized_end=1261
-  _PREDICTREQUEST._serialized_start=1263
-  _PREDICTREQUEST._serialized_end=1348
-  _PREDICTRESPONSE._serialized_start=1350
-  _PREDICTRESPONSE._serialized_end=1393
-  _EMPTY._serialized_start=1395
-  _EMPTY._serialized_end=1402
-  _MODELINFO._serialized_start=1404
-  _MODELINFO._serialized_end=1434
-  _CREATEMODELSESSIONCHUNKEDREQUEST._serialized_start=1436
-  _CREATEMODELSESSIONCHUNKEDREQUEST._serialized_end=1530
-  _INFERENCE._serialized_start=1533
-  _INFERENCE._serialized_end=1859
-  _FLIGHTCONTROL._serialized_start=1861
-  _FLIGHTCONTROL._serialized_end=1932
+  _MODELSESSION._serialized_start=473
+  _MODELSESSION._serialized_end=499
+  _LOGENTRY._serialized_start=502
+  _LOGENTRY._serialized_end=660
+  _LOGENTRY_LEVEL._serialized_start=582
+  _LOGENTRY_LEVEL._serialized_end=660
+  _DEVICES._serialized_start=662
+  _DEVICES._serialized_end=697
+  _NAMEDINT._serialized_start=699
+  _NAMEDINT._serialized_end=737
+  _NAMEDFLOAT._serialized_start=739
+  _NAMEDFLOAT._serialized_end=779
+  _TENSOR._serialized_start=781
+  _TENSOR._serialized_end=864
+  _PREDICTREQUEST._serialized_start=866
+  _PREDICTREQUEST._serialized_end=951
+  _PREDICTRESPONSE._serialized_start=953
+  _PREDICTRESPONSE._serialized_end=996
+  _EMPTY._serialized_start=998
+  _EMPTY._serialized_end=1005
+  _INFERENCE._serialized_start=1008
+  _INFERENCE._serialized_end=1334
+  _FLIGHTCONTROL._serialized_start=1336
+  _FLIGHTCONTROL._serialized_end=1407
 # @@protoc_insertion_point(module_scope)
