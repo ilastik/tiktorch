@@ -3,6 +3,7 @@
 # source: data_store.proto
 """Generated protocol buffer code."""
 from google.protobuf import descriptor as _descriptor
+from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
@@ -13,210 +14,15 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor.FileDescriptor(
-  name='data_store.proto',
-  package='',
-  syntax='proto3',
-  serialized_options=None,
-  create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x10\x64\x61ta_store.proto\":\n\x0eUploadResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x0e\n\x06sha256\x18\x03 \x01(\t\"\x1a\n\nUploadInfo\x12\x0c\n\x04size\x18\x01 \x01(\r\"J\n\rUploadRequest\x12\x1b\n\x04info\x18\x01 \x01(\x0b\x32\x0b.UploadInfoH\x00\x12\x11\n\x07\x63ontent\x18\x02 \x01(\x0cH\x00\x42\t\n\x07payload\"!\n\rRemoveRequest\x12\x10\n\x08uploadId\x18\x01 \x01(\t\"\x10\n\x0eRemoveResponse2g\n\tDataStore\x12-\n\x06Upload\x12\x0e.UploadRequest\x1a\x0f.UploadResponse\"\x00(\x01\x12+\n\x06Remove\x12\x0e.RemoveRequest\x1a\x0f.RemoveResponse\"\x00\x62\x06proto3'
-)
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x64\x61ta_store.proto\":\n\x0eUploadResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x0e\n\x06sha256\x18\x03 \x01(\t\"\x1a\n\nUploadInfo\x12\x0c\n\x04size\x18\x01 \x01(\r\"J\n\rUploadRequest\x12\x1b\n\x04info\x18\x01 \x01(\x0b\x32\x0b.UploadInfoH\x00\x12\x11\n\x07\x63ontent\x18\x02 \x01(\x0cH\x00\x42\t\n\x07payload\"!\n\rRemoveRequest\x12\x10\n\x08uploadId\x18\x01 \x01(\t\"\x10\n\x0eRemoveResponse2g\n\tDataStore\x12-\n\x06Upload\x12\x0e.UploadRequest\x1a\x0f.UploadResponse\"\x00(\x01\x12+\n\x06Remove\x12\x0e.RemoveRequest\x1a\x0f.RemoveResponse\"\x00\x62\x06proto3')
 
 
 
-
-_UPLOADRESPONSE = _descriptor.Descriptor(
-  name='UploadResponse',
-  full_name='UploadResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='id', full_name='UploadResponse.id', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='size', full_name='UploadResponse.size', index=1,
-      number=2, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='sha256', full_name='UploadResponse.sha256', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=20,
-  serialized_end=78,
-)
-
-
-_UPLOADINFO = _descriptor.Descriptor(
-  name='UploadInfo',
-  full_name='UploadInfo',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='size', full_name='UploadInfo.size', index=0,
-      number=1, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=80,
-  serialized_end=106,
-)
-
-
-_UPLOADREQUEST = _descriptor.Descriptor(
-  name='UploadRequest',
-  full_name='UploadRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='info', full_name='UploadRequest.info', index=0,
-      number=1, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='content', full_name='UploadRequest.content', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-    _descriptor.OneofDescriptor(
-      name='payload', full_name='UploadRequest.payload',
-      index=0, containing_type=None,
-      create_key=_descriptor._internal_create_key,
-    fields=[]),
-  ],
-  serialized_start=108,
-  serialized_end=182,
-)
-
-
-_REMOVEREQUEST = _descriptor.Descriptor(
-  name='RemoveRequest',
-  full_name='RemoveRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='uploadId', full_name='RemoveRequest.uploadId', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=184,
-  serialized_end=217,
-)
-
-
-_REMOVERESPONSE = _descriptor.Descriptor(
-  name='RemoveResponse',
-  full_name='RemoveResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=219,
-  serialized_end=235,
-)
-
-_UPLOADREQUEST.fields_by_name['info'].message_type = _UPLOADINFO
-_UPLOADREQUEST.oneofs_by_name['payload'].fields.append(
-  _UPLOADREQUEST.fields_by_name['info'])
-_UPLOADREQUEST.fields_by_name['info'].containing_oneof = _UPLOADREQUEST.oneofs_by_name['payload']
-_UPLOADREQUEST.oneofs_by_name['payload'].fields.append(
-  _UPLOADREQUEST.fields_by_name['content'])
-_UPLOADREQUEST.fields_by_name['content'].containing_oneof = _UPLOADREQUEST.oneofs_by_name['payload']
-DESCRIPTOR.message_types_by_name['UploadResponse'] = _UPLOADRESPONSE
-DESCRIPTOR.message_types_by_name['UploadInfo'] = _UPLOADINFO
-DESCRIPTOR.message_types_by_name['UploadRequest'] = _UPLOADREQUEST
-DESCRIPTOR.message_types_by_name['RemoveRequest'] = _REMOVEREQUEST
-DESCRIPTOR.message_types_by_name['RemoveResponse'] = _REMOVERESPONSE
-_sym_db.RegisterFileDescriptor(DESCRIPTOR)
-
+_UPLOADRESPONSE = DESCRIPTOR.message_types_by_name['UploadResponse']
+_UPLOADINFO = DESCRIPTOR.message_types_by_name['UploadInfo']
+_UPLOADREQUEST = DESCRIPTOR.message_types_by_name['UploadRequest']
+_REMOVEREQUEST = DESCRIPTOR.message_types_by_name['RemoveRequest']
+_REMOVERESPONSE = DESCRIPTOR.message_types_by_name['RemoveResponse']
 UploadResponse = _reflection.GeneratedProtocolMessageType('UploadResponse', (_message.Message,), {
   'DESCRIPTOR' : _UPLOADRESPONSE,
   '__module__' : 'data_store_pb2'
@@ -252,41 +58,20 @@ RemoveResponse = _reflection.GeneratedProtocolMessageType('RemoveResponse', (_me
   })
 _sym_db.RegisterMessage(RemoveResponse)
 
+_DATASTORE = DESCRIPTOR.services_by_name['DataStore']
+if _descriptor._USE_C_DESCRIPTORS == False:
 
-
-_DATASTORE = _descriptor.ServiceDescriptor(
-  name='DataStore',
-  full_name='DataStore',
-  file=DESCRIPTOR,
-  index=0,
-  serialized_options=None,
-  create_key=_descriptor._internal_create_key,
-  serialized_start=237,
-  serialized_end=340,
-  methods=[
-  _descriptor.MethodDescriptor(
-    name='Upload',
-    full_name='DataStore.Upload',
-    index=0,
-    containing_service=None,
-    input_type=_UPLOADREQUEST,
-    output_type=_UPLOADRESPONSE,
-    serialized_options=None,
-    create_key=_descriptor._internal_create_key,
-  ),
-  _descriptor.MethodDescriptor(
-    name='Remove',
-    full_name='DataStore.Remove',
-    index=1,
-    containing_service=None,
-    input_type=_REMOVEREQUEST,
-    output_type=_REMOVERESPONSE,
-    serialized_options=None,
-    create_key=_descriptor._internal_create_key,
-  ),
-])
-_sym_db.RegisterServiceDescriptor(_DATASTORE)
-
-DESCRIPTOR.services_by_name['DataStore'] = _DATASTORE
-
+  DESCRIPTOR._options = None
+  _UPLOADRESPONSE._serialized_start=20
+  _UPLOADRESPONSE._serialized_end=78
+  _UPLOADINFO._serialized_start=80
+  _UPLOADINFO._serialized_end=106
+  _UPLOADREQUEST._serialized_start=108
+  _UPLOADREQUEST._serialized_end=182
+  _REMOVEREQUEST._serialized_start=184
+  _REMOVEREQUEST._serialized_end=217
+  _REMOVERESPONSE._serialized_start=219
+  _REMOVERESPONSE._serialized_end=235
+  _DATASTORE._serialized_start=237
+  _DATASTORE._serialized_end=340
 # @@protoc_insertion_point(module_scope)
