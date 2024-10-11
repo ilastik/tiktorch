@@ -27,7 +27,7 @@ class TestExemplumSupervisor:
         def set_break_callback(self, cb):
             self._break_cb = cb
 
-        def forward(self, input_tensors):
+        def predict_sample_without_blocking(self, input_tensors):
             return [xr.DataArray(np.array([42]), dims=("x",))]
 
         def set_max_num_iterations(self, val):
@@ -123,4 +123,4 @@ class TestExemplumSupervisor:
         fut = Future()
         forward_cmd = commands.ForwardPass(fut, [xr.DataArray(np.array([1]), dims=("x",))])
         supervisor.send_command(forward_cmd)
-        assert [42] == fut.result(timeout=0.5)
+        assert [42] == fut.result()

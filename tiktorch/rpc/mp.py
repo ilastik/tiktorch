@@ -9,7 +9,7 @@ from threading import Event, Thread
 from typing import Any, List, Optional, Type, TypeVar
 from uuid import uuid4
 
-from bioimageio.core.resource_io import nodes
+from bioimageio.spec.model import v0_5
 
 from ..server.session import IRPCModelSession
 from .exceptions import Shutdown
@@ -113,8 +113,8 @@ def create_client_api(iface_cls: Type[T], conn: Connection, timeout=None) -> T:
 @dataclasses.dataclass(frozen=True)
 class BioModelClient:
     api: IRPCModelSession
-    input_specs: List[nodes.InputTensor]
-    output_specs: List[nodes.OutputTensor]
+    input_specs: List[v0_5.InputTensorDescr]
+    output_specs: List[v0_5.OutputTensorDescr]
 
 
 class MPClient:

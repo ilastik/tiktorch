@@ -1,55 +1,37 @@
 from __future__ import annotations
 
-import dataclasses
-from typing import Dict, List, Tuple, Union
+from typing import List
 
 import numpy as np
 import xarray as xr
+from bioimageio.core import Sample, Tensor
+from bioimageio.spec.model.v0_5 import TensorId
 
 from tiktorch.proto import inference_pb2
 
-# pairs of axis-shape for a single tensor
-NamedInt = Tuple[str, int]
-NamedFloat = Tuple[str, float]
-NamedShape = List[NamedInt]
-NamedVec = List[NamedFloat]
+
+def pb_tensors_to_sample(pb_tensors: List[inference_pb2.Tensor]) -> Sample:
+    return Sample(
+        members={TensorId(tensor.tensorId): Tensor.from_xarray(pb_tensor_to_xarray(tensor)) for tensor in pb_tensors},
+        id=None,
+        stat={},
+    )
 
 
-@dataclasses.dataclass
-class NamedParametrizedShape:
-    min_shape: NamedShape
-    step_shape: NamedShape
+def xr_tensors_to_sample(tensor_ids: List[str], tensors_data: List[xr.DataArray]) -> Sample:
+    assert len(tensor_ids) == len(tensors_data)
+    return Sample(
+        members={
+            TensorId(tensor_id): Tensor.from_xarray(tensor_data)
+            for tensor_id, tensor_data in zip(tensor_ids, tensors_data)
+        },
+        id=None,
+        stat={},
+    )
 
 
-@dataclasses.dataclass
-class NamedExplicitOutputShape:
-    shape: NamedShape
-    halo: NamedShape
-
-
-@dataclasses.dataclass
-class NamedImplicitOutputShape:
-    reference_tensor: str
-    offset: NamedShape
-    scale: NamedVec
-    halo: NamedShape
-
-
-@dataclasses.dataclass(frozen=True)
-class Sample:
-    tensors: Dict[str, xr.DataArray]
-
-    @classmethod
-    def from_pb_tensors(cls, pb_tensors: List[inference_pb2.Tensor]) -> Sample:
-        return Sample({tensor.tensorId: pb_tensor_to_xarray(tensor) for tensor in pb_tensors})
-
-    @classmethod
-    def from_xr_tensors(cls, tensor_ids: List[str], tensors_data: List[xr.DataArray]) -> Sample:
-        assert len(tensor_ids) == len(tensors_data)
-        return Sample({tensor_id: tensor_data for tensor_id, tensor_data in zip(tensor_ids, tensors_data)})
-
-    def to_pb_tensors(self) -> List[inference_pb2.Tensor]:
-        return [xarray_to_pb_tensor(tensor_id, res_tensor) for tensor_id, res_tensor in self.tensors.items()]
+def sample_to_pb_tensors(sample: Sample) -> List[inference_pb2.Tensor]:
+    return [xarray_to_pb_tensor(tensor_id, res_tensor.data) for tensor_id, res_tensor in sample.members.items()]
 
 
 def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
@@ -75,41 +57,6 @@ def name_float_tuples_to_pb_NamedFloats(name_float_tuples) -> inference_pb2.Name
     return inference_pb2.NamedFloats(
         namedFloats=[inference_pb2.NamedFloat(size=dim, name=name) for name, dim in name_float_tuples]
     )
-
-
-def input_shape_to_pb_input_shape(input_shape: Union[NamedShape, NamedParametrizedShape]) -> inference_pb2.InputShape:
-    if isinstance(input_shape, NamedParametrizedShape):
-        return inference_pb2.InputShape(
-            shapeType=1,
-            shape=name_int_tuples_to_pb_NamedInts(input_shape.min_shape),
-            stepShape=name_int_tuples_to_pb_NamedInts(input_shape.step_shape),
-        )
-    else:
-        return inference_pb2.InputShape(
-            shapeType=0,
-            shape=name_int_tuples_to_pb_NamedInts(input_shape),
-        )
-
-
-def output_shape_to_pb_output_shape(
-    output_shape: Union[NamedExplicitOutputShape, NamedImplicitOutputShape]
-) -> inference_pb2.InputShape:
-    if isinstance(output_shape, NamedImplicitOutputShape):
-        return inference_pb2.OutputShape(
-            shapeType=1,
-            halo=name_int_tuples_to_pb_NamedInts(output_shape.halo),
-            referenceTensor=output_shape.reference_tensor,
-            scale=name_float_tuples_to_pb_NamedFloats(output_shape.scale),
-            offset=name_float_tuples_to_pb_NamedFloats(output_shape.offset),
-        )
-    elif isinstance(output_shape, NamedExplicitOutputShape):
-        return inference_pb2.OutputShape(
-            shapeType=0,
-            shape=name_int_tuples_to_pb_NamedInts(output_shape.shape),
-            halo=name_int_tuples_to_pb_NamedInts(output_shape.halo),
-        )
-    else:
-        raise TypeError(f"Conversion not supported for type {type(output_shape)}")
 
 
 def pb_tensor_to_xarray(tensor: inference_pb2.Tensor) -> inference_pb2.Tensor:
