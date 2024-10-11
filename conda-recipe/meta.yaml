@@ -24,6 +24,8 @@ requirements:
   host:
     - pip
     - python >=3.8
+    - setuptools >=40.0
+    - setuptools_scm
   run:
     - python >=3.8
     {% for dep in setup_py_data['install_requires'] %}
