@@ -9,7 +9,6 @@ from typing import List, Optional, Tuple, Union
 from bioimageio.core import PredictionPipeline, Tensor, create_prediction_pipeline
 from bioimageio.spec import InvalidDescr, load_description
 from bioimageio.spec.model import v0_5
-from bioimageio.spec.model.v0_5 import BatchAxis
 
 from tiktorch import log
 from tiktorch.rpc import Shutdown
@@ -37,9 +36,7 @@ class InputSampleValidator:
         for axis in spec.axes:
             source_axis_size = axis.size
             target_axis_size = tensor.sizes[axis.id]
-            if axis.id not in tensor.sizes:
-                ValueError(f"{axis.id} not found in {tensor.sizes}")
-            if isinstance(axis, BatchAxis) and axis.size is None:
+            if source_axis_size is None:
                 continue
             try:
                 self._validate_size(source_axis_size, target_axis_size)

@@ -34,12 +34,12 @@ def sample_to_pb_tensors(sample: Sample) -> List[inference_pb2.Tensor]:
     return [xarray_to_pb_tensor(tensor_id, res_tensor.data) for tensor_id, res_tensor in sample.members.items()]
 
 
-def numpy_to_pb_tensor(array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
+def numpy_to_pb_tensor(tensor_id: str, array: np.ndarray, axistags=None) -> inference_pb2.Tensor:
     if axistags:
         shape = [inference_pb2.NamedInt(size=dim, name=name) for dim, name in zip(array.shape, axistags)]
     else:
         shape = [inference_pb2.NamedInt(size=dim) for dim in array.shape]
-    return inference_pb2.Tensor(dtype=str(array.dtype), shape=shape, buffer=bytes(array))
+    return inference_pb2.Tensor(tensorId=tensor_id, dtype=str(array.dtype), shape=shape, buffer=bytes(array))
 
 
 def xarray_to_pb_tensor(tensor_id: str, array: xr.DataArray) -> inference_pb2.Tensor:
