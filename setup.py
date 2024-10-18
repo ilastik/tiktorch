@@ -28,7 +28,7 @@ setup(
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
         "bioimageio.spec==0.5.3.3",
-        "bioimageio.core==0.6.9",
+        "bioimageio.core==0.6.10",
         "grpcio>=1.31",
         "numpy<2",  # pytorch 2.2.2-py3.9_0 for macos is compiled with numpy 1.*
         "protobuf",
