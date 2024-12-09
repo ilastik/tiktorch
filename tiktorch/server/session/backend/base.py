@@ -1,60 +1,91 @@
 from __future__ import annotations
 
 import logging
-import threading
-import typing
+from abc import ABC
 from concurrent.futures import Future
 
 from bioimageio.core import PredictionPipeline
 
 from tiktorch.configkeys import TRAINING, VALIDATION
-from tiktorch.server.session import types
-from tiktorch.server.session.backend import commands, supervisor
+from tiktorch.server.session.backend import commands
+from tiktorch.server.session.backend.supervisor import BioModelSupervisor, QueueTasks, TrainerState, TrainerSupervisor
 from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
 
-class SessionBackend:
+class SessionBackend(ABC):
+    def __init__(self, supervisor):
+        self._supervisor = supervisor
+        self._queue_tasks = QueueTasks(supervisor)
+        self._queue_tasks.start()
+
+    def shutdown(self):
+        self._queue_tasks.shutdown()
+        logger.debug("Shutdown complete")
+
+
+class BioModelSessionBackend(SessionBackend):
+    """Session backend for bioimageio models
+
+    Currently used only for inference.
+    """
+
     def __init__(self, pipeline: PredictionPipeline):
-        self._supervisor = supervisor.Supervisor(pipeline)
-        self._supervisor_thread = threading.Thread(target=self._supervisor.run, name="ModelThread")
-        self._supervisor_thread.start()
+        supervisor = BioModelSupervisor(pipeline)
+        super().__init__(supervisor)
 
     def update_dataset(self, name: str, *, data: TikTensorBatch, labels: TikTensorBatch) -> None:
         assert name in (TRAINING, VALIDATION), f"{name} not in ({TRAINING}, {VALIDATION})"
         update_cmd = commands.UpdateDatasetCmd(name, raw_data=data, labels=labels)
-        self._supervisor.send_command(update_cmd)
+        self._queue_tasks.send_command(update_cmd)
 
     def set_max_num_iterations(self, num: int) -> None:
-        self._supervisor.send_command(commands.SetMaxNumIterations(num))
+        self._queue_tasks.send_command(commands.SetMaxNumIterations(num))
 
     def forward(self, input_tensors):
         res = Future()
-        self._supervisor.send_command(commands.ForwardPass(res, input_tensors))
+        self._queue_tasks.send_command(commands.ForwardPass(res, input_tensors))
         return res
 
-    def shutdown(self) -> None:
-        logger.debug("Shutting down...")
 
-        stop_cmd = commands.StopCmd()
-        self._supervisor.send_command(stop_cmd.awaitable)
-        stop_cmd.awaitable.wait()
+class TrainerSessionBackend(SessionBackend):
+    """Session backend for training
 
-        self._supervisor_thread.join()
+    Currently, supports only custom unet models decoupled from bioimageio models
+    """
 
-        logger.debug("Shutdown complete")
+    def __init__(self, trainer: Trainer):
+        self._trainer = trainer
+        supervisor = TrainerSupervisor(trainer)
+        super().__init__(supervisor)
+
+    def forward(self, input_tensors):
+        res = Future()
+        self._queue_tasks.send_command(commands.ForwardPass(res, input_tensors))
+        return res
 
     def resume_training(self) -> None:
-        resume_cmd = commands.ResumeCmd()
-        self._supervisor.send_command(resume_cmd.awaitable)
+        resume_cmd = commands.ResumeTrainingCmd()
+        self._queue_tasks.send_command(resume_cmd.awaitable)
         resume_cmd.awaitable.wait()
 
     def pause_training(self) -> None:
-        self._supervisor.send_command(commands.PauseCmd())
+        pause_cmd = commands.PauseTrainingCmd()
+        self._queue_tasks.send_command(pause_cmd.awaitable)
+        pause_cmd.awaitable.wait()
 
-    def get_idle(self) -> bool:
-        return self._supervisor.state == types.State.Paused
+    def start_training(self) -> None:
+        start_cmd = commands.StartTrainingCmd()
+        self._queue_tasks.send_command(start_cmd.awaitable)
+        start_cmd.awaitable.wait()
 
-    def on_idle(self, callback: typing.Callable[[], None]) -> None:
-        self._supervisor.on_idle(callback)
+    def save(self) -> None:
+        raise NotImplementedError
+
+    def export(self) -> None:
+        raise NotImplementedError
+
+    def get_state(self) -> TrainerState:
+        return self._supervisor.get_state()

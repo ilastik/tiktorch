@@ -6,6 +6,7 @@ from tiktorch.rpc import Shutdown
 class RPCInterfaceMeta(type):
     def __new__(mcls, name, bases, namespace, **kwargs):
         cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+
         exposed = {name for name, value in namespace.items() if getattr(value, "__exposed__", False)}
 
         for base in bases:
