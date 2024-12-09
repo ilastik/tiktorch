@@ -16,11 +16,11 @@ from tiktorch.converters import (
 from tiktorch.proto import inference_pb2
 
 
-def _numpy_to_pb_tensor(arr):
+def _numpy_to_pb_tensor(arr, tensor_id: str = "dummy_tensor_name"):
     """
     Makes sure that tensor was serialized/deserialized
     """
-    tensor = numpy_to_pb_tensor(arr)
+    tensor = numpy_to_pb_tensor(tensor_id, arr)
     parsed = inference_pb2.Tensor()
     parsed.ParseFromString(tensor.SerializeToString())
     return parsed

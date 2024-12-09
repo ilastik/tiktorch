@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TIKTORCH_ENV_NAME ?= tiktorch-server-env
-SUBMODULES = ./vendor/core-bioimage-io-python ./vendor/spec-bioimage-io
+SUBMODULES = ./vendor/spec-bioimage-io ./vendor/core-bioimage-io-python
 
 protos:
 	python -m grpc_tools.protoc -I./proto --python_out=tiktorch/proto/ --grpc_python_out=tiktorch/proto/ ./proto/*.proto
