@@ -304,12 +304,12 @@ class TestTrainingServicer:
         # Attempt to resume before start
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Resume(training_session_id)
-        assert "Invalid state transition: TrainerState.IDLE -> TrainerState.RUNNING" in excinfo.value.details()
+        assert "Training hasn't started" in excinfo.value.details()
 
         # Attempt to pause before start
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Pause(training_session_id)
-        assert "Invalid state transition: TrainerState.IDLE -> TrainerState.PAUSED" in excinfo.value.details()
+        assert "Training hasn't started" in excinfo.value.details()
 
     def test_start_training_without_init(self, grpc_stub):
         """
@@ -359,6 +359,49 @@ class TestTrainingServicer:
 
         grpc_stub.Start(training_session_id)
         self.poll_for_state(grpc_stub=grpc_stub, session_id=training_session_id, expected_state=TrainerState.FINISHED)
+
+    def test_perform_operations_after_training_failed(self, grpc_stub, monkeypatch):
+        def assert_grpc_error(func, session_id, expected_message):
+            with pytest.raises(grpc.RpcError) as excinfo:
+                func(session_id)
+            assert expected_message in excinfo.value.details()
+
+        class MockedExceptionTrainer:
+            def __init__(self):
+                self.should_stop_callbacks = Callbacks()
+
+            def fit(self):
+                raise Exception("mocked exception")
+
+        monkeypatch.setattr(TrainerYamlParser, "parse", lambda *args: MockedExceptionTrainer())
+
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+
+        start_thread = threading.Thread(target=grpc_stub.Start, args=(training_session_id,))
+        start_thread.start()
+
+        pause_thread = threading.Thread(
+            target=lambda: assert_grpc_error(
+                grpc_stub.Pause,
+                training_session_id,
+                "Invalid state transition: TrainerState.FAILED -> TrainerState.PAUSED",
+            )
+        )
+        pause_thread.start()
+
+        resume_thread = threading.Thread(
+            target=lambda: assert_grpc_error(
+                grpc_stub.Resume,
+                training_session_id,
+                "Invalid state transition: TrainerState.FAILED -> TrainerState.RUNNING",
+            )
+        )
+        resume_thread.start()
+
+        start_thread.join()
+        pause_thread.join()
+        resume_thread.join()
 
     def test_graceful_shutdown_for_any_state(self, grpc_stub):
         # after init

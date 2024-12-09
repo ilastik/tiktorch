@@ -11,6 +11,15 @@ from tiktorch.trainer import Callbacks, ErrorCallbacks, Trainer, TrainerState
 logger = logging.getLogger(__name__)
 
 
+def requires_queue_alive(func):
+    def wrapper(self, *args, **kwargs):
+        if not self._session_thread.is_alive():
+            raise RuntimeError("Training hasn't started")
+        func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class StateTransitionError(Exception):
     def __init__(self, current_state: TrainerState, transitioning_state: TrainerState, valid_states: Set[TrainerState]):
         super().__init__(
@@ -79,12 +88,12 @@ class TrainerSupervisor:
         except Exception as e:
             logger.exception(f"Training error: {e}")
             self.training_error_callbacks(e)
-            self._command_queue_utils.send_command(commands.ShutdownWithErrorCmd())
+            self._state = TrainerState.FAILED
             return
 
         if self.is_training_finished():
             logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
-            self._command_queue_utils.send_command(commands.NominalShutdownCmd())
+            self._state = TrainerState.FINISHED
 
     def is_training_finished(self):
         return (
@@ -97,16 +106,16 @@ class TrainerSupervisor:
         epochs = f"Epochs[{self._trainer.num_epochs}/{self._trainer.max_num_epochs}]"
         return f"{iterations}, {epochs}"
 
+    @requires_queue_alive
     def resume(self):
-        self._check_transition_to_state(TrainerState.RUNNING, valid_states={TrainerState.PAUSED})
         self._pause_triggered = False
         resume_cmd = commands.SetResumeStateTrainingCmd()
         self._command_queue_utils.send_command(resume_cmd.awaitable)
         resume_cmd.awaitable.wait()  # make sure that the state has actually changed (acknowledge)
         logger.info(f"Resume training: {self._get_num_iterations_epochs()}")
 
+    @requires_queue_alive
     def pause(self):
-        self._check_transition_to_state(TrainerState.PAUSED, valid_states={TrainerState.RUNNING})
         self._pause_triggered = True
         pause_cmd = commands.SetPauseStateTrainingCmd()
         self._command_queue_utils.send_command(pause_cmd.awaitable)
@@ -120,6 +129,7 @@ class TrainerSupervisor:
         self._command_queue_utils.send_command(commands.ShutdownCmd())
         self._session_thread.join()
 
+    @requires_queue_alive
     def forward(self, input_tensors):
         self.pause()
         self._trainer.forward(input_tensors)

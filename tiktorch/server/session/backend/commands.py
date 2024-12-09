@@ -25,8 +25,6 @@ __all__ = [
     "PauseTrainingCmd",
     "ResumeTrainingCmd",
     "ShutdownWithTeardownCmd",
-    "NominalShutdownCmd",
-    "ShutdownWithErrorCmd",
     "SetResumeStateTrainingCmd",
     "SetPauseStateTrainingCmd",
     "SetStartStateTrainingCmd",
@@ -136,16 +134,6 @@ class ShutdownCmd(ICommand):
 class ShutdownWithTeardownCmd(ShutdownCmd):
     def execute(self, ctx: Context[Supervisors]) -> None:
         ctx.session.shutdown()
-
-
-class NominalShutdownCmd(ShutdownCmd):
-    def execute(self, ctx: Context[TrainerSupervisor]) -> None:
-        ctx.session.transition_to_state(new_state=TrainerState.FINISHED, valid_states={TrainerState.RUNNING})
-
-
-class ShutdownWithErrorCmd(ShutdownCmd):
-    def execute(self, ctx: Context[TrainerSupervisor]) -> None:
-        ctx.session.transition_to_state(new_state=TrainerState.FAILED, valid_states={TrainerState.RUNNING})
 
 
 class StartTrainingCmd(ICommand):

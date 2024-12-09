@@ -105,8 +105,6 @@ class Trainer(UNetTrainer):
             pre_trained=pre_trained,
             **kwargs,
         )
-        self._should_stop_callbacks: List[Callable] = []
-        self._logs_callbacks: List[Callable] = []
         self.logs_callbacks: LogsCallbacks = Callbacks()
         self.should_stop_callbacks: Callbacks = Callbacks()
 
