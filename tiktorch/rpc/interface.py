@@ -26,7 +26,9 @@ class RPCInterface(metaclass=RPCInterfaceMeta):
     @exposed
     def init(self, *args, **kwargs):
         """
-        Postpone initialization so the client can handle error handling in the initialization stage.
+        Initialize server
+
+        Server initialization postponed so the client can handle errors occurring during server initialization.
         """
         raise NotImplementedError
 

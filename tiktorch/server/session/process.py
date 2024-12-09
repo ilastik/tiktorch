@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 from bioimageio.core import PredictionPipeline, Tensor, create_prediction_pipeline
 from bioimageio.spec import InvalidDescr, load_description
@@ -104,8 +104,6 @@ class ModelSessionProcess(IRPCModelSession):
             raise ValueError("Server isn't initialized")
         return self._worker
 
-        return Shutdown()
-
 
 def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Queue] = None):
     try:
@@ -124,7 +122,10 @@ def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Que
     srv.listen()
 
 
-def start_process(interface_class, log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, RPCInterface]:
+T = TypeVar("T", bound=RPCInterface)
+
+
+def start_process(interface_class: Type[T], log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, T]:
     client_conn, server_conn = _mp.Pipe()
     proc = _mp.Process(
         target=_run_server,
@@ -132,7 +133,7 @@ def start_process(interface_class, log_queue: Optional[_mp.Queue] = None) -> Tup
         kwargs={"conn": server_conn, "log_queue": log_queue, "api": interface_class()},
     )
     proc.start()
-    api = _mp_rpc.create_client_api(iface_cls=interface_class, conn=client_conn)
+    api: T = _mp_rpc.create_client_api(iface_cls=interface_class, conn=client_conn)
     return proc, api
 
 
