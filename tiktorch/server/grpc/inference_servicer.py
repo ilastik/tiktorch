@@ -40,7 +40,11 @@ class InferenceServicer(inference_pb2_grpc.InferenceServicer):
         lease = self.__device_pool.lease(devices)
         session.on_close(lease.terminate)
 
-        client.api.init(model_bytes=content, devices=devices)
+        try:
+            client.api.init(model_bytes=content, devices=devices)
+        except Exception as e:
+            self.__session_manager.close_session(session.id)
+            raise e
 
         return inference_pb2.ModelSession(id=session.id)
 
