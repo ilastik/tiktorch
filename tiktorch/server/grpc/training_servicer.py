@@ -39,7 +39,11 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         lease = self._device_pool.lease([device])
         session.on_close(lease.terminate)
 
-        client.init(request.yaml_content)
+        try:
+            client.init(request.yaml_content)
+        except Exception as e:
+            self._session_manager.close_session(session.id)
+            raise e
 
         return training_pb2.TrainingSessionId(id=session.id)
 
