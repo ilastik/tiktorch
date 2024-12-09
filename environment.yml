@@ -1,13 +1,14 @@
 name: tiktorch-server-env
 channels:
-  - ilastik-forge
   - pytorch
+  - ilastik-forge
   - conda-forge
+  - nodefaults
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
   - python 3.9.*
-  - numpy
+  - numpy >=1.21,<2
   - grpcio=1.44 # protobuf 5 requires protoc version > 3.19.0 that requires grpcio >= 1.44
   - marshmallow-union
   - marshmallow=3.12.*
@@ -15,7 +16,6 @@ dependencies:
   - protobuf
   - pyyaml=5.3.*
   - requests
-  - ruamel.yaml
   - scikit-learn
   - scipy
   - typing-extensions
@@ -32,17 +32,32 @@ dependencies:
   - cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
-  # - tochvision
+  - torchvision
 
   # tensorflow (1.14 is the latest 1.x version on cf)
   # so far we don't have any 2.x models in the model zoo
   # tensorflow skipped for now, as it conflicts with grpcio version 1.41
   # - tensorflow >=2.9,<3.0
 
-  # convenient to use bioiamgeio.core tools
-  - imageio
+  # bioimageio.spec / bioimageio.core dependencies:
+  - annotated-types >=0.5.0,<1
+  - email_validator
+  - h5py
+  - imageio >=2.10
+  - loguru
+  - packaging >=17.0
+  - pooch >=1.5,<2
+  - pydantic >=2.7.0,<2.10
+  - pydantic-core
+  - pydantic-settings >=2.5
+  - python-dateutil
+  - rich
+  - ruyaml
+  - tifffile
   - tqdm
   - typer
+  - zipp
+
 
   # dev stuff
   - pytest
