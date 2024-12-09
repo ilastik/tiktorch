@@ -82,6 +82,22 @@ class TestModelManagement:
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
         assert "model-session-id has not been provided" in e.value.details()
 
+    def test_model_init_failed_close_session(self, bioimage_model_explicit_add_one_siso_v5, grpc_stub):
+        """
+        If the model initialization fails, the session should be closed, so we can initialize a new one
+        """
+
+        model_req = inference_pb2.CreateModelSessionRequest(
+            model_blob=inference_pb2.Blob(content=b""), deviceIds=["cpu"]
+        )
+
+        with pytest.raises(Exception):
+            grpc_stub.CreateModelSession(model_req)
+
+        model_bytes = bioimage_model_explicit_add_one_siso_v5
+        response = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        assert response.id is not None
+
 
 class TestDeviceManagement:
     def test_list_devices(self, grpc_stub):

@@ -1,5 +1,7 @@
 from typing import Any, Callable, Dict
 
+from tiktorch.rpc import Shutdown
+
 
 class RPCInterfaceMeta(type):
     def __new__(mcls, name, bases, namespace, **kwargs):
@@ -8,20 +10,31 @@ class RPCInterfaceMeta(type):
 
         for base in bases:
             if issubclass(base, RPCInterface):
-                exposed ^= getattr(base, "__exposedmethods__", set())
+                exposed |= getattr(base, "__exposedmethods__", set())
 
         cls.__exposedmethods__ = frozenset(exposed)
         return cls
-
-
-class RPCInterface(metaclass=RPCInterfaceMeta):
-    pass
 
 
 def exposed(method: Callable[..., Any]) -> Callable[..., Any]:
     """decorator to mark method as exposed in the public API of the class"""
     method.__exposed__ = True
     return method
+
+
+class RPCInterface(metaclass=RPCInterfaceMeta):
+    @exposed
+    def init(self, *args, **kwargs):
+        """
+        Initialize server
+
+        Server initialization postponed so the client can handle errors occurring during server initialization.
+        """
+        raise NotImplementedError
+
+    @exposed
+    def shutdown(self) -> Shutdown:
+        raise NotImplementedError
 
 
 def get_exposed_methods(obj: RPCInterface) -> Dict[str, Callable[..., Any]]:
