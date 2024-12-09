@@ -46,7 +46,6 @@ class TrainerSupervisor:
         super().__init__()
         self._trainer = trainer
         self._trainer.should_stop_callbacks.register(self._should_stop)
-        self._shutdown_event = threading.Event()
         self._state = TrainerState.IDLE
         self._pause_triggered = False
         self._session_thread = threading.Thread(target=self._start_session, name="SessionThread")

@@ -403,26 +403,25 @@ class TestTrainingServicer:
         pause_thread.join()
         resume_thread.join()
 
-    def test_graceful_shutdown_for_any_state(self, grpc_stub):
-        # after init
+    def test_graceful_shutdown_after_init(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
-        # after start
+    def test_graceful_shutdown_after_start(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
         grpc_stub.Start(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
-        # after pause
+    def test_graceful_shutdown_after_pause(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
         grpc_stub.Start(training_session_id)
         grpc_stub.Pause(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
-        # after resume
+    def test_graceful_shutdown_after_resume(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
         grpc_stub.Start(training_session_id)
@@ -430,7 +429,13 @@ class TestTrainingServicer:
         grpc_stub.Resume(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
-        # attempt to close again
+    def test_close_trainer_session_twice(self, grpc_stub):
+        # Attempt to close the session twice
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        grpc_stub.CloseTrainerSession(training_session_id)
+
+        # The second attempt should raise an error
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.CloseTrainerSession(training_session_id)
         assert "Unknown session" in excinfo.value.details()
