@@ -13,6 +13,7 @@ from bioimageio.spec.model import v0_5
 from tiktorch import log
 from tiktorch.rpc import Shutdown
 from tiktorch.rpc import mp as _mp_rpc
+from tiktorch.rpc.interface import RPCInterface
 from tiktorch.rpc.mp import BioModelClient, MPServer
 
 from ...converters import Sample
@@ -72,14 +73,18 @@ class InputSampleValidator:
         return specs[0]
 
 
-class ModelSessionProcess(IRPCModelSession[PredictionPipeline]):
-    def __init__(self, model: PredictionPipeline) -> None:
-        super().__init__(model)
+class ModelSessionProcess(IRPCModelSession):
+    def __init__(self) -> None:
+        super().__init__()
         self._datasets = {}
-        self._worker = base.SessionBackend(self._model)
+        self._worker: Optional[base.SessionBackend] = None
+
+    def init(self, model_bytes: bytes, devices: List[str]):
+        prediction_pipeline = _get_prediction_pipeline_from_model_bytes(model_bytes, devices)
+        self._worker = base.SessionBackend(prediction_pipeline)
 
     def forward(self, sample: Sample) -> Future:
-        res = self._worker.forward(sample)
+        res = self.worker.forward(sample)
         return res
 
     def create_dataset(self, mean, stddev):
@@ -88,13 +93,21 @@ class ModelSessionProcess(IRPCModelSession[PredictionPipeline]):
         return id_
 
     def shutdown(self) -> Shutdown:
-        self._worker.shutdown()
+        if self._worker is None:
+            return Shutdown()
+        self.worker.shutdown()
+        return Shutdown()
+
+    @property
+    def worker(self) -> base.SessionBackend:
+        if self._worker is None:
+            raise ValueError("Server isn't initialized")
+        return self._worker
+
         return Shutdown()
 
 
-def _run_model_session_process(
-    conn: Connection, model_bytes: bytes, devices: List[str], log_queue: Optional[_mp.Queue] = None
-):
+def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Queue] = None):
     try:
         # from: https://github.com/pytorch/pytorch/issues/973#issuecomment-346405667
         import resource
@@ -107,24 +120,27 @@ def _run_model_session_process(
     if log_queue:
         log.configure(log_queue)
 
-    prediction_pipeline = _get_prediction_pipeline_from_model_bytes(model_bytes, devices)
-    session_proc = ModelSessionProcess(prediction_pipeline)
-    srv = MPServer(session_proc, conn)
+    srv = MPServer(api, conn)
     srv.listen()
 
 
-def start_model_session_process(
-    model_bytes: bytes, devices: List[str], log_queue: Optional[_mp.Queue] = None
-) -> Tuple[_mp.Process, BioModelClient]:
+def start_process(interface_class, log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, RPCInterface]:
     client_conn, server_conn = _mp.Pipe()
     proc = _mp.Process(
-        target=_run_model_session_process,
-        name="ModelSessionProcess",
-        kwargs={"conn": server_conn, "log_queue": log_queue, "devices": devices, "model_bytes": model_bytes},
+        target=_run_server,
+        name="TiktorchProcess",
+        kwargs={"conn": server_conn, "log_queue": log_queue, "api": interface_class()},
     )
     proc.start()
-    api = _mp_rpc.create_client_api(iface_cls=IRPCModelSession, conn=client_conn)
+    api = _mp_rpc.create_client_api(iface_cls=interface_class, conn=client_conn)
+    return proc, api
+
+
+def start_model_session_process(
+    model_bytes: bytes, log_queue: Optional[_mp.Queue] = None
+) -> Tuple[_mp.Process, BioModelClient]:
     model_descr = _get_model_descr_from_model_bytes(model_bytes)
+    proc, api = start_process(interface_class=ModelSessionProcess, log_queue=log_queue)
     return proc, BioModelClient(
         input_specs=model_descr.inputs,
         output_specs=model_descr.outputs,

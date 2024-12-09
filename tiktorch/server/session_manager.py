@@ -3,30 +3,30 @@ from __future__ import annotations
 import threading
 from collections import defaultdict
 from logging import getLogger
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Generic, List, Optional, TypeVar
 from uuid import uuid4
-
-from tiktorch.rpc.mp import BioModelClient
 
 logger = getLogger(__name__)
 
 CloseCallback = Callable[[], None]
 
+SessionClient = TypeVar("SessionClient")
 
-class Session:
+
+class Session(Generic[SessionClient]):
     """
     session object has unique id
     Used for resource managent
     """
 
-    def __init__(self, id_: str, bio_model_client: BioModelClient, manager: SessionManager) -> None:
+    def __init__(self, id_: str, client: SessionClient, manager: SessionManager) -> None:
         self.__id = id_
         self.__manager = manager
-        self.__bio_model_client = bio_model_client
+        self.__client = client
 
     @property
-    def bio_model_client(self) -> BioModelClient:
-        return self.__bio_model_client
+    def client(self) -> SessionClient:
+        return self.__client
 
     @property
     def id(self) -> str:
@@ -42,23 +42,23 @@ class Session:
         self.__manager._on_close(self, handler)
 
 
-class SessionManager:
+class SessionManager(Generic[SessionClient]):
     """
     Manages session lifecycle (create/close)
     """
 
-    def create_session(self, bio_model_client: BioModelClient) -> Session:
+    def create_session(self, client: SessionClient) -> Session[SessionClient]:
         """
         Creates new session with unique id
         """
         with self.__lock:
             session_id = uuid4().hex
-            session = Session(session_id, bio_model_client=bio_model_client, manager=self)
+            session = Session(session_id, client=client, manager=self)
             self.__session_by_id[session_id] = session
             logger.info("Created session %s", session.id)
             return session
 
-    def get(self, session_id: str) -> Optional[Session]:
+    def get(self, session_id: str) -> Optional[Session[SessionClient]]:
         """
         Returns existing session with given id if it exists
         """

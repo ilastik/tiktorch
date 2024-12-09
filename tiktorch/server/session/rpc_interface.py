@@ -1,24 +1,14 @@
-from typing import Generic, List, TypeVar
+from typing import List
 
 from tiktorch.converters import Sample
-from tiktorch.rpc import RPCInterface, Shutdown, exposed
+from tiktorch.rpc import RPCInterface, exposed
 from tiktorch.tiktypes import TikTensorBatch
 from tiktorch.types import ModelState
 
-ModelType = TypeVar("ModelType")
 
-
-class IRPCModelSession(RPCInterface, Generic[ModelType]):
-    def __init__(self, model: ModelType):
-        super().__init__()
-        self._model = model
-
-    @property
-    def model(self):
-        return self._model
-
+class IRPCModelSession(RPCInterface):
     @exposed
-    def shutdown(self) -> Shutdown:
+    def init(self, model_bytes: bytes, devices: List[str]):
         raise NotImplementedError
 
     @exposed
