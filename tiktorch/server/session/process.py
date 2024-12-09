@@ -1,3 +1,4 @@
+import logging
 import multiprocessing as _mp
 import pathlib
 import tempfile
@@ -20,6 +21,8 @@ from ...converters import Sample
 from ...trainer import TrainerYamlParser
 from .backend import base
 from .rpc_interface import IRPCModelSession, IRPCTrainer
+
+logger = logging.getLogger(__name__)
 
 
 class InputSampleValidator:
@@ -118,6 +121,7 @@ class TrainerSessionProcess(IRPCTrainer):
 
     def init(self, trainer_yaml_config):
         parser = TrainerYamlParser(trainer_yaml_config)
+        logger.debug(f"Config file {trainer_yaml_config}")
         trainer = parser.parse()
         self._worker = base.TrainerSessionBackend(trainer)
 
