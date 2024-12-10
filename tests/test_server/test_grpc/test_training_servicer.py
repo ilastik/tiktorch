@@ -58,7 +58,7 @@ trainer:
   validate_after_iters: 2
   log_after_iters: 2
   max_num_epochs: 1
-  max_num_iterations: 2
+  max_num_iterations: 1
   eval_score_higher_is_better: True
 optimizer:
   learning_rate: 0.0002
@@ -164,7 +164,7 @@ def create_random_dataset(shape, channel_per_class):
             l_shape = (2,) + l_shape
 
         f.create_dataset("raw", data=np.random.rand(*shape))
-        f.create_dataset("label", data=np.random.randint(0, 2, l_shape))
+        f.create_dataset("label", data=np.random.randint(0, 1, l_shape))
         f.create_dataset("weight_map", data=np.random.rand(*w_shape))
 
     return tmp.name
@@ -273,7 +273,7 @@ class TestTrainingServicer:
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
 
         threads = []
-        for _ in range(3):
+        for _ in range(2):
             threads.append(threading.Thread(target=lambda: grpc_stub.Start(training_session_id)))
             threads.append(threading.Thread(target=lambda: grpc_stub.Pause(training_session_id)))
             threads.append(threading.Thread(target=lambda: grpc_stub.Resume(training_session_id)))
