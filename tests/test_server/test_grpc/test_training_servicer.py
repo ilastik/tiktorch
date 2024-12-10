@@ -2,6 +2,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import Callable
 
 import grpc
 import h5py
@@ -12,8 +13,10 @@ from tiktorch.converters import trainer_state_to_pb
 from tiktorch.proto import training_pb2, training_pb2_grpc
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.grpc import training_servicer
+from tiktorch.server.session.backend.base import TrainerSessionBackend
+from tiktorch.server.session.process import TrainerSessionProcess
 from tiktorch.server.session_manager import SessionManager
-from tiktorch.trainer import Callbacks, TrainerState, TrainerYamlParser
+from tiktorch.trainer import Callbacks, Trainer, TrainerState
 
 
 @pytest.fixture(scope="module")
@@ -183,14 +186,19 @@ class TestTrainingServicer:
         response = grpc_stub.GetStatus(training_session_id)
         assert response.state == trainer_state_to_pb[state_to_check]
 
-    def poll_for_state(self, grpc_stub, session_id, expected_state: TrainerState, timeout=3, poll_interval=0.1):
+    def poll_for_state_grpc(self, grpc_stub, session_id, expected_state: TrainerState, timeout=3, poll_interval=0.1):
+        def get_status(*args):
+            return trainer_state_to_pb[grpc_stub.GetStatus(session_id).state]
+
+        self.poll_for_state(get_status, expected_state, timeout, poll_interval)
+
+    def poll_for_state(self, get_status: Callable, expected_state: TrainerState, timeout=3, poll_interval=0.1):
         start_time = time.time()
 
         while True:
-            status_response = grpc_stub.GetStatus(session_id)
-            current_state = status_response.state
+            current_state = get_status()
 
-            if current_state == trainer_state_to_pb[expected_state]:
+            if current_state == expected_state:
                 return current_state
 
             if time.time() - start_time > timeout:
@@ -214,13 +222,26 @@ class TestTrainingServicer:
             grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=invalid_yaml))
         assert "expected ',' or '}', but got" in excinfo.value.details()
 
-    def test_start_training_success(self, grpc_stub, monkeypatch):
+    def test_init_failed_then_devices_are_released(self, grpc_stub):
+        invalid_yaml = """
+        device: cpu
+        unknown: 42
+        """
+        with pytest.raises(grpc.RpcError):
+            grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=invalid_yaml))
+
+        # attempt to init with the same device
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        response = training_pb2.TrainingSessionId(id=init_response.id)
+        assert response.id is not None
+
+    def test_start_training_success(self):
         """
         Test starting training after successful initialization.
         """
         trainer_is_called = threading.Event()
 
-        class MockedNominalTrainer:
+        class MockedNominalTrainer(Trainer):
             def __init__(self):
                 self.num_epochs = 0
                 self.max_num_epochs = 10
@@ -232,10 +253,15 @@ class TestTrainingServicer:
                 print("Training has started")
                 trainer_is_called.set()
 
-        monkeypatch.setattr(TrainerYamlParser, "parse", lambda *args: MockedNominalTrainer())
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        grpc_stub.Start(training_pb2.TrainingSessionId(id=init_response.id))
+        class MockedTrainerSessionBackend(TrainerSessionProcess):
+            def init(self, trainer_yaml_config: str = ""):
+                self._worker = TrainerSessionBackend(MockedNominalTrainer())
+
+        backend = MockedTrainerSessionBackend()
+        backend.init()
+        backend.start_training()
         trainer_is_called.wait(timeout=5)
+        backend.shutdown()
 
     def test_concurrent_state_transitions(self, grpc_stub):
         """
@@ -320,15 +346,15 @@ class TestTrainingServicer:
         assert excinfo.value.code() == grpc.StatusCode.FAILED_PRECONDITION
         assert "trainer-session with id  doesn't exist" in excinfo.value.details()
 
-    def test_recover_training_failed(self, grpc_stub, monkeypatch):
-        class MockedExceptionTrainer:
+    def test_recover_training_failed(self):
+        class MockedExceptionTrainer(Trainer):
             def __init__(self):
                 self.should_stop_callbacks = Callbacks()
 
             def fit(self):
                 raise Exception("mocked exception")
 
-        class MockedNominalTrainer:
+        class MockedNominalTrainer(Trainer):
             def __init__(self):
                 self.num_epochs = 0
                 self.max_num_epochs = 10
@@ -340,60 +366,66 @@ class TestTrainingServicer:
                 for epoch in range(self.max_num_epochs):
                     self.num_epochs += 1
 
-        monkeypatch.setattr(TrainerYamlParser, "parse", lambda *args: MockedExceptionTrainer())
+        class MockedTrainerSessionBackend(TrainerSessionProcess):
+            def init(self, trainer_yaml_config: str):
+                if trainer_yaml_config == "nominal":
+                    self._worker = TrainerSessionBackend(MockedNominalTrainer())
+                elif trainer_yaml_config == "exception":
+                    self._worker = TrainerSessionBackend(MockedExceptionTrainer())
+                else:
+                    # simulate user creating model that raises an exception,
+                    # and then adjusts the config for a nominal run
+                    raise AssertionError
 
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
-
-        grpc_stub.Start(training_session_id)
+        backend = MockedTrainerSessionBackend()
+        backend.init("exception")
+        backend.start_training()
 
         # client detects that state is failed, closes the session and starts a new one
-        self.poll_for_state(grpc_stub=grpc_stub, session_id=training_session_id, expected_state=TrainerState.FAILED)
+        self.poll_for_state(backend.get_state, expected_state=TrainerState.FAILED)
 
-        grpc_stub.CloseTrainerSession(training_session_id)
+        backend.shutdown()
 
-        monkeypatch.setattr(TrainerYamlParser, "parse", lambda *args: MockedNominalTrainer())
+        backend.init("nominal")
+        backend.start_training()
+        self.poll_for_state(backend.get_state, expected_state=TrainerState.FINISHED)
+        backend.shutdown()
 
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+    def test_perform_operations_after_training_failed(self):
+        def assert_error(func, expected_message: str):
+            with pytest.raises(Exception) as excinfo:
+                func()
+            assert expected_message in str(excinfo.value)
 
-        grpc_stub.Start(training_session_id)
-        self.poll_for_state(grpc_stub=grpc_stub, session_id=training_session_id, expected_state=TrainerState.FINISHED)
-
-    def test_perform_operations_after_training_failed(self, grpc_stub, monkeypatch):
-        def assert_grpc_error(func, session_id, expected_message):
-            with pytest.raises(grpc.RpcError) as excinfo:
-                func(session_id)
-            assert expected_message in excinfo.value.details()
-
-        class MockedExceptionTrainer:
+        class MockedExceptionTrainer(Trainer):
             def __init__(self):
                 self.should_stop_callbacks = Callbacks()
 
             def fit(self):
                 raise Exception("mocked exception")
 
-        monkeypatch.setattr(TrainerYamlParser, "parse", lambda *args: MockedExceptionTrainer())
+        class MockedTrainerSessionBackend(TrainerSessionProcess):
+            def init(self, trainer_yaml_config: str = ""):
+                self._worker = TrainerSessionBackend(MockedExceptionTrainer())
 
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        backend = MockedTrainerSessionBackend()
+        backend.init()
+        backend.start_training()
 
-        start_thread = threading.Thread(target=grpc_stub.Start, args=(training_session_id,))
+        start_thread = threading.Thread(target=backend.start_training)
         start_thread.start()
 
         pause_thread = threading.Thread(
-            target=lambda: assert_grpc_error(
-                grpc_stub.Pause,
-                training_session_id,
+            target=lambda: assert_error(
+                backend.pause_training,
                 "Invalid state transition: TrainerState.FAILED -> TrainerState.PAUSED",
             )
         )
         pause_thread.start()
 
         resume_thread = threading.Thread(
-            target=lambda: assert_grpc_error(
-                grpc_stub.Resume,
-                training_session_id,
+            target=lambda: assert_error(
+                backend.pause_training,
                 "Invalid state transition: TrainerState.FAILED -> TrainerState.RUNNING",
             )
         )
@@ -402,6 +434,7 @@ class TestTrainingServicer:
         start_thread.join()
         pause_thread.join()
         resume_thread.join()
+        backend.shutdown()
 
     def test_graceful_shutdown_after_init(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))

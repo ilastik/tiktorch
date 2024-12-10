@@ -119,7 +119,7 @@ class TrainerSessionProcess(IRPCTrainer):
             raise ValueError("Server isn't initialized")
         return self._worker
 
-    def init(self, trainer_yaml_config):
+    def init(self, trainer_yaml_config: str):
         parser = TrainerYamlParser(trainer_yaml_config)
         logger.debug(f"Config file {trainer_yaml_config}")
         trainer = parser.parse()
