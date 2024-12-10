@@ -6,7 +6,7 @@ from bioimageio.core import PredictionPipeline, Sample
 
 from tiktorch.server.session.backend import commands
 from tiktorch.server.session.backend.commands import CommandPriorityQueueUtils, ShutdownWithTeardownCmd
-from tiktorch.trainer import BaseCallbacks, ErrorCallbacks, Trainer, TrainerState
+from tiktorch.trainer import BaseCallbacks, ErrorCallbacks, Trainer, TrainerAction, TrainerState
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,7 @@ class TrainerSupervisor:
         return self._state
 
     def start(self):
-        if self._state != TrainerState.IDLE:
-            raise StateTransitionError(
-                current_state=self._state, transitioning_state=TrainerState.RUNNING, valid_states={TrainerState.IDLE}
-            )
+        self._check_transition_to_start()
         self._session_thread.start()
         self._pause_triggered = False
         start_cmd = commands.SetStartStateTrainingCmd()
@@ -98,23 +95,23 @@ class TrainerSupervisor:
         return (
             self._trainer.num_epochs == self._trainer.max_num_epochs
             or self._trainer.num_iterations == self._trainer.max_num_iterations
-        )
+        ) or self._trainer.should_stop_model_criteria()
 
     def _get_num_iterations_epochs(self) -> str:
         iterations = f"Iterations[{self._trainer.num_iterations}/{self._trainer.max_num_iterations}]"
         epochs = f"Epochs[{self._trainer.num_epochs}/{self._trainer.max_num_epochs}]"
         return f"{iterations}, {epochs}"
 
-    @requires_queue_alive
     def resume(self):
+        self._check_transition_to_resume()
         self._pause_triggered = False
         resume_cmd = commands.SetResumeStateTrainingCmd()
         self._command_queue_utils.send_command(resume_cmd.awaitable)
         resume_cmd.awaitable.wait()  # make sure that the state has actually changed (acknowledge)
         logger.info(f"Resume training: {self._get_num_iterations_epochs()}")
 
-    @requires_queue_alive
     def pause(self):
+        self._check_transition_to_pause()
         self._pause_triggered = True
         pause_cmd = commands.SetPauseStateTrainingCmd()
         self._command_queue_utils.send_command(pause_cmd.awaitable)
@@ -128,7 +125,6 @@ class TrainerSupervisor:
         self._command_queue_utils.send_command(commands.ShutdownCmd())
         self._session_thread.join()
 
-    @requires_queue_alive
     def forward(self, input_tensors):
         self.pause()
         self._trainer.forward(input_tensors)
@@ -143,13 +139,27 @@ class TrainerSupervisor:
     def _should_stop(self):
         return self._pause_triggered
 
-    def transition_to_state(self, new_state: TrainerState, valid_states: Set[TrainerState]):
+    def transition_to_state(self, new_state: TrainerState, trainer_action: TrainerAction):
         """
         Should be used via the ICommands to monitor the state of the training
         """
-        self._check_transition_to_state(new_state, valid_states)
+        if trainer_action == TrainerAction.START:
+            self._check_transition_to_start()
+        elif trainer_action == TrainerAction.PAUSE:
+            self._check_transition_to_pause()
+        elif trainer_action == TrainerAction.RESUME:
+            self._check_transition_to_resume()
         logger.info(f"State transition: {self._state} -> {new_state}")
         self._state = new_state
+
+    def _check_transition_to_start(self):
+        return self._check_transition_to_state(TrainerState.RUNNING, {TrainerState.IDLE})
+
+    def _check_transition_to_pause(self):
+        return self._check_transition_to_state(TrainerState.PAUSED, {TrainerState.RUNNING})
+
+    def _check_transition_to_resume(self):
+        return self._check_transition_to_state(TrainerState.RUNNING, {TrainerState.PAUSED})
 
     def _check_transition_to_state(self, new_state: TrainerState, valid_states: Set[TrainerState]):
         if self._state not in valid_states:

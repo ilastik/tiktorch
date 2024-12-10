@@ -77,6 +77,13 @@ class Logs:
 LogsCallbacks = Callbacks[Callable[[Logs], None]]
 
 
+class TrainerAction(Enum):
+    START = "start"
+    PAUSE = "pause"
+    RESUME = "resume"
+    SHUTDOWN = "shutdown"
+
+
 class TrainerState(Enum):
     IDLE = 0
     RUNNING = 1
@@ -148,8 +155,18 @@ class Trainer(UNetTrainer):
         with torch.no_grad():
             self.model(input_tensors)
 
-    def should_stop(self):
-        return self.should_stop_callbacks() or super().should_stop()
+    def should_stop(self) -> bool:
+        """
+        Intervene on how to stop the training.
+        """
+        return self.should_stop_callbacks() or self.should_stop_model_criteria()
+
+    def should_stop_model_criteria(self) -> bool:
+        """
+        Retain the logic designed by a custom model on how to stop the training
+        e.g. learning rate lower than a threshold.
+        """
+        return super().should_stop()
 
     def _log_stats(self, phase, loss_avg, eval_score_avg):
         logs = Logs(
