@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Generic, List, TypeVar
+from typing import Any, Callable, Generic, List, TypeVar
 
 import torch
 import yaml
@@ -20,7 +21,7 @@ T = TypeVar("T", bound=Callable)
 logger = logging.getLogger(__name__)
 
 
-class Callbacks(Generic[T]):
+class Callbacks(ABC, Generic[T]):
     def __init__(self):
         self._callbacks: List[T] = []
 
@@ -30,12 +31,25 @@ class Callbacks(Generic[T]):
     def unregister(self, callback: T):
         self._callbacks.remove(callback)
 
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
+        pass
+
+
+class BaseCallbacks(Callbacks[T]):
     def __call__(self, *args, **kwargs):
         for callback in self._callbacks:
             callback(*args, **kwargs)
 
 
-ErrorCallbacks = Callbacks[Callable[[Exception], None]]
+class ShouldStopCallbacks(Callbacks[Callable[[], bool]]):
+    def __call__(self, *args, **kwargs):
+        for callback in self._callbacks:
+            if callback():
+                return True
+
+
+ErrorCallbacks = BaseCallbacks[Callable[[Exception], None]]
 
 
 class ModelPhase(Enum):
@@ -54,11 +68,10 @@ class Logs:
     iteration: int
     max_iterations: int
 
-
-def __str__(self):
-    iterations = f"Itreation[{self.iteration}/{self.max_iterations}]"
-    epochs = f"Epochs[{self.epoch}/{self.max_epochs}]"
-    return f"{epochs}, {iterations}: mode={self.mode}, loss={self.loss}, eval_score={self.eval_score}"
+    def __str__(self):
+        iterations = f"Iteration[{self.iteration}/{self.max_iterations}]"
+        epochs = f"Epochs[{self.epoch}/{self.max_epochs}]"
+        return f"{epochs}, {iterations}: mode={self.mode}, loss={self.loss}, eval_score={self.eval_score}"
 
 
 LogsCallbacks = Callbacks[Callable[[Logs], None]]
@@ -118,8 +131,8 @@ class Trainer(UNetTrainer):
             pre_trained=pre_trained,
             **kwargs,
         )
-        self.logs_callbacks: LogsCallbacks = Callbacks()
-        self.should_stop_callbacks: Callbacks = Callbacks()
+        self.logs_callbacks: LogsCallbacks = BaseCallbacks()
+        self.should_stop_callbacks: Callbacks = ShouldStopCallbacks()
 
     def fit(self):
         return super().fit()

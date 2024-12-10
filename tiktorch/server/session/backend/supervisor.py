@@ -6,7 +6,7 @@ from bioimageio.core import PredictionPipeline, Sample
 
 from tiktorch.server.session.backend import commands
 from tiktorch.server.session.backend.commands import CommandPriorityQueueUtils, ShutdownWithTeardownCmd
-from tiktorch.trainer import Callbacks, ErrorCallbacks, Trainer, TrainerState
+from tiktorch.trainer import BaseCallbacks, ErrorCallbacks, Trainer, TrainerState
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class TrainerSupervisor:
         self._pause_triggered = False
         self._session_thread = threading.Thread(target=self._start_session, name="SessionThread")
         self._command_queue_utils = CommandPriorityQueueUtils()
-        self.training_error_callbacks: ErrorCallbacks = Callbacks()
+        self.training_error_callbacks: ErrorCallbacks = BaseCallbacks()
 
     def get_state(self) -> TrainerState:
         logger.debug(f"Get state called {self._state}")

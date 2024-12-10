@@ -16,7 +16,7 @@ from tiktorch.server.grpc import training_servicer
 from tiktorch.server.session.backend.base import TrainerSessionBackend
 from tiktorch.server.session.process import TrainerSessionProcess
 from tiktorch.server.session_manager import SessionManager
-from tiktorch.trainer import Callbacks, Trainer, TrainerState
+from tiktorch.trainer import Callbacks, ShouldStopCallbacks, Trainer, TrainerState
 
 
 @pytest.fixture(scope="module")
@@ -247,7 +247,7 @@ class TestTrainingServicer:
                 self.max_num_epochs = 10
                 self.num_iterations = 0
                 self.max_num_iterations = 100
-                self.should_stop_callbacks = Callbacks()
+                self.should_stop_callbacks = ShouldStopCallbacks()
 
             def fit(self):
                 print("Training has started")
