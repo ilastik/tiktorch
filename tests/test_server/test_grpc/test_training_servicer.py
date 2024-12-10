@@ -9,14 +9,14 @@ import h5py
 import numpy as np
 import pytest
 
-from tiktorch.converters import trainer_state_to_pb
+from tiktorch.converters import pb_state_to_trainer, trainer_state_to_pb
 from tiktorch.proto import training_pb2, training_pb2_grpc
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.grpc import training_servicer
 from tiktorch.server.session.backend.base import TrainerSessionBackend
 from tiktorch.server.session.process import TrainerSessionProcess
 from tiktorch.server.session_manager import SessionManager
-from tiktorch.trainer import Callbacks, ShouldStopCallbacks, Trainer, TrainerState
+from tiktorch.trainer import ShouldStopCallbacks, Trainer, TrainerState
 
 
 @pytest.fixture(scope="module")
@@ -57,8 +57,8 @@ trainer:
   resume: null
   validate_after_iters: 2
   log_after_iters: 2
-  max_num_epochs: 1
-  max_num_iterations: 1
+  max_num_epochs: 1000
+  max_num_iterations: 10000
   eval_score_higher_is_better: True
 optimizer:
   learning_rate: 0.0002
@@ -164,7 +164,7 @@ def create_random_dataset(shape, channel_per_class):
             l_shape = (2,) + l_shape
 
         f.create_dataset("raw", data=np.random.rand(*shape))
-        f.create_dataset("label", data=np.random.randint(0, 1, l_shape))
+        f.create_dataset("label", data=np.random.randint(0, 2, l_shape, dtype=np.int64))
         f.create_dataset("weight_map", data=np.random.rand(*w_shape))
 
     return tmp.name
@@ -188,7 +188,7 @@ class TestTrainingServicer:
 
     def poll_for_state_grpc(self, grpc_stub, session_id, expected_state: TrainerState, timeout=3, poll_interval=0.1):
         def get_status(*args):
-            return trainer_state_to_pb[grpc_stub.GetStatus(session_id).state]
+            return pb_state_to_trainer[grpc_stub.GetStatus(session_id).state]
 
         self.poll_for_state(get_status, expected_state, timeout, poll_interval)
 
@@ -285,11 +285,11 @@ class TestTrainingServicer:
             thread.join()
 
     def test_queueing_multiple_commands(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
-
         def assert_state(state_to_check):
             self.assert_state(grpc_stub, training_session_id, state_to_check)
+
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
         assert_state(TrainerState.RUNNING)
@@ -330,12 +330,12 @@ class TestTrainingServicer:
         # Attempt to resume before start
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Resume(training_session_id)
-        assert "Training hasn't started" in excinfo.value.details()
+        assert "Invalid state transition: TrainerState.IDLE -> TrainerState.RUNNING" in excinfo.value.details()
 
         # Attempt to pause before start
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Pause(training_session_id)
-        assert "Training hasn't started" in excinfo.value.details()
+        assert "Invalid state transition: TrainerState.IDLE -> TrainerState.PAUSED" in excinfo.value.details()
 
     def test_start_training_without_init(self, grpc_stub):
         """
@@ -347,20 +347,20 @@ class TestTrainingServicer:
         assert "trainer-session with id  doesn't exist" in excinfo.value.details()
 
     def test_recover_training_failed(self):
-        class MockedExceptionTrainer(Trainer):
+        class MockedExceptionTrainer:
             def __init__(self):
-                self.should_stop_callbacks = Callbacks()
+                self.should_stop_callbacks = ShouldStopCallbacks()
 
             def fit(self):
                 raise Exception("mocked exception")
 
-        class MockedNominalTrainer(Trainer):
+        class MockedNominalTrainer:
             def __init__(self):
                 self.num_epochs = 0
                 self.max_num_epochs = 10
                 self.num_iterations = 0
                 self.max_num_iterations = 100
-                self.should_stop_callbacks = Callbacks()
+                self.should_stop_callbacks = ShouldStopCallbacks()
 
             def fit(self):
                 for epoch in range(self.max_num_epochs):
@@ -397,9 +397,9 @@ class TestTrainingServicer:
                 func()
             assert expected_message in str(excinfo.value)
 
-        class MockedExceptionTrainer(Trainer):
+        class MockedExceptionTrainer:
             def __init__(self):
-                self.should_stop_callbacks = Callbacks()
+                self.should_stop_callbacks = ShouldStopCallbacks()
 
             def fit(self):
                 raise Exception("mocked exception")

@@ -8,7 +8,7 @@ import typing
 from dataclasses import dataclass, field
 from typing import Generic, Type, TypeVar
 
-from tiktorch.trainer import TrainerState
+from tiktorch.trainer import TrainerAction, TrainerState
 
 if typing.TYPE_CHECKING:
     from tiktorch.server.session.backend.supervisor import BioModelSupervisor, Supervisors, TrainerSupervisor
@@ -110,17 +110,17 @@ class ResumeTrainingCmd(ICommand):
 
 class SetStartStateTrainingCmd(ICommand):
     def execute(self, ctx: Context[TrainerSupervisor]) -> None:
-        ctx.session.transition_to_state(new_state=TrainerState.RUNNING, valid_states={TrainerState.IDLE})
+        ctx.session.transition_to_state(new_state=TrainerState.RUNNING, trainer_action=TrainerAction.START)
 
 
 class SetPauseStateTrainingCmd(ICommand):
     def execute(self, ctx: Context[TrainerSupervisor]) -> None:
-        ctx.session.transition_to_state(new_state=TrainerState.PAUSED, valid_states={TrainerState.RUNNING})
+        ctx.session.transition_to_state(new_state=TrainerState.PAUSED, trainer_action=TrainerAction.PAUSE)
 
 
 class SetResumeStateTrainingCmd(ICommand):
     def execute(self, ctx: Context[TrainerSupervisor]) -> None:
-        ctx.session.transition_to_state(new_state=TrainerState.RUNNING, valid_states={TrainerState.PAUSED})
+        ctx.session.transition_to_state(new_state=TrainerState.RUNNING, trainer_action=TrainerAction.RESUME)
 
 
 class ShutdownCmd(ICommand):
