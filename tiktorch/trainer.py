@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Generic, List, TypeVar
@@ -15,6 +16,8 @@ from pytorch3dunet.unet3d.utils import create_lr_scheduler, create_optimizer, ge
 from torch import nn
 
 T = TypeVar("T", bound=Callable)
+
+logger = logging.getLogger(__name__)
 
 
 class Callbacks(Generic[T]):
@@ -46,6 +49,16 @@ class Logs:
     loss: float
     eval_score: float
     iteration: int
+    epoch: int
+    max_epochs: int
+    iteration: int
+    max_iterations: int
+
+
+def __str__(self):
+    iterations = f"Itreation[{self.iteration}/{self.max_iterations}]"
+    epochs = f"Epochs[{self.epoch}/{self.max_epochs}]"
+    return f"{epochs}, {iterations}: mode={self.mode}, loss={self.loss}, eval_score={self.eval_score}"
 
 
 LogsCallbacks = Callbacks[Callable[[Logs], None]]
@@ -126,8 +139,18 @@ class Trainer(UNetTrainer):
         return self.should_stop_callbacks() or super().should_stop()
 
     def _log_stats(self, phase, loss_avg, eval_score_avg):
-        logs = Logs(mode=ModelPhase(phase), loss=loss_avg, eval_score=eval_score_avg, iteration=self.num_iterations)
+        logs = Logs(
+            mode=ModelPhase(phase),
+            loss=loss_avg,
+            eval_score=eval_score_avg,
+            iteration=self.num_iterations,
+            epoch=self.num_epochs,
+            max_epochs=self.max_num_epochs,
+            max_iterations=self.max_num_iterations,
+        )
         self.logs_callbacks(logs)
+        # todo: why the internal training logging isn't printed on the stdout, although it is set
+        logger.info(str(logs))
         return super()._log_stats(phase, loss_avg, eval_score_avg)
 
 
