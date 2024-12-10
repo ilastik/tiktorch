@@ -7,7 +7,18 @@ import xarray as xr
 from bioimageio.core import Sample, Tensor
 from bioimageio.spec.model.v0_5 import TensorId
 
-from tiktorch.proto import inference_pb2
+from tiktorch.proto import inference_pb2, training_pb2
+from tiktorch.trainer import TrainerState
+
+trainer_state_to_pb = {
+    TrainerState.IDLE: training_pb2.GetStatusResponse.State.Idle,
+    TrainerState.RUNNING: training_pb2.GetStatusResponse.State.Running,
+    TrainerState.PAUSED: training_pb2.GetStatusResponse.State.Paused,
+    TrainerState.FAILED: training_pb2.GetStatusResponse.State.Failed,
+    TrainerState.FINISHED: training_pb2.GetStatusResponse.State.Finished,
+}
+
+pb_state_to_trainer = {value: key for key, value in trainer_state_to_pb.items()}
 
 
 def pb_tensors_to_sample(pb_tensors: List[inference_pb2.Tensor]) -> Sample:
