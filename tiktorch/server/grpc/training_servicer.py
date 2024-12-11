@@ -6,15 +6,16 @@ from pathlib import Path
 from typing import Callable, List
 
 import grpc
+import torch
 
-from tiktorch.converters import trainer_state_to_pb
+from tiktorch.converters import pb_tensor_to_numpy, trainer_state_to_pb
 from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import IDevicePool
 from tiktorch.server.grpc.utils_servicer import list_devices
 from tiktorch.server.session.process import start_trainer_process
 from tiktorch.server.session.rpc_interface import IRPCTrainer
 from tiktorch.server.session_manager import Session, SessionManager
-from tiktorch.trainer import TrainerYamlParser
+from tiktorch.trainer import Trainer, TrainerYamlParser
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
 
         return training_pb2.TrainingSessionId(id=session.id)
 
-    def Start(self, request, context):
+    def Start(self, request: training_pb2.TrainingSessionId, context):
         session = self._getTrainerSession(context, request.id)
         session.client.start_training()
         return utils_pb2.Empty()
@@ -77,8 +78,20 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         session.client.export(Path(request.filePath))
         return utils_pb2.Empty()
 
-    def Predict(self, request: training_pb2.TrainingSessionId, context):
-        raise NotImplementedError
+
+    def Predict(self, request: training_pb2.PredictRequest, context):
+        session = self._getTrainerSession(context, request.sessionId.id)
+        tensors = [torch.tensor(pb_tensor_to_numpy(pb_tensor)) for pb_tensor in request.tensors]
+        assert len(tensors) == 1, "We support models with one input"
+        predictions = session.client.forward(tensors).result()
+        return training_pb2.PredictResponse(tensors=[self._tensor_to_pb(predictions)])
+
+    def _tensor_to_pb(self, tensor: torch.Tensor):
+        dims = Trainer.get_axes_from_tensor(tensor)
+        shape = [utils_pb2.NamedInt(size=dim, name=i) for i, dim in zip(dims, tensor.shape)]
+        np_array = tensor.numpy()
+        proto_tensor = utils_pb2.Tensor(tensorId="", dtype=str(np_array.dtype), shape=shape, buffer=np_array.tobytes())
+        return proto_tensor
 
     def StreamUpdates(self, request: training_pb2.TrainingSessionId, context):
         raise NotImplementedError

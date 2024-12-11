@@ -127,8 +127,9 @@ class TrainerSupervisor:
 
     def forward(self, input_tensors):
         self.pause()
-        self._trainer.forward(input_tensors)
+        res = self._trainer.forward(input_tensors)
         self.resume()
+        return res
 
     def save(self):
         raise NotImplementedError

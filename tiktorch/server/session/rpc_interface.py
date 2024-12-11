@@ -1,5 +1,7 @@
 from typing import List
 
+import torch
+
 from tiktorch.converters import Sample
 from tiktorch.rpc import RPCInterface, exposed
 from tiktorch.rpc.exceptions import Shutdown
@@ -56,7 +58,7 @@ class IRPCTrainer(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def forward(self, input_tensors: Sample):
+    def forward(self, input_tensors: List[torch.Tensor]):
         raise NotImplementedError
 
     @exposed
