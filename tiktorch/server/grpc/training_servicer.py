@@ -78,7 +78,6 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         session.client.export(Path(request.filePath))
         return utils_pb2.Empty()
 
-
     def Predict(self, request: training_pb2.PredictRequest, context):
         session = self._getTrainerSession(context, request.sessionId.id)
         tensors = [torch.tensor(pb_tensor_to_numpy(pb_tensor)) for pb_tensor in request.tensors]
