@@ -163,9 +163,9 @@ def create_random_dataset(shape, channel_per_class):
         if channel_per_class:
             l_shape = (2,) + l_shape
 
-        f.create_dataset("raw", data=np.random.rand(*shape))
-        f.create_dataset("label", data=np.random.randint(0, 2, l_shape, dtype=np.int64))
-        f.create_dataset("weight_map", data=np.random.rand(*w_shape))
+        f.create_dataset("raw", data=np.random.rand(*shape), dtype=np.float32)
+        f.create_dataset("label", data=np.random.randint(0, 2, l_shape), dtype=np.int64)
+        f.create_dataset("weight_map", data=np.random.rand(*w_shape), dtype=np.float32)
 
     return tmp.name
 
