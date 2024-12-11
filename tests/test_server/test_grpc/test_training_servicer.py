@@ -480,11 +480,12 @@ class TestTrainingServicer:
 
         grpc_stub.Start(training_session_id)
 
-        in_channels_unet2d = 3  # dependent on the config
+        batch = 5
+        in_channels_unet2d = 3
         out_channels_unet2d = 2
-        shape = (in_channels_unet2d, 128, 128)  # c, y, x
+        shape = (batch, in_channels_unet2d, 1, 128, 128)
         data = np.random.rand(*shape).astype(np.float32)
-        xarray_data = xr.DataArray(data, dims=("c", "y", "x"))
+        xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
         predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
 
@@ -493,8 +494,8 @@ class TestTrainingServicer:
         predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
         assert len(predicted_tensors) == 1
         predicted_tensor = predicted_tensors[0]
-        assert predicted_tensor.dims == ("c", "y", "x")
-        assert predicted_tensor.shape == (out_channels_unet2d, 128, 128)
+        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
 
     def test_close_session(self, grpc_stub):
         """

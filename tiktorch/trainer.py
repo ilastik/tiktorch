@@ -4,14 +4,14 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, List, TypeVar
+from typing import Any, Callable, Generic, List, Tuple, TypeVar
 
 import torch
 import yaml
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.model import ResidualUNet2D, ResidualUNet3D, ResidualUNetSE3D, UNet2D, UNet3D, get_model
 from pytorch3dunet.unet3d.trainer import UNetTrainer
 from pytorch3dunet.unet3d.utils import create_lr_scheduler, create_optimizer, get_tensorboard_formatter
 from torch import nn
@@ -153,12 +153,44 @@ class Trainer(UNetTrainer):
         return super().validate()
 
     def forward(self, input_tensors: List[torch.Tensor]):
+        """
+        Note:
+            "The 2D U-Net itself uses the standard 2D convolutional
+            layers instead of 3D convolutions with kernel size (1, 3, 3) for performance reasons."
+            source: https://github.com/wolny/pytorch-3dunet
+
+            Thus, we drop the z dimension if we have 2d model.
+            But the input h5 data needs to respect CxDxHxW or DxHxW.
+        """
+        assert len(input_tensors) == 1, "We support models with 1 input"
+        input_tensor = input_tensors[0]
+        self.get_axes_from_tensor(input_tensor)
         self.model.eval()
+        b, c, z, y, x = input_tensor.shape
+        if self.is_2d_model() and z != 1:
+            raise ValueError(f"2d model detected but z != 1 for tensor {input_tensor.shape}")
+
         with torch.no_grad():
-            batched_tensor = torch.stack(input_tensors, dim=0).to(self._device)
-            predictions = self.model(batched_tensor)
-            predictions_list = list(predictions.unbind(dim=0))
-        return predictions_list
+            if self.is_2d_model():
+                input_tensor = input_tensor.squeeze(dim=-3)  # b, c, [z], y, x
+                predictions = self.model(input_tensor.to(self._device))
+                predictions = predictions.unsqueeze(dim=-3)  # for consistency
+            else:
+                predictions = self.model(input_tensor.to(self._device))
+
+        return predictions
+
+    @staticmethod
+    def get_axes_from_tensor(tensor: torch.Tensor) -> Tuple[str, ...]:
+        if tensor.ndim != 5:
+            raise ValueError(f"Tensor dims should be 5 (b, c, z, y, x) but got {tensor.ndim} dimensions")
+        return ("b", "c", "z", "y", "x")
+
+    def is_3d_model(self):
+        return isinstance(self.model, (ResidualUNetSE3D, ResidualUNet3D, UNet3D))
+
+    def is_2d_model(self):
+        return isinstance(self.model, (ResidualUNet2D, UNet2D))
 
     def should_stop(self) -> bool:
         """

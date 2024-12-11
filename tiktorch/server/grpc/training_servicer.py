@@ -15,7 +15,7 @@ from tiktorch.server.grpc.utils_servicer import list_devices
 from tiktorch.server.session.process import start_trainer_process
 from tiktorch.server.session.rpc_interface import IRPCTrainer
 from tiktorch.server.session_manager import Session, SessionManager
-from tiktorch.trainer import TrainerYamlParser
+from tiktorch.trainer import Trainer, TrainerYamlParser
 
 logger = logging.getLogger(__name__)
 
@@ -78,31 +78,20 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         session.client.export(Path(request.filePath))
         return utils_pb2.Empty()
 
+
     def Predict(self, request: training_pb2.PredictRequest, context):
         session = self._getTrainerSession(context, request.sessionId.id)
         tensors = [torch.tensor(pb_tensor_to_numpy(pb_tensor)) for pb_tensor in request.tensors]
-        self._check_tensors_shape(tensors)
+        assert len(tensors) == 1, "We support models with one input"
         predictions = session.client.forward(tensors).result()
-        return training_pb2.PredictResponse(tensors=[self._tensor_to_pb(prediction) for prediction in predictions])
+        return training_pb2.PredictResponse(tensors=[self._tensor_to_pb(predictions)])
 
     def _tensor_to_pb(self, tensor: torch.Tensor):
-        self._check_tensors_shape([tensor])
-        dims = ("c", "y", "x") if tensor.ndim == 3 else ("c", "z", "y", "x")
+        dims = Trainer.get_axes_from_tensor(tensor)
         shape = [utils_pb2.NamedInt(size=dim, name=i) for i, dim in zip(dims, tensor.shape)]
-
         np_array = tensor.numpy()
-
-        proto_tensor = utils_pb2.Tensor(
-            tensorId="", dtype=str(np_array.dtype), shape=shape, buffer=np_array.tobytes()  # not used currently
-        )
+        proto_tensor = utils_pb2.Tensor(tensorId="", dtype=str(np_array.dtype), shape=shape, buffer=np_array.tobytes())
         return proto_tensor
-
-    def _check_tensors_shape(self, tensors: List[torch.Tensor]):
-        for tensor in tensors:
-            if tensor.ndim != 3 and tensor.ndim != 4:
-                raise ValueError(
-                    f"Tensor dims should be 3 (c, y, x) or 4 (c, z, y, x) but got {tensor.ndim} dimensions"
-                )
 
     def StreamUpdates(self, request: training_pb2.TrainingSessionId, context):
         raise NotImplementedError
