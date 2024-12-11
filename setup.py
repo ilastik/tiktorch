@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="23.11.0",
+    version="24.12.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
