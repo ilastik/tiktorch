@@ -5,9 +5,10 @@ import queue
 from typing import Callable, List
 
 import grpc
+import torch
 
-from tiktorch.converters import trainer_state_to_pb
-from tiktorch.proto import training_pb2, training_pb2_grpc
+from tiktorch.converters import pb_tensor_to_numpy, trainer_state_to_pb
+from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import IDevicePool
 from tiktorch.server.session.process import start_trainer_process
 from tiktorch.server.session.rpc_interface import IRPCTrainer
@@ -47,7 +48,7 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
 
         return training_pb2.TrainingSessionId(id=session.id)
 
-    def Start(self, request, context):
+    def Start(self, request: training_pb2.TrainingSessionId, context):
         session = self._getTrainerSession(context, request.id)
         session.client.start_training()
         return training_pb2.Empty()
@@ -63,17 +64,40 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         return training_pb2.Empty()
 
     def Save(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.modelSessionId)
+        session = self._getTrainerSession(context, request.id)
         session.client.save()
         return training_pb2.Empty()
 
     def Export(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.modelSessionId)
+        session = self._getTrainerSession(context, request.id)
         session.client.export()
         return training_pb2.Empty()
 
-    def Predict(self, request: training_pb2.TrainingSessionId, context):
-        raise NotImplementedError
+    def Predict(self, request: training_pb2.PredictRequest, context):
+        session = self._getTrainerSession(context, request.sessionId.id)
+        tensors = [torch.tensor(pb_tensor_to_numpy(pb_tensor)) for pb_tensor in request.tensors]
+        self._check_tensors_shape(tensors)
+        predictions = session.client.forward(tensors).result()
+        return training_pb2.PredictResponse(tensors=[self._tensor_to_pb(prediction) for prediction in predictions])
+
+    def _tensor_to_pb(self, tensor: torch.Tensor):
+        self._check_tensors_shape([tensor])
+        dims = ("c", "y", "x") if tensor.ndim == 3 else ("c", "z", "y", "x")
+        shape = [utils_pb2.NamedInt(size=dim, name=i) for i, dim in zip(dims, tensor.shape)]
+
+        np_array = tensor.numpy()
+
+        proto_tensor = utils_pb2.Tensor(
+            tensorId="", dtype=str(np_array.dtype), shape=shape, buffer=np_array.tobytes()  # not used currently
+        )
+        return proto_tensor
+
+    def _check_tensors_shape(self, tensors: List[torch.Tensor]):
+        for tensor in tensors:
+            if tensor.ndim != 3 and tensor.ndim != 4:
+                raise ValueError(
+                    f"Tensor dims should be 3 (c, y, x) or 4 (c, z, y, x) but got {tensor.ndim} dimensions"
+                )
 
     def StreamUpdates(self, request: training_pb2.TrainingSessionId, context):
         raise NotImplementedError

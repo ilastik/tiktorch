@@ -96,6 +96,7 @@ class Trainer(UNetTrainer):
     def __init__(
         self,
         model,
+        device,
         optimizer,
         lr_scheduler,
         loss_criterion,
@@ -138,6 +139,7 @@ class Trainer(UNetTrainer):
             pre_trained=pre_trained,
             **kwargs,
         )
+        self._device = device
         self.logs_callbacks: LogsCallbacks = BaseCallbacks()
         self.should_stop_callbacks: Callbacks = ShouldStopCallbacks()
 
@@ -150,10 +152,13 @@ class Trainer(UNetTrainer):
     def validate(self):
         return super().validate()
 
-    def forward(self, input_tensors):
+    def forward(self, input_tensors: List[torch.Tensor]):
         self.model.eval()
         with torch.no_grad():
-            self.model(input_tensors)
+            batched_tensor = torch.stack(input_tensors, dim=0).to(self._device)
+            predictions = self.model(batched_tensor)
+            predictions_list = list(predictions.unbind(dim=0))
+        return predictions_list
 
     def should_stop(self) -> bool:
         """
@@ -228,6 +233,7 @@ class TrainerYamlParser:
         pre_trained = trainer_config.pop("pre_trained", None)
 
         return Trainer(
+            device=config["device"],
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
