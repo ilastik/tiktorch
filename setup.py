@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="23.11.0",
+    version="24.12.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -21,9 +21,9 @@ setup(
     classifiers=[  # Optional
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
@@ -33,7 +33,7 @@ setup(
         "numpy<2",  # pytorch 2.2.2-py3.9_0 for macos is compiled with numpy 1.*
         "protobuf",
         "pydantic>=2.7.0,<2.10",
-        "pytorch-3dunet",
+        "pytorch3dunet",
         "pyyaml",
         "xarray",
     ],
