@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+message NamedInt {
+    uint32 size = 1;
+    string name = 2;
+}
+
+message NamedFloat {
+    float size = 1;
+    string name = 2;
+}
+
+message Tensor {
+  bytes buffer = 1;
+  string dtype = 2;
+  string tensorId = 3;
+  repeated NamedInt shape = 4;
+}

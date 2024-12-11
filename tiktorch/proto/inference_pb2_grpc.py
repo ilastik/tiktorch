@@ -15,32 +15,32 @@ class InferenceStub(object):
             channel: A grpc.Channel.
         """
         self.CreateModelSession = channel.unary_unary(
-                '/Inference/CreateModelSession',
+                '/inference.Inference/CreateModelSession',
                 request_serializer=inference__pb2.CreateModelSessionRequest.SerializeToString,
                 response_deserializer=inference__pb2.ModelSession.FromString,
                 )
         self.CloseModelSession = channel.unary_unary(
-                '/Inference/CloseModelSession',
+                '/inference.Inference/CloseModelSession',
                 request_serializer=inference__pb2.ModelSession.SerializeToString,
                 response_deserializer=inference__pb2.Empty.FromString,
                 )
         self.CreateDatasetDescription = channel.unary_unary(
-                '/Inference/CreateDatasetDescription',
+                '/inference.Inference/CreateDatasetDescription',
                 request_serializer=inference__pb2.CreateDatasetDescriptionRequest.SerializeToString,
                 response_deserializer=inference__pb2.DatasetDescription.FromString,
                 )
         self.GetLogs = channel.unary_stream(
-                '/Inference/GetLogs',
+                '/inference.Inference/GetLogs',
                 request_serializer=inference__pb2.Empty.SerializeToString,
                 response_deserializer=inference__pb2.LogEntry.FromString,
                 )
         self.ListDevices = channel.unary_unary(
-                '/Inference/ListDevices',
+                '/inference.Inference/ListDevices',
                 request_serializer=inference__pb2.Empty.SerializeToString,
                 response_deserializer=inference__pb2.Devices.FromString,
                 )
         self.Predict = channel.unary_unary(
-                '/Inference/Predict',
+                '/inference.Inference/Predict',
                 request_serializer=inference__pb2.PredictRequest.SerializeToString,
                 response_deserializer=inference__pb2.PredictResponse.FromString,
                 )
@@ -120,7 +120,7 @@ def add_InferenceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'Inference', rpc_method_handlers)
+            'inference.Inference', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -139,7 +139,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Inference/CreateModelSession',
+        return grpc.experimental.unary_unary(request, target, '/inference.Inference/CreateModelSession',
             inference__pb2.CreateModelSessionRequest.SerializeToString,
             inference__pb2.ModelSession.FromString,
             options, channel_credentials,
@@ -156,7 +156,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Inference/CloseModelSession',
+        return grpc.experimental.unary_unary(request, target, '/inference.Inference/CloseModelSession',
             inference__pb2.ModelSession.SerializeToString,
             inference__pb2.Empty.FromString,
             options, channel_credentials,
@@ -173,7 +173,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Inference/CreateDatasetDescription',
+        return grpc.experimental.unary_unary(request, target, '/inference.Inference/CreateDatasetDescription',
             inference__pb2.CreateDatasetDescriptionRequest.SerializeToString,
             inference__pb2.DatasetDescription.FromString,
             options, channel_credentials,
@@ -190,7 +190,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/Inference/GetLogs',
+        return grpc.experimental.unary_stream(request, target, '/inference.Inference/GetLogs',
             inference__pb2.Empty.SerializeToString,
             inference__pb2.LogEntry.FromString,
             options, channel_credentials,
@@ -207,7 +207,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Inference/ListDevices',
+        return grpc.experimental.unary_unary(request, target, '/inference.Inference/ListDevices',
             inference__pb2.Empty.SerializeToString,
             inference__pb2.Devices.FromString,
             options, channel_credentials,
@@ -224,7 +224,7 @@ class Inference(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Inference/Predict',
+        return grpc.experimental.unary_unary(request, target, '/inference.Inference/Predict',
             inference__pb2.PredictRequest.SerializeToString,
             inference__pb2.PredictResponse.FromString,
             options, channel_credentials,
@@ -241,12 +241,12 @@ class FlightControlStub(object):
             channel: A grpc.Channel.
         """
         self.Ping = channel.unary_unary(
-                '/FlightControl/Ping',
+                '/inference.FlightControl/Ping',
                 request_serializer=inference__pb2.Empty.SerializeToString,
                 response_deserializer=inference__pb2.Empty.FromString,
                 )
         self.Shutdown = channel.unary_unary(
-                '/FlightControl/Shutdown',
+                '/inference.FlightControl/Shutdown',
                 request_serializer=inference__pb2.Empty.SerializeToString,
                 response_deserializer=inference__pb2.Empty.FromString,
                 )
@@ -282,7 +282,7 @@ def add_FlightControlServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'FlightControl', rpc_method_handlers)
+            'inference.FlightControl', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -301,7 +301,7 @@ class FlightControl(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/FlightControl/Ping',
+        return grpc.experimental.unary_unary(request, target, '/inference.FlightControl/Ping',
             inference__pb2.Empty.SerializeToString,
             inference__pb2.Empty.FromString,
             options, channel_credentials,
@@ -318,7 +318,7 @@ class FlightControl(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/FlightControl/Shutdown',
+        return grpc.experimental.unary_unary(request, target, '/inference.FlightControl/Shutdown',
             inference__pb2.Empty.SerializeToString,
             inference__pb2.Empty.FromString,
             options, channel_credentials,

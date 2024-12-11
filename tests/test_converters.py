@@ -13,7 +13,7 @@ from tiktorch.converters import (
     xarray_to_pb_tensor,
     xr_tensors_to_sample,
 )
-from tiktorch.proto import inference_pb2
+from tiktorch.proto import utils_pb2
 
 
 def _numpy_to_pb_tensor(arr, tensor_id: str = "dummy_tensor_name"):
@@ -21,7 +21,7 @@ def _numpy_to_pb_tensor(arr, tensor_id: str = "dummy_tensor_name"):
     Makes sure that tensor was serialized/deserialized
     """
     tensor = numpy_to_pb_tensor(tensor_id, arr)
-    parsed = inference_pb2.Tensor()
+    parsed = utils_pb2.Tensor()
     parsed.ParseFromString(tensor.SerializeToString())
     return parsed
 
@@ -31,7 +31,7 @@ def to_pb_tensor(tensor_id: str, arr: xr.DataArray):
     Makes sure that tensor was serialized/deserialized
     """
     tensor = xarray_to_pb_tensor(tensor_id, arr)
-    parsed = inference_pb2.Tensor()
+    parsed = utils_pb2.Tensor()
     parsed.ParseFromString(tensor.SerializeToString())
     return parsed
 
@@ -40,7 +40,7 @@ class TestNumpyToPBTensor:
     def test_should_serialize_to_tensor_type(self):
         arr = np.arange(9)
         tensor = _numpy_to_pb_tensor(arr)
-        assert isinstance(tensor, inference_pb2.Tensor)
+        assert isinstance(tensor, utils_pb2.Tensor)
 
     @pytest.mark.parametrize("np_dtype,dtype_str", [(np.int64, "int64"), (np.uint8, "uint8"), (np.float32, "float32")])
     def test_should_have_dtype_as_str(self, np_dtype, dtype_str):
@@ -65,12 +65,12 @@ class TestNumpyToPBTensor:
 
 class TestPBTensorToNumpy:
     def test_should_raise_on_empty_dtype(self):
-        tensor = inference_pb2.Tensor(dtype="", shape=[inference_pb2.NamedInt(size=1), inference_pb2.NamedInt(size=2)])
+        tensor = utils_pb2.Tensor(dtype="", shape=[utils_pb2.NamedInt(size=1), utils_pb2.NamedInt(size=2)])
         with pytest.raises(ValueError):
             pb_tensor_to_numpy(tensor)
 
     def test_should_raise_on_empty_shape(self):
-        tensor = inference_pb2.Tensor(dtype="int64", shape=[])
+        tensor = utils_pb2.Tensor(dtype="int64", shape=[])
         with pytest.raises(ValueError):
             pb_tensor_to_numpy(tensor)
 
@@ -109,7 +109,7 @@ class TestXarrayToPBTensor:
     def test_should_serialize_to_tensor_type(self):
         xarr = xr.DataArray(np.arange(8).reshape((2, 4)), dims=("x", "y"))
         pb_tensor = to_pb_tensor("input0", xarr)
-        assert isinstance(pb_tensor, inference_pb2.Tensor)
+        assert isinstance(pb_tensor, utils_pb2.Tensor)
         assert len(pb_tensor.shape) == 2
         dim1 = pb_tensor.shape[0]
         dim2 = pb_tensor.shape[1]
@@ -137,12 +137,12 @@ class TestXarrayToPBTensor:
 
 class TestPBTensorToXarray:
     def test_should_raise_on_empty_dtype(self):
-        tensor = inference_pb2.Tensor(dtype="", shape=[inference_pb2.NamedInt(size=1), inference_pb2.NamedInt(size=2)])
+        tensor = utils_pb2.Tensor(dtype="", shape=[utils_pb2.NamedInt(size=1), utils_pb2.NamedInt(size=2)])
         with pytest.raises(ValueError):
             pb_tensor_to_xarray(tensor)
 
     def test_should_raise_on_empty_shape(self):
-        tensor = inference_pb2.Tensor(dtype="int64", shape=[])
+        tensor = utils_pb2.Tensor(dtype="int64", shape=[])
         with pytest.raises(ValueError):
             pb_tensor_to_xarray(tensor)
 
@@ -178,19 +178,19 @@ class TestPBTensorToXarray:
 class TestSample:
     def test_pb_tensors_to_sample(self):
         arr_1 = np.arange(32 * 32, dtype=np.int64).reshape(32, 32)
-        tensor_1 = inference_pb2.Tensor(
+        tensor_1 = utils_pb2.Tensor(
             dtype="int64",
             tensorId="input1",
             buffer=bytes(arr_1),
-            shape=[inference_pb2.NamedInt(name="x", size=32), inference_pb2.NamedInt(name="y", size=32)],
+            shape=[utils_pb2.NamedInt(name="x", size=32), utils_pb2.NamedInt(name="y", size=32)],
         )
 
         arr_2 = np.arange(64 * 64, dtype=np.int64).reshape(64, 64)
-        tensor_2 = inference_pb2.Tensor(
+        tensor_2 = utils_pb2.Tensor(
             dtype="int64",
             tensorId="input2",
             buffer=bytes(arr_2),
-            shape=[inference_pb2.NamedInt(name="x", size=64), inference_pb2.NamedInt(name="y", size=64)],
+            shape=[utils_pb2.NamedInt(name="x", size=64), utils_pb2.NamedInt(name="y", size=64)],
         )
 
         sample = pb_tensors_to_sample([tensor_1, tensor_2])
@@ -218,17 +218,17 @@ class TestSample:
         tensors_ids = ["input1", "input2"]
         sample = xr_tensors_to_sample(tensors_ids, [tensor_1, tensor_2])
 
-        pb_tensor_1 = inference_pb2.Tensor(
+        pb_tensor_1 = utils_pb2.Tensor(
             dtype="int64",
             tensorId="input1",
             buffer=bytes(arr_1),
-            shape=[inference_pb2.NamedInt(name="x", size=32), inference_pb2.NamedInt(name="y", size=32)],
+            shape=[utils_pb2.NamedInt(name="x", size=32), utils_pb2.NamedInt(name="y", size=32)],
         )
-        pb_tensor_2 = inference_pb2.Tensor(
+        pb_tensor_2 = utils_pb2.Tensor(
             dtype="int64",
             tensorId="input2",
             buffer=bytes(arr_2),
-            shape=[inference_pb2.NamedInt(name="x", size=64), inference_pb2.NamedInt(name="y", size=64)],
+            shape=[utils_pb2.NamedInt(name="x", size=64), utils_pb2.NamedInt(name="y", size=64)],
         )
         expected_tensors = [pb_tensor_1, pb_tensor_2]
 
