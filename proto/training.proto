@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package training;
 
+import "utils.proto";
+
 
 message Empty {}
 
@@ -57,28 +59,15 @@ message GetLogsResponse {
 }
 
 
-message NamedInt {
-    uint32 size = 1;
-    string name = 2;
-}
-
-
-message Tensor {
-    bytes buffer = 1;
-    string dtype = 2;
-    repeated NamedInt shape = 4;
-}
-
 
 message PredictRequest {
     repeated Tensor tensors = 1;
-    TrainingSessionId id = 2;
+    TrainingSessionId sessionId = 2;
 }
 
 
 message PredictResponse {
-    uint32 best_model_idx = 1;
-    repeated Tensor tensors = 2;
+    repeated Tensor tensors = 1;
 }
 
 message ValidationResponse {
