@@ -184,6 +184,7 @@ class Trainer(UNetTrainer):
     def validate(self):
         return super().validate()
 
+
     def save_state_dict(self, file_path: Path):
         """
         On demand save of the training progress including the optimizer state.

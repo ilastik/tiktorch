@@ -508,6 +508,7 @@ class TestTrainingServicer:
         # assert that predict command has retained the init state (e.g. RUNNING)
         self.assert_state(grpc_stub, training_session_id, TrainerState.RUNNING)
 
+
         predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
         assert len(predicted_tensors) == 1
         predicted_tensor = predicted_tensors[0]
