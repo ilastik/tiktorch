@@ -23,11 +23,11 @@ build:
 requirements:
   host:
     - pip
-    - python >=3.8
+    - python >=3.9
     - setuptools >=40.0
     - setuptools_scm
   run:
-    - python >=3.8
+    - python >=3.9
     {% for dep in setup_py_data['install_requires'] %}
       # for pytorch-3dunet the names on conda and pypi differ:
       {% if 'pytorch3dunet' in dep.lower() %}
