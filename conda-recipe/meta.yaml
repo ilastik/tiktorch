@@ -29,7 +29,12 @@ requirements:
   run:
     - python >=3.8
     {% for dep in setup_py_data['install_requires'] %}
+      # for pytorch-3dunet the names on conda and pypi differ:
+      {% if 'pytorch3dunet' in dep.lower() %}
+    - {{ dep.lower().replace('pytorch3dunet', 'pytorch-3dunet') }}
+      {% else %}
     - {{ dep.lower() }}
+      {% endif %}
     {% endfor %}
   run_constrained:
     - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
