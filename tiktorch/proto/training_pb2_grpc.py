@@ -72,12 +72,12 @@ class TrainingStub(object):
                 _registered_method=True)
         self.Save = channel.unary_unary(
                 '/training.Training/Save',
-                request_serializer=training__pb2.TrainingSessionId.SerializeToString,
+                request_serializer=training__pb2.SaveRequest.SerializeToString,
                 response_deserializer=utils__pb2.Empty.FromString,
                 _registered_method=True)
         self.Export = channel.unary_unary(
                 '/training.Training/Export',
-                request_serializer=training__pb2.TrainingSessionId.SerializeToString,
+                request_serializer=training__pb2.ExportRequest.SerializeToString,
                 response_deserializer=utils__pb2.Empty.FromString,
                 _registered_method=True)
         self.Predict = channel.unary_unary(
@@ -212,12 +212,12 @@ def add_TrainingServicer_to_server(servicer, server):
             ),
             'Save': grpc.unary_unary_rpc_method_handler(
                     servicer.Save,
-                    request_deserializer=training__pb2.TrainingSessionId.FromString,
+                    request_deserializer=training__pb2.SaveRequest.FromString,
                     response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Export': grpc.unary_unary_rpc_method_handler(
                     servicer.Export,
-                    request_deserializer=training__pb2.TrainingSessionId.FromString,
+                    request_deserializer=training__pb2.ExportRequest.FromString,
                     response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Predict': grpc.unary_unary_rpc_method_handler(
@@ -450,7 +450,7 @@ class Training(object):
             request,
             target,
             '/training.Training/Save',
-            training__pb2.TrainingSessionId.SerializeToString,
+            training__pb2.SaveRequest.SerializeToString,
             utils__pb2.Empty.FromString,
             options,
             channel_credentials,
@@ -477,7 +477,7 @@ class Training(object):
             request,
             target,
             '/training.Training/Export',
-            training__pb2.TrainingSessionId.SerializeToString,
+            training__pb2.ExportRequest.SerializeToString,
             utils__pb2.Empty.FromString,
             options,
             channel_credentials,

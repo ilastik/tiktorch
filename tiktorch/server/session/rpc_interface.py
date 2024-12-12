@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 import torch
@@ -78,11 +79,11 @@ class IRPCTrainer(RPCInterface):
         raise NotImplementedError
 
     @exposed
-    def save(self):
+    def save(self, file_path: Path):
         raise NotImplementedError
 
     @exposed
-    def export(self):
+    def export(self, file_path: Path):
         raise NotImplementedError
 
     @exposed

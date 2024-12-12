@@ -21,9 +21,9 @@ service Training {
 
     rpc GetLogs(TrainingSessionId) returns (GetLogsResponse) {}
 
-    rpc Save(TrainingSessionId) returns (Empty) {}
+    rpc Save(SaveRequest) returns (Empty) {}
 
-    rpc Export(TrainingSessionId) returns (Empty) {}
+    rpc Export(ExportRequest) returns (Empty) {}
 
     rpc Predict(PredictRequest) returns (PredictResponse) {}
 
@@ -58,7 +58,15 @@ message GetLogsResponse {
     repeated Logs logs = 1;
 }
 
+message SaveRequest {
+    TrainingSessionId sessionId = 1;
+    string filePath = 2;
+}
 
+message ExportRequest {
+    TrainingSessionId sessionId = 1;
+    string filePath = 2;
+}
 
 message PredictRequest {
     repeated Tensor tensors = 1;

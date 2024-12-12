@@ -1,5 +1,6 @@
 import logging
 import threading
+from pathlib import Path
 from typing import Generic, Set, TypeVar, Union
 
 from bioimageio.core import PredictionPipeline, Sample
@@ -134,11 +135,14 @@ class TrainerSupervisor:
             self.resume()
         return res
 
-    def save(self):
-        raise NotImplementedError
+    def save(self, file_path: Path):
+        self.pause()
+        self._trainer.save_state_dict(file_path)
+        self.resume()
 
-    def export(self):
-        raise NotImplementedError
+    def export(self, file_path: Path):
+        self.pause()
+        self._trainer.export(file_path)
 
     def _should_stop(self):
         return self._pause_triggered
