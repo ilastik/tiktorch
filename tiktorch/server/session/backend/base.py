@@ -4,7 +4,6 @@ import logging
 from abc import ABC
 from concurrent.futures import Future
 from pathlib import Path
-
 from typing import List
 
 import torch

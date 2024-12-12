@@ -73,12 +73,10 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         session.client.save(Path(request.filePath))
         return utils_pb2.Empty()
 
-
     def Export(self, request: training_pb2.ExportRequest, context):
         session = self._getTrainerSession(context, request.sessionId.id)
         session.client.export(Path(request.filePath))
         return utils_pb2.Empty()
-
 
     def Predict(self, request: training_pb2.PredictRequest, context):
         session = self._getTrainerSession(context, request.sessionId.id)
