@@ -1,10 +1,10 @@
 import logging
 import multiprocessing as _mp
-import pathlib
 import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
+from pathlib import Path
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 import torch
@@ -139,11 +139,11 @@ class TrainerSessionProcess(IRPCTrainer):
     def pause_training(self):
         self.worker.pause_training()
 
-    def save(self):
-        self.worker.save()
+    def save(self, file_path: Path):
+        self.worker.save(file_path)
 
-    def export(self):
-        self.worker.export()
+    def export(self, file_path: Path):
+        self.worker.export(file_path)
 
     def get_state(self):
         return self.worker.get_state()
@@ -210,7 +210,7 @@ def _get_prediction_pipeline_from_model_bytes(model_bytes: bytes, devices: List[
 def _get_model_descr_from_model_bytes(model_bytes: bytes) -> v0_5.ModelDescr:
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as _tmp_file:
         _tmp_file.write(model_bytes)
-        temp_file_path = pathlib.Path(_tmp_file.name)
+        temp_file_path = Path(_tmp_file.name)
     model_descr = load_description(temp_file_path, format_version="latest")
     if isinstance(model_descr, InvalidDescr):
         raise ValueError(f"Failed to load valid model descriptor {model_descr.validation_summary}")
