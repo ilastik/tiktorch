@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import time
 from pathlib import Path
 from typing import Callable, List
 
@@ -98,12 +99,23 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
     def GetLogs(self, request: training_pb2.TrainingSessionId, context):
         raise NotImplementedError
 
+    def IsBestModel(self, request, context):
+        session = self._getTrainerSession(context, request.id)
+        prev_best_model_idx = None
+        while context.is_active():
+            current_best_model_idx = session.client.get_best_model_idx()
+            if current_best_model_idx != prev_best_model_idx:
+                prev_best_model_idx = current_best_model_idx
+                yield utils_pb2.Empty()
+            time.sleep(1)
+        logger.info("Client disconnected. Stopping stream.")
+
     def GetStatus(self, request: training_pb2.TrainingSessionId, context):
         session = self._getTrainerSession(context, request.id)
         state = session.client.get_state()
         return training_pb2.GetStatusResponse(state=trainer_state_to_pb[state])
 
-    def CloseTrainerSession(self, request: training_pb2.TrainingSessionId, context) -> training_pb2.Empty:
+    def CloseTrainerSession(self, request: training_pb2.TrainingSessionId, context) -> utils_pb2.Empty:
         self._session_manager.close_session(request.id)
         return utils_pb2.Empty()
 

@@ -70,6 +70,11 @@ class TrainingStub(object):
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
                 response_deserializer=training__pb2.GetLogsResponse.FromString,
                 _registered_method=True)
+        self.IsBestModel = channel.unary_stream(
+                '/training.Training/IsBestModel',
+                request_serializer=training__pb2.TrainingSessionId.SerializeToString,
+                response_deserializer=utils__pb2.Empty.FromString,
+                _registered_method=True)
         self.Save = channel.unary_unary(
                 '/training.Training/Save',
                 request_serializer=training__pb2.SaveRequest.SerializeToString,
@@ -142,6 +147,12 @@ class TrainingServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def IsBestModel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Save(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -209,6 +220,11 @@ def add_TrainingServicer_to_server(servicer, server):
                     servicer.GetLogs,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
                     response_serializer=training__pb2.GetLogsResponse.SerializeToString,
+            ),
+            'IsBestModel': grpc.unary_stream_rpc_method_handler(
+                    servicer.IsBestModel,
+                    request_deserializer=training__pb2.TrainingSessionId.FromString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Save': grpc.unary_unary_rpc_method_handler(
                     servicer.Save,
@@ -425,6 +441,33 @@ class Training(object):
             '/training.Training/GetLogs',
             training__pb2.TrainingSessionId.SerializeToString,
             training__pb2.GetLogsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def IsBestModel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/training.Training/IsBestModel',
+            training__pb2.TrainingSessionId.SerializeToString,
+            utils__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,

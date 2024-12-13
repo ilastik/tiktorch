@@ -89,3 +89,7 @@ class IRPCTrainer(RPCInterface):
     @exposed
     def get_state(self) -> TrainerState:
         raise NotImplementedError
+
+    @exposed
+    def get_best_model_idx(self) -> int:
+        raise NotImplementedError
