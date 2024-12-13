@@ -17,7 +17,7 @@ from tiktorch.server.grpc import training_servicer
 from tiktorch.server.session.backend.base import TrainerSessionBackend
 from tiktorch.server.session.process import TrainerSessionProcess
 from tiktorch.server.session_manager import SessionManager
-from tiktorch.trainer import ShouldStopCallbacks, Trainer, TrainerState
+from tiktorch.trainer import BaseCallbacks, ShouldStopCallbacks, Trainer, TrainerState
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +60,7 @@ model:
 trainer:
   checkpoint_dir: {checkpoint_dir}
   resume: null
-  validate_after_iters: 250
+  validate_after_iters: 1
   log_after_iters: 2
   max_num_epochs: 10000
   max_num_iterations: 100000
@@ -263,6 +263,7 @@ class TestTrainingServicer:
                 self.num_iterations = 0
                 self.max_num_iterations = 100
                 self.should_stop_callbacks = ShouldStopCallbacks()
+                self.ping_is_best_callbacks = BaseCallbacks()
 
             def fit(self):
                 print("Training has started")
@@ -365,6 +366,7 @@ class TestTrainingServicer:
         class MockedExceptionTrainer:
             def __init__(self):
                 self.should_stop_callbacks = ShouldStopCallbacks()
+                self.ping_is_best_callbacks = BaseCallbacks()
 
             def fit(self):
                 raise Exception("mocked exception")
@@ -376,6 +378,7 @@ class TestTrainingServicer:
                 self.num_iterations = 0
                 self.max_num_iterations = 100
                 self.should_stop_callbacks = ShouldStopCallbacks()
+                self.ping_is_best_callbacks = BaseCallbacks()
 
             def fit(self):
                 for epoch in range(self.max_num_epochs):
@@ -415,6 +418,7 @@ class TestTrainingServicer:
         class MockedExceptionTrainer:
             def __init__(self):
                 self.should_stop_callbacks = ShouldStopCallbacks()
+                self.ping_is_best_callbacks = BaseCallbacks()
 
             def fit(self):
                 raise Exception("mocked exception")
@@ -631,6 +635,21 @@ class TestTrainingServicer:
 
             # assume stopping training since model is exported
             grpc_stub.CloseTrainerSession(training_session_id)
+
+    def test_best_model_ping(self, grpc_stub):
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
+
+        grpc_stub.Start(training_session_id)
+
+        responses = grpc_stub.IsBestModel(training_session_id)
+        received_updates = 0
+        for response in responses:
+            assert isinstance(response, utils_pb2.Empty)
+            received_updates += 1
+
+            if received_updates >= 3:
+                break
 
     def test_close_session(self, grpc_stub):
         """

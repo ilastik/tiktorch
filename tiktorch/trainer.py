@@ -173,6 +173,7 @@ class Trainer(UNetTrainer):
         self._device = device
         self.logs_callbacks: LogsCallbacks = BaseCallbacks()
         self.should_stop_callbacks: Callbacks = ShouldStopCallbacks()
+        self.ping_is_best_callbacks = BaseCallbacks()  # notification of having a new best model
 
     def fit(self):
         return super().fit()
@@ -181,13 +182,19 @@ class Trainer(UNetTrainer):
         return super().train()
 
     def validate(self):
-        return super().validate()
+        eval_score = super().validate()
+        is_best = self._is_best_eval_score(eval_score)
+        if is_best:
+            self.ping_is_best_callbacks()
+        return eval_score
 
     def save_state_dict(self, file_path: Path):
         """
         On demand save of the training progress including the optimizer state.
 
         Note: pytorch-3dunet automatically saves the checkpoints in intervals defined by the `validation_after_iters`.
+
+        todo: it should return a bytes object and remove the file path dependency
         """
         if not file_path.suffix:
             file_path = file_path.with_suffix(".pth")
@@ -225,6 +232,8 @@ class Trainer(UNetTrainer):
         Export to bioimageio model zip.
 
         Use default values for the fields. Expected the configuration to be delegated.
+
+        todo: it should return a bytes object and remove the file path dependency
         """
         if not file_to_save.suffix:
             file_to_save = file_to_save.with_suffix(".zip")

@@ -19,7 +19,7 @@ from tiktorch.rpc.interface import RPCInterface
 from tiktorch.rpc.mp import BioModelClient, MPServer
 
 from ...converters import Sample
-from ...trainer import TrainerYamlParser
+from ...trainer import TrainerState, TrainerYamlParser
 from .backend import base
 from .rpc_interface import IRPCModelSession, IRPCTrainer
 
@@ -145,8 +145,11 @@ class TrainerSessionProcess(IRPCTrainer):
     def export(self, file_path: Path):
         self.worker.export(file_path)
 
-    def get_state(self):
+    def get_state(self) -> TrainerState:
         return self.worker.get_state()
+
+    def get_best_model_idx(self) -> int:
+        return self.worker.get_best_model_idx()
 
     def shutdown(self):
         if self._worker is None:
