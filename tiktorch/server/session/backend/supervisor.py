@@ -136,12 +136,17 @@ class TrainerSupervisor:
         return res
 
     def save(self, file_path: Path):
-        self.pause()
+        init_state = self.get_state()  # retain the state after save
+        if init_state == TrainerState.RUNNING:
+            self.pause()
         self._trainer.save_state_dict(file_path)
-        self.resume()
+        if init_state == TrainerState.RUNNING:
+            self.resume()
 
     def export(self, file_path: Path):
-        self.pause()
+        init_state = self.get_state()
+        if init_state == TrainerState.RUNNING:
+            self.pause()
         self._trainer.export(file_path)
 
     def _should_stop(self):
