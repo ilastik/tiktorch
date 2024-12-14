@@ -5,17 +5,14 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-
-import bioimageio
-
 from pathlib import Path
 from typing import Any, Callable, Generic, List, TypeVar
 
+import bioimageio
 import numpy as np
 import torch
 import xarray as xr
 import yaml
-
 from bioimageio.core import Sample
 from bioimageio.spec import save_bioimageio_package
 from bioimageio.spec.model.v0_5 import (
@@ -355,7 +352,7 @@ class Trainer(UNetTrainer):
             members={"output": self._get_bioimageio_tensor_from_pytorch_tensor(predictions)}, stat={}, id=None
         )
         return output_sample
-    
+
     def _forward(self, input_tensors: List[torch.Tensor]) -> torch.Tensor:
         """
         Note:
@@ -365,7 +362,7 @@ class Trainer(UNetTrainer):
 
             Thus, we drop the z dimension if we have 2d model.
             But the input h5 data needs to respect CxDxHxW or DxHxW.
-        """        
+        """
         assert len(input_tensors) == 1, "We support models with 1 input"
         input_tensor = input_tensors[0]
         self.model.eval()
@@ -398,7 +395,7 @@ class Trainer(UNetTrainer):
         # currently we scale the features from 0 - 1 (consistent scale for rendering across channels)
         postprocessor = Compose([Normalize(norm01=True), ToTensor(expand_dims=True)])
         predictions = self._apply_transformation(compose=postprocessor, tensor=predictions)
-        return predictions        
+        return predictions
 
     def _apply_transformation(self, compose: Compose, tensor: torch.Tensor) -> torch.Tensor:
         """
