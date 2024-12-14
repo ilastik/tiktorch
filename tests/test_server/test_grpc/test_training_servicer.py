@@ -482,7 +482,7 @@ class TestTrainingServicer:
             grpc_stub.CloseTrainerSession(training_session_id)
         assert "Unknown session" in excinfo.value.details()
 
-    def test_forward(self, grpc_stub):
+    def test_forward_while_running(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
 
@@ -498,6 +498,37 @@ class TestTrainingServicer:
         predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
 
         response = grpc_stub.Predict(predict_request)
+
+        # assert that predict command has retained the init state (e.g. RUNNING)
+        self.assert_state(grpc_stub, training_session_id, TrainerState.RUNNING)
+
+        predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
+        assert len(predicted_tensors) == 1
+        predicted_tensor = predicted_tensors[0]
+        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
+
+    def test_forward_while_paused(self, grpc_stub):
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+
+        grpc_stub.Start(training_session_id)
+
+        batch = 5
+        in_channels_unet2d = 3
+        out_channels_unet2d = 2
+        shape = (batch, in_channels_unet2d, 1, 128, 128)
+        data = np.random.rand(*shape).astype(np.float32)
+        xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
+        pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
+        predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
+
+        grpc_stub.Pause(training_session_id)
+
+        response = grpc_stub.Predict(predict_request)
+
+        # assert that predict command has retained the init state (e.g. PAUSED)
+        self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
 
         predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
         assert len(predicted_tensors) == 1
