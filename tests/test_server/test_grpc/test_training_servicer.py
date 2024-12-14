@@ -542,7 +542,7 @@ class TestTrainingServicer:
         assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
         assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
 
-    def test_save(self, grpc_stub):
+    def test_save_while_running(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
 
@@ -553,6 +553,7 @@ class TestTrainingServicer:
             save_request = training_pb2.SaveRequest(sessionId=training_session_id, filePath=str(model_checkpoint_file))
             grpc_stub.Save(save_request)
             assert model_checkpoint_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.RUNNING)
 
             # assume stopping training to release devices
             grpc_stub.CloseTrainerSession(training_session_id)
@@ -564,7 +565,32 @@ class TestTrainingServicer:
             training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
             grpc_stub.Start(training_session_id)
 
-    def test_export(self, grpc_stub):
+    def test_save_while_paused(self, grpc_stub):
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+
+        grpc_stub.Start(training_session_id)
+        time.sleep(1)
+        grpc_stub.Pause(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_checkpoint_file = Path(model_checkpoint_dir) / "model.pth"
+            save_request = training_pb2.SaveRequest(sessionId=training_session_id, filePath=str(model_checkpoint_file))
+            grpc_stub.Save(save_request)
+            assert model_checkpoint_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+            # assume stopping training to release devices
+            grpc_stub.CloseTrainerSession(training_session_id)
+
+            # attempt to init a new model with the new checkpoint and start training
+            init_response = grpc_stub.Init(
+                training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment(resume=model_checkpoint_file))
+            )
+            training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+            grpc_stub.Start(training_session_id)
+
+    def test_export_while_running(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
 
@@ -575,6 +601,25 @@ class TestTrainingServicer:
             export_request = training_pb2.ExportRequest(sessionId=training_session_id, filePath=str(model_export_file))
             grpc_stub.Export(export_request)
             assert model_export_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+            # assume stopping training since model is exported
+            grpc_stub.CloseTrainerSession(training_session_id)
+
+    def test_export_while_paused(self, grpc_stub):
+        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+
+        grpc_stub.Start(training_session_id)
+        time.sleep(1)
+        grpc_stub.Pause(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_export_file = Path(model_checkpoint_dir) / "bioimageio.zip"
+            export_request = training_pb2.ExportRequest(sessionId=training_session_id, filePath=str(model_export_file))
+            grpc_stub.Export(export_request)
+            assert model_export_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
 
             # assume stopping training since model is exported
             grpc_stub.CloseTrainerSession(training_session_id)
