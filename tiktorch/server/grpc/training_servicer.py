@@ -88,14 +88,14 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
     def GetLogs(self, request: utils_pb2.ModelSession, context):
         raise NotImplementedError
 
-    def IsBestModel(self, request, context):
+    def GetBestModelIdx(self, request, context):
         session = self._getTrainerSession(context, request)
         prev_best_model_idx = None
         while context.is_active():
             current_best_model_idx = session.client.get_best_model_idx()
             if current_best_model_idx != prev_best_model_idx:
                 prev_best_model_idx = current_best_model_idx
-                yield utils_pb2.Empty()
+                yield training_pb2.GetBestModelIdxResponse(id=str(current_best_model_idx))
             time.sleep(1)
         logger.info("Client disconnected. Stopping stream.")
 

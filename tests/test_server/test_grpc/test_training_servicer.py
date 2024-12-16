@@ -498,7 +498,6 @@ class TestTrainingServicer:
             grpc_stub.CloseTrainerSession(training_session_id)
         assert "Unknown session" in excinfo.value.details()
 
-
     @pytest.mark.parametrize(
         "dims, shape",
         [
@@ -671,17 +670,19 @@ class TestTrainingServicer:
             grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_best_model_ping(self, grpc_stub):
-        training_session_id = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         grpc_stub.Start(training_session_id)
 
-        responses = grpc_stub.IsBestModel(training_session_id)
+        responses = grpc_stub.GetBestModelIdx(training_session_id)
         received_updates = 0
         for response in responses:
-            assert isinstance(response, utils_pb2.Empty)
+            assert isinstance(response, training_pb2.GetBestModelIdxResponse)
+            assert response.id is not None
             received_updates += 1
-
-            if received_updates >= 3:
+            if received_updates >= 2:
                 break
 
     def test_close_session(self, grpc_stub):

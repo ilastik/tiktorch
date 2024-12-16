@@ -50,10 +50,10 @@ class TrainingStub(object):
                 request_serializer=utils__pb2.ModelSession.SerializeToString,
                 response_deserializer=training__pb2.GetLogsResponse.FromString,
                 )
-        self.IsBestModel = channel.unary_stream(
-                '/training.Training/IsBestModel',
+        self.GetBestModelIdx = channel.unary_stream(
+                '/training.Training/GetBestModelIdx',
                 request_serializer=utils__pb2.ModelSession.SerializeToString,
-                response_deserializer=utils__pb2.Empty.FromString,
+                response_deserializer=training__pb2.GetBestModelIdxResponse.FromString,
                 )
         self.Save = channel.unary_unary(
                 '/training.Training/Save',
@@ -127,7 +127,7 @@ class TrainingServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def IsBestModel(self, request, context):
+    def GetBestModelIdx(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -201,10 +201,10 @@ def add_TrainingServicer_to_server(servicer, server):
                     request_deserializer=utils__pb2.ModelSession.FromString,
                     response_serializer=training__pb2.GetLogsResponse.SerializeToString,
             ),
-            'IsBestModel': grpc.unary_stream_rpc_method_handler(
-                    servicer.IsBestModel,
+            'GetBestModelIdx': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetBestModelIdx,
                     request_deserializer=utils__pb2.ModelSession.FromString,
-                    response_serializer=utils__pb2.Empty.SerializeToString,
+                    response_serializer=training__pb2.GetBestModelIdxResponse.SerializeToString,
             ),
             'Save': grpc.unary_unary_rpc_method_handler(
                     servicer.Save,
@@ -361,7 +361,7 @@ class Training(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def IsBestModel(request,
+    def GetBestModelIdx(request,
             target,
             options=(),
             channel_credentials=None,
@@ -371,9 +371,9 @@ class Training(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/training.Training/IsBestModel',
+        return grpc.experimental.unary_stream(request, target, '/training.Training/GetBestModelIdx',
             utils__pb2.ModelSession.SerializeToString,
-            utils__pb2.Empty.FromString,
+            training__pb2.GetBestModelIdxResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
