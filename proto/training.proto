@@ -21,7 +21,7 @@ service Training {
 
     rpc GetLogs(TrainingSessionId) returns (GetLogsResponse) {}
 
-    rpc IsBestModel(TrainingSessionId) returns (stream Empty) {}
+    rpc GetBestModelIdx(TrainingSessionId) returns (stream GetBestModelIdxResponse) {}
 
     rpc Save(SaveRequest) returns (Empty) {}
 
@@ -32,6 +32,10 @@ service Training {
     rpc GetStatus(TrainingSessionId) returns (GetStatusResponse) {}
 
     rpc CloseTrainerSession(TrainingSessionId) returns (Empty) {}
+}
+
+message GetBestModelIdxResponse {
+    string id = 1;
 }
 
 message TrainingSessionId {

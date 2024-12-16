@@ -635,12 +635,12 @@ class TestTrainingServicer:
 
         grpc_stub.Start(training_session_id)
 
-        responses = grpc_stub.IsBestModel(training_session_id)
+        responses = grpc_stub.GetBestModelIdx(training_session_id)
         received_updates = 0
         for response in responses:
-            assert isinstance(response, utils_pb2.Empty)
+            assert isinstance(response, training_pb2.GetBestModelIdxResponse)
+            assert response.id is not None
             received_updates += 1
-
             if received_updates >= 3:
                 break
 
