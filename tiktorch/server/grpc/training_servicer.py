@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import logging
 import queue
+from pathlib import Path
 from typing import Callable, List
 
 import grpc
 
 from tiktorch.converters import trainer_state_to_pb
-from tiktorch.proto import training_pb2, training_pb2_grpc
+from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import IDevicePool
+from tiktorch.server.grpc.utils_servicer import list_devices
 from tiktorch.server.session.process import start_trainer_process
 from tiktorch.server.session.rpc_interface import IRPCTrainer
 from tiktorch.server.session_manager import Session, SessionManager
@@ -27,6 +29,9 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         self._logs_queue_stream = queue.Queue()
         self._should_stop_callbacks: List[Callable] = []
         self._session_manager = session_manager
+
+    def ListDevices(self, request: utils_pb2.Empty, context) -> utils_pb2.Devices:
+        return list_devices(self._device_pool)
 
     def Init(self, request: training_pb2.TrainingConfig, context):
         parser = TrainerYamlParser(request.yaml_content)
@@ -50,27 +55,27 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
     def Start(self, request, context):
         session = self._getTrainerSession(context, request.id)
         session.client.start_training()
-        return training_pb2.Empty()
+        return utils_pb2.Empty()
 
     def Resume(self, request, context):
         session = self._getTrainerSession(context, request.id)
         session.client.resume_training()
-        return training_pb2.Empty()
+        return utils_pb2.Empty()
 
     def Pause(self, request: training_pb2.TrainingSessionId, context):
         session = self._getTrainerSession(context, request.id)
         session.client.pause_training()
-        return training_pb2.Empty()
+        return utils_pb2.Empty()
 
-    def Save(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.modelSessionId)
-        session.client.save()
-        return training_pb2.Empty()
+    def Save(self, request: training_pb2.SaveRequest, context):
+        session = self._getTrainerSession(context, request.sessionId.id)
+        session.client.save(Path(request.filePath))
+        return utils_pb2.Empty()
 
-    def Export(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.modelSessionId)
-        session.client.export()
-        return training_pb2.Empty()
+    def Export(self, request: training_pb2.ExportRequest, context):
+        session = self._getTrainerSession(context, request.sessionId.id)
+        session.client.export(Path(request.filePath))
+        return utils_pb2.Empty()
 
     def Predict(self, request: training_pb2.TrainingSessionId, context):
         raise NotImplementedError
@@ -88,7 +93,7 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
 
     def CloseTrainerSession(self, request: training_pb2.TrainingSessionId, context) -> training_pb2.Empty:
         self._session_manager.close_session(request.id)
-        return training_pb2.Empty()
+        return utils_pb2.Empty()
 
     def close_all_sessions(self):
         self._session_manager.close_all_sessions()

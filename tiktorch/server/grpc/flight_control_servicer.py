@@ -3,7 +3,7 @@ import threading
 import time
 from typing import Optional
 
-from tiktorch.proto import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2_grpc, utils_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,11 @@ class FlightControlServicer(inference_pb2_grpc.FlightControlServicer):
         watchdog_thread.start()
         return watchdog_thread
 
-    def Ping(self, request: inference_pb2.Empty, context) -> inference_pb2.Empty:
+    def Ping(self, request: utils_pb2.Empty, context) -> utils_pb2.Empty:
         self.__last_ping = time.time()
-        return inference_pb2.Empty()
+        return utils_pb2.Empty()
 
-    def Shutdown(self, request: inference_pb2.Empty, context) -> inference_pb2.Empty:
+    def Shutdown(self, request: utils_pb2.Empty, context) -> utils_pb2.Empty:
         if self.__done_evt:
             self.__done_evt.set()
-        return inference_pb2.Empty()
+        return utils_pb2.Empty()

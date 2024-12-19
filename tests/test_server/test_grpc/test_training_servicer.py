@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from tiktorch.converters import pb_state_to_trainer, trainer_state_to_pb
-from tiktorch.proto import training_pb2, training_pb2_grpc
+from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.grpc import training_servicer
 from tiktorch.server.session.backend.base import TrainerSessionBackend
@@ -342,7 +342,7 @@ class TestTrainingServicer:
         Test starting training without initializing a session.
         """
         with pytest.raises(grpc.RpcError) as excinfo:
-            grpc_stub.Start(training_pb2.Empty())
+            grpc_stub.Start(utils_pb2.Empty())
         assert excinfo.value.code() == grpc.StatusCode.FAILED_PRECONDITION
         assert "trainer-session with id  doesn't exist" in excinfo.value.details()
 

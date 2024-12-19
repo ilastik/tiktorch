@@ -13,17 +13,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0butils.proto\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedIntb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0butils.proto\"\x07\n\x05\x45mpty\"&\n\x08NamedInt\x12\x0c\n\x04size\x18\x01 \x01(\r\x12\x0c\n\x04name\x18\x02 \x01(\t\"(\n\nNamedFloat\x12\x0c\n\x04size\x18\x01 \x01(\x02\x12\x0c\n\x04name\x18\x02 \x01(\t\"S\n\x06Tensor\x12\x0e\n\x06\x62uffer\x18\x01 \x01(\x0c\x12\r\n\x05\x64type\x18\x02 \x01(\t\x12\x10\n\x08tensorId\x18\x03 \x01(\t\x12\x18\n\x05shape\x18\x04 \x03(\x0b\x32\t.NamedInt\"Y\n\x06\x44\x65vice\x12\n\n\x02id\x18\x01 \x01(\t\x12\x1e\n\x06status\x18\x02 \x01(\x0e\x32\x0e.Device.Status\"#\n\x06Status\x12\r\n\tAVAILABLE\x10\x00\x12\n\n\x06IN_USE\x10\x01\"#\n\x07\x44\x65vices\x12\x18\n\x07\x64\x65vices\x18\x01 \x03(\x0b\x32\x07.Deviceb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'utils_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _NAMEDINT._serialized_start=15
-  _NAMEDINT._serialized_end=53
-  _NAMEDFLOAT._serialized_start=55
-  _NAMEDFLOAT._serialized_end=95
-  _TENSOR._serialized_start=97
-  _TENSOR._serialized_end=180
+  _EMPTY._serialized_start=15
+  _EMPTY._serialized_end=22
+  _NAMEDINT._serialized_start=24
+  _NAMEDINT._serialized_end=62
+  _NAMEDFLOAT._serialized_start=64
+  _NAMEDFLOAT._serialized_end=104
+  _TENSOR._serialized_start=106
+  _TENSOR._serialized_end=189
+  _DEVICE._serialized_start=191
+  _DEVICE._serialized_end=280
+  _DEVICE_STATUS._serialized_start=245
+  _DEVICE_STATUS._serialized_end=280
+  _DEVICES._serialized_start=282
+  _DEVICES._serialized_end=317
 # @@protoc_insertion_point(module_scope)

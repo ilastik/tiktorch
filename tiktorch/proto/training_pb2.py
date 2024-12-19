@@ -14,39 +14,37 @@ _sym_db = _symbol_database.Default()
 from . import utils_pb2 as utils__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0etraining.proto\x12\x08training\x1a\x0butils.proto\"\x07\n\x05\x45mpty\"\x1f\n\x11TrainingSessionId\x12\n\n\x02id\x18\x01 \x01(\t\"\x87\x01\n\x04Logs\x12\'\n\x04mode\x18\x01 \x01(\x0e\x32\x19.training.Logs.ModelPhase\x12\x12\n\neval_score\x18\x02 \x01(\x01\x12\x0c\n\x04loss\x18\x03 \x01(\x01\x12\x11\n\titeration\x18\x04 \x01(\r\"!\n\nModelPhase\x12\t\n\x05Train\x10\x00\x12\x08\n\x04\x45val\x10\x01\"L\n\x14StreamUpdateResponse\x12\x16\n\x0e\x62\x65st_model_idx\x18\x01 \x01(\r\x12\x1c\n\x04logs\x18\x02 \x01(\x0b\x32\x0e.training.Logs\"/\n\x0fGetLogsResponse\x12\x1c\n\x04logs\x18\x01 \x03(\x0b\x32\x0e.training.Logs\"Z\n\x0ePredictRequest\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\x12.\n\tsessionId\x18\x02 \x01(\x0b\x32\x1b.training.TrainingSessionId\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"6\n\x12ValidationResponse\x12 \n\x18validation_score_average\x18\x01 \x01(\x01\"\x8b\x01\n\x11GetStatusResponse\x12\x30\n\x05state\x18\x01 \x01(\x0e\x32!.training.GetStatusResponse.State\"D\n\x05State\x12\x08\n\x04Idle\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\n\n\x06Paused\x10\x02\x12\n\n\x06\x46\x61iled\x10\x03\x12\x0c\n\x08\x46inished\x10\x04\",\n\x1eGetCurrentBestModelIdxResponse\x12\n\n\x02id\x18\x01 \x01(\r\"&\n\x0eTrainingConfig\x12\x14\n\x0cyaml_content\x18\x01 \x01(\t2\xd2\x05\n\x08Training\x12?\n\x04Init\x12\x18.training.TrainingConfig\x1a\x1b.training.TrainingSessionId\"\x00\x12\x37\n\x05Start\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x12\x38\n\x06Resume\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x12\x37\n\x05Pause\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x12P\n\rStreamUpdates\x12\x1b.training.TrainingSessionId\x1a\x1e.training.StreamUpdateResponse\"\x00\x30\x01\x12\x43\n\x07GetLogs\x12\x1b.training.TrainingSessionId\x1a\x19.training.GetLogsResponse\"\x00\x12\x36\n\x04Save\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x12\x38\n\x06\x45xport\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x12@\n\x07Predict\x12\x18.training.PredictRequest\x1a\x19.training.PredictResponse\"\x00\x12G\n\tGetStatus\x12\x1b.training.TrainingSessionId\x1a\x1b.training.GetStatusResponse\"\x00\x12\x45\n\x13\x43loseTrainerSession\x12\x1b.training.TrainingSessionId\x1a\x0f.training.Empty\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0etraining.proto\x12\x08training\x1a\x0butils.proto\"\x1f\n\x11TrainingSessionId\x12\n\n\x02id\x18\x01 \x01(\t\"\x87\x01\n\x04Logs\x12\'\n\x04mode\x18\x01 \x01(\x0e\x32\x19.training.Logs.ModelPhase\x12\x12\n\neval_score\x18\x02 \x01(\x01\x12\x0c\n\x04loss\x18\x03 \x01(\x01\x12\x11\n\titeration\x18\x04 \x01(\r\"!\n\nModelPhase\x12\t\n\x05Train\x10\x00\x12\x08\n\x04\x45val\x10\x01\"L\n\x14StreamUpdateResponse\x12\x16\n\x0e\x62\x65st_model_idx\x18\x01 \x01(\r\x12\x1c\n\x04logs\x18\x02 \x01(\x0b\x32\x0e.training.Logs\"/\n\x0fGetLogsResponse\x12\x1c\n\x04logs\x18\x01 \x03(\x0b\x32\x0e.training.Logs\"Z\n\x0ePredictRequest\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\x12.\n\tsessionId\x18\x02 \x01(\x0b\x32\x1b.training.TrainingSessionId\"+\n\x0fPredictResponse\x12\x18\n\x07tensors\x18\x01 \x03(\x0b\x32\x07.Tensor\"6\n\x12ValidationResponse\x12 \n\x18validation_score_average\x18\x01 \x01(\x01\"\x8b\x01\n\x11GetStatusResponse\x12\x30\n\x05state\x18\x01 \x01(\x0e\x32!.training.GetStatusResponse.State\"D\n\x05State\x12\x08\n\x04Idle\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\n\n\x06Paused\x10\x02\x12\n\n\x06\x46\x61iled\x10\x03\x12\x0c\n\x08\x46inished\x10\x04\",\n\x1eGetCurrentBestModelIdxResponse\x12\n\n\x02id\x18\x01 \x01(\r\"&\n\x0eTrainingConfig\x12\x14\n\x0cyaml_content\x18\x01 \x01(\t2\xbf\x05\n\x08Training\x12!\n\x0bListDevices\x12\x06.Empty\x1a\x08.Devices\"\x00\x12?\n\x04Init\x12\x18.training.TrainingConfig\x1a\x1b.training.TrainingSessionId\"\x00\x12.\n\x05Start\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x12/\n\x06Resume\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x12.\n\x05Pause\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x12P\n\rStreamUpdates\x12\x1b.training.TrainingSessionId\x1a\x1e.training.StreamUpdateResponse\"\x00\x30\x01\x12\x43\n\x07GetLogs\x12\x1b.training.TrainingSessionId\x1a\x19.training.GetLogsResponse\"\x00\x12-\n\x04Save\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x12/\n\x06\x45xport\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x12@\n\x07Predict\x12\x18.training.PredictRequest\x1a\x19.training.PredictResponse\"\x00\x12G\n\tGetStatus\x12\x1b.training.TrainingSessionId\x1a\x1b.training.GetStatusResponse\"\x00\x12<\n\x13\x43loseTrainerSession\x12\x1b.training.TrainingSessionId\x1a\x06.Empty\"\x00\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'training_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _EMPTY._serialized_start=41
-  _EMPTY._serialized_end=48
-  _TRAININGSESSIONID._serialized_start=50
-  _TRAININGSESSIONID._serialized_end=81
-  _LOGS._serialized_start=84
-  _LOGS._serialized_end=219
-  _LOGS_MODELPHASE._serialized_start=186
-  _LOGS_MODELPHASE._serialized_end=219
-  _STREAMUPDATERESPONSE._serialized_start=221
-  _STREAMUPDATERESPONSE._serialized_end=297
-  _GETLOGSRESPONSE._serialized_start=299
-  _GETLOGSRESPONSE._serialized_end=346
-  _PREDICTREQUEST._serialized_start=348
-  _PREDICTREQUEST._serialized_end=438
-  _PREDICTRESPONSE._serialized_start=440
-  _PREDICTRESPONSE._serialized_end=483
-  _VALIDATIONRESPONSE._serialized_start=485
-  _VALIDATIONRESPONSE._serialized_end=539
-  _GETSTATUSRESPONSE._serialized_start=542
-  _GETSTATUSRESPONSE._serialized_end=681
-  _GETSTATUSRESPONSE_STATE._serialized_start=613
-  _GETSTATUSRESPONSE_STATE._serialized_end=681
-  _GETCURRENTBESTMODELIDXRESPONSE._serialized_start=683
-  _GETCURRENTBESTMODELIDXRESPONSE._serialized_end=727
-  _TRAININGCONFIG._serialized_start=729
-  _TRAININGCONFIG._serialized_end=767
-  _TRAINING._serialized_start=770
-  _TRAINING._serialized_end=1492
+  _TRAININGSESSIONID._serialized_start=41
+  _TRAININGSESSIONID._serialized_end=72
+  _LOGS._serialized_start=75
+  _LOGS._serialized_end=210
+  _LOGS_MODELPHASE._serialized_start=177
+  _LOGS_MODELPHASE._serialized_end=210
+  _STREAMUPDATERESPONSE._serialized_start=212
+  _STREAMUPDATERESPONSE._serialized_end=288
+  _GETLOGSRESPONSE._serialized_start=290
+  _GETLOGSRESPONSE._serialized_end=337
+  _PREDICTREQUEST._serialized_start=339
+  _PREDICTREQUEST._serialized_end=429
+  _PREDICTRESPONSE._serialized_start=431
+  _PREDICTRESPONSE._serialized_end=474
+  _VALIDATIONRESPONSE._serialized_start=476
+  _VALIDATIONRESPONSE._serialized_end=530
+  _GETSTATUSRESPONSE._serialized_start=533
+  _GETSTATUSRESPONSE._serialized_end=672
+  _GETSTATUSRESPONSE_STATE._serialized_start=604
+  _GETSTATUSRESPONSE_STATE._serialized_end=672
+  _GETCURRENTBESTMODELIDXRESPONSE._serialized_start=674
+  _GETCURRENTBESTMODELIDXRESPONSE._serialized_end=718
+  _TRAININGCONFIG._serialized_start=720
+  _TRAININGCONFIG._serialized_end=758
+  _TRAINING._serialized_start=761
+  _TRAINING._serialized_end=1464
 # @@protoc_insertion_point(module_scope)

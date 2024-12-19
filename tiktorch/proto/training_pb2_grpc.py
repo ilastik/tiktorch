@@ -3,6 +3,7 @@
 import grpc
 
 from . import training_pb2 as training__pb2
+from . import utils_pb2 as utils__pb2
 
 
 class TrainingStub(object):
@@ -14,6 +15,11 @@ class TrainingStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.ListDevices = channel.unary_unary(
+                '/training.Training/ListDevices',
+                request_serializer=utils__pb2.Empty.SerializeToString,
+                response_deserializer=utils__pb2.Devices.FromString,
+                )
         self.Init = channel.unary_unary(
                 '/training.Training/Init',
                 request_serializer=training__pb2.TrainingConfig.SerializeToString,
@@ -22,17 +28,17 @@ class TrainingStub(object):
         self.Start = channel.unary_unary(
                 '/training.Training/Start',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.Resume = channel.unary_unary(
                 '/training.Training/Resume',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.Pause = channel.unary_unary(
                 '/training.Training/Pause',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.StreamUpdates = channel.unary_stream(
                 '/training.Training/StreamUpdates',
@@ -47,12 +53,12 @@ class TrainingStub(object):
         self.Save = channel.unary_unary(
                 '/training.Training/Save',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.Export = channel.unary_unary(
                 '/training.Training/Export',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.Predict = channel.unary_unary(
                 '/training.Training/Predict',
@@ -67,12 +73,18 @@ class TrainingStub(object):
         self.CloseTrainerSession = channel.unary_unary(
                 '/training.Training/CloseTrainerSession',
                 request_serializer=training__pb2.TrainingSessionId.SerializeToString,
-                response_deserializer=training__pb2.Empty.FromString,
+                response_deserializer=utils__pb2.Empty.FromString,
                 )
 
 
 class TrainingServicer(object):
     """Missing associated documentation comment in .proto file."""
+
+    def ListDevices(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Init(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -143,6 +155,11 @@ class TrainingServicer(object):
 
 def add_TrainingServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'ListDevices': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListDevices,
+                    request_deserializer=utils__pb2.Empty.FromString,
+                    response_serializer=utils__pb2.Devices.SerializeToString,
+            ),
             'Init': grpc.unary_unary_rpc_method_handler(
                     servicer.Init,
                     request_deserializer=training__pb2.TrainingConfig.FromString,
@@ -151,17 +168,17 @@ def add_TrainingServicer_to_server(servicer, server):
             'Start': grpc.unary_unary_rpc_method_handler(
                     servicer.Start,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Resume': grpc.unary_unary_rpc_method_handler(
                     servicer.Resume,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Pause': grpc.unary_unary_rpc_method_handler(
                     servicer.Pause,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'StreamUpdates': grpc.unary_stream_rpc_method_handler(
                     servicer.StreamUpdates,
@@ -176,12 +193,12 @@ def add_TrainingServicer_to_server(servicer, server):
             'Save': grpc.unary_unary_rpc_method_handler(
                     servicer.Save,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Export': grpc.unary_unary_rpc_method_handler(
                     servicer.Export,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Predict': grpc.unary_unary_rpc_method_handler(
                     servicer.Predict,
@@ -196,7 +213,7 @@ def add_TrainingServicer_to_server(servicer, server):
             'CloseTrainerSession': grpc.unary_unary_rpc_method_handler(
                     servicer.CloseTrainerSession,
                     request_deserializer=training__pb2.TrainingSessionId.FromString,
-                    response_serializer=training__pb2.Empty.SerializeToString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -207,6 +224,23 @@ def add_TrainingServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class Training(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def ListDevices(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/training.Training/ListDevices',
+            utils__pb2.Empty.SerializeToString,
+            utils__pb2.Devices.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def Init(request,
@@ -238,7 +272,7 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Start',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -255,7 +289,7 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Resume',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -272,7 +306,7 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Pause',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -323,7 +357,7 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Save',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -340,7 +374,7 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Export',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -391,6 +425,6 @@ class Training(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/CloseTrainerSession',
             training__pb2.TrainingSessionId.SerializeToString,
-            training__pb2.Empty.FromString,
+            utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

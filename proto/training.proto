@@ -5,10 +5,10 @@ package training;
 import "utils.proto";
 
 
-message Empty {}
-
 
 service Training {
+    rpc ListDevices(Empty) returns (Devices) {}
+
     rpc Init(TrainingConfig) returns (TrainingSessionId) {}
 
     rpc Start(TrainingSessionId) returns (Empty) {}
