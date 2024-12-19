@@ -4,8 +4,8 @@ import threading
 
 import grpc
 
-from tiktorch.proto.inference_pb2 import Empty
 from tiktorch.proto.inference_pb2_grpc import FlightControlStub
+from tiktorch.proto.utils_pb2 import Empty
 from tiktorch.server.grpc import serve
 from tiktorch.utils import wait
 
