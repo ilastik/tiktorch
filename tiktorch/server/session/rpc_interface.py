@@ -1,8 +1,13 @@
+from pathlib import Path
 from typing import List
+
+import torch
 
 from tiktorch.converters import Sample
 from tiktorch.rpc import RPCInterface, exposed
+from tiktorch.rpc.exceptions import Shutdown
 from tiktorch.tiktypes import TikTensorBatch
+from tiktorch.trainer import TrainerState
 from tiktorch.types import ModelState
 
 
@@ -45,4 +50,46 @@ class IRPCModelSession(RPCInterface):
 
     @exposed
     def forward(self, input_tensors: Sample):
+        raise NotImplementedError
+
+
+class IRPCTrainer(RPCInterface):
+    @exposed
+    def init(self, trainer_yaml_config: str):
+        raise NotImplementedError
+
+    @exposed
+    def forward(self, input_tensors: List[torch.Tensor]):
+        raise NotImplementedError
+
+    @exposed
+    def resume_training(self) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def pause_training(self) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def start_training(self) -> None:
+        raise NotImplementedError
+
+    @exposed
+    def shutdown(self) -> Shutdown:
+        raise NotImplementedError
+
+    @exposed
+    def save(self, file_path: Path):
+        raise NotImplementedError
+
+    @exposed
+    def export(self, file_path: Path):
+        raise NotImplementedError
+
+    @exposed
+    def get_state(self) -> TrainerState:
+        raise NotImplementedError
+
+    @exposed
+    def get_best_model_idx(self) -> int:
         raise NotImplementedError

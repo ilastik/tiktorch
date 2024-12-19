@@ -9,11 +9,12 @@ dependencies:
   # - bioimage.core via submodule
   - python 3.9.*
   - numpy >=1.21,<2
-  - grpcio=1.49.1 # protobuf 5 requires protoc version > 3.19.0 that requires grpcio >= 1.44
+  - grpcio
+  - grpcio-tools
   - marshmallow-union
   - marshmallow=3.12.*
   - marshmallow-jsonschema
-  - protobuf
+  - protobuf >5
   - pyyaml=5.3.*
   - requests
   - scikit-learn
