@@ -9,7 +9,7 @@ from numpy.testing import assert_array_equal
 
 from tiktorch import converters
 from tiktorch.converters import pb_tensor_to_xarray
-from tiktorch.proto import inference_pb2, inference_pb2_grpc
+from tiktorch.proto import inference_pb2, inference_pb2_grpc, utils_pb2
 from tiktorch.server.data_store import DataStore
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.grpc import inference_servicer
@@ -101,13 +101,13 @@ class TestModelManagement:
 
 class TestDeviceManagement:
     def test_list_devices(self, grpc_stub):
-        resp = grpc_stub.ListDevices(inference_pb2.Empty())
+        resp = grpc_stub.ListDevices(utils_pb2.Empty())
         device_by_id = {d.id: d for d in resp.devices}
         assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
+        assert utils_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
 
     def _query_devices(self, grpc_stub):
-        dev_resp = grpc_stub.ListDevices(inference_pb2.Empty())
+        dev_resp = grpc_stub.ListDevices(utils_pb2.Empty())
         device_by_id = {d.id: d for d in dev_resp.devices}
         return device_by_id
 
@@ -121,19 +121,19 @@ class TestDeviceManagement:
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
+        assert utils_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
 
     def test_use_device(self, grpc_stub, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
+        assert utils_pb2.Device.Status.AVAILABLE == device_by_id["cpu"].status
 
         grpc_stub.CreateModelSession(valid_model_request(model_bytes, device_ids=["cpu"]))
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
+        assert utils_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
 
     def test_using_same_device_fails(self, grpc_stub, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
@@ -147,20 +147,20 @@ class TestDeviceManagement:
 
         device_by_id = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id
-        assert inference_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
+        assert utils_pb2.Device.Status.IN_USE == device_by_id["cpu"].status
 
         grpc_stub.CloseModelSession(model)
 
         device_by_id_after_close = self._query_devices(grpc_stub)
         assert "cpu" in device_by_id_after_close
-        assert inference_pb2.Device.Status.AVAILABLE == device_by_id_after_close["cpu"].status
+        assert utils_pb2.Device.Status.AVAILABLE == device_by_id_after_close["cpu"].status
 
 
 class TestGetLogs:
     def test_returns_ack_message(self, bioimage_model_explicit_add_one_siso_v5, grpc_stub):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
         grpc_stub.CreateModelSession(valid_model_request(model_bytes))
-        resp = grpc_stub.GetLogs(inference_pb2.Empty())
+        resp = grpc_stub.GetLogs(utils_pb2.Empty())
         record = next(resp)
         assert inference_pb2.LogEntry.Level.INFO == record.level
         assert "Sending model logs" == record.content

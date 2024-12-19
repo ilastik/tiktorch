@@ -1,11 +1,13 @@
+import logging
 import multiprocessing as _mp
-import pathlib
 import tempfile
 import uuid
 from concurrent.futures import Future
 from multiprocessing.connection import Connection
+from pathlib import Path
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
+import torch
 from bioimageio.core import PredictionPipeline, Tensor, create_prediction_pipeline
 from bioimageio.spec import InvalidDescr, load_description
 from bioimageio.spec.model import v0_5
@@ -17,8 +19,11 @@ from tiktorch.rpc.interface import RPCInterface
 from tiktorch.rpc.mp import BioModelClient, MPServer
 
 from ...converters import Sample
+from ...trainer import TrainerYamlParser
 from .backend import base
-from .rpc_interface import IRPCModelSession
+from .rpc_interface import IRPCModelSession, IRPCTrainer
+
+logger = logging.getLogger(__name__)
 
 
 class InputSampleValidator:
@@ -77,11 +82,11 @@ class ModelSessionProcess(IRPCModelSession):
     def __init__(self) -> None:
         super().__init__()
         self._datasets = {}
-        self._worker: Optional[base.SessionBackend] = None
+        self._worker: Optional[base.BioModelSessionBackend] = None
 
     def init(self, model_bytes: bytes, devices: List[str]):
         prediction_pipeline = _get_prediction_pipeline_from_model_bytes(model_bytes, devices)
-        self._worker = base.SessionBackend(prediction_pipeline)
+        self._worker = base.BioModelSessionBackend(prediction_pipeline)
 
     def forward(self, sample: Sample) -> Future:
         res = self.worker.forward(sample)
@@ -99,10 +104,55 @@ class ModelSessionProcess(IRPCModelSession):
         return Shutdown()
 
     @property
-    def worker(self) -> base.SessionBackend:
+    def worker(self) -> base.BioModelSessionBackend:
         if self._worker is None:
             raise ValueError("Server isn't initialized")
         return self._worker
+
+
+class TrainerSessionProcess(IRPCTrainer):
+    def __init__(self):
+        self._worker: Optional[base.TrainerSessionBackend] = None
+
+    @property
+    def worker(self) -> base.TrainerSessionBackend:
+        if self._worker is None:
+            raise ValueError("Server isn't initialized")
+        return self._worker
+
+    def init(self, trainer_yaml_config: str):
+        parser = TrainerYamlParser(trainer_yaml_config)
+        logger.debug(f"Config file {trainer_yaml_config}")
+        trainer = parser.parse()
+        self._worker = base.TrainerSessionBackend(trainer)
+
+    def forward(self, input_tensors: List[torch.Tensor]) -> Future:
+        res = self.worker.forward(input_tensors)
+        return res
+
+    def resume_training(self):
+        self.worker.resume_training()
+
+    def start_training(self):
+        self.worker.start_training()
+
+    def pause_training(self):
+        self.worker.pause_training()
+
+    def save(self, file_path: Path):
+        self.worker.save(file_path)
+
+    def export(self, file_path: Path):
+        self.worker.export(file_path)
+
+    def get_state(self):
+        return self.worker.get_state()
+
+    def shutdown(self):
+        if self._worker is None:
+            return Shutdown()
+        self.worker.shutdown()
+        return Shutdown()
 
 
 def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Queue] = None):
@@ -123,6 +173,10 @@ def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Que
 
 
 T = TypeVar("T", bound=RPCInterface)
+
+
+def start_trainer_process(log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, TrainerSessionProcess]:
+    return start_process(interface_class=TrainerSessionProcess, log_queue=log_queue)
 
 
 def start_process(interface_class: Type[T], log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, T]:
@@ -156,7 +210,7 @@ def _get_prediction_pipeline_from_model_bytes(model_bytes: bytes, devices: List[
 def _get_model_descr_from_model_bytes(model_bytes: bytes) -> v0_5.ModelDescr:
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as _tmp_file:
         _tmp_file.write(model_bytes)
-        temp_file_path = pathlib.Path(_tmp_file.name)
+        temp_file_path = Path(_tmp_file.name)
     model_descr = load_description(temp_file_path, format_version="latest")
     if isinstance(model_descr, InvalidDescr):
         raise ValueError(f"Failed to load valid model descriptor {model_descr.validation_summary}")
