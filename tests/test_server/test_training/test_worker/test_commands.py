@@ -9,17 +9,17 @@ from tiktorch.server.session.backend import commands as cmds
 class TestCommandQueue:
     def test_stop_command_has_higher_priorityj(self):
         cmd_queue = cmds.CommandPriorityQueue()
-        stop_cmd = cmds.StopCmd()
-        cmd_queue.put_nowait(cmds.ResumeCmd())
+        stop_cmd = cmds.ShutdownCmd()
+        cmd_queue.put_nowait(cmds.ResumeTrainingCmd())
         cmd_queue.put_nowait(stop_cmd)
-        cmd_queue.put_nowait(cmds.PauseCmd())
+        cmd_queue.put_nowait(cmds.PauseTrainingCmd())
 
         received_cmd = cmd_queue.get_nowait()
         assert stop_cmd is received_cmd
 
     def test_queue_order_is_stable(self):
         cmd_queue = cmds.CommandPriorityQueue()
-        stop_cmds = [cmds.StopCmd() for _ in range(100)]
+        stop_cmds = [cmds.ShutdownCmd() for _ in range(100)]
         for cmd in stop_cmds:
             cmd_queue.put_nowait(cmd)
 
