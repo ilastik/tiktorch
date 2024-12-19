@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+message Empty {}
+
 message NamedInt {
     uint32 size = 1;
     string name = 2;
@@ -15,4 +17,18 @@ message Tensor {
   string dtype = 2;
   string tensorId = 3;
   repeated NamedInt shape = 4;
+}
+
+message Device {
+  enum Status {
+    AVAILABLE = 0;
+    IN_USE = 1;
+  }
+
+  string id = 1;
+  Status status = 2;
+}
+
+message Devices {
+  repeated Device devices = 1;
 }

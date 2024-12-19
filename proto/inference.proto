@@ -19,15 +19,6 @@ service Inference {
   rpc Predict(PredictRequest) returns (PredictResponse) {}
 }
 
-message Device {
-  enum Status {
-    AVAILABLE = 0;
-    IN_USE = 1;
-  }
-
-  string id = 1;
-  Status status = 2;
-}
 
 message CreateDatasetDescriptionRequest {
   string modelSessionId = 1;
@@ -81,11 +72,6 @@ message LogEntry {
   string content = 3;
 }
 
-message Devices {
-  repeated Device devices = 1;
-}
-
-
 
 message PredictRequest {
   string modelSessionId = 1;
@@ -97,7 +83,6 @@ message PredictResponse {
   repeated Tensor tensors = 1;
 }
 
-message Empty {}
 
 service FlightControl {
   rpc Ping(Empty) returns (Empty) {}
