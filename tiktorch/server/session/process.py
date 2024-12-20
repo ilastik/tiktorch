@@ -1,3 +1,4 @@
+import logging
 import multiprocessing as _mp
 import pathlib
 import tempfile
@@ -17,8 +18,11 @@ from tiktorch.rpc.interface import RPCInterface
 from tiktorch.rpc.mp import BioModelClient, MPServer
 
 from ...converters import Sample
+from ...trainer import TrainerYamlParser
 from .backend import base
-from .rpc_interface import IRPCModelSession
+from .rpc_interface import IRPCModelSession, IRPCTrainer
+
+logger = logging.getLogger(__name__)
 
 
 class InputSampleValidator:
@@ -77,11 +81,11 @@ class ModelSessionProcess(IRPCModelSession):
     def __init__(self) -> None:
         super().__init__()
         self._datasets = {}
-        self._worker: Optional[base.SessionBackend] = None
+        self._worker: Optional[base.BioModelSessionBackend] = None
 
     def init(self, model_bytes: bytes, devices: List[str]):
         prediction_pipeline = _get_prediction_pipeline_from_model_bytes(model_bytes, devices)
-        self._worker = base.SessionBackend(prediction_pipeline)
+        self._worker = base.BioModelSessionBackend(prediction_pipeline)
 
     def forward(self, sample: Sample) -> Future:
         res = self.worker.forward(sample)
@@ -99,10 +103,55 @@ class ModelSessionProcess(IRPCModelSession):
         return Shutdown()
 
     @property
-    def worker(self) -> base.SessionBackend:
+    def worker(self) -> base.BioModelSessionBackend:
         if self._worker is None:
             raise ValueError("Server isn't initialized")
         return self._worker
+
+
+class TrainerSessionProcess(IRPCTrainer):
+    def __init__(self):
+        self._worker: Optional[base.TrainerSessionBackend] = None
+
+    @property
+    def worker(self) -> base.TrainerSessionBackend:
+        if self._worker is None:
+            raise ValueError("Server isn't initialized")
+        return self._worker
+
+    def init(self, trainer_yaml_config: str):
+        parser = TrainerYamlParser(trainer_yaml_config)
+        logger.debug(f"Config file {trainer_yaml_config}")
+        trainer = parser.parse()
+        self._worker = base.TrainerSessionBackend(trainer)
+
+    def forward(self, input_tensors) -> Future:
+        res = self.worker.forward(input_tensors)
+        return res
+
+    def resume_training(self):
+        self.worker.resume_training()
+
+    def start_training(self):
+        self.worker.start_training()
+
+    def pause_training(self):
+        self.worker.pause_training()
+
+    def save(self):
+        self.worker.save()
+
+    def export(self):
+        self.worker.export()
+
+    def get_state(self):
+        return self.worker.get_state()
+
+    def shutdown(self):
+        if self._worker is None:
+            return Shutdown()
+        self.worker.shutdown()
+        return Shutdown()
 
 
 def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Queue] = None):
@@ -123,6 +172,10 @@ def _run_server(api: RPCInterface, conn: Connection, log_queue: Optional[_mp.Que
 
 
 T = TypeVar("T", bound=RPCInterface)
+
+
+def start_trainer_process(log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, TrainerSessionProcess]:
+    return start_process(interface_class=TrainerSessionProcess, log_queue=log_queue)
 
 
 def start_process(interface_class: Type[T], log_queue: Optional[_mp.Queue] = None) -> Tuple[_mp.Process, T]:
