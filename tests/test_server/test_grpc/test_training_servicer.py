@@ -235,6 +235,7 @@ class TestTrainingServicer:
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         assert init_response.id is not None
 
+
     def test_start_training_success(self):
         """
         Test starting training after successful initialization.
@@ -348,7 +349,7 @@ class TestTrainingServicer:
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Start(utils_pb2.Empty())
         assert excinfo.value.code() == grpc.StatusCode.FAILED_PRECONDITION
-        assert "trainer-session with id  doesn't exist" in excinfo.value.details()
+        assert "model-session with id  doesn't exist" in excinfo.value.details()
 
     def test_recover_training_failed(self):
         class MockedExceptionTrainer:
@@ -484,7 +485,7 @@ class TestTrainingServicer:
 
     def test_forward_while_running(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
 
@@ -495,7 +496,7 @@ class TestTrainingServicer:
         data = np.random.rand(*shape).astype(np.float32)
         xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
-        predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         response = grpc_stub.Predict(predict_request)
 
@@ -510,7 +511,7 @@ class TestTrainingServicer:
 
     def test_forward_while_paused(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
 
@@ -521,7 +522,7 @@ class TestTrainingServicer:
         data = np.random.rand(*shape).astype(np.float32)
         xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
-        predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         grpc_stub.Pause(training_session_id)
 
