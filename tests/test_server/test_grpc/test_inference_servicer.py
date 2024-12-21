@@ -77,10 +77,10 @@ class TestModelManagement:
 
     def test_predict_call_fails_without_specifying_model_session_id(self, grpc_stub):
         with pytest.raises(grpc.RpcError) as e:
-            grpc_stub.Predict(inference_pb2.PredictRequest())
+            grpc_stub.Predict(utils_pb2.PredictRequest())
 
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
-        assert "model-session-id has not been provided" in e.value.details()
+        assert "model-session with id  doesn't exist" in e.value.details()
 
     def test_model_init_failed_close_session(self, bioimage_model_explicit_add_one_siso_v5, grpc_stub):
         """
@@ -169,17 +169,18 @@ class TestGetLogs:
 class TestForwardPass:
     def test_call_fails_with_unknown_model_session_id(self, grpc_stub):
         with pytest.raises(grpc.RpcError) as e:
-            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId="myid1"))
+            model_id = utils_pb2.ModelSession(id="myid")
+            grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id))
         assert grpc.StatusCode.FAILED_PRECONDITION == e.value.code()
-        assert "model-session with id myid1 doesn't exist" in e.value.details()
+        assert "model-session with id myid doesn't exist" in e.value.details()
 
     def test_call_predict_valid_explicit(self, grpc_stub, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
-        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        res = grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
@@ -188,11 +189,11 @@ class TestForwardPass:
 
     def test_call_predict_valid_explicit_v4(self, grpc_stub, bioimage_model_add_one_v4):
         model_bytes = bioimage_model_add_one_v4
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
-        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        res = grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
@@ -201,16 +202,16 @@ class TestForwardPass:
 
     def test_call_predict_invalid_shape_explicit(self, grpc_stub, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(32 * 32).reshape(1, 1, 32, 32), dims=("batch", "channel", "x", "y"))
         input_tensors = [converters.xarray_to_pb_tensor("input", arr)]
         with pytest.raises(grpc.RpcError) as error:
-            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+            grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Incompatible axis")
 
     def test_call_predict_multiple_inputs_with_reference(self, grpc_stub, bioimage_model_add_one_miso_v5):
         model_bytes = bioimage_model_add_one_miso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
 
         arr1 = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensor_id1 = "input1"
@@ -227,8 +228,8 @@ class TestForwardPass:
             converters.xarray_to_pb_tensor(tensor_id, arr) for tensor_id, arr in zip(input_tensor_ids, tensors_arr)
         ]
 
-        res = grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
-        grpc_stub.CloseModelSession(model)
+        res = grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
+        grpc_stub.CloseModelSession(model_id)
         assert len(res.tensors) == 1
         pb_tensor = res.tensors[0]
         assert pb_tensor.tensorId == "output"
@@ -238,11 +239,11 @@ class TestForwardPass:
     @pytest.mark.parametrize("shape", [(1, 2, 10, 20), (1, 2, 12, 20), (1, 2, 10, 23), (1, 2, 12, 23)])
     def test_call_predict_valid_shape_parameterized(self, grpc_stub, shape, bioimage_model_param_add_one_siso_v5):
         model_bytes = bioimage_model_param_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(np.prod(shape)).reshape(*shape), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
-        grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+        grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
 
     @pytest.mark.parametrize(
         "shape",
@@ -250,21 +251,21 @@ class TestForwardPass:
     )
     def test_call_predict_invalid_shape_parameterized(self, grpc_stub, shape, bioimage_model_param_add_one_siso_v5):
         model_bytes = bioimage_model_param_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(np.prod(shape)).reshape(*shape), dims=("batch", "channel", "x", "y"))
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         with pytest.raises(grpc.RpcError) as error:
-            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+            grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Incompatible axis")
 
     def test_call_predict_invalid_tensor_ids(self, grpc_stub, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=("batch", "channel", "x", "y"))
         input_tensors = [converters.xarray_to_pb_tensor("invalidTensorName", arr)]
         with pytest.raises(grpc.RpcError) as error:
-            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+            grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Spec 'invalidTensorName' doesn't exist")
 
     @pytest.mark.parametrize(
@@ -278,10 +279,10 @@ class TestForwardPass:
     )
     def test_call_predict_invalid_axes(self, grpc_stub, axes, bioimage_model_explicit_add_one_siso_v5):
         model_bytes = bioimage_model_explicit_add_one_siso_v5
-        model = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
+        model_id = grpc_stub.CreateModelSession(valid_model_request(model_bytes))
         arr = xr.DataArray(np.arange(2 * 10 * 20).reshape(1, 2, 10, 20), dims=axes)
         input_tensor_id = "input"
         input_tensors = [converters.xarray_to_pb_tensor(input_tensor_id, arr)]
         with pytest.raises(grpc.RpcError) as error:
-            grpc_stub.Predict(inference_pb2.PredictRequest(modelSessionId=model.id, tensors=input_tensors))
+            grpc_stub.Predict(utils_pb2.PredictRequest(modelSessionId=model_id, tensors=input_tensors))
         assert error.value.details().startswith("Exception calling application: Incompatible axes names")

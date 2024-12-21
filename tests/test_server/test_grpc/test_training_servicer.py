@@ -233,7 +233,7 @@ class TestTrainingServicer:
 
         # attempt to init with the same device
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        response = training_pb2.TrainingSessionId(id=init_response.id)
+        response = utils_pb2.ModelSession(id=init_response.id)
         assert response.id is not None
 
     def test_start_training_success(self):
@@ -271,7 +271,7 @@ class TestTrainingServicer:
         The test should exit gracefully without hanging processes or threads.
         """
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         threads = []
         for _ in range(2):
@@ -290,7 +290,7 @@ class TestTrainingServicer:
             self.assert_state(grpc_stub, training_session_id, state_to_check)
 
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
         assert_state(TrainerState.RUNNING)
@@ -304,7 +304,7 @@ class TestTrainingServicer:
 
     def test_error_handling_on_invalid_state_transitions_after_training_started(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         # Attempt to start again while already running
         grpc_stub.Start(training_session_id)
@@ -326,7 +326,7 @@ class TestTrainingServicer:
 
     def test_error_handling_on_invalid_state_transitions_before_training_started(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         # Attempt to resume before start
         with pytest.raises(grpc.RpcError) as excinfo:
@@ -345,7 +345,7 @@ class TestTrainingServicer:
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Start(utils_pb2.Empty())
         assert excinfo.value.code() == grpc.StatusCode.FAILED_PRECONDITION
-        assert "trainer-session with id  doesn't exist" in excinfo.value.details()
+        assert "model-session with id  doesn't exist" in excinfo.value.details()
 
     def test_recover_training_failed(self):
         class MockedExceptionTrainer:
@@ -439,25 +439,25 @@ class TestTrainingServicer:
 
     def test_graceful_shutdown_after_init(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_start(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.Start(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_pause(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.Start(training_session_id)
         grpc_stub.Pause(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_resume(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.Start(training_session_id)
         grpc_stub.Pause(training_session_id)
         grpc_stub.Resume(training_session_id)
@@ -466,7 +466,7 @@ class TestTrainingServicer:
     def test_close_trainer_session_twice(self, grpc_stub):
         # Attempt to close the session twice
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
         # The second attempt should raise an error
@@ -476,7 +476,7 @@ class TestTrainingServicer:
 
     def test_forward_while_running(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
 
@@ -487,7 +487,7 @@ class TestTrainingServicer:
         data = np.random.rand(*shape).astype(np.float32)
         xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
-        predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         response = grpc_stub.Predict(predict_request)
 
@@ -502,7 +502,7 @@ class TestTrainingServicer:
 
     def test_forward_while_paused(self, grpc_stub):
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
 
         grpc_stub.Start(training_session_id)
 
@@ -513,7 +513,7 @@ class TestTrainingServicer:
         data = np.random.rand(*shape).astype(np.float32)
         xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
-        predict_request = training_pb2.PredictRequest(sessionId=training_session_id, tensors=[pb_tensor])
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         grpc_stub.Pause(training_session_id)
 
@@ -533,7 +533,7 @@ class TestTrainingServicer:
         Test closing a training session.
         """
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = utils_pb2.ModelSession(id=init_response.id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
         # attempt to perform an operation while session is closed

@@ -5,13 +5,12 @@ import queue
 from pathlib import Path
 from typing import Callable, List
 
-import grpc
 import torch
 
 from tiktorch.converters import pb_tensor_to_numpy, trainer_state_to_pb
 from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import IDevicePool
-from tiktorch.server.grpc.utils_servicer import list_devices
+from tiktorch.server.grpc.utils_servicer import get_model_session, list_devices
 from tiktorch.server.session.process import start_trainer_process
 from tiktorch.server.session.rpc_interface import IRPCTrainer
 from tiktorch.server.session_manager import Session, SessionManager
@@ -51,39 +50,39 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
             self._session_manager.close_session(session.id)
             raise e
 
-        return training_pb2.TrainingSessionId(id=session.id)
+        return utils_pb2.ModelSession(id=session.id)
 
-    def Start(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.id)
+    def Start(self, request: utils_pb2.ModelSession, context):
+        session = self._getTrainerSession(context, request)
         session.client.start_training()
         return utils_pb2.Empty()
 
     def Resume(self, request, context):
-        session = self._getTrainerSession(context, request.id)
+        session = self._getTrainerSession(context, request)
         session.client.resume_training()
         return utils_pb2.Empty()
 
-    def Pause(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.id)
+    def Pause(self, request: utils_pb2.ModelSession, context):
+        session = self._getTrainerSession(context, request)
         session.client.pause_training()
         return utils_pb2.Empty()
 
     def Save(self, request: training_pb2.SaveRequest, context):
-        session = self._getTrainerSession(context, request.sessionId.id)
+        session = self._getTrainerSession(context, request.modelSessionId)
         session.client.save(Path(request.filePath))
         return utils_pb2.Empty()
 
     def Export(self, request: training_pb2.ExportRequest, context):
-        session = self._getTrainerSession(context, request.sessionId.id)
+        session = self._getTrainerSession(context, request.modelSessionId)
         session.client.export(Path(request.filePath))
         return utils_pb2.Empty()
 
-    def Predict(self, request: training_pb2.PredictRequest, context):
-        session = self._getTrainerSession(context, request.sessionId.id)
+    def Predict(self, request: utils_pb2.PredictRequest, context):
+        session = self._getTrainerSession(context, request.modelSessionId)
         tensors = [torch.tensor(pb_tensor_to_numpy(pb_tensor)) for pb_tensor in request.tensors]
         assert len(tensors) == 1, "We support models with one input"
         predictions = session.client.forward(tensors).result()
-        return training_pb2.PredictResponse(tensors=[self._tensor_to_pb(predictions)])
+        return utils_pb2.PredictResponse(tensors=[self._tensor_to_pb(predictions)])
 
     def _tensor_to_pb(self, tensor: torch.Tensor):
         dims = Trainer.get_axes_from_tensor(tensor)
@@ -92,30 +91,25 @@ class TrainingServicer(training_pb2_grpc.TrainingServicer):
         proto_tensor = utils_pb2.Tensor(tensorId="", dtype=str(np_array.dtype), shape=shape, buffer=np_array.tobytes())
         return proto_tensor
 
-    def StreamUpdates(self, request: training_pb2.TrainingSessionId, context):
+    def StreamUpdates(self, request: utils_pb2.ModelSession, context):
         raise NotImplementedError
 
-    def GetLogs(self, request: training_pb2.TrainingSessionId, context):
+    def GetLogs(self, request: utils_pb2.ModelSession, context):
         raise NotImplementedError
 
-    def GetStatus(self, request: training_pb2.TrainingSessionId, context):
-        session = self._getTrainerSession(context, request.id)
+    def GetStatus(self, request: utils_pb2.ModelSession, context):
+        session = self._getTrainerSession(context, request)
         state = session.client.get_state()
         return training_pb2.GetStatusResponse(state=trainer_state_to_pb[state])
 
-    def CloseTrainerSession(self, request: training_pb2.TrainingSessionId, context) -> training_pb2.Empty:
+    def CloseTrainerSession(self, request: utils_pb2.ModelSession, context) -> utils_pb2.Empty:
         self._session_manager.close_session(request.id)
         return utils_pb2.Empty()
 
     def close_all_sessions(self):
         self._session_manager.close_all_sessions()
 
-    def _getTrainerSession(self, context, trainer_session_id: str) -> Session[IRPCTrainer]:
-        session = self._session_manager.get(trainer_session_id)
-
-        if session is None:
-            context.abort(
-                grpc.StatusCode.FAILED_PRECONDITION, f"trainer-session with id {trainer_session_id} doesn't exist"
-            )
-
-        return session
+    def _getTrainerSession(self, context, model_session_id: utils_pb2.ModelSession) -> Session[IRPCTrainer]:
+        return get_model_session(
+            session_manager=self._session_manager, model_session_id=model_session_id, context=context
+        )
