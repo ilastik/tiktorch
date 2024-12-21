@@ -21,6 +21,8 @@ service Training {
 
     rpc GetLogs(ModelSession) returns (GetLogsResponse) {}
 
+    rpc IsBestModel(ModelSession) returns (stream Empty) {}
+
     rpc Save(SaveRequest) returns (Empty) {}
 
     rpc Export(ExportRequest) returns (Empty) {}
