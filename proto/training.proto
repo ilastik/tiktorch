@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package training;
+
+import "utils.proto";
+
+
+
+service Training {
+    rpc ListDevices(Empty) returns (Devices) {}
+
+    rpc Init(TrainingConfig) returns (ModelSession) {}
+
+    rpc Start(ModelSession) returns (Empty) {}
+
+    rpc Resume(ModelSession) returns (Empty) {}
+
+    rpc Pause(ModelSession) returns (Empty) {}
+
+    rpc StreamUpdates(ModelSession) returns (stream StreamUpdateResponse) {}
+
+    rpc GetLogs(ModelSession) returns (GetLogsResponse) {}
+
+    rpc Save(SaveRequest) returns (Empty) {}
+
+    rpc Export(ExportRequest) returns (Empty) {}
+
+    rpc Predict(PredictRequest) returns (PredictResponse) {}
+
+    rpc GetStatus(ModelSession) returns (GetStatusResponse) {}
+
+    rpc CloseTrainerSession(ModelSession) returns (Empty) {}
+}
+
+
+message GetBestModelIdxResponse {
+    string id = 1;
+}
+
+
+message Logs {
+    enum ModelPhase {
+        Train = 0;
+        Eval = 1;
+    }
+    ModelPhase mode = 1;
+    double eval_score = 2;
+    double loss = 3;
+    uint32 iteration = 4;
+}
+
+
+message StreamUpdateResponse {
+    uint32 best_model_idx = 1;
+    Logs logs = 2;
+}
+
+
+message GetLogsResponse {
+    repeated Logs logs = 1;
+}
+
+message SaveRequest {
+    ModelSession modelSessionId = 1;
+    string filePath = 2;
+}
+
+
+message ExportRequest {
+    ModelSession modelSessionId = 1;
+    string filePath = 2;
+}
+
+message ValidationResponse {
+    double validation_score_average = 1;
+}
+
+message GetStatusResponse {
+    enum State {
+        Idle = 0;
+        Running = 1;
+        Paused = 2;
+        Failed = 3;
+        Finished = 4;
+    }
+    State state = 1;
+}
+
+
+message GetCurrentBestModelIdxResponse {
+    uint32 id = 1;
+}
+
+message TrainingConfig {
+    string yaml_content = 1;
+}
