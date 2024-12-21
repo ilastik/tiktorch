@@ -50,9 +50,14 @@ class TrainingStub(object):
                 request_serializer=utils__pb2.ModelSession.SerializeToString,
                 response_deserializer=training__pb2.GetLogsResponse.FromString,
                 )
+        self.Save = channel.unary_unary(
+                '/training.Training/Save',
+                request_serializer=training__pb2.SaveRequest.SerializeToString,
+                response_deserializer=utils__pb2.Empty.FromString,
+                )
         self.Export = channel.unary_unary(
                 '/training.Training/Export',
-                request_serializer=utils__pb2.ModelSession.SerializeToString,
+                request_serializer=training__pb2.ExportRequest.SerializeToString,
                 response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.Predict = channel.unary_unary(
@@ -112,6 +117,12 @@ class TrainingServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetLogs(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Save(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -179,9 +190,14 @@ def add_TrainingServicer_to_server(servicer, server):
                     request_deserializer=utils__pb2.ModelSession.FromString,
                     response_serializer=training__pb2.GetLogsResponse.SerializeToString,
             ),
+            'Save': grpc.unary_unary_rpc_method_handler(
+                    servicer.Save,
+                    request_deserializer=training__pb2.SaveRequest.FromString,
+                    response_serializer=utils__pb2.Empty.SerializeToString,
+            ),
             'Export': grpc.unary_unary_rpc_method_handler(
                     servicer.Export,
-                    request_deserializer=utils__pb2.ModelSession.FromString,
+                    request_deserializer=training__pb2.ExportRequest.FromString,
                     response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'Predict': grpc.unary_unary_rpc_method_handler(
@@ -329,6 +345,23 @@ class Training(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def Save(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/training.Training/Save',
+            training__pb2.SaveRequest.SerializeToString,
+            utils__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def Export(request,
             target,
             options=(),
@@ -340,7 +373,7 @@ class Training(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/training.Training/Export',
-            utils__pb2.ModelSession.SerializeToString,
+            training__pb2.ExportRequest.SerializeToString,
             utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from abc import ABC
 from concurrent.futures import Future
+from pathlib import Path
 
 from bioimageio.core import PredictionPipeline, Sample
 
@@ -81,11 +82,15 @@ class TrainerSessionBackend(SessionBackend):
         self._queue_tasks.send_command(start_cmd.awaitable)
         start_cmd.awaitable.wait()
 
-    def save(self) -> None:
-        raise NotImplementedError
+    def save(self, file_path: Path) -> None:
+        save_cmd = commands.SaveTrainingCmd(file_path)
+        self._queue_tasks.send_command(save_cmd.awaitable)
+        save_cmd.awaitable.wait()
 
-    def export(self) -> None:
-        raise NotImplementedError
+    def export(self, file_path: Path) -> None:
+        export_cmd = commands.ExportTrainingCmd(file_path)
+        self._queue_tasks.send_command(export_cmd.awaitable)
+        export_cmd.awaitable.wait()
 
     def get_state(self) -> TrainerState:
         return self._supervisor.get_state()

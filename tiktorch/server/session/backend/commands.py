@@ -6,6 +6,7 @@ import queue
 import threading
 import typing
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Generic, Type, TypeVar
 
 from tiktorch.trainer import TrainerAction, TrainerState
@@ -129,6 +130,24 @@ class ShutdownCmd(ICommand):
 
     def execute(self, ctx: Context) -> None:
         pass
+
+
+class ExportTrainingCmd(ICommand):
+    def __init__(self, file_path: Path):
+        super().__init__()
+        self._file_path = file_path
+
+    def execute(self, ctx: Context[TrainerSupervisor]) -> None:
+        ctx.session.export(self._file_path)
+
+
+class SaveTrainingCmd(ICommand):
+    def __init__(self, file_path: Path):
+        super().__init__()
+        self._file_path = file_path
+
+    def execute(self, ctx: Context[TrainerSupervisor]) -> None:
+        ctx.session.save(self._file_path)
 
 
 class ShutdownWithTeardownCmd(ShutdownCmd):

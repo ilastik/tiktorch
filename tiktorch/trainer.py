@@ -1,23 +1,52 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, List, TypeVar
 
 import bioimageio
+
+from pathlib import Path
+from typing import Any, Callable, Generic, List, TypeVar
+
+import numpy as np
 import torch
 import xarray as xr
 import yaml
+
 from bioimageio.core import Sample
+from bioimageio.spec import save_bioimageio_package
+from bioimageio.spec.model.v0_5 import (
+    ArchitectureFromLibraryDescr,
+    Author,
+    AxisId,
+    BatchAxis,
+    ChannelAxis,
+    CiteEntry,
+    Doi,
+    FileDescr,
+    HttpUrl,
+    Identifier,
+    InputTensorDescr,
+    LicenseId,
+    ModelDescr,
+    OutputTensorDescr,
+    PytorchStateDictWeightsDescr,
+    SpaceInputAxis,
+    SpaceOutputAxis,
+    TensorId,
+    Version,
+    WeightsDescr,
+)
 from pytorch3dunet.augment.transforms import Compose, Normalize, Standardize, ToTensor
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import ResidualUNet2D, ResidualUNet3D, ResidualUNetSE3D, UNet2D, UNet3D, get_model
 from pytorch3dunet.unet3d.trainer import UNetTrainer
-from pytorch3dunet.unet3d.utils import create_lr_scheduler, create_optimizer, get_tensorboard_formatter
+from pytorch3dunet.unet3d.utils import create_lr_scheduler, create_optimizer, get_class, get_tensorboard_formatter
 from torch import nn
 
 T = TypeVar("T", bound=Callable)
@@ -160,7 +189,174 @@ class Trainer(UNetTrainer):
     def validate(self):
         return super().validate()
 
-    def forward(self, input_tensors: Sample) -> Sample:
+    def save_state_dict(self, file_path: Path):
+        """
+        On demand save of the training progress including the optimizer state.
+
+        Note: pytorch-3dunet automatically saves the checkpoints in intervals defined by the `validation_after_iters`.
+        """
+        if not file_path.suffix:
+            file_path = file_path.with_suffix(".pth")
+
+        state = {
+            "num_epochs": self.num_epochs + 1,
+            "num_iterations": self.num_iterations,
+            "model_state_dict": self.model.state_dict(),
+            "best_eval_score": self.best_eval_score,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+        }
+        torch.save(state, file_path)
+
+    def save_torchscript(self, file_path: Path):
+        """
+        Requires the model to be torchscript compatible!
+        """
+        if not file_path.suffix:
+            file_path = file_path.with_suffix(".pt")
+
+        scripted_model = torch.jit.script(self.model)
+        torch.jit.save(scripted_model, file_path)
+
+    def get_model_import_file_path(self) -> str:
+        """
+        Utility to be used for bioimageio pytorch state weight descriptor.
+
+        Assuming that pytorch-3dunet will be installed in the environment.
+        """
+        model_class = get_class(self.model.__class__.__name__, modules=["pytorch3dunet.unet3d.model"])  # sanity-check
+        return f"{model_class.__module__}"
+
+    def export(self, file_to_save: Path):
+        """
+        Export to bioimageio model zip.
+
+        Use default values for the fields. Expected the configuration to be delegated.
+        """
+        if not file_to_save.suffix:
+            file_to_save = file_to_save.with_suffix(".zip")
+
+        sample_inputs = self._get_test_input_from_loaders()
+        sample_outputs = self._forward([sample_inputs])
+        assert len(sample_outputs) == 1, "Only single output supported"
+
+        # define the axes
+        if self.is_3d_model():
+            b_size, c_size, z_size, y_size, x_size = sample_inputs.shape
+            input_axes = [
+                BatchAxis(),
+                ChannelAxis(channel_names=[Identifier(f"channel{i}") for i in range(self._in_channels)]),
+                SpaceInputAxis(id=AxisId("z"), size=z_size),
+                SpaceInputAxis(id=AxisId("y"), size=y_size),
+                SpaceInputAxis(id=AxisId("x"), size=x_size),
+            ]
+            b_size, c_size, z_size, y_size, x_size = sample_outputs.shape
+            output_axes = [
+                BatchAxis(),
+                ChannelAxis(channel_names=[Identifier(f"channel{i}") for i in range(self._out_channels)]),
+                SpaceOutputAxis(id=AxisId("z"), size=z_size),
+                SpaceOutputAxis(id=AxisId("y"), size=y_size),
+                SpaceOutputAxis(id=AxisId("x"), size=x_size),
+            ]
+        elif self.is_2d_model():
+            b_size, c_size, z_size, y_size, x_size = sample_inputs.shape
+            input_axes = [
+                BatchAxis(),
+                ChannelAxis(channel_names=[Identifier(f"channel{i}") for i in range(self._in_channels)]),
+                SpaceInputAxis(id=AxisId("y"), size=y_size),
+                SpaceInputAxis(id=AxisId("x"), size=x_size),
+            ]
+            b_size, c_size, z_size, y_size, x_size = sample_outputs.shape
+            output_axes = [
+                BatchAxis(),
+                ChannelAxis(channel_names=[Identifier(f"channel{i}") for i in range(self._out_channels)]),
+                SpaceOutputAxis(id=AxisId("y"), size=y_size),
+                SpaceOutputAxis(id=AxisId("x"), size=x_size),
+            ]
+        else:
+            raise ValueError("Only 2D and 3D models are supported")
+
+        # todo: we want to create a bioimageio zip file,
+        # currently it needs hard coded paths that will then be converted to zip
+        # so we create temp files to fulfill this dependency,
+        # we should be able to go directly to a zip.
+
+        # squeeze z-dimension for 2d models
+        sample_inputs = sample_inputs.squeeze(dim=-3)
+        sample_outputs = sample_outputs.squeeze(dim=-3)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sample_input_file = Path(temp_dir) / "input.npy"
+            np.save(sample_input_file, sample_inputs)
+            sample_output_file = Path(temp_dir) / "output.npy"
+            np.save(sample_output_file, sample_outputs)
+
+            input_tensor = InputTensorDescr(
+                id=TensorId("input"),
+                axes=input_axes,
+                description="",
+                test_tensor=FileDescr(source=sample_input_file),
+            )
+
+            output_tensor = OutputTensorDescr(
+                id=TensorId("output"),
+                axes=output_axes,
+                description="",
+                test_tensor=FileDescr(source=sample_output_file),
+            )
+
+            weights_file = Path(temp_dir) / "weights.pt"
+            torch.save(self.model.state_dict(), weights_file)
+            weights = WeightsDescr(
+                pytorch_state_dict=PytorchStateDictWeightsDescr(
+                    source=weights_file,
+                    architecture=ArchitectureFromLibraryDescr(
+                        import_from=f"{self.get_model_import_file_path()}",
+                        callable=Identifier(f"{self.model.__class__.__name__}"),
+                    ),
+                    pytorch_version=Version("1.1.1"),
+                )
+            )  # todo: pytorch version
+
+            mocked_descr = ModelDescr(
+                name="tiktorch v5 model",
+                description="Add description",
+                authors=[Author(name="me", affiliation="my institute", github_user="bioimageiobot")],
+                cite=[CiteEntry(text="", doi=Doi("10.1234something"))],
+                license=LicenseId("MIT"),
+                documentation=HttpUrl("https://raw.githubusercontent.com/bioimage-io/spec-bioimage-io/main/README.md"),
+                git_repo=HttpUrl("https://github.com/bioimage-io/spec-bioimage-io"),
+                inputs=[input_tensor],
+                outputs=[output_tensor],
+                weights=weights,
+            )
+            save_bioimageio_package(mocked_descr, output_path=file_to_save)
+
+    def is_3d_model(self):
+        return isinstance(self.model, (ResidualUNetSE3D, ResidualUNet3D, UNet3D))
+
+    def is_2d_model(self):
+        return isinstance(self.model, (ResidualUNet2D, UNet2D))
+
+    def _get_test_input_from_loaders(self) -> torch.Tensor:
+        """
+        Get the test input from the loaders to be used for bioimageio ModelDescr.
+        """
+        # Get one batch of data
+        sample_batch = next(iter(self.loaders["train"]))  # Get one batch
+        sample_inputs = sample_batch[0]  # Assume input is the first element
+        return sample_inputs[0:1]  # batch size 1
+
+    def forward(self, input_tensors: Sample):
+        assert len(input_tensors.members) == 1, "We support models with 1 input"
+        tensor_id, input_tensor = input_tensors.members.popitem()
+        input_tensor = self._get_pytorch_tensor_from_bioimageio_tensor(input_tensor)
+        predictions = self._forward([input_tensor])
+        output_sample = Sample(
+            members={"output": self._get_bioimageio_tensor_from_pytorch_tensor(predictions)}, stat={}, id=None
+        )
+        return output_sample
+    
+    def _forward(self, input_tensors: List[torch.Tensor]) -> torch.Tensor:
         """
         Note:
             "The 2D U-Net itself uses the standard 2D convolutional
@@ -169,11 +365,9 @@ class Trainer(UNetTrainer):
 
             Thus, we drop the z dimension if we have 2d model.
             But the input h5 data needs to respect CxDxHxW or DxHxW.
-        """
-
-        assert len(input_tensors.members) == 1, "We support models with 1 input"
-        tensor_id, input_tensor = input_tensors.members.popitem()
-        input_tensor = self._get_pytorch_tensor_from_bioimageio_tensor(input_tensor)
+        """        
+        assert len(input_tensors) == 1, "We support models with 1 input"
+        input_tensor = input_tensors[0]
         self.model.eval()
         b, c, z, y, x = input_tensor.shape
         if self.is_2d_model() and z != 1:
@@ -204,11 +398,7 @@ class Trainer(UNetTrainer):
         # currently we scale the features from 0 - 1 (consistent scale for rendering across channels)
         postprocessor = Compose([Normalize(norm01=True), ToTensor(expand_dims=True)])
         predictions = self._apply_transformation(compose=postprocessor, tensor=predictions)
-
-        output_sample = Sample(
-            members={"output": self._get_bioimageio_tensor_from_pytorch_tensor(predictions)}, stat={}, id=None
-        )
-        return output_sample
+        return predictions        
 
     def _apply_transformation(self, compose: Compose, tensor: torch.Tensor) -> torch.Tensor:
         """
@@ -247,12 +437,6 @@ class Trainer(UNetTrainer):
     def _get_bioimageio_tensor_from_pytorch_tensor(self, pytorch_tensor: torch.Tensor) -> bioimageio.core.Tensor:
         return bioimageio.core.Tensor.from_xarray(xr.DataArray(pytorch_tensor.numpy(), dims=["b", "c", "z", "y", "x"]))
 
-    def is_3d_model(self):
-        return isinstance(self.model, (ResidualUNetSE3D, ResidualUNet3D, UNet3D))
-
-    def is_2d_model(self):
-        return isinstance(self.model, (ResidualUNet2D, UNet2D))
-
     def should_stop(self) -> bool:
         """
         Intervene on how to stop the training.
@@ -277,7 +461,7 @@ class Trainer(UNetTrainer):
             max_iterations=self.max_num_iterations,
         )
         self.logs_callbacks(logs)
-        # todo: why the internal training logging isn't printed on the stdout, although it is set
+        # todo: why the internal training logging isn't printed on the stdout
         logger.info(str(logs))
         return super()._log_stats(phase, loss_avg, eval_score_avg)
 
@@ -329,9 +513,9 @@ class TrainerYamlParser:
         pre_trained = trainer_config.pop("pre_trained", None)
 
         return Trainer(
-            device=config["device"],
             in_channels=in_channels,
             out_channels=out_channels,
+            device=config["device"],
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
