@@ -121,7 +121,7 @@ loaders:
           # do not expand dims for cross-entropy loss
           expand_dims: false
           # cross-entropy loss requires target to be of type 'long'
-          dtype: 'long'
+          dtype: 'int64'
       weight:
         - name: ToTensor
           expand_dims: false
@@ -143,7 +143,7 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: false
-          dtype: 'long'
+          dtype: 'int64'
       weight:
         - name: ToTensor
           expand_dims: false
