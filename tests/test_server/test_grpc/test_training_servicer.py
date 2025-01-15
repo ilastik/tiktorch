@@ -232,8 +232,7 @@ class TestTrainingServicer:
 
         # attempt to init with the same device
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        response = training_pb2.TrainingSessionId(id=init_response.id)
-        assert response.id is not None
+        assert init_response.id is not None
 
     def test_start_training_success(self):
         """
@@ -269,8 +268,9 @@ class TestTrainingServicer:
 
         The test should exit gracefully without hanging processes or threads.
         """
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         threads = []
         for _ in range(2):
@@ -288,8 +288,9 @@ class TestTrainingServicer:
         def assert_state(state_to_check):
             self.assert_state(grpc_stub, training_session_id, state_to_check)
 
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         grpc_stub.Start(training_session_id)
         assert_state(TrainerState.RUNNING)
@@ -302,8 +303,9 @@ class TestTrainingServicer:
             assert_state(TrainerState.RUNNING)
 
     def test_error_handling_on_invalid_state_transitions_after_training_started(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         # Attempt to start again while already running
         grpc_stub.Start(training_session_id)
@@ -324,8 +326,9 @@ class TestTrainingServicer:
         assert "Invalid state transition: TrainerState.RUNNING -> TrainerState.RUNNING" in excinfo.value.details()
 
     def test_error_handling_on_invalid_state_transitions_before_training_started(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         # Attempt to resume before start
         with pytest.raises(grpc.RpcError) as excinfo:
@@ -437,26 +440,30 @@ class TestTrainingServicer:
         backend.shutdown()
 
     def test_graceful_shutdown_after_init(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_start(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.Start(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_pause(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.Start(training_session_id)
         grpc_stub.Pause(training_session_id)
         grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_graceful_shutdown_after_resume(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.Start(training_session_id)
         grpc_stub.Pause(training_session_id)
         grpc_stub.Resume(training_session_id)
@@ -464,8 +471,9 @@ class TestTrainingServicer:
 
     def test_close_trainer_session_twice(self, grpc_stub):
         # Attempt to close the session twice
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.CloseTrainerSession(training_session_id)
 
         # The second attempt should raise an error
@@ -477,8 +485,9 @@ class TestTrainingServicer:
         """
         Test closing a training session.
         """
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = training_pb2.TrainingSessionId(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
         grpc_stub.CloseTrainerSession(training_session_id)
 
         # attempt to perform an operation while session is closed
