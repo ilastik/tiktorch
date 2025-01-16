@@ -1,137 +1,239 @@
-from __future__ import annotations
-
 import logging
-import queue
+import threading
+from typing import Generic, Set, TypeVar, Union
 
 from bioimageio.core import PredictionPipeline, Sample
 
-from tiktorch.server.session import types
 from tiktorch.server.session.backend import commands
+from tiktorch.server.session.backend.commands import CommandPriorityQueueUtils, ShutdownWithTeardownCmd
+from tiktorch.trainer import BaseCallbacks, ErrorCallbacks, Trainer, TrainerAction, TrainerState
 
 logger = logging.getLogger(__name__)
 
 
-class Supervisor:
-    def __init__(self, pipeline: PredictionPipeline) -> None:
-        self._state = types.State.Stopped
+def requires_queue_alive(func):
+    def wrapper(self, *args, **kwargs):
+        if not self._session_thread.is_alive():
+            raise RuntimeError("Training hasn't started")
+        func(self, *args, **kwargs)
 
-        self._command_queue = commands.CommandPriorityQueue()
-        self._pipeline = pipeline
-        # self._pipeline.set_break_callback(self.has_commands)
-        self._idle_callbacks = []
+    return wrapper
 
-    def send_command(self, cmd: commands.ICommand) -> None:
-        if not isinstance(cmd, commands.ICommand):
-            raise ValueError(f"Expected instance of ICommand got {cmd}")
 
-        logger.debug("Sending command %s", cmd)
-        self._command_queue.put(cmd)
+class StateTransitionError(Exception):
+    def __init__(self, current_state: TrainerState, transitioning_state: TrainerState, valid_states: Set[TrainerState]):
+        super().__init__(
+            f"Invalid state transition: {current_state} -> {transitioning_state}. Valids are {valid_states}"
+        )
+        self.current_state = current_state
+        self.transitioning_state = transitioning_state
+        self.valid_states = valid_states
 
-    @property
-    def state(self):
+    def __reduce__(self):
+        return (
+            self.__class__,
+            (self.current_state, self.transitioning_state, self.valid_states),
+        )
+
+
+class TrainerSupervisor:
+    """Training supervisor for custom models supported by the 'Trainer' interface.
+
+    Monitoring the training thread and its status.
+    """
+
+    def __init__(self, trainer: Trainer) -> None:
+        super().__init__()
+        self._trainer = trainer
+        self._trainer.should_stop_callbacks.register(self._should_stop)
+        self._state = TrainerState.IDLE
+        self._pause_triggered = False
+        self._session_thread = threading.Thread(target=self._start_session, name="SessionThread")
+        self._command_queue_utils = CommandPriorityQueueUtils()
+        self.training_error_callbacks: ErrorCallbacks = BaseCallbacks()
+
+    def get_state(self) -> TrainerState:
+        logger.debug(f"Get state called {self._state}")
         return self._state
 
-    def has_commands(self):
-        return not self._command_queue.empty()
+    def start(self):
+        self._check_transition_to_start()
+        self._session_thread.start()
+        self._pause_triggered = False
+        start_cmd = commands.SetStartStateTrainingCmd()
+        self._command_queue_utils.send_command(start_cmd.awaitable)
+        start_cmd.awaitable.wait()
 
-    def has_work(self):
-        return self._pipeline.max_num_iterations and self._pipeline.max_num_iterations > self._pipeline.iteration_count
+    def _start_session(self):
+        logger.info("Starting session worker")
+        try:
+            while True:
+                if self._command_queue_utils.process_commands(self):
+                    break
+
+                if self._state == TrainerState.RUNNING:
+                    self._fit()
+        except Exception as e:
+            logger.exception(f"Uncaught exception in session worker. Exception: {e}")
+        finally:
+            logger.info("Stopped session worker")
+
+    def _fit(self):
+        try:
+            self._trainer.fit()
+        except Exception as e:
+            logger.exception(f"Training error: {e}")
+            self.training_error_callbacks(e)
+            self._state = TrainerState.FAILED
+            return
+
+        if self.is_training_finished():
+            logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
+            self._state = TrainerState.FINISHED
+
+    def is_training_finished(self):
+        return (
+            self._trainer.num_epochs == self._trainer.max_num_epochs
+            or self._trainer.num_iterations == self._trainer.max_num_iterations
+        ) or self._trainer.should_stop_model_criteria()
+
+    def _get_num_iterations_epochs(self) -> str:
+        iterations = f"Iterations[{self._trainer.num_iterations}/{self._trainer.max_num_iterations}]"
+        epochs = f"Epochs[{self._trainer.num_epochs}/{self._trainer.max_num_epochs}]"
+        return f"{iterations}, {epochs}"
+
+    def resume(self):
+        self._check_transition_to_resume()
+        self._pause_triggered = False
+        resume_cmd = commands.SetResumeStateTrainingCmd()
+        self._command_queue_utils.send_command(resume_cmd.awaitable)
+        resume_cmd.awaitable.wait()  # make sure that the state has actually changed (acknowledge)
+        logger.info(f"Resume training: {self._get_num_iterations_epochs()}")
+
+    def pause(self):
+        self._check_transition_to_pause()
+        self._pause_triggered = True
+        pause_cmd = commands.SetPauseStateTrainingCmd()
+        self._command_queue_utils.send_command(pause_cmd.awaitable)
+        pause_cmd.awaitable.wait()  # make sure that the state has actually changed (acknowledge)
+
+    def shutdown(self):
+        if not self._session_thread.is_alive():
+            # nothing to do if session thread not alive
+            return
+        self._pause_triggered = True
+        self._command_queue_utils.send_command(commands.ShutdownCmd())
+        self._session_thread.join()
+
+    def forward(self, input_tensors):
+        self.pause()
+        self._trainer.forward(input_tensors)
+        self.resume()
+
+    def save(self):
+        raise NotImplementedError
+
+    def export(self):
+        raise NotImplementedError
+
+    def _should_stop(self):
+        return self._pause_triggered
+
+    def transition_to_state(self, new_state: TrainerState, trainer_action: TrainerAction):
+        """
+        Should be used via the ICommands to monitor the state of the training
+        """
+        if trainer_action == TrainerAction.START:
+            self._check_transition_to_start()
+        elif trainer_action == TrainerAction.PAUSE:
+            self._check_transition_to_pause()
+        elif trainer_action == TrainerAction.RESUME:
+            self._check_transition_to_resume()
+        logger.info(f"State transition: {self._state} -> {new_state}")
+        self._state = new_state
+
+    def _check_transition_to_start(self):
+        return self._check_transition_to_state(TrainerState.RUNNING, {TrainerState.IDLE})
+
+    def _check_transition_to_pause(self):
+        return self._check_transition_to_state(TrainerState.PAUSED, {TrainerState.RUNNING})
+
+    def _check_transition_to_resume(self):
+        return self._check_transition_to_state(TrainerState.RUNNING, {TrainerState.PAUSED})
+
+    def _check_transition_to_state(self, new_state: TrainerState, valid_states: Set[TrainerState]):
+        if self._state not in valid_states:
+            raise StateTransitionError(
+                current_state=self._state, transitioning_state=new_state, valid_states=valid_states
+            )
+
+
+class BioModelSupervisor:
+    """Supervisor for bioimageio models
+
+    Currently used only for inference.
+
+    Allows to serialize and offload commands by multiple threads requests.
+    """
+
+    def __init__(self, pipeline: PredictionPipeline) -> None:
+        super().__init__()
+        self._pipeline = pipeline
 
     def forward(self, sample: Sample):
         results = self._pipeline.predict_sample_without_blocking(sample)
         return results
 
-    def transition_to(self, new_state: types.State) -> None:
-        logger.debug("Attempting transition to state %s", new_state)
-        self._state = new_state
-        self._update_state()
+    def set_max_num_iterations(self, num_iterations: int):
+        raise NotImplementedError
 
-    def set_max_num_iterations(self, num: int):
-        self._pipeline.set_max_num_iterations(num)
-        self._update_state()
+    def update_dataset(self):
+        raise NotImplementedError
 
-    def on_idle(self, callback):
-        self._idle_callbacks.append(callback)
-        self._notify_idle()
+    def shutdown(self):
+        pass
 
-    def _notify_idle(self):
-        if self._state in (types.State.Idle, types.State.Paused):
-            idle_cbs = self._idle_callbacks
-            self._idle_callbacks = []
-            for cb in idle_cbs:
-                try:
-                    cb()
-                except Exception:
-                    logger.exception("Exception during idle callback")
 
-    def run(self):
+Supervisors = Union[BioModelSupervisor, TrainerSupervisor]
+SupervisorTypeVar = TypeVar("SupervisorTypeVar", bound=Supervisors)
+
+
+class QueueTasks(Generic[SupervisorTypeVar]):
+    """
+    A task queue manager for processing commands with a supervisor.
+
+    Serializes multiple async requests wrapped as commands.
+    """
+
+    def __init__(self, supervisor: SupervisorTypeVar) -> None:
+        self._command_queue = CommandPriorityQueueUtils()
+        self._supervisor = supervisor
+        self._thread = threading.Thread(target=self._run, name="QueueTasksWorker")
+
+    def start(self):
+        self._thread.start()
+
+    def _run(self):
         logger.info("Starting session worker")
         try:
-            self._run()
-        except Exception:
-            logger.exception("Uncaught exception in session worker")
+            while True:
+                if self._command_queue.process_commands(self._supervisor):
+                    break
+        except Exception as e:
+            logger.exception(f"Uncaught exception in session worker {e}")
         finally:
             logger.info("Stopped session worker")
 
-    def _run(self):
-        self._set_state(types.State.Paused)
+    def send_command(self, command: commands.ICommand):
+        self._command_queue.send_command(command)
 
-        while True:
-            self._process_commands()
-
-            if self.state == types.State.Stopped:
-                break
-
-            elif self._state == types.State.Idle or self._state == types.State.Paused:
-                with self._command_queue.not_empty:
-                    self._command_queue.not_empty.wait()
-
-            elif self._state == types.State.Running:
-                self._train()
-                self._update_state()
-
-    def _process_commands(self):
-        while not self._command_queue.empty():
-            try:
-                cmd = self._command_queue.get_nowait()
-                logger.debug("Executing %s", cmd)
-                ctx = commands.Context(supervisor=self)
-
-                try:
-                    cmd.execute(ctx)
-                except Exception:
-                    logger.exception("Failed to execute %s", cmd)
-                finally:
-                    self._command_queue.task_done()
-
-            except queue.Empty:
-                pass
-
-    def _train(self):
-        logger.info(
-            "Start session for %d iterations", self._pipeline.max_num_iterations - self._pipeline.iteration_count
-        )
-        try:
-            self._pipeline.train()
-        except Exception:
-            logger.error("Exception during session training. Pausing...", exc_info=True)
-            # FIXME: Should we use PauseCmd here? Maybe we should only know about ICommand on this level.
-            self.send_command(commands.PauseCmd())
-
-        self._update_state()
-
-    def _update_state(self):
-        if self._state == types.State.Running:
-            should_idle = not self.has_work()
-            if should_idle:
-                self._set_state(types.State.Idle)
-
-        elif self._state == types.State.Idle:
-            should_run = self.has_work()
-            if should_run:
-                self._set_state(types.State.Running)
-
-    def _set_state(self, new_state: types.State) -> None:
-        self._state = new_state
-        self._notify_idle()
-        logger.debug("Set new state %s", self._state)
+    def shutdown(self):
+        if not self._thread.is_alive():
+            logger.debug("Worker thread isn't alive")
+            return
+        logger.debug("Shutting down...")
+        stop_cmd = ShutdownWithTeardownCmd()
+        self.send_command(stop_cmd.awaitable)
+        stop_cmd.awaitable.wait()
+        logger.debug("Shutdown complete")
+        self._thread.join()

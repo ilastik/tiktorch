@@ -29,10 +29,10 @@ def test_shutdown_event_is_not_set_while_pings_keep_coming():
     pinger_thread.start()
 
     assert not evt.is_set()
-    assert not evt.wait(timeout=0.2)
+    assert not evt.wait(timeout=1)
 
     stop_pinger.set()
-    assert evt.wait(timeout=0.2)
+    assert evt.wait(timeout=1)
 
 
 def test_shutdown_timeout_0_means_no_watchdog():
