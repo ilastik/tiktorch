@@ -235,7 +235,6 @@ class TestTrainingServicer:
         init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
         assert init_response.id is not None
 
-
     def test_start_training_success(self):
         """
         Test starting training after successful initialization.
@@ -484,8 +483,9 @@ class TestTrainingServicer:
         assert "Unknown session" in excinfo.value.details()
 
     def test_forward_while_running(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = utils_pb2.ModelSession(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         grpc_stub.Start(training_session_id)
 
@@ -510,8 +510,9 @@ class TestTrainingServicer:
         assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
 
     def test_forward_while_paused(self, grpc_stub):
-        init_response = grpc_stub.Init(training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment()))
-        training_session_id = utils_pb2.ModelSession(id=init_response.id)
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
 
         grpc_stub.Start(training_session_id)
 
