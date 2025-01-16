@@ -126,9 +126,13 @@ class TrainerSupervisor:
         self._session_thread.join()
 
     def forward(self, input_tensors):
-        self.pause()
-        self._trainer.forward(input_tensors)
-        self.resume()
+        init_state = self.get_state()  # retain the state after forward
+        if init_state == TrainerState.RUNNING:
+            self.pause()
+        res = self._trainer.forward(input_tensors)
+        if init_state == TrainerState.RUNNING:
+            self.resume()
+        return res
 
     def save(self):
         raise NotImplementedError

@@ -21,7 +21,7 @@ service Inference {
 
 
 message CreateDatasetDescriptionRequest {
-  string modelSessionId = 1;
+  ModelSession modelSessionId = 1;
   double mean = 3;
   double stddev = 4;
 }
@@ -53,9 +53,6 @@ message NamedFloats {
 }
 
 
-message ModelSession {
-  string id = 1;
-}
 
 message LogEntry {
   enum Level {
@@ -73,15 +70,6 @@ message LogEntry {
 }
 
 
-message PredictRequest {
-  string modelSessionId = 1;
-  string datasetId = 2;
-  repeated Tensor tensors = 3;
-}
-
-message PredictResponse {
-  repeated Tensor tensors = 1;
-}
 
 
 service FlightControl {

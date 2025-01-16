@@ -2,6 +2,19 @@ syntax = "proto3";
 
 message Empty {}
 
+message ModelSession {
+  string id = 1;
+}
+
+message PredictRequest {
+  ModelSession modelSessionId = 1;
+  repeated Tensor tensors = 2;
+}
+
+message PredictResponse {
+  repeated Tensor tensors = 1;
+}
+
 message NamedInt {
     uint32 size = 1;
     string name = 2;

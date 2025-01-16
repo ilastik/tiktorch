@@ -18,11 +18,11 @@ class InferenceStub(object):
         self.CreateModelSession = channel.unary_unary(
                 '/inference.Inference/CreateModelSession',
                 request_serializer=inference__pb2.CreateModelSessionRequest.SerializeToString,
-                response_deserializer=inference__pb2.ModelSession.FromString,
+                response_deserializer=utils__pb2.ModelSession.FromString,
                 )
         self.CloseModelSession = channel.unary_unary(
                 '/inference.Inference/CloseModelSession',
-                request_serializer=inference__pb2.ModelSession.SerializeToString,
+                request_serializer=utils__pb2.ModelSession.SerializeToString,
                 response_deserializer=utils__pb2.Empty.FromString,
                 )
         self.CreateDatasetDescription = channel.unary_unary(
@@ -42,8 +42,8 @@ class InferenceStub(object):
                 )
         self.Predict = channel.unary_unary(
                 '/inference.Inference/Predict',
-                request_serializer=inference__pb2.PredictRequest.SerializeToString,
-                response_deserializer=inference__pb2.PredictResponse.FromString,
+                request_serializer=utils__pb2.PredictRequest.SerializeToString,
+                response_deserializer=utils__pb2.PredictResponse.FromString,
                 )
 
 
@@ -92,11 +92,11 @@ def add_InferenceServicer_to_server(servicer, server):
             'CreateModelSession': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateModelSession,
                     request_deserializer=inference__pb2.CreateModelSessionRequest.FromString,
-                    response_serializer=inference__pb2.ModelSession.SerializeToString,
+                    response_serializer=utils__pb2.ModelSession.SerializeToString,
             ),
             'CloseModelSession': grpc.unary_unary_rpc_method_handler(
                     servicer.CloseModelSession,
-                    request_deserializer=inference__pb2.ModelSession.FromString,
+                    request_deserializer=utils__pb2.ModelSession.FromString,
                     response_serializer=utils__pb2.Empty.SerializeToString,
             ),
             'CreateDatasetDescription': grpc.unary_unary_rpc_method_handler(
@@ -116,8 +116,8 @@ def add_InferenceServicer_to_server(servicer, server):
             ),
             'Predict': grpc.unary_unary_rpc_method_handler(
                     servicer.Predict,
-                    request_deserializer=inference__pb2.PredictRequest.FromString,
-                    response_serializer=inference__pb2.PredictResponse.SerializeToString,
+                    request_deserializer=utils__pb2.PredictRequest.FromString,
+                    response_serializer=utils__pb2.PredictResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -142,7 +142,7 @@ class Inference(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/inference.Inference/CreateModelSession',
             inference__pb2.CreateModelSessionRequest.SerializeToString,
-            inference__pb2.ModelSession.FromString,
+            utils__pb2.ModelSession.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -158,7 +158,7 @@ class Inference(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/inference.Inference/CloseModelSession',
-            inference__pb2.ModelSession.SerializeToString,
+            utils__pb2.ModelSession.SerializeToString,
             utils__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -226,8 +226,8 @@ class Inference(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/inference.Inference/Predict',
-            inference__pb2.PredictRequest.SerializeToString,
-            inference__pb2.PredictResponse.FromString,
+            utils__pb2.PredictRequest.SerializeToString,
+            utils__pb2.PredictResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

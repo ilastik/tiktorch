@@ -9,32 +9,32 @@ import "utils.proto";
 service Training {
     rpc ListDevices(Empty) returns (Devices) {}
 
-    rpc Init(TrainingConfig) returns (TrainingSessionId) {}
+    rpc Init(TrainingConfig) returns (ModelSession) {}
 
-    rpc Start(TrainingSessionId) returns (Empty) {}
+    rpc Start(ModelSession) returns (Empty) {}
 
-    rpc Resume(TrainingSessionId) returns (Empty) {}
+    rpc Resume(ModelSession) returns (Empty) {}
 
-    rpc Pause(TrainingSessionId) returns (Empty) {}
+    rpc Pause(ModelSession) returns (Empty) {}
 
-    rpc StreamUpdates(TrainingSessionId) returns (stream StreamUpdateResponse) {}
+    rpc StreamUpdates(ModelSession) returns (stream StreamUpdateResponse) {}
 
-    rpc GetLogs(TrainingSessionId) returns (GetLogsResponse) {}
+    rpc GetLogs(ModelSession) returns (GetLogsResponse) {}
 
-    rpc Save(TrainingSessionId) returns (Empty) {}
-
-    rpc Export(TrainingSessionId) returns (Empty) {}
+    rpc Export(ModelSession) returns (Empty) {}
 
     rpc Predict(PredictRequest) returns (PredictResponse) {}
 
-    rpc GetStatus(TrainingSessionId) returns (GetStatusResponse) {}
+    rpc GetStatus(ModelSession) returns (GetStatusResponse) {}
 
-    rpc CloseTrainerSession(TrainingSessionId) returns (Empty) {}
+    rpc CloseTrainerSession(ModelSession) returns (Empty) {}
 }
 
-message TrainingSessionId {
+
+message GetBestModelIdxResponse {
     string id = 1;
 }
+
 
 message Logs {
     enum ModelPhase {
@@ -58,17 +58,6 @@ message GetLogsResponse {
     repeated Logs logs = 1;
 }
 
-
-
-message PredictRequest {
-    repeated Tensor tensors = 1;
-    TrainingSessionId sessionId = 2;
-}
-
-
-message PredictResponse {
-    repeated Tensor tensors = 1;
-}
 
 message ValidationResponse {
     double validation_score_average = 1;
