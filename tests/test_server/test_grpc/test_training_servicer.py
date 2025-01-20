@@ -482,20 +482,26 @@ class TestTrainingServicer:
             grpc_stub.CloseTrainerSession(training_session_id)
         assert "Unknown session" in excinfo.value.details()
 
-    def test_forward_while_running(self, grpc_stub):
+    @pytest.mark.parametrize(
+        "dims, shape",
+        [
+            (
+                ("b", "c", "z", "y", "x"),
+                (5, 3, 1, 128, 128),
+            ),
+            (("b", "z", "y", "x", "c"), (5, 1, 128, 128, 3)),  # order of input may be different than the one expected
+        ],
+    )
+    def test_forward_while_running(self, grpc_stub, dims, shape):
         training_session_id = grpc_stub.Init(
             training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
         )
 
         grpc_stub.Start(training_session_id)
 
-        batch = 5
-        in_channels_unet2d = 3
-        out_channels_unet2d = 2
-        shape = (batch, in_channels_unet2d, 1, 128, 128)
         data = np.random.rand(*shape).astype(np.float32)
-        xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
-        pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
+        xarray_data = xr.DataArray(data, dims=dims)
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
         predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         response = grpc_stub.Predict(predict_request)
@@ -507,7 +513,8 @@ class TestTrainingServicer:
         assert len(predicted_tensors) == 1
         predicted_tensor = predicted_tensors[0]
         assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
-        assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
+        out_channels_unet2d = 2
+        assert predicted_tensor.shape == (5, out_channels_unet2d, 1, 128, 128)
 
     def test_forward_while_paused(self, grpc_stub):
         training_session_id = grpc_stub.Init(
@@ -522,7 +529,7 @@ class TestTrainingServicer:
         shape = (batch, in_channels_unet2d, 1, 128, 128)
         data = np.random.rand(*shape).astype(np.float32)
         xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
-        pb_tensor = xarray_to_pb_tensor(tensor_id="", array=xarray_data)
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
         predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
         grpc_stub.Pause(training_session_id)
@@ -537,6 +544,22 @@ class TestTrainingServicer:
         predicted_tensor = predicted_tensors[0]
         assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
         assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
+
+    def test_forward_invalid_dims(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        shape = (10, 11, 12)
+        data = np.random.rand(*shape).astype(np.float32)
+        xarray_data = xr.DataArray(data, dims=("dim1", "dim2", "dim3"))
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
+        with pytest.raises(grpc.RpcError) as excinfo:
+            grpc_stub.Predict(predict_request)
+        assert "Tensor dims should be" in excinfo.value.details()
 
     def test_close_session(self, grpc_stub):
         """

@@ -3,10 +3,8 @@ from __future__ import annotations
 import logging
 from abc import ABC
 from concurrent.futures import Future
-from typing import List
 
-import torch
-from bioimageio.core import PredictionPipeline
+from bioimageio.core import PredictionPipeline, Sample
 
 from tiktorch.configkeys import TRAINING, VALIDATION
 from tiktorch.server.session.backend import commands
@@ -63,7 +61,7 @@ class TrainerSessionBackend(SessionBackend):
         supervisor = TrainerSupervisor(trainer)
         super().__init__(supervisor)
 
-    def forward(self, input_tensors: List[torch.Tensor]):
+    def forward(self, input_tensors: Sample):
         res = Future()
         self._queue_tasks.send_command(commands.ForwardPass(res, input_tensors))
         return res

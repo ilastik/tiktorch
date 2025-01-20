@@ -4,10 +4,13 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, List, Tuple, TypeVar
+from typing import Any, Callable, Generic, List, TypeVar
 
+import bioimageio
 import torch
+import xarray as xr
 import yaml
+from bioimageio.core import Sample
 from pytorch3dunet.augment.transforms import Compose, Normalize, Standardize, ToTensor
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -157,7 +160,7 @@ class Trainer(UNetTrainer):
     def validate(self):
         return super().validate()
 
-    def forward(self, input_tensors: List[torch.Tensor]):
+    def forward(self, input_tensors: Sample) -> Sample:
         """
         Note:
             "The 2D U-Net itself uses the standard 2D convolutional
@@ -167,9 +170,10 @@ class Trainer(UNetTrainer):
             Thus, we drop the z dimension if we have 2d model.
             But the input h5 data needs to respect CxDxHxW or DxHxW.
         """
-        assert len(input_tensors) == 1, "We support models with 1 input"
-        input_tensor = input_tensors[0]
-        self.get_axes_from_tensor(input_tensor)
+
+        assert len(input_tensors.members) == 1, "We support models with 1 input"
+        tensor_id, input_tensor = input_tensors.members.popitem()
+        input_tensor = self._get_pytorch_tensor_from_bioimageio_tensor(input_tensor)
         self.model.eval()
         b, c, z, y, x = input_tensor.shape
         if self.is_2d_model() and z != 1:
@@ -200,7 +204,11 @@ class Trainer(UNetTrainer):
         # currently we scale the features from 0 - 1 (consistent scale for rendering across channels)
         postprocessor = Compose([Normalize(norm01=True), ToTensor(expand_dims=True)])
         predictions = self._apply_transformation(compose=postprocessor, tensor=predictions)
-        return predictions
+
+        output_sample = Sample(
+            members={"output": self._get_bioimageio_tensor_from_pytorch_tensor(predictions)}, stat={}, id=None
+        )
+        return output_sample
 
     def _apply_transformation(self, compose: Compose, tensor: torch.Tensor) -> torch.Tensor:
         """
@@ -229,11 +237,15 @@ class Trainer(UNetTrainer):
     def is_output_single_channel(self) -> bool:
         return self._out_channels == 1
 
-    @staticmethod
-    def get_axes_from_tensor(tensor: torch.Tensor) -> Tuple[str, ...]:
-        if tensor.ndim != 5:
-            raise ValueError(f"Tensor dims should be 5 (b, c, z, y, x) but got {tensor.ndim} dimensions")
-        return ("b", "c", "z", "y", "x")
+    def _get_pytorch_tensor_from_bioimageio_tensor(self, bioimageio_tensor: bioimageio.core.Tensor) -> torch.Tensor:
+        xr_array = bioimageio_tensor.data
+        expected_dims = {"b", "c", "z", "y", "x"}
+        if set(xr_array.dims) != expected_dims:
+            raise ValueError(f"Tensor dims should be {expected_dims}, but got {xr_array.dims}")
+        return torch.from_numpy(xr_array.transpose("b", "c", "z", "y", "x").values)
+
+    def _get_bioimageio_tensor_from_pytorch_tensor(self, pytorch_tensor: torch.Tensor) -> bioimageio.core.Tensor:
+        return bioimageio.core.Tensor.from_xarray(xr.DataArray(pytorch_tensor.numpy(), dims=["b", "c", "z", "y", "x"]))
 
     def is_3d_model(self):
         return isinstance(self.model, (ResidualUNetSE3D, ResidualUNet3D, UNet3D))
