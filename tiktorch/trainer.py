@@ -190,7 +190,8 @@ class Trainer(UNetTrainer):
         """
         On demand save of the training progress including the optimizer state.
 
-        Note: pytorch-3dunet automatically saves the checkpoints in intervals defined by the `validation_after_iters`.
+        Note: pytorch-3dunet automatically saves two checkpoints latest.pytorch and best.pytorch.
+        The best.pytorch is updated in intervals defined by the `validation_after_iters`.
         """
         if not file_path.suffix:
             file_path = file_path.with_suffix(".pth")
