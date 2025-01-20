@@ -91,15 +91,14 @@ class TrainerSupervisor:
     def _fit(self):
         try:
             self._trainer.fit()
+            if self.is_training_finished():
+                logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
+                self._state = TrainerState.FINISHED
         except Exception as e:
             logger.exception(f"Training error: {e}")
             self.training_error_callbacks(e)
             self._state = TrainerState.FAILED
             return
-
-        if self.is_training_finished():
-            logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
-            self._state = TrainerState.FINISHED
 
     def is_training_finished(self):
         return (

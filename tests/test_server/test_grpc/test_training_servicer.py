@@ -266,6 +266,9 @@ class TestTrainingServicer:
                 print("Training has started")
                 trainer_is_called.set()
 
+            def should_stop_model_criteria(self) -> bool:
+                return False
+
         class MockedTrainerSessionBackend(TrainerSessionProcess):
             def init(self, trainer_yaml_config: str = ""):
                 self._worker = TrainerSessionBackend(MockedNominalTrainer())
@@ -384,6 +387,9 @@ class TestTrainingServicer:
             def fit(self):
                 for epoch in range(self.max_num_epochs):
                     self.num_epochs += 1
+
+            def should_stop_model_criteria(self) -> bool:
+                return False
 
         class MockedTrainerSessionBackend(TrainerSessionProcess):
             def init(self, trainer_yaml_config: str):
