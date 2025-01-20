@@ -310,6 +310,7 @@ class Trainer(UNetTrainer):
                     architecture=ArchitectureFromLibraryDescr(
                         import_from=f"{self.get_model_import_file_path()}",
                         callable=Identifier(f"{self.model.__class__.__name__}"),
+                        kwargs={"in_channels": self._in_channels, "out_channels": self._out_channels},
                     ),
                     pytorch_version=Version("1.1.1"),
                 )
