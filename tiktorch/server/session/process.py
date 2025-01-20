@@ -7,6 +7,7 @@ from concurrent.futures import Future
 from multiprocessing.connection import Connection
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
+import torch
 from bioimageio.core import PredictionPipeline, Tensor, create_prediction_pipeline
 from bioimageio.spec import InvalidDescr, load_description
 from bioimageio.spec.model import v0_5
@@ -125,7 +126,7 @@ class TrainerSessionProcess(IRPCTrainer):
         trainer = parser.parse()
         self._worker = base.TrainerSessionBackend(trainer)
 
-    def forward(self, input_tensors) -> Future:
+    def forward(self, input_tensors: List[torch.Tensor]) -> Future:
         res = self.worker.forward(input_tensors)
         return res
 

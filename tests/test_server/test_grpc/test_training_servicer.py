@@ -8,8 +8,9 @@ import grpc
 import h5py
 import numpy as np
 import pytest
+import xarray as xr
 
-from tiktorch.converters import pb_state_to_trainer, trainer_state_to_pb
+from tiktorch.converters import pb_state_to_trainer, pb_tensor_to_xarray, trainer_state_to_pb, xarray_to_pb_tensor
 from tiktorch.proto import training_pb2, training_pb2_grpc, utils_pb2
 from tiktorch.server.device_pool import TorchDevicePool
 from tiktorch.server.grpc import training_servicer
@@ -347,7 +348,7 @@ class TestTrainingServicer:
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Start(utils_pb2.Empty())
         assert excinfo.value.code() == grpc.StatusCode.FAILED_PRECONDITION
-        assert "trainer-session with id  doesn't exist" in excinfo.value.details()
+        assert "model-session with id  doesn't exist" in excinfo.value.details()
 
     def test_recover_training_failed(self):
         class MockedExceptionTrainer:
@@ -480,6 +481,85 @@ class TestTrainingServicer:
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.CloseTrainerSession(training_session_id)
         assert "Unknown session" in excinfo.value.details()
+
+    @pytest.mark.parametrize(
+        "dims, shape",
+        [
+            (
+                ("b", "c", "z", "y", "x"),
+                (5, 3, 1, 128, 128),
+            ),
+            (("b", "z", "y", "x", "c"), (5, 1, 128, 128, 3)),  # order of input may be different than the one expected
+        ],
+    )
+    def test_forward_while_running(self, grpc_stub, dims, shape):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        data = np.random.rand(*shape).astype(np.float32)
+        xarray_data = xr.DataArray(data, dims=dims)
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
+
+        response = grpc_stub.Predict(predict_request)
+
+        # assert that predict command has retained the init state (e.g. RUNNING)
+        self.assert_state(grpc_stub, training_session_id, TrainerState.RUNNING)
+
+        predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
+        assert len(predicted_tensors) == 1
+        predicted_tensor = predicted_tensors[0]
+        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        out_channels_unet2d = 2
+        assert predicted_tensor.shape == (5, out_channels_unet2d, 1, 128, 128)
+
+    def test_forward_while_paused(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        batch = 5
+        in_channels_unet2d = 3
+        out_channels_unet2d = 2
+        shape = (batch, in_channels_unet2d, 1, 128, 128)
+        data = np.random.rand(*shape).astype(np.float32)
+        xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
+
+        grpc_stub.Pause(training_session_id)
+
+        response = grpc_stub.Predict(predict_request)
+
+        # assert that predict command has retained the init state (e.g. PAUSED)
+        self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+        predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
+        assert len(predicted_tensors) == 1
+        predicted_tensor = predicted_tensors[0]
+        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
+
+    def test_forward_invalid_dims(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        shape = (10, 11, 12)
+        data = np.random.rand(*shape).astype(np.float32)
+        xarray_data = xr.DataArray(data, dims=("dim1", "dim2", "dim3"))
+        pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
+        predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
+        with pytest.raises(grpc.RpcError) as excinfo:
+            grpc_stub.Predict(predict_request)
+        assert "Tensor dims should be" in excinfo.value.details()
 
     def test_close_session(self, grpc_stub):
         """

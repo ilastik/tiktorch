@@ -6,12 +6,16 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Generic, List, TypeVar
 
+import bioimageio
 import torch
+import xarray as xr
 import yaml
+from bioimageio.core import Sample
+from pytorch3dunet.augment.transforms import Compose, Normalize, Standardize, ToTensor
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.model import ResidualUNet2D, ResidualUNet3D, ResidualUNetSE3D, UNet2D, UNet3D, get_model
 from pytorch3dunet.unet3d.trainer import UNetTrainer
 from pytorch3dunet.unet3d.utils import create_lr_scheduler, create_optimizer, get_tensorboard_formatter
 from torch import nn
@@ -96,6 +100,9 @@ class Trainer(UNetTrainer):
     def __init__(
         self,
         model,
+        device,
+        in_channels,
+        out_channels,
         optimizer,
         lr_scheduler,
         loss_criterion,
@@ -138,6 +145,9 @@ class Trainer(UNetTrainer):
             pre_trained=pre_trained,
             **kwargs,
         )
+        self._in_channels = in_channels
+        self._out_channels = out_channels
+        self._device = device
         self.logs_callbacks: LogsCallbacks = BaseCallbacks()
         self.should_stop_callbacks: Callbacks = ShouldStopCallbacks()
 
@@ -150,10 +160,98 @@ class Trainer(UNetTrainer):
     def validate(self):
         return super().validate()
 
-    def forward(self, input_tensors):
+    def forward(self, input_tensors: Sample) -> Sample:
+        """
+        Note:
+            "The 2D U-Net itself uses the standard 2D convolutional
+            layers instead of 3D convolutions with kernel size (1, 3, 3) for performance reasons."
+            source: https://github.com/wolny/pytorch-3dunet
+
+            Thus, we drop the z dimension if we have 2d model.
+            But the input h5 data needs to respect CxDxHxW or DxHxW.
+        """
+
+        assert len(input_tensors.members) == 1, "We support models with 1 input"
+        tensor_id, input_tensor = input_tensors.members.popitem()
+        input_tensor = self._get_pytorch_tensor_from_bioimageio_tensor(input_tensor)
         self.model.eval()
+        b, c, z, y, x = input_tensor.shape
+        if self.is_2d_model() and z != 1:
+            raise ValueError(f"2d model detected but z != 1 for tensor {input_tensor.shape}")
+
+        # todo: normalization need to be consistent with the training one (it should be retrieved by the config)
+        preprocessor = Compose([Standardize(), ToTensor(expand_dims=True)])
+        input_tensor = self._apply_transformation(compose=preprocessor, tensor=input_tensor)
+
+        def apply_final_activation(input_tensors) -> torch.Tensor:
+            if self.model.final_activation is not None:
+                return self.model.final_activation(input_tensors)
+            return input_tensors
+
         with torch.no_grad():
-            self.model(input_tensors)
+            if self.is_2d_model():
+                input_tensor = input_tensor.squeeze(dim=-3)  # b, c, [z], y, x
+                predictions = self.model(input_tensor.to(self._device))
+                predictions = apply_final_activation(predictions)
+                predictions = predictions.unsqueeze(dim=-3)  # for consistency
+            else:
+                predictions = self.model(input_tensor.to(self._device))
+                predictions = apply_final_activation(predictions)
+
+        predictions = predictions.cpu()
+
+        # this needs to be exposed as well
+        # currently we scale the features from 0 - 1 (consistent scale for rendering across channels)
+        postprocessor = Compose([Normalize(norm01=True), ToTensor(expand_dims=True)])
+        predictions = self._apply_transformation(compose=postprocessor, tensor=predictions)
+
+        output_sample = Sample(
+            members={"output": self._get_bioimageio_tensor_from_pytorch_tensor(predictions)}, stat={}, id=None
+        )
+        return output_sample
+
+    def _apply_transformation(self, compose: Compose, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        To apply transformations pytorch 3d unet requires shape of DxHxW or CxDxHxW
+        """
+        b, c, z, y, x = tensor.shape
+        non_batch_tensors = []
+        for batch_idx in range(b):
+            # drop batch
+            non_batch_tensor = tensor[batch_idx, :]
+
+            # drop channel dim if single channel
+            dropped_channel = non_batch_tensor.squeeze(dim=-4) if self.is_input_single_channel() else non_batch_tensor
+
+            # adds channel back with the`expand_dims`
+            transformed_tensor = compose(dropped_channel.detach().cpu().numpy())
+
+            non_batch_tensors.append(transformed_tensor)
+
+        # add batch dim again
+        return torch.stack(non_batch_tensors, dim=0)
+
+    def is_input_single_channel(self) -> bool:
+        return self._in_channels == 1
+
+    def is_output_single_channel(self) -> bool:
+        return self._out_channels == 1
+
+    def _get_pytorch_tensor_from_bioimageio_tensor(self, bioimageio_tensor: bioimageio.core.Tensor) -> torch.Tensor:
+        xr_array = bioimageio_tensor.data
+        expected_dims = {"b", "c", "z", "y", "x"}
+        if set(xr_array.dims) != expected_dims:
+            raise ValueError(f"Tensor dims should be {expected_dims}, but got {xr_array.dims}")
+        return torch.from_numpy(xr_array.transpose("b", "c", "z", "y", "x").values)
+
+    def _get_bioimageio_tensor_from_pytorch_tensor(self, pytorch_tensor: torch.Tensor) -> bioimageio.core.Tensor:
+        return bioimageio.core.Tensor.from_xarray(xr.DataArray(pytorch_tensor.numpy(), dims=["b", "c", "z", "y", "x"]))
+
+    def is_3d_model(self):
+        return isinstance(self.model, (ResidualUNetSE3D, ResidualUNet3D, UNet3D))
+
+    def is_2d_model(self):
+        return isinstance(self.model, (ResidualUNet2D, UNet2D))
 
     def should_stop(self) -> bool:
         """
@@ -201,6 +299,9 @@ class TrainerYamlParser:
 
         model = get_model(config["model"])
 
+        in_channels = config["model"]["in_channels"]
+        out_channels = config["model"]["out_channels"]
+
         if torch.cuda.device_count() > 1 and not config["device"] == "cpu":
             model = nn.DataParallel(model)
         if torch.cuda.is_available() and not config["device"] == "cpu":
@@ -228,6 +329,9 @@ class TrainerYamlParser:
         pre_trained = trainer_config.pop("pre_trained", None)
 
         return Trainer(
+            device=config["device"],
+            in_channels=in_channels,
+            out_channels=out_channels,
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
