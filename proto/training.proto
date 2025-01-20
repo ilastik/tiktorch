@@ -21,7 +21,9 @@ service Training {
 
     rpc GetLogs(ModelSession) returns (GetLogsResponse) {}
 
-    rpc Export(ModelSession) returns (Empty) {}
+    rpc Save(SaveRequest) returns (Empty) {}
+
+    rpc Export(ExportRequest) returns (Empty) {}
 
     rpc Predict(PredictRequest) returns (PredictResponse) {}
 
@@ -58,6 +60,17 @@ message GetLogsResponse {
     repeated Logs logs = 1;
 }
 
+
+message SaveRequest {
+    ModelSession modelSessionId = 1;
+    string filePath = 2;
+}
+
+
+message ExportRequest {
+    ModelSession modelSessionId = 1;
+    string filePath = 2;
+}
 
 message ValidationResponse {
     double validation_score_average = 1;

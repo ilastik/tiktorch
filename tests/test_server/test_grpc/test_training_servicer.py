@@ -2,7 +2,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import grpc
 import h5py
@@ -41,8 +41,11 @@ def grpc_stub_cls():
     return training_pb2_grpc.TrainingStub
 
 
-def unet2d_config_path(checkpoint_dir, train_data_dir, val_data_path, device: str = "cpu"):
-    return f"""
+def unet2d_config_path(
+    checkpoint_dir: Path, train_data_dir: str, val_data_path: str, resume: Optional[str] = None, device: str = "cpu"
+):
+    # todo: upsampling makes model torchscript incompatible
+    config = f"""
 device: {device}  # Use CPU for faster test execution, change to 'cuda' if GPU is available and necessary
 model:
   name: UNet2D
@@ -53,13 +56,14 @@ model:
   num_groups: 4
   final_sigmoid: false
   is_segmentation: true
+  upsample: default
 trainer:
   checkpoint_dir: {checkpoint_dir}
-  resume: null
-  validate_after_iters: 2
+  resume: {resume if resume else "null"}
+  validate_after_iters: 250
   log_after_iters: 2
-  max_num_epochs: 1000
-  max_num_iterations: 10000
+  max_num_epochs: 10000
+  max_num_iterations: 100000
   eval_score_higher_is_better: True
 optimizer:
   learning_rate: 0.0002
@@ -149,6 +153,7 @@ loaders:
         - name: ToTensor
           expand_dims: false
 """
+    return config
 
 
 def create_random_dataset(shape, channel_per_class):
@@ -171,15 +176,22 @@ def create_random_dataset(shape, channel_per_class):
     return tmp.name
 
 
-def prepare_unet2d_test_environment(device: str = "cpu") -> str:
+def prepare_unet2d_test_environment(resume: Optional[str] = None, device: str = "cpu") -> str:
     checkpoint_dir = Path(tempfile.mkdtemp())
 
-    shape = (3, 1, 128, 128)
+    in_channel = 3
+    z = 1  # 2d
+    y = 128
+    x = 128
+    shape = (in_channel, z, y, x)
     binary_loss = False
     train = create_random_dataset(shape, binary_loss)
     val = create_random_dataset(shape, binary_loss)
 
-    return unet2d_config_path(checkpoint_dir=checkpoint_dir, train_data_dir=train, val_data_path=val, device=device)
+    config = unet2d_config_path(
+        resume=resume, checkpoint_dir=checkpoint_dir, train_data_dir=train, val_data_path=val, device=device
+    )
+    return config
 
 
 class TestTrainingServicer:
@@ -560,6 +572,98 @@ class TestTrainingServicer:
         with pytest.raises(grpc.RpcError) as excinfo:
             grpc_stub.Predict(predict_request)
         assert "Tensor dims should be" in excinfo.value.details()
+
+    def test_save_while_running(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_checkpoint_file = Path(model_checkpoint_dir) / "model.pth"
+            save_request = training_pb2.SaveRequest(
+                modelSessionId=training_session_id, filePath=str(model_checkpoint_file)
+            )
+            grpc_stub.Save(save_request)
+            assert model_checkpoint_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.RUNNING)
+
+            # assume stopping training to release devices
+            grpc_stub.CloseTrainerSession(training_session_id)
+
+            # attempt to init a new model with the new checkpoint and start training
+            training_session_id = grpc_stub.Init(
+                training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment(resume=model_checkpoint_file))
+            )
+            grpc_stub.Start(training_session_id)
+
+    def test_save_while_paused(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+        time.sleep(1)
+        grpc_stub.Pause(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_checkpoint_file = Path(model_checkpoint_dir) / "model.pth"
+            save_request = training_pb2.SaveRequest(
+                modelSessionId=training_session_id, filePath=str(model_checkpoint_file)
+            )
+            grpc_stub.Save(save_request)
+            assert model_checkpoint_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+            # assume stopping training to release devices
+            grpc_stub.CloseTrainerSession(training_session_id)
+
+            # attempt to init a new model with the new checkpoint and start training
+            training_session_id = grpc_stub.Init(
+                training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment(resume=model_checkpoint_file))
+            )
+            grpc_stub.Start(training_session_id)
+
+    def test_export_while_running(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_export_file = Path(model_checkpoint_dir) / "bioimageio.zip"
+            export_request = training_pb2.ExportRequest(
+                modelSessionId=training_session_id, filePath=str(model_export_file)
+            )
+            grpc_stub.Export(export_request)
+            assert model_export_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+            # assume stopping training since model is exported
+            grpc_stub.CloseTrainerSession(training_session_id)
+
+    def test_export_while_paused(self, grpc_stub):
+        training_session_id = grpc_stub.Init(
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment())
+        )
+
+        grpc_stub.Start(training_session_id)
+        time.sleep(1)
+        grpc_stub.Pause(training_session_id)
+
+        with tempfile.TemporaryDirectory() as model_checkpoint_dir:
+            model_export_file = Path(model_checkpoint_dir) / "bioimageio.zip"
+            export_request = training_pb2.ExportRequest(
+                modelSessionId=training_session_id, filePath=str(model_export_file)
+            )
+            grpc_stub.Export(export_request)
+            assert model_export_file.exists()
+            self.assert_state(grpc_stub, training_session_id, TrainerState.PAUSED)
+
+            # assume stopping training since model is exported
+            grpc_stub.CloseTrainerSession(training_session_id)
 
     def test_close_session(self, grpc_stub):
         """
