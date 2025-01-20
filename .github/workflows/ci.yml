@@ -118,7 +118,7 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
-      TIKTORCH_PACKAGE_NAME: tiktorch-${{ needs.conda-noarch-build.outputs.version }}-py_0.tar.bz2
+      TIKTORCH_PACKAGE_NAME: tiktorch-${{ needs.conda-noarch-build.outputs.version }}-py_0.conda
     steps:
       # Use GNU tar instead of BSD tar on Windows
       - name: "Use GNU tar instead of BSD tar"
