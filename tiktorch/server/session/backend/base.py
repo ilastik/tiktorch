@@ -94,3 +94,6 @@ class TrainerSessionBackend(SessionBackend):
 
     def get_state(self) -> TrainerState:
         return self._supervisor.get_state()
+
+    def get_best_model_idx(self) -> int:
+        return self._supervisor.get_best_model_idx()

@@ -176,6 +176,7 @@ class Trainer(UNetTrainer):
         self._device = device
         self.logs_callbacks: LogsCallbacks = BaseCallbacks()
         self.should_stop_callbacks: Callbacks = ShouldStopCallbacks()
+        self.ping_is_best_callbacks = BaseCallbacks()  # notification of having a new best model
 
     def fit(self):
         return super().fit()
@@ -184,7 +185,11 @@ class Trainer(UNetTrainer):
         return super().train()
 
     def validate(self):
-        return super().validate()
+        eval_score = super().validate()
+        is_best = self._is_best_eval_score(eval_score)
+        if is_best:
+            self.ping_is_best_callbacks()
+        return eval_score
 
     def save_state_dict(self, file_path: Path):
         """

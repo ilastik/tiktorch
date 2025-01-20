@@ -52,6 +52,15 @@ class TrainerSupervisor:
         self._session_thread = threading.Thread(target=self._start_session, name="SessionThread")
         self._command_queue_utils = CommandPriorityQueueUtils()
         self.training_error_callbacks: ErrorCallbacks = BaseCallbacks()
+        self._best_model_idx = 0
+        self._trainer.ping_is_best_callbacks.register(self._increment_best_model_idx)
+
+    def get_best_model_idx(self) -> int:
+        return self._best_model_idx
+
+    def _increment_best_model_idx(self):
+        self._best_model_idx += 1
+        logger.debug(f"New best model detected with id {self._best_model_idx}")
 
     def get_state(self) -> TrainerState:
         logger.debug(f"Get state called {self._state}")
@@ -82,15 +91,14 @@ class TrainerSupervisor:
     def _fit(self):
         try:
             self._trainer.fit()
+            if self.is_training_finished():
+                logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
+                self._state = TrainerState.FINISHED
         except Exception as e:
             logger.exception(f"Training error: {e}")
             self.training_error_callbacks(e)
             self._state = TrainerState.FAILED
             return
-
-        if self.is_training_finished():
-            logger.info(f"Training has finished: {self._get_num_iterations_epochs()} ")
-            self._state = TrainerState.FINISHED
 
     def is_training_finished(self):
         return (
