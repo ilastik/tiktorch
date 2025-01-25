@@ -68,6 +68,7 @@ dependencies:
   - bump2version
   - mypy
   - pre_commit
+  - matplotlib
 
   - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
 

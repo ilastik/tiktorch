@@ -1,0 +1,108 @@
+# Trained on data from the 2018 Kaggle Data Science Bowl: https://www.kaggle.com/c/data-science-bowl-2018/data
+
+device: cpu
+model:
+  name: UNet2D
+  in_channels: 1
+  out_channels: 1
+  layer_order: cr
+  num_groups: 8
+  f_maps: [32, 64, 128]
+  final_sigmoid: true
+  is_segmentation: true
+trainer:
+  checkpoint_dir: checkpoints
+  resume: null
+  pre_trained: null
+  validate_after_iters: 10
+  log_after_iters: 1
+  max_num_epochs: 50
+  max_num_iterations: 1000
+  eval_score_higher_is_better: True
+optimizer:
+  learning_rate: 0.0002
+  weight_decay: 0.00001
+loss:
+  name: BCEDiceLoss
+  skip_last_target: true
+eval_metric:
+  name: BlobsAveragePrecision
+  use_last_target: true
+  metric: 'ap'
+lr_scheduler:
+  name: ReduceLROnPlateau
+  mode: max
+  factor: 0.2
+  patience: 30
+loaders:
+  dataset: DSB2018Dataset
+  batch_size: 32
+  num_workers: 1
+  train:
+    file_paths:
+      #- dir/to/train_data
+      - /home/thodkatz/repos/kreshuklab/ilastik-playground/dsb_2018_data/train_semantic
+
+
+    transformer:
+      raw:
+        - name: CropToFixed
+          size: [256, 256]
+        - name: Standardize
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          axes: [[2, 1]]
+          angle_spectrum: 45
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
+          execution_probability: 0.2
+        - name: GaussianBlur3D
+          execution_probability: 0.5
+        - name: AdditiveGaussianNoise
+          execution_probability: 0.2
+        - name: AdditivePoissonNoise
+          execution_probability: 0.2
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: CropToFixed
+          size: [256, 256]
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          axes: [[2, 1]]
+          angle_spectrum: 45
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
+          execution_probability: 0.2
+        - name: Relabel
+        - name: BlobsToMask
+          append_label: true
+        - name: ToTensor
+          expand_dims: true
+  val:
+    file_paths:
+      #- dir/to/val_data
+      - /home/thodkatz/repos/kreshuklab/ilastik-playground/dsb_2018_data/val_semantic
+
+    transformer:
+      raw:
+        - name: CropToFixed
+          size: [256, 256]
+          centered: true
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: CropToFixed
+          size: [256, 256]
+          # always get the same crop for validation
+          centered: true
+        - name: Relabel
+        - name: BlobsToMask
+          append_label: true
+        - name: ToTensor
+          expand_dims: true
