@@ -12,7 +12,7 @@ version:
 
 devenv:
 	. $$(conda info --base)/etc/profile.d/conda.sh
-	mamba env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
+	conda env create --file environment.yml --name $(TIKTORCH_ENV_NAME)
 	make install_submodules
 
 run_server:
