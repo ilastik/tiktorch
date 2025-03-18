@@ -11,7 +11,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="24.12.0",
+    version="25.4.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -27,8 +27,8 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
-        "bioimageio.spec==0.5.3.3",
-        "bioimageio.core==0.6.10",
+        "bioimageio.spec",
+        "bioimageio.core==0.8.0",
         "grpcio>=1.31",
         "numpy<2",  # pytorch 2.2.2-py3.9_0 for macos is compiled with numpy 1.*
         "protobuf",
