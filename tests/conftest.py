@@ -393,7 +393,9 @@ def _bioimage_model_siso_v4(
     model_descr = v0_4.ModelDescr(
         name="mocked v4 model",
         authors=[v0_4.Author(name="me")],
-        cite=[v0_4.CiteEntry(text="for model training see my paper", url=HttpUrl("https://doi.org/10.1234something"))],
+        cite=[
+            v0_4.CiteEntry(text="for model training see my paper", url=HttpUrl("https://example.com/10.1234something"))
+        ],
         description="",
         inputs=[input_tensor],
         outputs=[output_tensor],
