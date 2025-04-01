@@ -274,7 +274,6 @@ class TestForwardPass:
             ("channel", "batch", "x", "y"),
             ("time", "channel", "x", "y"),
             ("batch", "channel", "z", "y"),
-            ("b", "c", "x", "y"),
         ],
     )
     def test_call_predict_invalid_axes(self, grpc_stub, axes, bioimage_model_explicit_add_one_siso_v5):

@@ -508,10 +508,13 @@ class TestTrainingServicer:
         "dims, shape",
         [
             (
-                ("b", "c", "z", "y", "x"),
+                ("batch", "channel", "z", "y", "x"),
                 (5, 3, 1, 128, 128),
             ),
-            (("b", "z", "y", "x", "c"), (5, 1, 128, 128, 3)),  # order of input may be different than the one expected
+            (
+                ("batch", "z", "y", "x", "channel"),
+                (5, 1, 128, 128, 3),
+            ),  # order of input may be different than the one expected
         ],
     )
     def test_forward_while_running(self, grpc_stub, dims, shape):
@@ -534,7 +537,7 @@ class TestTrainingServicer:
         predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
         assert len(predicted_tensors) == 1
         predicted_tensor = predicted_tensors[0]
-        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        assert predicted_tensor.dims == ("batch", "channel", "z", "y", "x")
         out_channels_unet2d = 2
         assert predicted_tensor.shape == (5, out_channels_unet2d, 1, 128, 128)
 
@@ -550,7 +553,7 @@ class TestTrainingServicer:
         out_channels_unet2d = 2
         shape = (batch, in_channels_unet2d, 1, 128, 128)
         data = np.random.rand(*shape).astype(np.float32)
-        xarray_data = xr.DataArray(data, dims=("b", "c", "z", "y", "x"))
+        xarray_data = xr.DataArray(data, dims=("batch", "channel", "z", "y", "x"))
         pb_tensor = xarray_to_pb_tensor(tensor_id="input", array=xarray_data)
         predict_request = utils_pb2.PredictRequest(modelSessionId=training_session_id, tensors=[pb_tensor])
 
@@ -564,7 +567,7 @@ class TestTrainingServicer:
         predicted_tensors = [pb_tensor_to_xarray(pb_tensor) for pb_tensor in response.tensors]
         assert len(predicted_tensors) == 1
         predicted_tensor = predicted_tensors[0]
-        assert predicted_tensor.dims == ("b", "c", "z", "y", "x")
+        assert predicted_tensor.dims == ("batch", "channel", "z", "y", "x")
         assert predicted_tensor.shape == (batch, out_channels_unet2d, 1, 128, 128)
 
     def test_forward_invalid_dims(self, grpc_stub):

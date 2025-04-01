@@ -62,7 +62,6 @@ test:
     - pytest-grpc
     - pytest-timeout
     - cpuonly
-    - ilastik-pytorch-version-helper-cpu
   imports:
     # client
     - tiktorch

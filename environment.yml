@@ -1,9 +1,7 @@
 name: tiktorch-server-env
 channels:
   - pytorch
-  - ilastik-forge
   - conda-forge
-  - nodefaults
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule

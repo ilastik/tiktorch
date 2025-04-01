@@ -24,6 +24,7 @@ jobs:
           auto-activate-base: false
           activate-environment: tiktorch-server-env
           environment-file: environment.yml
+          conda-remove-defaults: "true"
           channel-priority: strict
           miniforge-variant: Miniforge3
       - name: Get the latest commit hash and target ref
@@ -51,6 +52,7 @@ jobs:
           auto-activate-base: false
           activate-environment: tiktorch-server-env
           environment-file: environment.yml
+          conda-remove-defaults: "true"
           channel-priority: strict
           miniforge-variant: Miniforge3
       - name: conda diagnostics
@@ -89,6 +91,8 @@ jobs:
         with:
           auto-update-conda: true
           auto-activate-base: true
+          channels: conda-forge
+          conda-remove-defaults: "true"
           channel-priority: strict
           miniforge-variant: Miniforge3
       - name: install common conda dependencies
@@ -134,6 +138,7 @@ jobs:
           auto-update-conda: true
           auto-activate-base: true
           channel-priority: strict
+          conda-remove-defaults: "true"
           miniforge-variant: Miniforge3
       - name: install common conda dependencies
         run: conda install -n base -c conda-forge conda-build setuptools_scm -y
@@ -150,14 +155,14 @@ jobs:
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
+            -c ./pkgs -c pytorch -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: macOS Test
         if: matrix.os == 'macos-latest'
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c ilastik-forge -c pytorch -c conda-forge \
+            -c ./pkgs -c pytorch -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: Windows Test
         if: matrix.os == 'windows-latest'
@@ -169,5 +174,5 @@ jobs:
         shell: cmd /C CALL {0}
         run: |
           conda build --test --override-channels ^
-            -c %CD%\pkgs -c ilastik-forge -c pytorch -c conda-forge ^
+            -c %CD%\pkgs -c pytorch -c conda-forge ^
             .\pkgs\noarch\%TIKTORCH_PACKAGE_NAME%

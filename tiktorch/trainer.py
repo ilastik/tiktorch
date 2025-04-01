@@ -433,13 +433,15 @@ class Trainer(UNetTrainer):
 
     def _get_pytorch_tensor_from_bioimageio_tensor(self, bioimageio_tensor: bioimageio.core.Tensor) -> torch.Tensor:
         xr_array = bioimageio_tensor.data
-        expected_dims = {"b", "c", "z", "y", "x"}
+        expected_dims = {"batch", "channel", "z", "y", "x"}
         if set(xr_array.dims) != expected_dims:
             raise ValueError(f"Tensor dims should be {expected_dims}, but got {xr_array.dims}")
-        return torch.from_numpy(xr_array.transpose("b", "c", "z", "y", "x").values)
+        return torch.from_numpy(xr_array.transpose("batch", "channel", "z", "y", "x").values)
 
     def _get_bioimageio_tensor_from_pytorch_tensor(self, pytorch_tensor: torch.Tensor) -> bioimageio.core.Tensor:
-        return bioimageio.core.Tensor.from_xarray(xr.DataArray(pytorch_tensor.numpy(), dims=["b", "c", "z", "y", "x"]))
+        return bioimageio.core.Tensor.from_xarray(
+            xr.DataArray(pytorch_tensor.numpy(), dims=["batch", "channel", "z", "y", "x"])
+        )
 
     def should_stop(self) -> bool:
         """
