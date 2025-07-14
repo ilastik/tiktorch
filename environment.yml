@@ -1,18 +1,17 @@
 name: tiktorch-server-env
 channels:
-  - pytorch
   - conda-forge
 dependencies:
   # - bioimage.spec via submodule
   # - bioimage.core via submodule
-  - python 3.9.*
-  - numpy >=1.21,<2
-  - grpcio=1.49.1 # protobuf 5 requires protoc version > 3.19.0 that requires grpcio >= 1.44
+  - python 3.11.*
+  - numpy >=2,<3
+  - grpcio=1.69.0 # protobuf 5 requires protoc version > 3.19.0 that requires grpcio >= 1.44
   - marshmallow-union
   - marshmallow=3.12.*
   - marshmallow-jsonschema
   - protobuf
-  - pyyaml=5.3.*
+  - pyyaml>5
   - requests
   - scikit-learn
   - scipy
@@ -24,11 +23,10 @@ dependencies:
 
   # pytorch
   # remove cpuonly, add cudatoolkit and cudnn for gpu support
-  - pytorch=2.3.*
+  - pytorch=2.7.*
   # currently it's necessary to force the cpu version, remove
   # torchvision pin when going for gpu
   # - torchvision
-  - cpuonly
   # - cudatoolkit >=10.2
   # - cudnn
   - torchvision
@@ -66,8 +64,3 @@ dependencies:
   - bump2version
   - mypy
   - pre_commit
-
-  - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
-
-
-

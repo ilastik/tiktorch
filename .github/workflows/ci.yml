@@ -155,14 +155,14 @@ jobs:
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c pytorch -c conda-forge \
+            -c ./pkgs -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: macOS Test
         if: matrix.os == 'macos-latest'
         shell: bash -l {0}
         run: |
           conda build --test --override-channels \
-            -c ./pkgs -c pytorch -c conda-forge \
+            -c ./pkgs -c conda-forge \
             ./pkgs/noarch/${TIKTORCH_PACKAGE_NAME}
       - name: Windows Test
         if: matrix.os == 'windows-latest'
@@ -174,5 +174,5 @@ jobs:
         shell: cmd /C CALL {0}
         run: |
           conda build --test --override-channels ^
-            -c %CD%\pkgs -c pytorch -c conda-forge ^
+            -c %CD%\pkgs -c conda-forge ^
             .\pkgs\noarch\%TIKTORCH_PACKAGE_NAME%

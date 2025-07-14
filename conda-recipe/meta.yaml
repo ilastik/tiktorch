@@ -37,7 +37,6 @@ requirements:
       {% endif %}
     {% endfor %}
   run_constrained:
-    - mkl <2024.1.0  # [linux] until pytorch is compatible with the current version
     - cudatoolkit >=10.2
     {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
     - {{ dep.lower() }}
@@ -57,11 +56,10 @@ test:
     {% for dep in setup_py_data['extras_require']['server-pytorch'] %}
     - {{ dep.lower() }}
     {% endfor %}
-    - python 3.9.*
+    - python 3.11.*
     - pytest
     - pytest-grpc
     - pytest-timeout
-    - cpuonly
   imports:
     # client
     - tiktorch
