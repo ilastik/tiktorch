@@ -30,7 +30,7 @@ setup(
         "bioimageio.spec",
         "bioimageio.core==0.8.0",
         "grpcio>=1.31",
-        "numpy<2",  # pytorch 2.2.2-py3.9_0 for macos is compiled with numpy 1.*
+        "numpy>=2,<3",
         "protobuf",
         "pydantic>=2.7.0,<2.10",
         "pytorch3dunet",

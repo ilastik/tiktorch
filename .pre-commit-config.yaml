@@ -3,7 +3,7 @@ repos:
   rev: 23.3.0
   hooks:
   - id: black
-    language_version: python3.9
+    language_version: python3.11
     exclude: (.*_pb2.py|.*_pb2_grpc.py)
 - repo: https://github.com/timothycrosley/isort
   rev: 5.12.0

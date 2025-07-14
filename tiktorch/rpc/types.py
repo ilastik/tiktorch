@@ -1,7 +1,8 @@
 import inspect
 import threading
 from concurrent.futures import Future
-from typing import Callable, Generic, Type, TypeVar, _GenericAlias
+from types import GenericAlias
+from typing import Callable, Generic, Type, TypeVar
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -107,7 +108,7 @@ class RPCFuture(Future, Generic[T]):
 
 
 def _checkgenericfut(type_: Type) -> bool:
-    if isinstance(type_, _GenericAlias):
+    if isinstance(type_, GenericAlias):
         origin = getattr(type_, "__origin__", None)
         return origin and issubclass(origin, Future)
     return False
@@ -116,5 +117,4 @@ def _checkgenericfut(type_: Type) -> bool:
 def isfutureret(func: Callable):
     sig = inspect.signature(func)
     ret = sig.return_annotation
-
-    return (inspect.isclass(ret) and issubclass(sig.return_annotation, Future)) or _checkgenericfut(ret)
+    return (inspect.isclass(ret) and issubclass(ret, Future)) or _checkgenericfut(ret)
