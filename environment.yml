@@ -17,7 +17,7 @@ dependencies:
   - scipy
   - typing-extensions
   - xarray
-  - pytorch-3dunet
+  - pytorch-3dunet =1.9.2
   - setuptools
   - pip
 
@@ -38,19 +38,26 @@ dependencies:
 
   # bioimageio.spec / bioimageio.core dependencies:
   - annotated-types >=0.5.0,<1
+  - anyio
   - email_validator
+  - exceptiongroup
+  - genericache==0.5.2
   - h5py
   - imageio >=2.10
   - loguru
+  - markdown
   - packaging >=17.0
+  - platformdirs
   - pooch >=1.5,<2
-  - pydantic >=2.7.0,<2.10
+  - pydantic >=2.10.3,<2.12
   - pydantic-core
-  - pydantic-settings >=2.5
+  - pydantic-settings>=2.5,<3
   - python-dateutil
+  - respx
   - rich
   - ruyaml
   - tifffile
+  - typing-extensions
   - tqdm
   - typer
   - zipp

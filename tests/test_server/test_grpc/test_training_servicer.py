@@ -715,6 +715,6 @@ class TestTrainingServicer:
         assert response.id is not None
 
         response = grpc_stub.Init(
-            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment(device="gpu"))
+            training_pb2.TrainingConfig(yaml_content=prepare_unet2d_test_environment(device="cuda"))
         )
         assert response.id is not None
