@@ -21,7 +21,6 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          auto-activate-base: false
           activate-environment: tiktorch-server-env
           environment-file: environment.yml
           conda-remove-defaults: "true"
@@ -49,7 +48,6 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          auto-activate-base: false
           activate-environment: tiktorch-server-env
           environment-file: environment.yml
           conda-remove-defaults: "true"
@@ -90,7 +88,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          auto-activate-base: true
+          activate-environment: base
           channels: conda-forge
           conda-remove-defaults: "true"
           channel-priority: strict
@@ -136,7 +134,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          auto-activate-base: true
+          activate-environment: base
           channel-priority: strict
           conda-remove-defaults: "true"
           miniforge-variant: Miniforge3

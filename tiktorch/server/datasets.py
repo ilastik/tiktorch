@@ -129,7 +129,7 @@ class DynamicWeightedRandomSampler(Sampler):
 
     def __init__(self, dataset: DynamicDataset) -> None:
         self._dataset = dataset
-        super().__init__(dataset)
+        super().__init__()
 
     def __iter__(self):
         while True:
@@ -153,7 +153,7 @@ class DynamicWeightedRandomPyBioSampler(Sampler):
 
     def __init__(self, dataset: DynamicDataset) -> None:
         self._dataset = dataset
-        super().__init__(dataset)
+        super().__init__()
 
     def __iter__(self):
         while True:
