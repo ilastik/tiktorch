@@ -16,6 +16,38 @@ from .flight_control_servicer import FlightControlServicer
 from .inference_servicer import InferenceServicer
 from .training_servicer import TrainingServicer
 
+MAX_ERROR_MESSAGE_LEN: int = (
+    4048  # 4 kilobyte, leave some for the rest of the metadata, recommendation is much lower...
+)
+
+
+class ErrorShorteningInterceptor(grpc.ServerInterceptor):
+    def intercept_service(self, continuation, handler_call_details):
+        handler = continuation(handler_call_details)
+        assert handler
+
+        def wrap_behavior(behavior):
+            def error_handling_behavior(request, context):
+                try:
+                    return behavior(request, context)
+                except Exception as e:
+                    msg = str(e)
+
+                    if len(msg) > MAX_ERROR_MESSAGE_LEN:
+                        msg = msg[:MAX_ERROR_MESSAGE_LEN] + "...(truncated)"
+                    context.abort(grpc.StatusCode.INTERNAL, msg)
+
+            return error_handling_behavior
+
+        if handler.unary_unary:
+            return grpc.unary_unary_rpc_method_handler(
+                wrap_behavior(handler.unary_unary),
+                request_deserializer=handler.request_deserializer,
+                response_serializer=handler.response_serializer,
+            )
+
+        return handler
+
 
 def _print_available_devices(device_pool: IDevicePool) -> None:
     cuda = device_pool.cuda_version
@@ -49,6 +81,7 @@ def serve(host, port, *, connection_file_path: Optional[str] = None, kill_timeou
             ("grpc.max_receive_message_length", _100_MB),
             ("grpc.so_reuseport", 0),
         ],
+        interceptors=[ErrorShorteningInterceptor()],
     )
 
     data_store = DataStore()
