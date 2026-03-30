@@ -28,7 +28,7 @@ setup(
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
         "bioimageio.spec",
-        "bioimageio.core==0.9.6",
+        "bioimageio.core==0.10.0",
         "grpcio>=1.31",
         "numpy>=1.21,<3",
         "protobuf",
