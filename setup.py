@@ -11,19 +11,20 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="tiktorch",
-    version="26.3.1",
+    version="26.5.0",
     description="Tiktorch client/server",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ilastik/tiktorch",
     author="ilastik Team",
     author_email="team@ilastik.org",
-    classifiers=[  # Optional
+    classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     packages=find_packages(exclude=["tests"]),  # Required
     install_requires=[
